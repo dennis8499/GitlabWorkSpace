@@ -3,8 +3,8 @@ import type { JSX } from 'preact';
 import { useContext, useEffect, useRef } from 'preact/hooks';
 import type { SkillsContext } from '../workspace/workspaceProtocol';
 import { OperationFeedback } from './OperationFeedback';
-import { FeatureNotice, FeatureNotices } from './FeatureNotice';
-import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
+import { FeatureNotices } from './FeatureNotice';
+import { availabilityProps, blockedWhen, firstBlocker } from './featureAvailability';
 
 import { ActionController } from '../workspace/actionController';
 import { ActionContext, useActionSelector } from './useActions';

@@ -59,7 +59,7 @@ export class GitLab {
             continue;
           }
           const causeCode = error?.cause?.code ?? (error?.name === 'TimeoutError' ? 'timeout' : 'network error');
-          throw new Error(`GitLab ${this.key} API ${method} ${route} failed before a response (${causeCode}).`);
+          throw new Error(`GitLab ${this.key} API ${method} ${route} failed before a response (${causeCode}).`, { cause: error });
         }
         if (response.status !== 429 || attempt >= 12) break;
         retryWindowStarted ??= performance.now();
@@ -215,7 +215,7 @@ function git(args, cwd, env) {
     return execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 120_000 });
   } catch (error) {
     const code = error?.status ?? 'unknown';
-    throw new Error(`Git ${args[0] ?? 'operation'} failed in an isolated validation Repo (exit ${code}).`);
+    throw new Error(`Git ${args[0] ?? 'operation'} failed in an isolated validation Repo (exit ${code}).`, { cause: error });
   }
 }
 

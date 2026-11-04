@@ -62,9 +62,9 @@ suite('Live GitLab Workspace Webview validation', function () {
       api.setGitActionTraceHandlerForTesting((event) => actionTrace.push(event));
       const gitDiscoveryStarted = performance.now();
       let initialGitState = await api.getGitRepositoryState();
-      let gitDiscoveryMs = 0;
+      let gitDiscoveryMs: number;
       let gitDetailsStaleRetries = 0;
-      let remoteBranchNames: string[] = [];
+      let remoteBranchNames: string[];
     const port = Number(process.env.GLW_LIVE_CDP_PORT);
     const runId = process.env.GLW_RUN_ID || `local-git-gui-${Date.now()}`;
     let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined;
@@ -1081,7 +1081,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
       progress: document.querySelector('.git-progress')?.textContent ?? null,
       error: document.querySelector('.dashboard-error')?.textContent ?? null
     }))()`);
-    throw new Error(`${String(error)} (UI before whole-file stage: ${JSON.stringify(beforeWholeFileStage)}; UI after: ${JSON.stringify(afterWholeFileStage)})`);
+    throw new Error(`${String(error)} (UI before whole-file stage: ${JSON.stringify(beforeWholeFileStage)}; UI after: ${JSON.stringify(afterWholeFileStage)})`, { cause: error });
   }
   const commitMessage = `GUI validation ${runId}`;
   await checkIdle?.('stage');
@@ -1272,7 +1272,7 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
       interactive: document.querySelector('.git-dialog input[name="interactive"]')?.checked ?? null,
       todoRows: document.querySelectorAll('.git-rebase-todo-row').length
     }))()`);
-    throw new Error(`${String(error)} (Rebase UI: ${JSON.stringify(rebaseUi)})`);
+    throw new Error(`${String(error)} (Rebase UI: ${JSON.stringify(rebaseUi)})`, { cause: error });
   }
   const rebaseActions = ['pick', 'reword', 'edit', 'squash', 'fixup', 'drop'];
   for (let index = 0; index < rebaseActions.length; index++) {
@@ -1390,7 +1390,7 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
       error: document.querySelector('.dashboard-error')?.innerText ?? null,
       diffText: document.querySelector('.git-diff-view')?.innerText?.slice(0, 800) ?? null
     }))()`);
-    throw new Error(`${String(error)} (Merge Parent Diff UI: ${JSON.stringify(diffUi)})`);
+    throw new Error(`${String(error)} (Merge Parent Diff UI: ${JSON.stringify(diffUi)})`, { cause: error });
   }
 
   const pickFile = `gui-pick-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;

@@ -83,12 +83,12 @@ export class LocalNetworkLease {
           throw new Error('Unconfirmed or incompatible network operation owns this lease; inspect it before retrying.');
         }
         try { process.kill(owner.pid, 0); }
-        catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') throw new Error('A previous network owner stopped; its subprocess state must be checked before recovery.'); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') throw new Error('A previous network owner stopped; its subprocess state must be checked before recovery.', { cause: error }); }
         missingOwnerSince = undefined;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !isTransientWindowsFileError(error)) throw error;
         missingOwnerSince ??= Date.now();
-        if (Date.now() - missingOwnerSince > 2_000) throw new Error('Network lease metadata is missing; automatic recovery would be unsafe.');
+        if (Date.now() - missingOwnerSince > 2_000) throw new Error('Network lease metadata is missing; automatic recovery would be unsafe.', { cause: error });
       }
       if (Date.now() >= deadline) throw Object.assign(new Error('Timed out waiting for another network operation. No request was sent.'), { name: 'TimeoutError', effect: 'none' });
       const poll = kind === 'api-control' ? 5 + Math.random() * 5 : 100 + Math.random() * 50;

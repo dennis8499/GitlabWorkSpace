@@ -50,6 +50,7 @@ try {
 } finally {
   // Windows workbench watchers can retain .git handles until the test window exits.
   const target = await realpath(temporaryRoot);
+  // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
   if (path.dirname(target) !== tempParent || !path.basename(target).startsWith(prefix)) throw new Error('Unsafe Extension Host fixture cleanup path.');
   if (process.exitCode) console.error(`Extension Host failed; isolated logs retained at ${target}`);
   else await rm(target, { recursive: true, force: true, maxRetries: 12, retryDelay: 100 });

@@ -16,8 +16,13 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   }
   await mkdir(path.join(root, 'out'));
   await writeFile(path.join(root, 'out/extension.js'), 'compiled');
-  await savePreparation(root, ['compile'], ['out']);
+  await savePreparation(root, ['lint', 'compile'], ['out']);
   await assertPrepared(root, ['compile']);
+  await writeFile(path.join(root, 'eslint.config.mjs'), 'changed lint rules');
+  await assert.rejects(assertPrepared(root, ['compile']), /changed/);
+  await savePreparation(root, ['compile'], ['out']);
+  await assert.rejects(assertPrepared(root, ['compile']), /incomplete/);
+  await savePreparation(root, ['lint', 'compile'], ['out']);
   await assert.rejects(assertPrepared(root, ['kit']), /incomplete/);
   await writeFile(path.join(root, 'resources/bmad/bmad-help.csv'), 'changed catalog');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
@@ -30,7 +35,7 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await rm(path.join(root, 'docs/new-guide.md'));
   await writeFile(path.join(root, 'src/change.ts'), 'new source');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
-  await savePreparation(root, ['compile'], ['out']);
+  await savePreparation(root, ['lint', 'compile'], ['out']);
   await rm(path.join(root, 'out/extension.js'));
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
 });

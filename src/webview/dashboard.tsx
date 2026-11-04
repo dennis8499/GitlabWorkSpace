@@ -4,10 +4,7 @@ import { render, type ComponentChildren } from 'preact';
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
-import type {
-  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitReleaseSummary,
-  CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
-} from '../workspace/workspaceProtocol';
+import type { AnalysisIntent, IssueDraftBundle, IssueNavigation, ToolSource, CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry } from '../workspace/workspaceProtocol';
 import { normalizeWorkspaceMode } from '../workspace/workspaceProtocol';
 import type { TimeEdit } from './issue-workflow';
 import { IssueGraphView } from './IssueGraph';
@@ -192,12 +189,6 @@ function fmtSeconds(value: number): string {
   const minutes = Math.floor(value % 3600 / 60);
   const seconds = value % 60;
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}` : `${minutes}:${String(seconds).padStart(2, '0')}`;
-}
-function durationInput(value: number): string {
-  const hours = Math.floor(value / 3600);
-  const minutes = Math.floor(value % 3600 / 60);
-  const seconds = value % 60;
-  return `${hours ? `${hours}h` : ''}${minutes ? `${minutes}m` : ''}${seconds ? `${seconds}s` : ''}` || '1m';
 }
 function TimerStatus({ instanceUserScope, initialTimers, version }: { instanceUserScope?: string; initialTimers: WorkspaceTimerEntry[]; version: number }) {
   const [timers, setTimers] = useState(initialTimers);
@@ -427,13 +418,13 @@ function App() {
   const [requirement, setRequirement] = useState(initial?.requirement ?? '');
   const [bundle, setBundle] = useState<IssueDraftBundle | undefined>(initial?.importedBundle);
   const [recoveredBundle, setRecoveredBundle] = useState<IssueDraftBundle | undefined>(initial?.recoveredBundle ?? (!initial?.scopeKey ? initial?.importedBundle : undefined));
-  const [recoveredTargetPath, setRecoveredTargetPath] = useState('');
+  const [_recoveredTargetPath, _setRecoveredTargetPath] = useState('');
   const [importText, setImportText] = useState(initial?.importText ?? '');
   const [draftChecked, setDraftChecked] = useState<Record<string, boolean>>(initial?.draftChecked ?? {});
   const [draftChoices, setDraftChoices] = useState<Record<string, DraftChoice>>(initial?.draftChoices ?? {});
-  const [draftOptions, setDraftOptions] = useState<Record<number, { options: IssueFormOptions; canCreateIssue: boolean }>>({});
+  const [_draftOptions, setDraftOptions] = useState<Record<number, { options: IssueFormOptions; canCreateIssue: boolean }>>({});
   const [reports, setReports] = useState<Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>>(initial?.reports ?? {});
-  const [similarIssues, setSimilarIssues] = useState<Record<string, Array<{ iid: number; title: string; webUrl: string }>>>({});
+  const [_similarIssues, setSimilarIssues] = useState<Record<string, Array<{ iid: number; title: string; webUrl: string }>>>({});
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initialScopedState?.reviewFilter ?? initial?.reviewFilter ?? 'all');
   const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>(initial?.reviewerTab ?? 'changes');
   const [mrReplyDrafts, setMrReplyDrafts] = useState<Record<string, string>>(initial?.mrReplyDrafts ?? {});
@@ -508,7 +499,7 @@ function App() {
   const snapshotStream = useRef<{ streamId: string; scope: string; version: number; snapshot: WorkspaceSnapshot }>();
   const retiredSnapshotStreams = useRef(new Set<string>());
   const resyncRequested = useRef(false);
-  const [moreRepoActions, setMoreRepoActions] = useState(false);
+  const [_moreRepoActions, setMoreRepoActions] = useState(false);
   const scopeRef = useRef(initial?.scopeKey);
   const instanceUserScopeRef = useRef(initial?.instanceUserScope);
   const issueBoardSelectionRef = useRef<string>();
@@ -1193,43 +1184,6 @@ function App() {
     const connectedScope = snapshot?.connectedScope;
     if (!connectedScope) return;
     post({ type: 'loadIssueGraph', connectedScope, forceNetwork: true });
-  }
-  function addDraftFromMarkdown(): void {
-    if (!importText.trim() || !projects.length) return;
-    const projectId = selectedIds.sa ?? analysisProjectIds[0] ?? projects[0].id;
-    const project = projectById.get(projectId);
-    if (!project) return;
-    const firstHeading = /^#\s+(.+)$/m.exec(importText)?.[1];
-    const draft: IssueDraft = {
-      id: `manual-${crypto.randomUUID()}`, projectPath: project.path_with_namespace,
-      title: firstHeading?.slice(0, 200) ?? '程式分析 Issue 草稿', description: importText.trim(),
-      acceptanceCriteria: ['依分析內容確認驗收條件'], sourceEvidence: []
-    };
-    setBundle({ schema: 'IssueDraftBundle/v1', analysisId: `manual-${crypto.randomUUID()}`, drafts: [draft] });
-    setDraftChecked({ [draft.id]: true });
-    setImportText('');
-  }
-  function changeDraft(id: string, patch: Partial<IssueDraft>): void {
-    setBundle((current) => current ? { ...current, drafts: current.drafts.map((draft) => draft.id === id ? { ...draft, ...patch } : draft) } : current);
-  }
-  function draftChoice(id: string, patch: Partial<DraftChoice>, draft: IssueDraft): void {
-    const project = projects.find((item) => item.path_with_namespace === draft.projectPath);
-    if (project && !draftOptions[project.id]) post({ type: 'loadDraftOptions', projectId: project.id });
-    setDraftChoices((current) => {
-      const prior = current[id] ?? { assigneeId: undefined, labels: draft.labels ?? [] };
-      return { ...current, [id]: { ...prior, ...patch } };
-    });
-  }
-  function createDrafts(): void {
-    if (!bundle) return;
-    const chosen = bundle.drafts.filter((draft) => draftChecked[draft.id] !== false);
-    if (!chosen.length) { notify('請至少選擇一張草稿。', 'warn'); return; }
-    const options = Object.fromEntries(chosen.map((draft) => [draft.id, {
-      assigneeId: draftChoices[draft.id]?.assigneeId,
-      labels: draftChoices[draft.id]?.labels ?? draft.labels ?? [],
-      milestoneId: draftChoices[draft.id]?.milestoneId
-    }]));
-    post({ type: 'createIssueDrafts', analysisId: bundle.analysisId, drafts: chosen, options });
   }
   function openReviewerTask(): void {
     if (!selectedIssueProject && !mr) return;

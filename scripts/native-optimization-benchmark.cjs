@@ -85,6 +85,7 @@ async function measureFingerprint(root, fixture) {
       limits: ['This targeted benchmark complements the real Extension Host/GitLab benchmarks; it does not establish an end-to-end performance guarantee.'] }, null, 2) + '\n');
   } finally {
     const target = await fs.realpath(fixture);
+    // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
     if (path.dirname(target) !== tempRoot || !path.basename(target).startsWith('glw-native-benchmark-')) throw new Error('Unsafe benchmark cleanup path.');
     await fs.rm(target, { recursive: true, force: true });
   }

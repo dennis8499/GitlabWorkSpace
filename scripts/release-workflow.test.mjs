@@ -20,7 +20,7 @@ test('[BDD-REL-003] retains all three Windows cells and builds once per validati
 test('keeps validation read-only and grants write only to guarded tag promotion', () => {
   for (const eol of ['\n', '\r\n']) {
     const text = workflow.replace(/\r?\n/g, eol);
-    const [validation, publish] = text.split(/\r?\n  publish:\r?\n/);
+    const [validation, publish] = text.split(/\r?\n {2}publish:\r?\n/);
     assert.doesNotMatch(validation, /contents:\s*write/);
     assert.match(publish, /contents:\s*write/);
     assert.match(publish, /github.event_name == 'push' && startsWith\(github.ref, 'refs\/tags\/'\)/);

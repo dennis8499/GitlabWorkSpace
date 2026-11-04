@@ -28,7 +28,7 @@ export async function fingerprint(root, paths) {
 }
 
 export function preparationInputs() {
-  return ['package.json', 'package-lock.json', '.gitattributes', 'src', 'test', 'scripts', 'docs',
+  return ['package.json', 'package-lock.json', '.gitattributes', 'eslint.config.mjs', 'src', 'test', 'scripts', 'docs',
     'tsconfig.json', 'tsconfig.webview.json', 'vite.dashboard.config.mjs',
     'vite.sidebar.config.mjs', 'vite.issue-test.config.mjs', '.vscode-test.mjs',
     '.vscodeignore', 'README.md', 'CONTRIBUTING.md', 'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1',
@@ -51,7 +51,7 @@ export async function assertPrepared(root, requiredStages) {
   try {
     receipt = JSON.parse(await readFile(path.join(root, receiptPath), 'utf8'));
     if (receipt.schema !== 'gitlab-workspace-prepared/v1' ||
-        requiredStages.some(stage => !receipt.stages.includes(stage)) ||
+        !receipt.stages.includes('lint') || requiredStages.some(stage => !receipt.stages.includes(stage)) ||
         receipt.inputs !== await fingerprint(root, preparationInputs()) ||
         receipt.outputSha256 !== await fingerprint(root, receipt.outputs)) throw new Error('stale preparation');
   } catch (error) {

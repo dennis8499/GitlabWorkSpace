@@ -124,7 +124,7 @@ test('recognizes supported CE metadata and keeps edition limits in capability di
   const blockingLinks = session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks');
   assert.equal(blockingLinks?.status, 'unsupported');
   assert.match(blockingLinks?.reason ?? '', /Community Edition/);
-  assert.ok(!session.instanceWarnings.some((warning) => /低於最低支援版本/));
+  assert.ok(!session.instanceWarnings.some((_warning) => /低於最低支援版本/));
   assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'mergeRequestApprovals')?.status, 'unsupported');
 });
 
@@ -138,7 +138,7 @@ test('does not infer Premium or Ultimate blocking-link support from Enterprise E
 test('keeps confirmed API capabilities when GitLab version metadata is unavailable', async () => {
   const session = await sessionWithInstance(Promise.reject(new Error('metadata unavailable')));
   assert.equal(session.issueCapabilities?.discussionResolve, false);
-  assert.ok(session.instanceWarnings.some((warning) => /不能確認是否符合最低支援版本.*仍可使用/));
+  assert.ok(session.instanceWarnings.some((_warning) => /不能確認是否符合最低支援版本.*仍可使用/));
 });
 
 test('backs failed version and capability probes off for 60 seconds but lets a manual check retry immediately', async () => {

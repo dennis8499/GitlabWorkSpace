@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertPrepared, receiptPath, runLogged, runPool, savePreparation, workerCount } from './validation-runtime.mjs';
@@ -10,10 +10,10 @@ if (!validModes.includes(mode) || args.some(arg => !['--prepared', '--production
   throw new Error('Usage: run-validation.mjs [all|prepare|unit|behavior|release|extension|package|prepublish] [--prepared] [--production]');
 }
 const prepared = args.includes('--prepared') || (mode === 'prepublish' && process.env.GITLAB_WORKSPACE_PREPARED === '1');
-const stages = mode === 'release' ? [] : mode === 'extension' ? ['compile']
+const stages = ['lint', ...(mode === 'release' ? [] : mode === 'extension' ? ['compile', 'webview']
   : mode === 'behavior' ? ['compile', 'webview', 'issue']
   : (mode === 'prepare' || mode === 'all') && !args.includes('--production')
-    ? ['compile', 'webview', 'issue'] : ['compile', 'webview'];
+    ? ['compile', 'webview', 'issue'] : ['compile', 'webview'])];
 if (prepared) await assertPrepared(root, stages);
 if (mode === 'prepublish' && prepared) process.exit(0);
 
@@ -25,7 +25,7 @@ const lock = path.join(root, '.gitlab-workspace-validation', 'runner.lock');
 await mkdir(path.dirname(lock), { recursive: true });
 try { await mkdir(lock); } catch (error) {
   if (error.code !== 'EEXIST') throw error;
-  throw new Error(`Another validation command owns ${lock}. If its process has stopped, remove that directory and retry.`);
+  throw new Error(`Another validation command owns ${lock}. If its process has stopped, remove that directory and retry.`, { cause: error });
 }
 await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid, mode, evidenceDir }));
 const results = [];
@@ -56,13 +56,16 @@ async function required(job, options) {
   if (result.exitCode !== 0) throw new Error(`${job.id} failed; see ${result.log}`);
 }
 try {
+  if (!prepared) {
+    await rm(path.join(root, receiptPath), { force: true });
+    await required(node('lint', 'node_modules/eslint/bin/eslint.js', '.', '--max-warnings', '0'));
+  }
   // Resolve/download the editor and check launch inputs before the long suites.
   const hostProof = path.join(evidenceDir, 'extension-host.json');
   if (mode === 'all' || mode === 'extension') {
     await required(node('host-preflight', 'scripts/run-extension-tests.mjs', '--preflight', hostProof));
   }
   if (!prepared) {
-    await rm(path.join(root, receiptPath), { force: true });
     if (stages.includes('compile')) {
       await required(node('clean-compiled', 'scripts/clean-compiled.mjs'));
       await required(node('compile', 'node_modules/typescript/bin/tsc', '-p', '.'));
@@ -73,8 +76,7 @@ try {
       await required(node('build-sidebar', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.sidebar.config.mjs'));
     }
     if (stages.includes('issue')) await required(node('build-issue-tests', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.issue-test.config.mjs'));
-    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
-    const outputs = stages.flatMap(stage => ({ compile: ['out', 'out/src/extension.js'],
+    const outputs = stages.flatMap(stage => ({ lint: [], compile: ['out', 'out/src/extension.js'],
       webview: ['resources/issue-webview', 'resources/sidebar-webview', 'resources/issue-webview/dashboard.js', 'resources/sidebar-webview/sidebar.js'],
       issue: ['resources/issue-webview/issue-test.js'],
     })[stage]);

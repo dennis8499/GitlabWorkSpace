@@ -147,7 +147,7 @@ export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInput
 export function isExplicitBranch(input: string): boolean {
   const branch = input.trim();
   return !!branch && !/^(?:HEAD|refs\/tags\/.*|[a-f0-9]{40}|[a-f0-9]{64})$/i.test(branch)
-    && !/^[/-]|[\s\x00-\x20\x7f~^:?*\[\\]|\.\.|@\{|\/\/|\/$|\.lock$|\.$/.test(branch);
+    && !/^[/-]|[\s\x00-\x20\x7f~^:?*[\\]|\.\.|@\{|\/\/|\/$|\.lock$|\.$/.test(branch);
 }
 
 export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {

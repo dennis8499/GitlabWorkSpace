@@ -19,6 +19,7 @@ dist/**
 out/test/**
 index.html
 tsconfig.json
+eslint.config.mjs
 tsconfig.webview.json
 vite.config.mjs
 vite.dashboard.config.mjs

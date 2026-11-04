@@ -247,9 +247,10 @@ async function runOne(key, round, args, executable, packageInfo) {
       status: recorded?.status ?? (/timed out|fetch failed|ECONNREFUSED|network error/i.test(message) ? 'BLOCKED' : 'FAIL'), error: message
     };
     writeFileSync(path.join(EVIDENCE, `${reportStem}-failure.json`), `${JSON.stringify(failure, null, 2)}\n`, 'utf8');
-    throw new Error(message);
+    throw new Error(message, { cause: error });
   } finally {
     const cdpClosed = await waitForCdpClosed(port, 15_000);
+    // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
     if (!cdpClosed) throw new Error(`VS Code is still serving CDP on port ${port}; preserving its isolated test profile.`);
     for (const target of profile.cleanupPaths) removeOwnedTestDirectory(target);
   }
@@ -883,7 +884,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   await frame.waitForFunction(() => document.querySelector('.git-commit-launch')?.disabled === false, undefined, { timeout: 10_000 });
   await frame.locator('.git-commit-launch').click();
   await frame.locator('.git-progress').waitFor({ state: 'visible', timeout: 10_000 });
-  const commitConfirmation = await confirm('Commit');
+  const _commitConfirmation = await confirm('Commit');
   await frame.locator('.git-progress').waitFor({ state: 'hidden', timeout: 30_000 });
   const commit = await waitGit(['log', '-1', '--format=%s'], (value) => value.includes(commitMessage), 'The confirmed commit did not appear in local Git history.');
 
@@ -891,7 +892,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   await frame.locator('.git-dialog').waitFor({ state: 'visible' });
   await frame.locator('.git-dialog button[type="submit"]').click();
   await frame.locator('.git-progress').waitFor({ state: 'visible', timeout: 10_000 });
-  const pushConfirmation = await confirm('Push');
+  const _pushConfirmation = await confirm('Push');
   await frame.locator('.git-progress').waitFor({ state: 'hidden', timeout: 30_000 });
   const upstream = await waitGit(['rev-parse', '--abbrev-ref', '@{upstream}'], (value) => value === `origin/${branch}`, 'Push did not set the upstream branch.');
   const remoteBranch = await waitGit(['ls-remote', 'origin', `refs/heads/${branch}`], (value) => /^[a-f0-9]{40,64}\s+refs\/heads\//.test(value), 'Push did not update the isolated bare remote.');

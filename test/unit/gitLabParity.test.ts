@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import type { ExtensionContext, Memento } from 'vscode';
-import { GitLabClient, GitLabWriteRejectedError, GitLabWriteUnknownError, gitLabWriteFailureEffect, type FetchLike } from '../../src/api/gitLabClient';
+import { GitLabClient, gitLabWriteFailureEffect, type FetchLike } from '../../src/api/gitLabClient';
 import type { GitLabNetworkGate } from '../../src/api/gitLabNetworkGate';
 import { issueDeleteAvailability, mergeAvailability } from '../../src/api/actionAvailability';
 import { timeEntryTimestamp } from '../../src/api/timeEntry';

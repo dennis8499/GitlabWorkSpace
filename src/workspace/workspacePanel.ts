@@ -4,8 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { access, readFile, writeFile, mkdir, mkdtemp, unlink, rmdir, readdir, lstat, realpath } from 'node:fs/promises';
-import os from 'node:os';
+import { access, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { GitLabApiError, gitLabWriteFailureEffect, type GitLabClient } from '../api/gitLabClient';
 import { timeEntryTimestamp } from '../api/timeEntry';
@@ -18,7 +17,7 @@ import { gitLabReadLifetimeMs, groupBoardReadKey, groupWorkspaceReadKey, type Gi
 import type { GitLabGraphWorkItem, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser, GitLabPage, GitLabBoardMembershipCursor, GitLabIssueGraphCursor } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
-import { cloneProjects, createScopedGitEnvironment, prepareOperationLayout, projectRemoteIdentity, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
+import { cloneProjects, prepareOperationLayout, projectRemoteIdentity, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
 import { resolveLocalRepositoryLayout } from './localRepositoryLayout';
 import { groupRepositoryPath, inspectWorkflowKitInstallRoot, localRepositoryStateAsync, resolveWorkflowKitInstallRoot, sameLocalPath, sameRealLocalPathAsync, scanLocalGroupRepositories, type LocalGroupRepository, type WorkspaceRootResolution } from './workspacePaths';
 import { resolvePythonRuntime } from './pythonRuntime';
@@ -47,15 +46,12 @@ import type { NotificationOrigin } from '../notifications/notificationProtocol';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './workflowKitReleases';
-import type {
-  BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
-  CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
-} from './workspaceProtocol';
+import type { BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft, CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry } from './workspaceProtocol';
 import { WorkflowKitService } from './workflowKitService';
 import { workflowKitInstallationVerified, workflowKitInterfaceCompatible } from './workflowKitCompatibility';
 import { normalizeWorkspaceMode } from './workspaceProtocol';
 import type { GitLabSession } from '../connection/session';
-import { isAllowedGitRemote, normalizeGitLabBaseUrl } from '../api/urlPolicy';
+import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
 import type { AccountOperation, AccountPanelIntent } from '../connection/accountProtocol';
 import type { GroupWorkspaceMatch } from './workspaceEnvironment';
 import { ProjectEnvironmentSnapshotCache } from './projectEnvironmentSnapshotCache';
@@ -70,18 +66,17 @@ import { readInstalledReviewerBinding } from './installedReviewer';
 import { readWorkflowKitRunnerBinding } from './workflowKitRunner';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
-import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
 import { isGitPanelRequest, isGitWriteAction } from '../git/gitProtocol';
 import type { GitPanelMessage } from '../git/gitProtocol';
 import type { LogContext } from '../logging/logProtocol';
 import type { LogOutcome } from '../logging/operationLog';
-import { logGitCommand } from '../git/gitCommandLog';
+
 import { localPathKey, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from '../git/repositoryScanner';
 
 const execFileAsync = promisify(execFile);
 const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
-const MAX_DIFF_BYTES = 320_000;
+const _MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
 const ALLOWED_MODES = new Set<WorkspaceMode>(['dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git']);
 
@@ -1557,7 +1552,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workspaceSectionAborts.set(section, controller);
     const current = () => !controller.signal.aborted && !this.disposed && generation === this.workspaceSectionGenerations.get(section) && connectedScope === this.connectedScopeKey();
     const started = Date.now(); let requests = 0, bytes = 0;
-    let provenance: ReadObservation = reset ? {} : { dataSource: previous?.dataSource, fetchedAt: previous?.fetchedAt, expiresAt: previous?.expiresAt };
+    const provenance: ReadObservation = reset ? {} : { dataSource: previous?.dataSource, fetchedAt: previous?.fetchedAt, expiresAt: previous?.expiresAt };
     const budget = new GitLabRequestBudget({ requests: 20, bytes: 16 * 1024 * 1024, timeoutMs: 30_000 });
     type Item = GitLabProject | GitLabIssue | GitLabMergeRequest | GitLabMilestone | GitLabIssueBoard;
     const rows = (): Item[] => section === 'projects' ? this.projects : section === 'issues' ? this.issues : section === 'mergeRequests' ? this.mergeRequests : section === 'milestones' ? this.groupMilestones : this.groupIssueBoards;
@@ -4098,7 +4093,7 @@ export class WorkspacePanel implements vscode.Disposable {
       connectionGeneration === this.requestGeneration && sectionGeneration === this.mergeRequestSectionGenerations[section] &&
       this.selectedMergeRequest?.request.project_id === projectId && this.selectedMergeRequest.request.iid === iid;
     try {
-      const client = (await this.session.getClient()).withReadSignal(controller.signal);
+      const _client = (await this.session.getClient()).withReadSignal(controller.signal);
       if (!isCurrent()) return;
       if (section === 'diffs') {
         const verified = await readVerifiedMergeRequestDiff(this.session, this.session.selectedGroup?.id ?? 0, selected.request,
@@ -4204,7 +4199,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const request = this.selectedMergeRequest!.request, identity = this.mergeRequestDiffIdentity(request);
     this.selectedMergeRequest = { ...this.selectedMergeRequest!, freshness: { state: 'checking' } }; this.sendSnapshot();
     const now = Date.now();
-    let freshness: BranchFreshness = { state: 'unknown', reason: '無法比較 GitLab commit ancestry。', checkedAt: now };
+    let freshness: BranchFreshness;
     const targetProjectId = request.target_project_id ?? request.project_id;
     const sourceProjectId = request.source_project_id ?? request.project_id;
     try {
@@ -4445,7 +4440,7 @@ export class WorkspacePanel implements vscode.Disposable {
       if (!found) {
         await this.savePendingMrWrite({ key, marker, groupId, userId, projectId, iid, discussionId, state: 'uncertain' }, key);
         this.noteOutcome({ effect: 'unknown' });
-        throw new Error(`評論送出結果尚未確認；已保留對帳標記，請先檢查 GitLab，不會自動重送。${readableError(error)}`);
+        throw new Error(`評論送出結果尚未確認；已保留對帳標記，請先檢查 GitLab，不會自動重送。${readableError(error)}`, { cause: error });
       }
     }
     await this.savePendingMrWrite(undefined, key);
@@ -4938,24 +4933,8 @@ function gitLabGlobalIdNumber(value: string | number | null | undefined): number
   return Number.isSafeInteger(id) && id > 0 ? id : undefined;
 }
 
-async function exists(target: string): Promise<boolean> {
-  try { await access(target); return true; } catch { return false; }
-}
-
 function requireIssueIid(value: number): void {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error('Issue／MR IID 格式無效。');
-}
-
-async function git(cwd: string, args: string[], options: { maxBuffer?: number; env?: NodeJS.ProcessEnv } = {}): Promise<string> {
-  const result = await logGitCommand(args, cwd, () => execFileAsync('git', args, { cwd, env: options.env, windowsHide: true, timeout: 60_000, maxBuffer: options.maxBuffer ?? 2 * 1024 * 1024, encoding: 'utf8' }));
-  return result.stdout;
-}
-
-
-
-function checkedText(value: string, label: string, max: number): string {
-  if (typeof value !== 'string' || !value.trim() || value.length > max || /[\0\r]/.test(value)) throw new Error(`${label} 請填寫 1 到 ${max} 個字元。`);
-  return value.trim();
 }
 
 function readableError(error: unknown): string {

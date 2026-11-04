@@ -44,8 +44,8 @@ const nodeTitle = (node: BmadCatalogNode): string => node.action === 'status' &&
   ? '查看 Sprint 狀態' : BMAD_CAPABILITY_GUIDES[node.skill]?.title ?? node.displayName;
 const nativeCommand = (skill: string, action?: string): string => `$${skill}${action ? ` ${action}` : ''}`;
 
-import { FeatureNotice, FeatureNotices, FeatureButton } from './FeatureNotice';
-import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
+import { FeatureNotices, FeatureButton } from './FeatureNotice';
+import { availabilityProps, blockedWhen, firstBlocker } from './featureAvailability';
 
 /** Guidance never changes progress; all project state comes from observed native artifacts. */
 export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefresh, onCopyCommand, onRunCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {

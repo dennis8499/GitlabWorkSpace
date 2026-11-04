@@ -13,7 +13,6 @@ import type { NotificationRequest, NotificationSnapshot } from '../notifications
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
-import type { GitLabPage } from '../api/types';
 
 export type WorkspaceMode = 'dashboard' | 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git';
 

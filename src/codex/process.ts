@@ -42,7 +42,7 @@ export async function resolveCodexExecutable(configured = '', projectRoot?: stri
   let incompatible = false;
   for (const candidate of candidates) {
     if (!path.isAbsolute(candidate) || !await fileExists(candidate)) continue;
-    let file = /\.(cmd|bat|ps1|js)$/i.test(candidate) ? await npmPayload(candidate) : await realpath(candidate);
+    const file = /\.(cmd|bat|ps1|js)$/i.test(candidate) ? await npmPayload(candidate) : await realpath(candidate);
     if (!file) continue;
     if (projectRoot) {
       const relative = path.relative(await realpath(projectRoot), file);

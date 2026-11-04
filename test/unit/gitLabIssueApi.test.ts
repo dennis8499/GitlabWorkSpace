@@ -44,7 +44,7 @@ test('updates an issue and rejects a stale local snapshot before writing', async
 
 test('loads discussions and related issues with pagination', async () => {
   const paths: string[] = [];
-  const fetcher: FetchLike = async (input, init) => {
+  const fetcher: FetchLike = async (input, _init) => {
     const url = String(input);
     paths.push(url);
     const payload = url.includes('/discussions') ? [{ id: 'thread-1', notes: [{ id: 1, body: 'Hello' }] }] : [{ id: 2, iid: 8, project_id: 42, issue_link_id: 5, title: 'Related' }];
@@ -64,7 +64,7 @@ test('handles a successful issue deletion with no JSON response', async () => {
 
 test('loads inherited issue templates through the project template API', async () => {
   const paths: string[] = [];
-  const fetcher: FetchLike = async (input, init) => {
+  const fetcher: FetchLike = async (input, _init) => {
     const path = new URL(String(input)).pathname;
     paths.push(path);
     return new Response(JSON.stringify(path.endsWith('/templates/issues') ? [{ key: 'Bug', name: 'Bug' }] : { content: 'Steps to reproduce' }));

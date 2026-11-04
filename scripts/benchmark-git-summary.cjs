@@ -181,6 +181,7 @@ async function measure(vsixPath, temporary, label) {
       ...(revision ? { revision: revision.phases, evidence: path.relative(ROOT, outputPath) } : { note: 'Baseline only; no comparison evidence written.' }) }, null, 2) + '\n');
   } finally {
     const target = await fs.realpath(temporary);
+    // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
     if (path.dirname(target) !== tempParent || !path.basename(target).startsWith('glw-summary-benchmark-')) throw new Error('Unsafe benchmark cleanup path.');
     await fs.rm(target, { recursive: true, force: true });
   }

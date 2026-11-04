@@ -11,7 +11,7 @@ const uri = (fsPath: string) => ({ scheme: 'file', fsPath, toString: () => `file
 const configuredRoots = new Map<string, string>();
 const opened: string[] = [], copied: string[] = [], terminals: any[] = [];
 const watches: Array<{ base: string; pattern: string }> = [];
-let terminalAvailable = true;
+let _terminalAvailable = true;
 const vscode = {
   Uri: { file: uri, joinPath: (base: ReturnType<typeof uri>, ...parts: string[]) => uri(path.join(base.fsPath, ...parts)) },
   RelativePattern: class { constructor(public baseUri: ReturnType<typeof uri>, public pattern: string) {} },
@@ -62,7 +62,7 @@ async function fixture(t: test.TestContext) {
     await write(target, '_bmad/scripts/render_skill.py', '# installed renderer\n');
     for (const skill of ['bmad-help', 'bmad-build', 'bmad-prd']) await write(target, `.agents/skills/${skill}/SKILL.md`, `---\nname: ${skill}\n---\n`);
   }
-  configuredRoots.clear(); opened.length = 0; copied.length = 0; terminals.length = 0; watches.length = 0; terminalAvailable = true;
+  configuredRoots.clear(); opened.length = 0; copied.length = 0; terminals.length = 0; watches.length = 0; _terminalAvailable = true;
   vscode.workspace.isTrusted = true;
   vscode.workspace.workspaceFolders = [{ uri: uri(root), name: '專案' }];
   let features = ['bmad-workflow']; let runtimeReason: string | undefined; let runtimeChecks = 0, kitChecks = 0;

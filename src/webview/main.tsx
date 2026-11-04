@@ -282,11 +282,11 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
   const relationRequest = useRef<{ requestId: string; connectedScope: string; projectId: number; issueIid: number }>();
   const loadedRelationKey = useRef('');
   const uncertainRelation = useRef<string>();
-  const [createMetadata, setCreateMetadata] = useState<GitLabMetadata | undefined>();
+  const [_createMetadata, setCreateMetadata] = useState<GitLabMetadata | undefined>();
   const [startDateEnabled, setStartDateEnabled] = useState(false);
   const [canCreateIssue, setCanCreateIssue] = useState(false);
   const [createAvailability, setCreateAvailability] = useState<ActionAvailability>();
-  const [spentDate, setSpentDate] = useState('');
+  const [_spentDate, _setSpentDate] = useState('');
   const [detailTab, setDetailTab] = useState<'content' | 'relations' | 'time'>('content');
   const savedDetailTabs = useRef(draftState?.tabs ?? {});
   const [recoveryProjectId, setRecoveryProjectId] = useState('');
@@ -400,8 +400,8 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
   // Input handlers persist synchronously; effects only cover host-driven changes.
   useEffect(() => { saveDraftsRef.current(); }, [form, editing, mode, projectId, comment, reply, internal]);
   useEffect(() => () => saveDraftsRef.current(), []);
-  const [duration, setDuration] = useState('');
-  const [summary, setSummary] = useState('');
+  const [duration, _setDuration] = useState('');
+  const [summary, _setSummary] = useState('');
   const [targetProject, setTargetProject] = useState('');
   const [targetQuery, setTargetQuery] = useState('');
   const [targetProjectResults, setTargetProjectResults] = useState<GitLabProject[]>([]);

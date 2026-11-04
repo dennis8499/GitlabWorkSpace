@@ -19,6 +19,7 @@ async function fixture(t) {
     else await put(name, '{}');
   }
   await put('package.json', JSON.stringify({ version: '1.2.3' }));
+  await put('node_modules/eslint/bin/eslint.js', "if(process.env.FAKE_LINT_FAILURE==='1')process.exit(8);");
   await put('test/network-test-environment.cjs', await readFile(new URL('../test/network-test-environment.cjs', import.meta.url), 'utf8'));
   for (const name of ['run-validation.mjs', 'validation-runtime.mjs']) {
     await put(`scripts/${name}`, await readFile(new URL(name, import.meta.url), 'utf8'));
@@ -66,7 +67,7 @@ test('full validation builds once, discovers suites, and packages only after eve
   assert.equal(result.status, 'success');
   assert.equal(result.success, true);
   const ids = result.stages.map(stage => stage.id);
-  for (const id of ['compile', 'build-dashboard', 'build-sidebar', 'package', 'verify-package']) {
+  for (const id of ['lint', 'compile', 'build-dashboard', 'build-sidebar', 'package', 'verify-package']) {
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
   assert.ok(ids.includes('release-one'));
@@ -75,6 +76,15 @@ test('full validation builds once, discovers suites, and packages only after eve
   assert.equal(ids.at(-2), 'package');
   assert.equal(ids.at(-1), 'verify-package');
   assert.ok(await readFile(path.join(root, 'dist/gitlab-workspace-1.2.3.vsix')));
+});
+
+test('lint failure stops before compilation, editor launch and packaging', async t => {
+  const { evidenceDir, run } = await fixture(t);
+  const child = run({ FAKE_LINT_FAILURE: '1' });
+  assert.equal(child.status, 1, child.stdout);
+  const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
+  assert.deepEqual(result.stages.map(stage => stage.id), ['lint']);
+  assert.equal(result.stages[0].exitCode, 8);
 });
 
 test('a real host launch failure stops before expensive suites and produces no publishable package', async t => {

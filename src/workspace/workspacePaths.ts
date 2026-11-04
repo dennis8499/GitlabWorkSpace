@@ -145,10 +145,10 @@ export async function scanLocalGroupRepositories(root: string, strict = false, s
         if (signal?.aborted) throw error;
         if (error && typeof error === "object" && "code" in error) {
           const code = (error as NodeJS.ErrnoException).code;
-          if (code === "ENOENT") throw new Error("Git could not be found while scanning local Repos.");
+          if (code === "ENOENT") throw new Error("Git could not be found while scanning local Repos.", { cause: error });
           if (typeof code === "number" && !strict) continue;
         }
-        throw new Error("Could not inspect local Repo: " + candidate.name);
+        throw new Error("Could not inspect local Repo: " + candidate.name, { cause: error });
       }
     }
   }));

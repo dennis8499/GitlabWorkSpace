@@ -82,6 +82,7 @@ export class GitLabNetworkGate {
         throw error;
       } finally {
         try { await this.finish(reservation.directory, reservation.nonce); }
+        // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
         catch (error) { throw new Error('The request finished but its coordination state could not be released; inspect it before retrying.', { cause: error }); }
       }
     }
@@ -125,7 +126,7 @@ export class GitLabNetworkGate {
       if (signal?.aborted) throw signal.reason ?? networkAbort();
       if (Date.now() >= deadline) throw new GitLabNetworkError('GitLab request budget expired before sending.');
       const control = await LocalNetworkLease.acquire(path.join(directory, 'control.lock'), 'api-control', { signal, timeoutMs: Math.max(1, deadline - Date.now()) });
-      let delay = 100;
+      let delay: number;
       try {
         const state = await this.state(directory);
         // A dead request owner cannot consume a new slot. Live owners retain slots until cleanup.

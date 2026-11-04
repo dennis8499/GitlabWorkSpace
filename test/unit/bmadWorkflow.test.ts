@@ -43,7 +43,7 @@ async function fixture(run: (root: string, write: (relative: string, content: st
   try {
     await write('_bmad/_config/manifest.yaml', 'installation:\n  version: 6.12.4\nmodules:\n  - name: bmm\n');
     await write('_bmad/_config/bmad-help.csv', CATALOG);
-    await write('_bmad/config.toml', '[core]\noutput_folder = \"_bmad-output\"\n');
+    await write('_bmad/config.toml', '[core]\noutput_folder = "_bmad-output"\n');
     await write('_bmad/scripts/resolve_config.py', '# Official resolver fixture');
     await write('_bmad/scripts/render_skill.py', '# Official renderer fixture');
     for (const skill of new Set(['bmad-help', ...parseBmadCatalog(CATALOG).map(node => node.skill)])) await write(`.agents/skills/${skill}/SKILL.md`, `# ${skill}`);

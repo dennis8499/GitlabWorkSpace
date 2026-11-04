@@ -25,6 +25,7 @@ Windows PowerShell 若無法執行 `npm` 指令，可將指令中的 `npm` 改�
 
 ```sh
 npm run build:dev
+npm run lint
 npm run compile
 npm run typecheck:webview
 npm run build:webview

@@ -166,7 +166,7 @@ function isWorkItemWidget(schema: GraphQLSchema, name: string): boolean {
 
 function connectionNodeType(schema: GraphQLSchema, owner: string, fieldName: string): string | undefined {
   const connectionName = namedType(namedField(schema, owner, fieldName)?.type);
-  const connection = schema.get(connectionName ?? '');
+  const _connection = schema.get(connectionName ?? '');
   const nodeName = namedType(namedField(schema, connectionName ?? '', 'nodes')?.type);
   if (nodeName) return nodeName;
   const edgeName = namedType(namedField(schema, connectionName ?? '', 'edges')?.type);

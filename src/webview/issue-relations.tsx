@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { GitLabProject } from '../api/types';
 import type { IssueRelationAction, IssueRelationsData } from '../issues/protocol';
-import { FeatureNotice, FeatureNotices } from './FeatureNotice';
+import { FeatureNotices } from './FeatureNotice';
 import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
 
 

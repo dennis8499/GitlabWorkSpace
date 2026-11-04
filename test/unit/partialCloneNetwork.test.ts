@@ -10,7 +10,7 @@ import { OperationLog } from '../../src/logging/operationLog';
 
 const vscode = { ProgressLocation: { Notification: 1 }, window: {
   showInformationMessage: async () => '開始',
-  withProgress: async (_options: unknown, action: Function) => action({ report: () => {} }, { onCancellationRequested: () => ({ dispose: () => {} }) })
+  withProgress: async (_options: unknown, action: (...args: any[]) => any) => action({ report: () => {} }, { onCancellationRequested: () => ({ dispose: () => {} }) })
 } };
 const loader = require('node:module'), original = loader._load;
 loader._load = (name: string, ...args: unknown[]) => name === 'vscode' ? vscode : original(name, ...args);
@@ -43,7 +43,7 @@ test('a selected download from the first 100 of 1000 projects performs one clone
       cachedRead: () => { throw new Error('partial download must not load a complete Group'); } },
     captureProjectAccess: () => () => {}, resolveProjectRoot: async () => ({ root, revision: 'root' }),
     sendSnapshot: () => {}, post: () => {}, operationPhase: () => {}, noteOutcome: () => {}, repositoryOutcome: () => ({ status: 'succeeded', effect: 'applied' }),
-    cloneProgressPublisher: () => ({ publish: () => {}, dispose: () => {} }), reconcileAfterWrite: async (action: Function) => action(),
+    cloneProgressPublisher: () => ({ publish: () => {}, dispose: () => {} }), reconcileAfterWrite: async (action: (...args: any[]) => any) => action(),
     refreshProjectRoot: async () => {}, refreshInventory: async () => {}, schedulePendingWorkspaceRefresh: () => {} });
   try {
     await log.run('workspace', 'clone', {}, () => host.clone([1], false));

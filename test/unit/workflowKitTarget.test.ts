@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -12,7 +12,7 @@ const skillsStorageKey = 'gitlabWorkspace.skills.repositoryRoot';
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath, toString: () => 'file:' + fsPath });
 const configuredRoots = new Map<string, string>();
 const folderKey = 'gitlabWorkspace.projectFolder';
-let preferGroup: boolean | undefined;
+let _preferGroup: boolean | undefined;
 let resolvingPython: (() => void) | undefined;
 const updates: any[] = [];
 const vscode = {
@@ -52,7 +52,7 @@ const project = (id: number, name: string) => ({ id, name, path: name, path_with
 const argumentValue = (args: string[] | undefined, flag: string) => args?.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
 
 function fixture(folders: string[], connected = false, workspaceState = memory()) {
-  configuredRoots.clear(); preferGroup = undefined; updates.length = 0; resolvingPython = undefined;
+  configuredRoots.clear(); _preferGroup = undefined; updates.length = 0; resolvingPython = undefined;
   vscode.workspace.workspaceFile = undefined;
   vscode.workspace.workspaceFolders = folders.map(root => ({ uri: uri(root) }));
   vscode.window.showQuickPick = async () => undefined;
@@ -509,7 +509,7 @@ test('one-click Wiki uses the clipboard preparation and rejects a changed projec
 test('MR branch handoff uses the actual mapped Repo and does not copy or launch Codex', async t => {
   const [group, repo] = await directories(t);
   const { host } = fixture([group], true);
-  const target = project(1, 'service');
+  const _target = project(1, 'service');
   host.session.getClient = async () => ({ getMergeRequest: async () => ({ project_id: 1, target_project_id: 1, source_project_id: 1,
     source_branch: 'feature', target_branch: 'main' }) });
   host.navigateTo = async () => undefined;

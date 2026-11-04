@@ -320,7 +320,7 @@ export class WorkflowKitService {
       await beforeLaunch?.();
       const action = args[0];
       this.options.reportPhase('', action === 'install' ? '正在安裝 Skills…' : action === 'inspect' ? '正在驗證工作流程包…' : '正在檢查 Skills 安裝狀態…');
-      let helper = installerPath ? { path: installerPath, version: '' } : await this.helper(action === 'status' ? String(args[1]) : undefined);
+      const helper = installerPath ? { path: installerPath, version: '' } : await this.helper(action === 'status' ? String(args[1]) : undefined);
       let safeArgs = [...args];
       if (action === 'status') {
         const index = safeArgs.indexOf('--expected-version');

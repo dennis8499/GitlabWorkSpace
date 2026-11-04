@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { describeAction } from '../../out/src/workspace/actionPolicy.js';
@@ -159,7 +158,7 @@ test('shows connection scope, progress and the shared unread message-center entr
   assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', '專案', '分析', 'BMAD 開發流程', '待審查', '版控', '設定']);
   assert.equal(view.buttons()[6].getAttribute('aria-current'), 'page');
 
-  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openSettings'].entries()) {
+  for (const [index, _action] of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openSettings'].entries()) {
     view.buttons()[index].click();
     view.finish(view.requests.at(-1));
   }

@@ -19,11 +19,7 @@ import { GitDiffFileSystemProvider } from './gitDiffFileSystemProvider';
 import { logGitCommand } from './gitCommandLog';
 import { scanWorkspaceRepositories, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from './repositoryScanner';
 import { withReviewSyncInvalidation } from '../workspace/reviewSessions';
-import type {
-  GitAction, GitBranchSummary, GitChange, GitCommitSummary, GitPanelMessage, GitPullStrategy,
-  GitRefKind, GitRecoveryRefSummary, GitRepositoryDetails, GitRepositorySnapshot, GitRepositorySummary, GitStashSummary
-  , GitRebasePlan, GitRebaseTodoEntry
-} from './gitProtocol';
+import type { GitAction, GitBranchSummary, GitChange, GitCommitSummary, GitPanelMessage, GitPullStrategy, GitRecoveryRefSummary, GitRepositoryDetails, GitRepositorySnapshot, GitRepositorySummary, GitStashSummary, GitRebasePlan, GitRebaseTodoEntry } from './gitProtocol';
 
 const execFileAsync = promisify(execFile);
 const MAX_DIFF_BYTES = 1_048_576;
@@ -1314,7 +1310,6 @@ export class GitRepositoryService implements vscode.Disposable {
           await repository.status();
           const updatedPlan = await this.readRebasePlan(repository, action.ref);
           if (plan && !sameRebasePlan(plan, updatedPlan)) throw new Error('遠端分支在預覽後已更新；Fetch 已完成但尚未開始 Rebase，請重新檢視提交清單。');
-          if (plan) plan = updatedPlan;
         }
         await this.createRecoveryRef(repository, action.interactive ? 'interactive-rebase' : 'rebase');
         if (action.interactive) {

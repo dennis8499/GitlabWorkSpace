@@ -1,5 +1,4 @@
 /** @jsxImportSource preact */
-import type { GitLabIssue } from '../api/types';
 import type { WorkspaceRequest, WorkspaceTimerEntry } from '../workspace/workspaceProtocol';
 
 

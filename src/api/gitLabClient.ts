@@ -427,7 +427,7 @@ export class GitLabClient {
     const lists: Array<{ id: string; listType: string }> = [];
     const seenListCursors = new Set<string>();
     let after: string | null = null;
-    let boardFound = false;
+    let boardFound: boolean;
     let hideBacklogList = false;
     let hideClosedList = false;
 

@@ -476,7 +476,7 @@ test('resolves a missing default branch and skips when project details still hav
   mkdirSync(workspace);
   const { bare } = createBareRemote(temp);
   const repo = project('missing-branch');
-  const target = createExistingRepo(workspace, repo, bare);
+  const _target = createExistingRepo(workspace, repo, bare);
   const noBranch = { ...repo, default_branch: null };
   let updateCalls = 0;
   try {

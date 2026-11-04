@@ -4,7 +4,7 @@ import type { ActionController, DispatchResult } from '../workspace/actionContro
 import { finishDomainAction, useDomainActions } from './domainActions';
 import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
-import { isGitWriteAction, type GitAction, type GitChange, type GitCommitSummary, type GitPanelMessage, type GitRebasePlan, type GitRebaseTodoEntry, type GitRepositorySnapshot, type GitRepositorySummary, type GitStashSummary } from '../git/gitProtocol';
+import { isGitWriteAction, type GitAction, type GitChange, type GitPanelMessage, type GitRebasePlan, type GitRebaseTodoEntry, type GitRepositorySnapshot, type GitRepositorySummary, type GitStashSummary } from '../git/gitProtocol';
 import { layoutGitGraph, type GitGraphRow } from '../git/gitGraphLayout';
 import { makeDiffLines, makeSelectedPatch, type GitDiffLine } from '../git/gitDiffSelection';
 import { EMPTY_GIT_UI, GIT_UI_STORAGE_KEY, LEGACY_GIT_UI_STORAGE_KEY, restoreGitUi, type RepoGitUi } from './gitUiState';
@@ -12,7 +12,7 @@ import { VirtualRows } from './VirtualRows';
 import { usePresence, useVisualTransition } from './motion';
 import './motion.css';
 import { FeatureNotice, FeatureNotices } from './FeatureNotice';
-import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
+import { availabilityProps, blockedWhen, firstBlocker } from './featureAvailability';
 import { OperationFeedback } from './OperationFeedback';
 import './git-control-panel.css';
 
@@ -722,7 +722,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
             <header class="git-diff-heading"><button class="git-back-graph" onClick={() => setUi({ view: 'graph' })}>← 提交圖</button><strong title={ui.selectedPath}>{ui.selectedPath ?? '選取檔案'}</strong><span>{ui.selection === 'commit' ? '提交差異' : ui.selectedSection === 'staged' ? '已暫存' : ui.selectedSection === 'conflict' ? '衝突' : '未暫存'}</span></header>
             {diffMatches && selectedChange && selectedChange.section !== 'conflict' && <div class="git-diff-actions"><button {...availabilityProps(gitNoticeScope + '-diff', diffBlockers['暫存／取消暫存選取行'])} onClick={() => stageSelectedLines(selectedChange.section === 'staged')}>{selectedChange.section === 'staged' ? '取消暫存選取行' : '暫存選取行'}</button><button disabled={!!pending} onClick={() => send({ type: 'stageFile', path: selectedChange.path, staged: selectedChange.section !== 'staged' })}>{selectedChange.section === 'staged' ? '取消暫存整檔' : '暫存整檔'}</button></div>}<FeatureNotices id={gitNoticeScope + '-diff'} items={diffBlockers} />
             {diffMatches && oversizedDiff ? <div class="git-large-diff"><p>此 Diff 超過 1 MiB 或 20,000 行，請使用原生 Diff。</p><button onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath!, staged: snapshot.diffStaged ?? false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>在 VS Code 開啟原生 Diff</button></div> : diffMatches && snapshot.diffText ? <VirtualRows active={active} resetKey={selectedId + ":" + (snapshot.diffPath ?? "") + ":" + (snapshot.diffRef ?? "") + ":" + String(snapshot.diffStaged)} className="git-diff-view" items={indexedDiffLines} itemKey={diffLineKey} estimateHeight={19} renderItem={(line) => <label class={'git-diff-line ' + line.kind}>{(line.kind === 'add' || line.kind === 'remove') && ui.selection === 'worktree' && <input aria-label={'選取差異行 ' + (line.index + 1)} type="checkbox" {...availabilityProps(gitNoticeScope + '-diff', diffBlockers['差異行選取'])} checked={selectedDiffLineSet.has(line.index)} onChange={(event) => setSelectedDiffLines((current) => event.currentTarget.checked ? current.concat(line.index) : current.filter((item) => item !== line.index))} />}<code>{line.text}</code></label>} /> : <div class="git-empty-list">{reading ? '正在讀取差異…' : diffMatches ? '沒有文字差異；二進位檔案可使用原生 Diff 檢視。' : '從右側選取檔案以檢視差異。'}</div>}
-            {diffMatches && <footer class="git-diff-footer"><span>{ui.selection === 'commit' && snapshot.diffParent ? '比較 Parent ' + (selectedCommit?.parents.indexOf(snapshot.diffParent)! + 1) : '選取新增或刪除的行可進行部分暫存'}</span><button onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath!, staged: snapshot.diffStaged ?? false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>原生 Diff ↗</button></footer>}
+            {diffMatches && <footer class="git-diff-footer"><span>{ui.selection === 'commit' && snapshot.diffParent ? '比較 Parent ' + ((selectedCommit?.parents.indexOf(snapshot.diffParent) ?? -1) + 1) : '選取新增或刪除的行可進行部分暫存'}</span><button onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath!, staged: snapshot.diffStaged ?? false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>原生 Diff ↗</button></footer>}
           </div>}
         </div>
         <div class="git-resizer git-right-resizer" role="separator" aria-label="調整提交欄寬度" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => beginResize('right', event)} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') setLayout((current) => ({ ...current, right: clamp(current.right + (event.key === 'ArrowLeft' ? 16 : -16), 280, 480, 320) })); }} />
@@ -827,7 +827,6 @@ function parseRebaseDialog(value?: string): { ref: string; pullSource?: { remote
   } catch { return { ref: '' }; }
 }
 function dialogTitle(dialog: DialogState): string { const titles: Record<DialogState['kind'], string> = { branch: '建立並切換分支', fetch: 'Fetch 遠端分支', pull: 'Pull 遠端變更', push: 'Push 本機提交', stash: '建立 Stash', stashAction: 'Stash 操作', rebase: 'Rebase 至目標', rebaseEditor: '互動式 Rebase 預覽', merge: '合併分支或提交', reset: '重設 Repo', commit: dialog.value === 'amend' ? 'Amend 最近一次提交' : 'Commit 已暫存變更', pick: '套用或還原提交' }; return titles[dialog.kind]; }
-function moveItem(items: GitRebaseTodoEntry[], index: number, delta: number): GitRebaseTodoEntry[] { const next = items.slice(); const target = index + delta; if (target < 0 || target >= next.length) return next; const [value] = next.splice(index, 1); next.splice(target, 0, value); return next; }
 function replaceItem(items: GitRebaseTodoEntry[], index: number, value: GitRebaseTodoEntry): GitRebaseTodoEntry[] { const next = items.slice(); next[index] = value; return next; }
 
 function GraphCell({ row, width, head, working }: { row: GitGraphRow; width: number; head: boolean; working: boolean }) {

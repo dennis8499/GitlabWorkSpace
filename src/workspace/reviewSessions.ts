@@ -178,7 +178,7 @@ export async function invalidateReviewSync(root: string, commonDirectory: string
   }
   const caches = new Map([[await sharedReviewCacheRoot(root), 'ReviewerSharedCache/v1'],
     [sharedReviewCacheV2Root(), 'ReviewerSharedCache/v2']]);
-  for (const [shared, schema] of caches) {
+  for (const [shared, _schema] of caches) {
     try {
       await plain(shared);
       const marker = await json(path.join(shared, '.review-shared-cache.json'));
@@ -243,7 +243,7 @@ export async function invalidateReviewAuth(roots: readonly string[]): Promise<nu
   candidates.set(sharedReviewCacheV2Root(), 'ReviewerSharedCache/v2');
   for (const root of new Set(roots)) candidates.set(await sharedReviewCacheRoot(root), 'ReviewerSharedCache/v1');
   let updated = 0;
-  for (const [shared, schema] of candidates) {
+  for (const [shared, _schema] of candidates) {
     try {
       await plain(shared);
       const marker = await json(path.join(shared, '.review-shared-cache.json'));

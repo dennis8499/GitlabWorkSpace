@@ -9,7 +9,7 @@ import type { IssueRelationAction } from '../../src/issues/protocol';
 test('Issue relationship actions validate permissions, Group scope, Task type, and existing parents', async () => {
   const project: GitLabProject = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project', http_url_to_repo: 'https://gitlab.example.test/group/project.git' };
   const issue = { id: 401, iid: 7, project_id: 42, title: 'Parent issue', state: 'opened', web_url: 'https://gitlab.example.test/group/project/-/issues/7' };
-  let canLink = true;
+  const canLink = true;
   let issueCanLink = true;
   let canManageChildren = true;
   let links: Array<Record<string, unknown>> = [];

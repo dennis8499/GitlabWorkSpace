@@ -151,6 +151,7 @@ export class GitLabSession {
       catch (error) { failed = true; throw error; }
       finally {
         try { await this.afterTransition?.(); }
+        // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
         catch (error) { if (!failed) throw error; }
         finally { this.connectionTransition = false; }
       }

@@ -7,8 +7,8 @@ import type { WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot } from '../
 import type { ActionController } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
 import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
-import { FeatureNotice, FeatureNotices } from './FeatureNotice';
-import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
+import { FeatureNotices } from './FeatureNotice';
+import { availabilityProps, blockedWhen, firstBlocker } from './featureAvailability';
 import './account-ui.css';
 
 export function AccountIdentity({ account, status }: { account: Pick<GitLabAccount, 'name' | 'username' | 'baseUrl'>; status: string }) {

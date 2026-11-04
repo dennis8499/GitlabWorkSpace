@@ -11,8 +11,8 @@ export async function canonicalRuntime(candidate: string, project: string): Prom
   for (;;) {
     try { ancestor = await realpath(ancestor); break; }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('無法核對審查 runtime 路徑。');
-      const parent = path.dirname(ancestor); if (parent === ancestor) throw new Error('審查 runtime 路徑無效。');
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('無法核對審查 runtime 路徑。', { cause: error });
+      const parent = path.dirname(ancestor); if (parent === ancestor) throw new Error('審查 runtime 路徑無效。', { cause: error });
       suffix.unshift(path.basename(ancestor)); ancestor = parent;
     }
   }
@@ -27,7 +27,7 @@ export async function canonicalRuntime(candidate: string, project: string): Prom
   } catch (error) {
     const details = error as { code?: number; stderr?: string };
     if (details.code === 128 && /not a git repository/i.test(details.stderr ?? '')) return canonical;
-    throw new Error('無法確認審查 runtime 是否位於 Git Repo 外，請檢查路徑及 Git 執行環境。');
+    throw new Error('無法確認審查 runtime 是否位於 Git Repo 外，請檢查路徑及 Git 執行環境。', { cause: error });
   }
   throw new Error('審查 runtime 位於 Git Repo 內，請將 gitlabWorkspace.reviewRuntimePath 設為 Repo 外的獨立資料夾。');
 }

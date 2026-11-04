@@ -148,6 +148,7 @@ suite('Account, preview and workspace Repo integration', () => {
       if (process.cwd().toLocaleLowerCase().startsWith(root.toLocaleLowerCase())) process.chdir(originalCwd);
       if (!process.env.GITLAB_WORKSPACE_TEST_TMP) {
         try { await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 }); }
+        // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
         catch (error) { if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'EBUSY') throw error; }
       }
     }

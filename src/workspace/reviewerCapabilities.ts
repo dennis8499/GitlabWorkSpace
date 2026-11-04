@@ -1,8 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { PythonRuntime } from './pythonRuntime';
-import type { InstalledReviewerBinding, NativeMergeReviewerCapabilities, ReviewerCapabilities,
-  ReviewerSessionCapabilities, ReviewerToolId } from './reviewSessionProtocol';
+import type { InstalledReviewerBinding, NativeMergeReviewerCapabilities, ReviewerCapabilities, ReviewerSessionCapabilities } from './reviewSessionProtocol';
 import { workflowKitPythonCommand } from './workflowKitRunner';
 export type { ReviewerCapabilities } from './reviewSessionProtocol';
 const exec = promisify(execFile);
@@ -53,7 +52,7 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       const required = ['--workspace', '--workspace-file', '--project', '--base', '--head', '--runtime-root',
         '--request-id', '--requests-file', '--auth-scope', '--refresh'];
       if (!commands || required.some(flag => !help.stdout.includes(flag))) {
-        throw new Error(`已安裝 ${label} 的 session 介面不相容，請更新工作流程包。`);
+        throw new Error(`已安裝 ${label} 的 session 介面不相容，請更新工作流程包。`, { cause: error });
       }
       return undefined;
     }

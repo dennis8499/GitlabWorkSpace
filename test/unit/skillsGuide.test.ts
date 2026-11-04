@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, legacyWikiInputs, resolveReviewerRepository,
-  restoreSkillGuideState, skillGuideTools, getSkillGuideFields, getSkillGuideCards } from '../../src/webview/skillsGuideData';
+import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, resolveReviewerRepository, restoreSkillGuideState, skillGuideTools, getSkillGuideCards } from '../../src/webview/skillsGuideData';
 
 const context = { groupRoot: 'C:\\工作區 with spaces', workflowKitVersion: '0.15.0', repositories: [
   { name: 'service', path: 'C:\\工作區 with spaces\\service' }

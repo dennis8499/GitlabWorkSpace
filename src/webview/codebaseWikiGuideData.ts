@@ -174,7 +174,7 @@ export function migrateWikiGuideInputs(inputs: WikiGuideInputValues): WikiGuideI
   }));
 }
 
-export function getWikiGuideFields(card: WikiGuideCard, inputs: WikiGuideInputValues): readonly WikiGuideField[] {
+export function getWikiGuideFields(card: WikiGuideCard, _inputs: WikiGuideInputValues): readonly WikiGuideField[] {
   return card.fields;
 }
 

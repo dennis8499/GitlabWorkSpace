@@ -150,7 +150,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.equal(restoredBody?.type === 'detailData' ? restoredBody.data.issue.iid : undefined, 9);
 
     let taskPages = 0;
-    client.graphql = async (_query, variables) => {
+    client.graphql = async (_query, _variables) => {
       taskPages++;
       return { namespace: { workItem: { id: 'gid://gitlab/WorkItem/403', userPermissions: { updateWorkItem: true }, widgets: [{ children: { nodes: [{ id: `task-${taskPages}`, iid: String(taskPages), title: `Task ${taskPages}`, state: 'OPEN', userPermissions: { updateWorkItem: true } }], pageInfo: { hasNextPage: taskPages === 1, endCursor: taskPages === 1 ? 'next-task' : null } } }] }, workItemTypes: { nodes: [{ id: 'task-type' }] } } };
     };
