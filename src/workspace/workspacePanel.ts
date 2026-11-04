@@ -1,5 +1,6 @@
 import { readReviewerCapabilities } from './reviewerCapabilities';
 import * as vscode from 'vscode';
+import { assertWorkspaceAction, getWorkspaceCapabilities } from './workspaceCapabilities';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -897,7 +898,12 @@ export class WorkspacePanel implements vscode.Disposable {
       projectSource: this.activeMode === 'clone' && !this.isRemotePage() ? 'local' : this.projectSource };
     const scopeRevision = this.actionScope(request);
     const policy = describeAction(request, { scopeRevision, localOperationScope: this.getLocalOperationScope(), accountKey: this.session.activeAccountId, rootKey: this.projectContext?.root ?? this.groupRoot });
-    if (policy.kind === 'control' || policy.kind === 'local') { await task(); return; }
+    const checkCapability = () => {
+      const originalAction = request.type === 'confirmOperationResult' && typeof request.targetOperationId === 'string'
+        ? this.operations.get(request.targetOperationId)?.action : undefined;
+      assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), originalAction ? { type: originalAction } : request);
+    };
+    if (policy.kind === 'control' || policy.kind === 'local') { checkCapability(); await task(); return; }
     const requestId = request.operationId ?? randomUUID();
     const state: WorkspaceOperationState = {
       requestId, scopeRevision: request.operationScope ?? scopeRevision, resourceKey: policy.resourceKey,
@@ -911,6 +917,7 @@ export class WorkspacePanel implements vscode.Disposable {
       if (event.transportStage) this.operations.update(requestId, { transportStage: event.transportStage, retryAt: event.retryAt });
     }, () => this.operationContext.run(requestId, async () => {
       try {
+        checkCapability();
         if (request.hostSessionId !== undefined && request.hostSessionId !== this.operations.sessionId) throw new Error('工作台連線已更新，請重新執行操作。');
         if (request.scopeEpoch !== undefined && request.scopeEpoch !== this.session.connectionEpoch || request.operationScope && request.operationScope !== this.actionScope(request)) throw new Error('工作區或帳號已變更，請重新執行操作。');
         if (policy.kind === 'write' && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
@@ -1715,6 +1722,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.pendingWorkspaceRefresh = false;
     try {
       if (!this.isRemotePage()) {
+        if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return;
         if (mode === 'sa') {
           await this.refreshWorkflowKit(true, signal);
           if (current()) await this.refreshInventory();
@@ -1781,7 +1789,7 @@ export class WorkspacePanel implements vscode.Disposable {
       // Projects validate the remote scope; they do not inspect the local disk.
       await this.loadWorkspaceSection('projects', options.forceNetwork === true, undefined, options.reason ?? 'entry');
       if (!current()) return;
-      if (mode === 'clone') {
+      if (mode === 'clone' && !getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) {
         await this.refreshProjectRoot(true, signal);
       } else if (dashboard) {
         await Promise.all((['issues', 'mergeRequests'] as const).map(section =>
@@ -1820,6 +1828,10 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async refreshDashboardLocal(generation: number, signal: AbortSignal, current: () => boolean): Promise<void> {
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) {
+      this.dashboardSections = { ...this.dashboardSections, local: { status: 'idle' } };
+      this.sendSnapshot(); return;
+    }
     try {
       const context = await this.resolveProjectContext();
       if (!current() || signal.aborted || generation !== this.requestGeneration) return;
@@ -2073,9 +2085,8 @@ export class WorkspacePanel implements vscode.Disposable {
       current.status, current.profile, localRepositories, installed, workspaceFile,
       reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope])).digest('hex');
     const value = { ...resolveSkillsContext({ match, installed, revision }),
-      reviewerRepositories, workspaceFile, workspaceRoot: workspaceFile ? path.dirname(workspaceFile)
-        : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
-      workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1 && !workspaceFile,
+      reviewerRepositories, workspaceFile, workspaceRoot: reviewWorkspace,
+      workspaceRootAmbiguous: openedFolders.length > 1 && !workspaceFile,
       reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope };
     this.skillsContextCache = { signature, context: this.projectContext, match: current, installed: kit.state, projects: this.projects, value };
     return value;
@@ -2225,12 +2236,8 @@ export class WorkspacePanel implements vscode.Disposable {
         reviewerBinding, reviewerCapabilities, workflowKitRunner,
       reviewerRequestId: reviewer ? canonicalReviewRequestId(requestId ?? randomUUID()) : undefined,
       groupRoot: current.mode === 'group' ? current.root : undefined, workflowKitVersion: current.installed.version,
-      workspaceFile: vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined,
-      workspaceRoot: vscode.workspace.workspaceFile?.scheme === 'file'
-        ? path.dirname(vscode.workspace.workspaceFile.fsPath)
-        : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
-      workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1
-        && vscode.workspace.workspaceFile?.scheme !== 'file',
+      workspaceFile: current.workspaceFile, workspaceRoot: current.workspaceRoot,
+      workspaceRootAmbiguous: current.workspaceRootAmbiguous,
       repositories, repositoryScanStatus: 'ready' as const };
     if (!current.root) throw new Error('請先選擇專案根目錄。');
     const prompt = `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`;
@@ -2322,7 +2329,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async refreshInventory(): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposed || getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return;
     const generation = this.inventoryGeneration = (this.inventoryGeneration ?? 0) + 1;
     const openedFolders = (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath);
     try {
@@ -3034,6 +3041,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const cloneRoot = this.projectContext?.root;
     const projectRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', cloneRoot, this.projects);
     const snapshot: WorkspaceSnapshot = {
+      workspaceCapabilities: getWorkspaceCapabilities(vscode.workspace?.workspaceFolders),
       notifications: this.notifications.snapshot(),
       operationScope: this.operationScope(),
       localOperationScope: this.getLocalOperationScope(),

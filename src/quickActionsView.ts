@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { assertWorkspaceAction, getWorkspaceCapabilities } from './workspace/workspaceCapabilities';
 import type { NotificationCenter } from './notifications/notificationCenter';
 import type { NotificationOrigin } from './notifications/notificationProtocol';
 import { randomBytes } from 'node:crypto';
@@ -110,8 +111,12 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   private async refreshRepositories(metadata: ActionMetadata = {}): Promise<void> {
     const view = this.view, generation = this.viewGeneration, scopeRevision = this.getLocalOperationScope();
     if (!view?.visible) return;
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace && !metadata.operationId) {
+      await this.sendState(); return;
+    }
     const current = () => this.view === view && view.visible && generation === this.viewGeneration && scopeRevision === this.getLocalOperationScope();
     const read = async () => {
+      assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), { type: 'refreshRepositories' });
       if (!current() || metadata.hostSessionId && metadata.hostSessionId !== this.operations?.sessionId ||
         metadata.operationScope && metadata.operationScope !== scopeRevision ||
         metadata.scopeEpoch !== undefined && metadata.scopeEpoch !== this.session.connectionEpoch) {
@@ -188,6 +193,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
       // A collapse/hide in the same turn can cancel a read before it starts.
       await Promise.resolve();
       if (!current()) return { status: 'cancelled' as const, effect: 'none' as const };
+      assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), { type: 'repositoryDetails' });
       if (!this.getRepositoryDetails) throw new Error('無法載入 Repo 詳細資料。');
       const details = await this.getRepositoryDetails(repositoryId);
       if (!current()) return { status: 'cancelled' as const, effect: 'none' as const };
@@ -222,6 +228,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     const view = this.view;
     const revision = ++this.stateRevision;
     const state: QuickActionsState = {
+      workspaceCapabilities: getWorkspaceCapabilities(vscode.workspace?.workspaceFolders),
       connected: !!this.session.baseUrl,
       accounts: this.session.accounts,
       activeAccountId: this.session.activeAccountId,

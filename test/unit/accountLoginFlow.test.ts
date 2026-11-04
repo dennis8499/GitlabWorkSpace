@@ -71,7 +71,7 @@ function panelLifecycleFixture() {
       webview: { html: '', cspSource: 'test:', asWebviewUri: () => ({ toString: () => 'https://fixture.test/assets' }),
         onDidReceiveMessage: () => ({ dispose() {} }) },
       onDidDispose: (listener: () => void) => { disposed = listener; },
-      onDidChangeViewState: (listener: () => void) => { changed = listener; },
+      onDidChangeViewState: (listener: () => void) => { changed = listener; return { dispose() {} }; },
       reveal: () => { panel.visible = true; },
       dispose: () => disposed(),
       hide: () => { panel.visible = false; changed(); }

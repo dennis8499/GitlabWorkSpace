@@ -212,6 +212,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 ## 需求
 
 - VS Code 1.90.0 或更新版本。
+- 工作區需要授予信任。虛擬工作區可使用 GitLab 帳號、Issue 與 MR；本機 Repo 掃描、Git、Clone／同步、Skills、本機審查與 Codex 需要先 Clone 並開啟磁碟上的專案資料夾。混合工作區僅使用本機資料夾執行這些操作。
 - Git 已安裝且可從 `PATH` 執行；下載／同步 Repo、版控與分支審查均需要 Git。
 - GitLab Personal Access Token，需有 `api` 範圍，且帳號必須有權存取目標群組與專案。複製私有專案也需要相應的 GitLab 權限。
 - GitLab.com 或可連線的自架 GitLab。部分議題功能會依伺服器版本、API 能力及帳號權限而異。

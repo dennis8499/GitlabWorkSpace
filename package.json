@@ -25,6 +25,16 @@
   "categories": [
     "Other"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "本機 Git、Skills 與 Codex 會讀寫專案或執行工具，需要受信任的工作區。"
+    },
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "可使用 GitLab 帳號、Issue 與 Merge Request；Repo 掃描、Git、Clone／同步、Skills、本機審查與 Codex 需要磁碟上的專案資料夾。"
+    }
+  },
   "contributes": {
     "commands": [
       {

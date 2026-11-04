@@ -6,6 +6,8 @@ suite('GitLab Workspace extension activation', () => {
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace');
     assert.ok(extension, 'the extension is installed in the Extension Host');
     await extension.activate();
+    assert.equal(extension.packageJSON.capabilities.untrustedWorkspaces.supported, false);
+    assert.equal(extension.packageJSON.capabilities.virtualWorkspaces.supported, 'limited');
 
     const quickActions = extension.packageJSON.contributes.views.gitlabWorkspace[0];
     assert.deepEqual(extension.packageJSON.contributes.views.gitlabWorkspace.map((view: { id: string }) => view.id), ['gitlabWorkspace.quickActions']);

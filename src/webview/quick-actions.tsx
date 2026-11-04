@@ -11,6 +11,7 @@ import { operationLabels, type WorkspaceOperationState } from '../workspace/oper
 import { useActionSelector } from './useActions';
 import { dispatchWithFeedback } from './notificationFeedback';
 import { VirtualRows } from './VirtualRows';
+import { FeatureNotice } from './FeatureNotice';
 import './quick-actions.css';
 
 interface VsCodeBridge {
@@ -115,7 +116,7 @@ function GitSidebar() {
         if (response.state.operationScope !== latestState.current.operationScope) setDispatchNotice('');
         if (response.state.operationScope) actions.setContext({
           scopeRevision: response.state.operationScope, localOperationScope: response.state.localOperationScope, accountKey: response.state.activeAccountId,
-          hostSessionId: response.state.operationSnapshot?.sessionId, scopeEpoch: response.state.scopeEpoch
+          hostSessionId: response.state.operationSnapshot?.sessionId, scopeEpoch: response.state.scopeEpoch, workspaceCapabilities: response.state.workspaceCapabilities
         });
         if (response.state.operationSnapshot) actions.reconcile(response.state.operationSnapshot);
         const previous = latestState.current.repositories;
@@ -252,7 +253,7 @@ function GitSidebar() {
   // Navigation and progress update their controls without rebuilding Repo rows.
   // The callbacks below use stable state setters and request refs.
   const repositorySection = useMemo(() => (
-    <section class="repo-section" aria-label="版控 Repo">
+    state.workspaceCapabilities?.isVirtualWorkspace ? <FeatureNotice reason={state.workspaceCapabilities.localProjectOperations.reason ?? "此功能需要本機專案資料夾。"} /> : <section class="repo-section" aria-label="版控 Repo">
       <div class="repo-section-heading"><strong>版控 Repo</strong><span class="count">{state.repositories?.length ?? 0}</span><button type="button" aria-label="更新本機 Repo" aria-busy={activeOperations.some(operation => operation.action === 'refreshRepositories')} disabled={activeOperations.some(operation => operation.action === 'refreshRepositories')} onClick={() => dispatchAction({ type: 'refreshRepositories' })}>更新</button></div>
       <label class="repo-search"><span aria-hidden="true">⌕</span>
         <input aria-label="搜尋 Repo" type="search" placeholder="搜尋工作區 Repo…" value={search}
@@ -297,7 +298,7 @@ function GitSidebar() {
               </div>}
             </div>} />}
     </section>
-  ), [state.gitAvailable, state.gitMessage, state.repositories?.length, repositories, search,
+  ), [state.workspaceCapabilities?.isVirtualWorkspace, state.workspaceCapabilities?.localProjectOperations.reason, state.gitAvailable, state.gitMessage, state.repositories?.length, repositories, search,
     expanded, details, selectedRepositoryId, repositoryBusySignature, visible, activeOperations.some(operation => operation.action === 'refreshRepositories')]);
 
   return <main class="quick-actions" aria-label="GitLab Workspace 導覽">

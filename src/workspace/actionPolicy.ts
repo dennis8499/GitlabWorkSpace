@@ -2,10 +2,11 @@ import type { WorkspaceRequest } from './workspaceProtocol';
 import type { GitAction } from '../git/gitProtocol';
 import type { IssueAction, IssuePanelRequest } from '../issues/protocol';
 import type { QuickAction } from './quickActionsProtocol';
+import type { WorkspaceCapabilities } from './workspaceCapabilities';
 
 export type ActionKind = 'local' | 'read' | 'write' | 'control';
 export type ActionConcurrency = 'latest' | 'join' | 'exclusive' | 'parallel';
-export interface ActionContext { scopeRevision?: string; localOperationScope?: string; accountKey?: string; rootKey?: string; hostSessionId?: string; scopeEpoch?: number; }
+export interface ActionContext { scopeRevision?: string; localOperationScope?: string; accountKey?: string; rootKey?: string; hostSessionId?: string; scopeEpoch?: number; workspaceCapabilities?: WorkspaceCapabilities; }
 export interface ActionPolicy {
   action: string; kind: ActionKind; concurrency: ActionConcurrency;
   resourceKey: string; lockKey: string; label: string;

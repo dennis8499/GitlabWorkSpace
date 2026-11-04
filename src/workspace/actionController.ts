@@ -1,4 +1,5 @@
 import { describeAction, effectiveOperationScope, writeResourceLock, type ActionContext } from './actionPolicy';
+import { assertWorkspaceAction } from './workspaceCapabilities';
 import { isActiveOperation, operationConcurrencyKey, type OperationOutcome, type OperationSnapshot, type WorkspaceOperationState } from './operations';
 
 export interface DispatchResult { status: 'started' | 'joined' | 'blocked'; operationId?: string; correlationId?: string; reason?: string; }
@@ -85,6 +86,10 @@ export class ActionController {
     }
   }
   dispatch(request: { type: string; [key: string]: any }): DispatchResult {
+    if (this.context.workspaceCapabilities) {
+      try { assertWorkspaceAction(this.context.workspaceCapabilities, request); }
+      catch (error) { return { status: 'blocked', reason: error instanceof Error ? error.message : '此功能需要本機專案資料夾。' }; }
+    }
     const policy = describeAction(request, this.context);
     if (policy.kind === 'control' || policy.kind === 'local') {
       try {

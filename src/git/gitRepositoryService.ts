@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { assertWorkspaceAction, getWorkspaceCapabilities, VIRTUAL_WORKSPACE_REASON } from '../workspace/workspaceCapabilities';
 import type { NotificationCenter } from '../notifications/notificationCenter';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -134,7 +135,9 @@ export class GitRepositoryService implements vscode.Disposable {
   get hasActiveOperations(): boolean { return this.activeOperations.size > 0 || this.pendingActions > 0; }
 
   async getInventory(): Promise<ScannedRepository[]> {
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return [];
     await this.initialization;
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return [];
     return mapWithConcurrency(this.api?.repositories ?? [], 4, async repository => {
       const remotes = repository.state.remotes.flatMap(remote => [remote.fetchUrl, remote.pushUrl]).filter((url): url is string => !!url)
         .map(remote => { try { const url = new URL(remote); url.username = ''; url.password = ''; url.search = ''; url.hash = ''; return url.toString(); } catch { return remote; } });
@@ -147,6 +150,7 @@ export class GitRepositoryService implements vscode.Disposable {
 
   private previousScan?: RepositoryScanState;
   async scanWorkspace(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void, roots?: readonly string[], resume = false): Promise<RepositoryScanState> {
+    assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), { type: 'scanRepositories' });
     const task = () => this.scanWorkspaceInternal(signal, onProgress, roots, resume);
     return this.gitlabSession.log?.run('projects', 'scanWorkspace', {}, task) ?? task();
   }
@@ -250,6 +254,14 @@ export class GitRepositoryService implements vscode.Disposable {
     private readonly notifications?: NotificationCenter) {
     this.gitlabSession = session;
     this.initialization = this.initialize();
+    this.subscriptions.push(vscode.workspace?.onDidChangeWorkspaceFolders?.(() => {
+      if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) {
+        this.setActivePanelRepository(undefined);
+        this.enabled = false; this.error = VIRTUAL_WORKSPACE_REASON;
+        this.publishRepositories();
+      } else if (!this.api) this.initialization = this.initialize();
+      else { this.enabled = this.api.state === 'initialized'; this.error = undefined; this.publishRepositories(); }
+    }) ?? { dispose() {} });
   }
 
   /** Kept for callers compiled against the existing integration API. */
@@ -291,7 +303,9 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   async refresh(): Promise<GitRepositorySummary[]> {
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return [];
     await this.initialization;
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return [];
     if (!this.api || !this.enabled) {
       this.cachedSummaries = [];
       this.cachedSummariesListRevision = this.repositoryListRevision;
@@ -342,6 +356,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   async getSummaryState(): Promise<{ repositories: GitRepositorySummary[]; available: boolean; message?: string; revision: number }> {
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return this.getCachedSummaryState();
     await this.initialization;
     while (this.cachedSummariesListRevision !== this.repositoryListRevision) await this.refresh();
     if (this.dirtySummaryIds.size) await this.refreshDirtySummaries();
@@ -356,6 +371,9 @@ export class GitRepositoryService implements vscode.Disposable {
 
   /** Unsolicited UI updates must never start Git reads or expose unread revisions. */
   getCachedSummaryState(): { repositories: GitRepositorySummary[]; available: boolean; message?: string; revision: number } {
+    if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return {
+      repositories: [], available: false, message: VIRTUAL_WORKSPACE_REASON, revision: this.repositoriesRevision
+    };
     const cached = new Map(this.cachedSummaries.map(summary => [summary.id, summary]));
     const repositories = this.enabled ? (this.api?.repositories ?? []).map(repository => {
       const id = this.repositoryId(repository.rootUri.fsPath);
@@ -407,6 +425,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   async openRepositoryPath(candidate: string): Promise<string | undefined> {
+    assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), { type: 'gitOpenRepository' });
     const requested = await this.canonicalPath(candidate);
     await mapWithConcurrency(this.api?.repositories ?? [], 4, async item => { await this.canonicalPath(item.rootUri.fsPath); });
     const repository = this.api?.repositories.find((item) => {
@@ -701,6 +720,9 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async initialize(): Promise<void> {
+    if (this.disposed || getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) {
+      this.enabled = false; this.error = VIRTUAL_WORKSPACE_REASON; return;
+    }
     this.repositoryExtension = vscode.extensions.getExtension<GitExtension>(API_EXTENSION_ID);
     if (!this.repositoryExtension) {
       this.error = '請安裝或啟用 VS Code 內建 Git 擴充功能。';
@@ -743,6 +765,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async attachApi(extension: GitExtension): Promise<void> {
+    if (this.disposed || getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return;
     const api = extension.getAPI(1);
     this.api = api;
     this.enabled = true;
@@ -898,6 +921,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async requireRepository(repositoryId: string): Promise<GitRepository> {
+    assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), { type: 'gitOpenRepository' });
     const api = this.api;
     if (!api || !this.enabled) throw new Error(this.error ?? 'VS Code 內建 Git 尚未準備完成。');
     if (!repositoryId || repositoryId.length > 128) throw new Error('版控 Repo 識別碼無效。');

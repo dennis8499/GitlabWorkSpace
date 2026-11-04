@@ -7,6 +7,7 @@ import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import type { GitLabAccount, AccountOperation, AccountPanelIntent } from '../connection/accountProtocol';
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
+import type { WorkspaceCapabilities } from './workspaceCapabilities';
 import type { ProjectRootContext } from './projectRootProtocol';
 import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
@@ -179,6 +180,7 @@ export interface WorkflowKitReleaseSummary {
 }
 
 export interface WorkspaceSnapshot {
+  workspaceCapabilities?: WorkspaceCapabilities;
   bmad?: BmadWorkflowSnapshot;
   bmadEnvironment?: BmadEnvironmentCheck;
   notifications?: NotificationSnapshot;

@@ -22,7 +22,7 @@ import { CodexPanel, CodexSettings } from './CodexPanel';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
 import { FeatureNotice, FeatureNotices, FeatureButton } from './FeatureNotice';
-import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
+import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker, localProjectBlocker } from './featureAvailability';
 
 import { NotificationDrawer } from './NotificationDrawer';
 import { NotificationSnackbar } from './NotificationSnackbar';
@@ -317,13 +317,13 @@ function DashboardOverview({ snapshot, disabled, onNavigate, onLocalRepositories
       <div class="home-card-heading"><div><span class="eyebrow">本機工作區</span><h2>專案 Repo</h2></div><span class="home-count">{repositories.length}</span></div>
       <p class="home-path" title={snapshot.projectContext?.root}>{snapshot.projectContext?.root ?? snapshot.projectContext?.error ?? '請在 VS Code 開啟專案資料夾'}</p>
       {snapshot.dashboardSections?.local.status === 'error' && <p class="warning" role="alert">本機摘要載入失敗：{snapshot.dashboardSections.local.error}</p>}
-      <div class="home-repository-list">{repositories.slice(0, 5).map(repository => <FeatureButton class="home-repository" type="button" blocker={blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')}
+      <div class="home-repository-list">{repositories.slice(0, 5).map(repository => <FeatureButton class="home-repository" type="button" blocker={localProjectBlocker(snapshot.workspaceCapabilities) ?? blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')}
         key={repository.path} title={repository.path} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>
         <span>⑂</span><strong>{repository.name}</strong><small>{repository.path}</small></FeatureButton>)}
         {!repositories.length && <p class="subtle">{snapshot.projectContext?.root ? '目前沒有已登錄的 Repo；可掃描工作區尋找其他 Repo。' : '開啟專案資料夾後，VS Code 會自動辨識 Repo。'}</p>}
       </div>
       <div class="home-actions"><button type="button" onClick={onLocalRepositories}>查看所有 Repo</button>
-        <FeatureButton type="button" blocker={firstBlocker(blockedWhen(disabled, '工作區作業正在處理，請稍候。'), blockedWhen(snapshot.repositoryScan?.status === 'scanning', '正在掃描工作區，請稍候。'), blockedWhen(!snapshot.projectContext?.root, '請先在 VS Code 開啟專案資料夾。'))}
+        <FeatureButton type="button" blocker={firstBlocker(localProjectBlocker(snapshot.workspaceCapabilities), blockedWhen(disabled, '工作區作業正在處理，請稍候。'), blockedWhen(snapshot.repositoryScan?.status === 'scanning', '正在掃描工作區，請稍候。'), blockedWhen(!snapshot.projectContext?.root, '請先在 VS Code 開啟專案資料夾。'))}
           onClick={() => post({ type: 'scanRepositories' })}>{snapshot.repositoryScan?.status === 'scanning' ? '掃描中…' : '掃描工作區'}</FeatureButton>
         {!snapshot.projectContext?.root && <button type="button" onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟資料夾</button>}
       </div>
@@ -685,7 +685,7 @@ function App() {
         localOperationScope = nextLocalOperationScope;
         actions.setContext({ scopeRevision: operationScope, localOperationScope, accountKey: message.snapshot.activeAccountId ?? message.snapshot.instanceUserScope,
           rootKey: message.snapshot.projectContext?.root ?? message.snapshot.skillsContext?.root ?? message.snapshot.groupRoot,
-          scopeEpoch: message.snapshot.scopeEpoch });
+          scopeEpoch: message.snapshot.scopeEpoch, workspaceCapabilities: message.snapshot.workspaceCapabilities });
         if (message.snapshot.operationSnapshot) actions.reconcile(message.snapshot.operationSnapshot);
         else for (const operation of message.snapshot.operations ?? []) actions.receive(operation);
         projectRevision = message.snapshot.projectContext?.revision;
@@ -1201,7 +1201,8 @@ function App() {
   const blockingWork = blockingWrite || (!snapshot.operationSnapshot && !!snapshot.busy);
   const waiting = blockedWhen(blockingWork, '工作區作業正在處理，請稍候。');
   const remoteBlocked = firstBlocker(blockedWhen(!snapshot.connected, '請先登入 GitLab。'), blockedWhen(!snapshot.group, '請先選擇 GitLab Group。'));
-  const cloneRootBlocked = firstBlocker(waiting, blockedWhen(!snapshot.cloneRoot, '請在設定中選擇共用根目錄。'),
+  const localBlocked = localProjectBlocker(snapshot.workspaceCapabilities);
+  const cloneRootBlocked = firstBlocker(localBlocked, waiting, blockedWhen(!snapshot.cloneRoot, '請在設定中選擇共用根目錄。'),
     blockedWhen(snapshot.cloneRootError, snapshot.cloneRootError ?? '', 'warning'));
   const cloneSelectedBlocked = firstBlocker(cloneRootBlocked, blockedWhen(!selectedProjectIds.length, '請先勾選要處理的 Repo。'));
   const cloneBlockers = { '下載／更新、更新選取 Repo 預設分支': cloneSelectedBlocked, '更新全部本機預設分支': cloneRootBlocked };
@@ -1212,7 +1213,7 @@ function App() {
     '核准': firstBlocker(mrWaiting, mrVersionBlocked, blockedWhen(snapshot.instance?.enterprise !== true,
       approvalDiagnostic?.reason ?? (snapshot.instance?.enterprise === false ? 'GitLab Community Edition 不支援 MR 核准 API。' : '尚未確認此 GitLab 執行個體是否支援 MR 核准。'), 'warning')),
     '合併 MR': firstBlocker(mrWaiting, mrVersionBlocked, blockedWhen(mr?.merge_commit_sha, '此 MR 已合併，請更新狀態。', 'warning'), availabilityBlocker(selectedMr?.mergeAvailability)),
-    '分支審查': blockedWhen(!snapshot.groupRoot, snapshot.workspaceRootError ?? snapshot.skillsContext?.reason ?? '請先選擇可執行分支審查的本機專案目錄。', 'warning') };
+    '分支審查': firstBlocker(localBlocked, blockedWhen(!snapshot.groupRoot, snapshot.workspaceRootError ?? snapshot.skillsContext?.reason ?? '請先選擇可執行分支審查的本機專案目錄。', 'warning')) };
   const remotePage = mode === 'dashboard' && snapshot.connected || mode === 'developer' || mode === 'reviewer' || mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && !!snapshot.group;
   const projectRoot = snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot;
   const workspaceStatus = mode === 'developer' && selectedIssueProject && selectedIssue
@@ -1220,7 +1221,7 @@ function App() {
     : projectRoot ? '專案根目錄：' + projectRoot + (snapshot.skillsContext?.mode === 'unavailable' && snapshot.skillsContext.reason ? ' · ' + snapshot.skillsContext.reason : '')
       : snapshot.skillsContext?.reason ?? snapshot.projectContext?.error ?? snapshot.workspaceRootError ?? '請在 VS Code 開啟本機專案資料夾';
 
-  return <main class="app-shell">{pageError && pageError.mode === mode && (!pageError.scope || [operationScope, localOperationScope].includes(pageError.scope)) && <FeatureNotice tone="error" reason={pageError.message.split(/\r?\n/, 1)[0].slice(0, 180)} details={pageError.message.length > 180 || /\r|\n/.test(pageError.message) ? pageError.message : undefined}><button type="button" onClick={() => post({ type: 'refresh' })}>重新載入</button><button type="button" onClick={() => setPageError(undefined)}>關閉</button></FeatureNotice>}
+  return <main class="app-shell">{localBlocked && <FeatureNotice reason={localBlocked.reason} />}{pageError && pageError.mode === mode && (!pageError.scope || [operationScope, localOperationScope].includes(pageError.scope)) && <FeatureNotice tone="error" reason={pageError.message.split(/\r?\n/, 1)[0].slice(0, 180)} details={pageError.message.length > 180 || /\r|\n/.test(pageError.message) ? pageError.message : undefined}><button type="button" onClick={() => post({ type: 'refresh' })}>重新載入</button><button type="button" onClick={() => setPageError(undefined)}>關閉</button></FeatureNotice>}
     <header class="topbar">
       <div class="brand"><span class="brand-mark">GW</span><strong>GitLab Workspace</strong></div>
       <div class="top-controls">
@@ -1255,14 +1256,15 @@ function App() {
         </div>
         <div ref={workspaceVisual} class="workspace-tasks" hidden={!!issueNavigation}>
         <div class="git-mode-host" hidden={mode !== 'git'}>
-          {(gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
+          {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
         {mode !== 'git' && mode !== 'bmad' && <div class="page-heading"><div><div class="eyebrow">{mode === 'dashboard' ? '共用工作台' : remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
-          <div class="heading-actions">{mode !== 'clone' && mode !== 'dashboard' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}<button class="quiet" type="button" disabled={busy} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button></div></div>}
-        {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('gitlab')} {...availabilityProps('project-source', remoteBlocked)}>GitLab 專案</button><FeatureNotices id="project-source" items={{ 'GitLab 專案': remoteBlocked }}>{!snapshot.connected ? <button type="button" onClick={() => post({ type: 'connect' })}>登入 GitLab</button> : !snapshot.group && <button type="button" onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}</FeatureNotices><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('local')}>本機 Repo</button><button type="button" disabled={snapshot.repositoryScan?.status === 'scanning'} onClick={() => { changeProjectSource('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
+          <div class="heading-actions">{mode !== 'clone' && mode !== 'dashboard' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}<button class="quiet" type="button" disabled={busy || !!localBlocked && mode !== 'dashboard' && !remotePage} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button></div></div>}
+        {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('gitlab')} {...availabilityProps('project-source', remoteBlocked)}>GitLab 專案</button><FeatureNotices id="project-source" items={{ 'GitLab 專案': remoteBlocked }}>{!snapshot.connected ? <button type="button" onClick={() => post({ type: 'connect' })}>登入 GitLab</button> : !snapshot.group && <button type="button" onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}</FeatureNotices><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('local')}>本機 Repo</button><button type="button" disabled={!!localBlocked || snapshot.repositoryScan?.status === 'scanning'} onClick={() => { changeProjectSource('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
         {mode !== 'git' && (
         mode === 'dashboard' ? <DashboardOverview snapshot={snapshot} disabled={blockingWork} onNavigate={modeChange}
           onLocalRepositories={showLocalRepositories} onGitLabProjects={showGitLabProjects} onOpenSettings={() => openSettings()} post={post} />
+          : localBlocked && (mode === 'sa' || mode === 'bmad' || mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local')) ? <FeatureNotice reason={localBlocked.reason} />
           : mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local') ? <LocalRepositoriesPanel repositories={snapshot.localWorkspaceRepositories ?? []} scan={snapshot.repositoryScan} projects={snapshot.projects} post={post} />
           : !snapshot.connected && mode !== 'sa' && mode !== 'bmad' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
           : !snapshot.group && mode !== 'sa' && mode !== 'bmad' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
@@ -1273,7 +1275,7 @@ function App() {
                   const matches = localCopiesByProject.get(project.id) ?? [];
                   return <div class="repo-row"><input id={`repo-project-${project.id}`} type="checkbox" checked={selectedProjectIdSet.has(project.id)} disabled={blockingWork} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
                     <span class="repo-details"><strong><label htmlFor={`repo-project-${project.id}`}>{project.path_with_namespace}</label></strong><small>預設分支：{project.default_branch ?? '未設定'}　·　本機：{local?.path || '尚未 Clone'}</small></span>
-                    <span class={`pill ${local?.state === 'ready' || matches.length ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{matches.length ? `${matches.length} 個本機副本` : local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span>{matches.length ? <div class="project-local-copies">{matches.map(repository => <FeatureButton class="quiet small" type="button" title={repository.path} blocker={blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>開啟版控 · {repository.name}</FeatureButton>)}</div> : local?.state === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'gitOpenRepository', path: local.path })}>開啟版控</button>}</div>;
+                    <span class={`pill ${local?.state === 'ready' || matches.length ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{matches.length ? `${matches.length} 個本機副本` : local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span>{matches.length ? <div class="project-local-copies">{matches.map(repository => <FeatureButton class="quiet small" type="button" title={repository.path} blocker={localProjectBlocker(snapshot.workspaceCapabilities) ?? blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>開啟版控 · {repository.name}</FeatureButton>)}</div> : local?.state === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'gitOpenRepository', path: local.path })}>開啟版控</button>}</div>;
                 }} />
                 {cloneOperation && cloneOperation.scopeKey === snapshot.connectedScope && <section class="operation-results" aria-label="下載與更新結果">
                   <div class="operation-heading"><strong>{cloneOperation.label}</strong><span class="count" role="status" aria-live="polite" aria-atomic="true">{cloneOperation.phase === 'running' ? `處理中 ${completedOperationCount}/${cloneOperation.items.length}${activeOperationItem ? ` - ${activeOperationItem.projectPath}` : ''}` : cloneOperation.phase === 'cancelled' ? `已取消: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個; 未完成項目保留選取` : cloneOperation.phase === 'failed' ? `處理中斷: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個` : `處理完成: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個`}</span></div>
@@ -1488,7 +1490,7 @@ function App() {
       </section>
     </div>
 
-    <CodexPanel post={post} />
+    {!localBlocked && <CodexPanel post={post} />}
     <div class="workspace-operation-area"><OperationFeedback excludeResources={[...(mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && snapshot.group ? ['repositories'] : []), ...(mode === 'reviewer' && mr ? [`mr:${mr.project_id}:${mr.iid}`] : []), ...(mode === 'sa' || toolDrawer ? ['skills'] : [])]} excludePrefixes={mode === 'git' ? ['git:'] : mode === 'sa' ? ['skill:'] : mode === 'developer' && issueNavigation ? ['issue:'] : []} initialOperations={snapshot.operations} scopeRevision={effectiveOperationScope({ type: 'refresh', mode, projectSource: requestProjectSource }, { scopeRevision: snapshot.operationScope ?? operationScope, localOperationScope: snapshot.localOperationScope ?? localOperationScope })} onRefresh={() => post({ type: 'refresh' })} /></div>
     <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}</footer>
     <NotificationSnackbar snapshot={notifications} onView={id => {
@@ -1581,7 +1583,8 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
   const policy = snapshot.workflowKitPolicy ?? { allowed: true, reason: undefined };
   const checkingKit = useActionSelector(actions, states => states.some(item => item.action === 'checkWorkflowKitReleases' && isActiveOperation(item)));
   const kitBusy = checkingKit || !!snapshot.workflowKitOperationBusy || snapshot.workflowKitInstallTarget?.state.status === 'installing';
-  const settingsWaiting = blockedWhen(operationBusy || kitBusy, '工作區或 Skills 作業正在處理，請稍候。');
+  const localBlocked = localProjectBlocker(snapshot.workspaceCapabilities);
+  const settingsWaiting = firstBlocker(localBlocked, blockedWhen(operationBusy || kitBusy, '工作區或 Skills 作業正在處理，請稍候。'));
   const checkKitBlocked = firstBlocker(settingsWaiting, blockedWhen(!policy.allowed, policy.reason ?? '目前尚無法檢查 Skills。'));
   const rootBlockers = { '選擇共用根目錄': firstBlocker(settingsWaiting, blockedWhen(!snapshot.projectContext?.selectedFolderUri, '請先在 VS Code 開啟或選擇專案資料夾。')),
     '恢復 VS Code 根目錄': firstBlocker(settingsWaiting, blockedWhen(!snapshot.projectContext?.manual, '目前已使用 VS Code 根目錄。')) };
@@ -1595,7 +1598,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
     }}>{(['tools', 'accounts'] as const).map(id => <button id={`settings-tab-${id}`} type="button" role="tab" aria-selected={section === id} aria-controls={`settings-content-${id}`} tabIndex={section === id ? 0 : -1} onClick={() => onSection(id)}>{id === 'tools' ? '工作區與 Skills' : '帳號與連線'}</button>)}</div>
     {section === 'accounts' ? <div role="tabpanel" id="settings-content-accounts" aria-labelledby="settings-tab-accounts"><AccountPanel active={open} actions={actions} snapshot={snapshot} intent={accountIntent} post={post} /></div> : <div role="tabpanel" id="settings-content-tools" aria-labelledby="settings-tab-tools">
     <section class="workspace-settings project-root-settings" aria-label="共用專案根目錄"><h3>共用專案根目錄</h3>
-      <ProjectFolderSelect snapshot={snapshot} disabled={operationBusy || kitBusy} post={post} />
+      <ProjectFolderSelect snapshot={snapshot} disabled={operationBusy || kitBusy || !!localBlocked} post={post} />
       <p class="project-root-path" role="status">{snapshot.projectContext?.root ?? snapshot.projectContext?.error ?? '請先在 VS Code 開啟或選擇專案資料夾。'}</p>
       <p class="subtle">專案下載、Skills 安裝與執行共用此位置。留白時使用 VS Code 開啟的專案資料夾。</p>
       <div class="button-row"><button type="button" {...availabilityProps('settings-root', rootBlockers['選擇共用根目錄'])} onClick={onSelectProjectRoot}>選擇共用根目錄</button>
@@ -1604,7 +1607,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
       </div>
     </section>
     <section class="workspace-settings"><h3>GitLab 專案來源</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>遠端群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 GitLab 群組</button></div></> : <><p>連線後可瀏覽 GitLab 專案、Issue 與 MR。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
-    <CodexSettings post={post} />
+    {localBlocked ? <FeatureNotice reason={localBlocked.reason} /> : <CodexSettings post={post} />}
     <section class="workspace-settings"><h3>操作紀錄</h3><p>在 VS Code 原生 Output 面板查看 GitLab Workspace Log。</p><button type="button" onClick={onOpenLogs}>開啟 Log</button></section>
     <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
       <p>版本：GitLab {snapshot.instance?.version ?? '未知'} · 版本類型：{snapshot.instance?.enterprise === false ? 'Community Edition' : snapshot.instance?.enterprise === true ? 'Enterprise Edition' : '未知'}</p>
@@ -1613,7 +1616,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
       <button class="secondary small" type="button" disabled={operationBusy || snapshot.instanceChecking} onClick={onRetryInstance}>{snapshot.instanceChecking ? '正在重新偵測…' : '重新偵測功能支援'}</button>
     </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
     <section class="tool-settings"><h3>WorkflowKit 工作流程整合包</h3>
-    <label class="field">下載來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="github">GitHub Release</option><option value="gitea">內網 Gitea 備援</option></select></label>
+    <label class="field">下載來源<select disabled={kitBusy || !!localBlocked} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="github">GitHub Release</option><option value="gitea">內網 Gitea 備援</option></select></label>
     <p class="source-lines">包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer、Output Style 與 BMAD。依目前專案使用適用的 Skills 流程。</p>
     <div class="button-row"><button class="secondary small" type="button" {...availabilityProps('settings-kit-check', checkKitBlocked)} onClick={onRefresh}>檢查最新正式版</button><FeatureNotices id="settings-kit-check" items={{ '檢查最新正式版': checkKitBlocked }} /><button class="quiet small" type="button" disabled={kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button></div>
     {(() => {

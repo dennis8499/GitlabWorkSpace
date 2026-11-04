@@ -1,4 +1,9 @@
 import type { ActionAvailability } from '../api/actionAvailability';
+import type { WorkspaceCapabilities } from '../workspace/workspaceCapabilities';
+
+export function localProjectBlocker(capabilities?: WorkspaceCapabilities): FeatureBlocker | undefined {
+  return capabilities ? availabilityBlocker(capabilities.localProjectOperations) : undefined;
+}
 
 export interface FeatureBlocker { reason: string; tone: 'hint' | 'warning' | 'error'; details?: string; }
 export function blockedWhen(condition: unknown, reason: string, tone: FeatureBlocker['tone'] = 'hint', details?: string): FeatureBlocker | undefined {

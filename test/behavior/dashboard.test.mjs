@@ -9,6 +9,23 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+test('a virtual workspace keeps GitLab data visible and blocks local controls even with stale saved roots', async t => {
+  const data = { ...snapshot('clone'), workspaceCapabilities: { isVirtualWorkspace: true,
+    localProjectOperations: { status: 'denied', reason: '需要磁碟上的專案資料夾。' } } };
+  const view = await mount({ mode: 'clone', projectSource: 'gitlab', selectedProjectIds: [1] }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.ok(document.querySelector('.clone-list-column'));
+  assert.equal(document.querySelector('.clone-submit').disabled, true);
+  assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === '一鍵掃描 Repo').disabled, true);
+  assert.match(document.querySelector('.app-shell').textContent, /需要磁碟上的專案資料夾/);
+  assert.equal(view.requests.some(request => ['clone', 'scanRepositories', 'listCodexTasks'].includes(request.type)), false);
+  view.sendSnapshot({ ...data, activeMode: 'git' }); await view.tick();
+  assert.equal(document.querySelector('.git-workbench'), null);
+  view.sendSnapshot({ ...data, activeMode: 'developer' }); await view.tick();
+  assert.ok(document.querySelector('.developer-view-shell'), 'remote Issue browsing remains available');
+});
+
 test('Issue empty states distinguish initial loading, failure, partial and confirmed empty without new reads', async t => {
   const data = { ...snapshot(), issues: [], sections: { issues: { status: 'loading' } } };
   const view = await mount({}, data); t.after(() => view.dom.window.close());

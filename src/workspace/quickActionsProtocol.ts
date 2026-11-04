@@ -2,6 +2,7 @@ import type { GitRepositoryDetails, GitRepositorySummary } from '../git/gitProto
 import type { GitLabAccount, AccountOperation } from '../connection/accountProtocol';
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { WorkspaceMode } from './workspaceProtocol';
+import type { WorkspaceCapabilities } from './workspaceCapabilities';
 import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 import type { NotificationRequest } from '../notifications/notificationProtocol';
 
@@ -27,6 +28,7 @@ export type QuickActionsRequest = (
 ) & QuickActionsOperationContext;
 
 export interface QuickActionsState {
+  workspaceCapabilities?: WorkspaceCapabilities;
   connected: boolean;
   accounts?: GitLabAccount[];
   activeAccountId?: string;

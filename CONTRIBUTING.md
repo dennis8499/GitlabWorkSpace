@@ -4,7 +4,7 @@
 
 ## 開發環境
 
-- Node.js 24 與 npm。
+- Node.js 24 與 npm；開發編譯器使用 typescript-eslint 支援的 TypeScript 6.0 系列。
 - Python 3（VSIX 打包驗證會呼叫 `python`）。
 - Git。
 - VS Code 1.90.0 或更新版本。
@@ -36,9 +36,9 @@ npm run test:extension
 npm test
 ```
 
-`npm test` 先檢查 Extension Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Webview 各一次；先執行真實 Extension Host 測試，確認桌面宿主能啟動，再執行單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔。CI 可直接上傳這次測試的 `dist` 附件，不必再次打包。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
+`npm test` 先執行 ESLint（零警告），再檢查 Extension Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Webview 各一次；先執行真實 Extension Host 測試，確認桌面宿主能啟動，再執行單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔。CI 可直接上傳這次測試的 `dist` 附件，不必再次打包。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
 
-各獨立測試與 `npm run package` 仍會自動準備必要建置。要在同一份來源重複檢查，可先執行 `npm run prepare:validation`，再使用 `test:unit:prepared`、`test:behavior:prepared`、`test:release:prepared`、`test:extension:prepared` 或 `package:prepared`。這些命令核對來源與產物的 SHA-256；來源、測試、建置腳本或產物改變後，須重新準備。多個命令不可共用目錄同時建置；驗證器使用工作目錄鎖避免互相刪除產物。
+各獨立測試與 `npm run package` 仍會自動準備必要建置。要在同一份來源重複檢查，可先執行 `npm run prepare:validation`，再使用 `test:unit:prepared`、`test:behavior:prepared`、`test:release:prepared`、`test:extension:prepared` 或 `package:prepared`。這些命令核對成功的 lint 階段、來源與產物的 SHA-256；ESLint 設定變更或舊收據缺少 lint 時，必須重新準備。來源、測試、建置腳本或產物改變後，須重新準備。多個命令不可共用目錄同時建置；驗證器使用工作目錄鎖避免互相刪除產物。
 
 發行流程的 Python 測試預設使用兩個獨立 process，個別保留暫存夾與日誌；可透過 `GITLAB_WORKSPACE_TEST_WORKERS=1` 改為串行（接受 1–16）。每次執行的命令、退出碼、耗時及日誌位置寫入 `.gitlab-workspace-validation/runs/<時間>-<PID>/timings.json`；`GITLAB_WORKSPACE_VALIDATION_DIR` 可指定本次尚未使用的證據目錄。`test/release/*_test.py` 與 `scripts/*.test.mjs` 會自動納入，新增測試須遵循這些命名。
 
