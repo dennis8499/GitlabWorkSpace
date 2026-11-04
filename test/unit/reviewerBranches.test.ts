@@ -213,7 +213,7 @@ test('Codex review refresh keeps its queued request ID on revalidation and resum
   for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
     const runtime = runtimes[tool], prefix = tool === 'merge-reviewer' ? 'Merge' : 'Release';
     await mkdir(path.join(runtime, 'jobs'), { recursive: true });
-    await writeFile(path.join(runtime, `.${tool}-runtime.json`), JSON.stringify({ schema: `${prefix}ReviewRuntime/v1`, directory: runtime }));
+    await writeFile(path.join(runtime, `.${tool}-runtime.json`), JSON.stringify({ schema: `${prefix}ReviewRuntime/v1`, directory: await realpath(runtime) }));
     await writeFile(path.join(runtime, 'jobs', original + '.json'), JSON.stringify({ schema: `${prefix}ReviewSession/v1`, request_id: original,
       runtime_root: runtime, state: 'reviewing', phase: 'review', updated_at: '2026-11-03T00:00:00Z',
       inputs: { workspace: root, project: root, base: 'main', head: 'topic' } }));
