@@ -5,9 +5,9 @@ import { assertPrepared, receiptPath, runLogged, runPool, savePreparation, worke
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const [mode = 'all', ...args] = process.argv.slice(2);
-const validModes = ['all', 'prepare', 'unit', 'behavior', 'release', 'extension', 'package', 'prepublish'];
+const validModes = ['all', 'prepare', 'unit', 'behavior', 'release', 'extension', 'trust', 'package', 'prepublish'];
 if (!validModes.includes(mode) || args.some(arg => !['--prepared', '--production'].includes(arg))) {
-  throw new Error('Usage: run-validation.mjs [all|prepare|unit|behavior|release|extension|package|prepublish] [--prepared] [--production]');
+  throw new Error('Usage: run-validation.mjs [all|prepare|unit|behavior|release|extension|trust|package|prepublish] [--prepared] [--production]');
 }
 const prepared = args.includes('--prepared') || (mode === 'prepublish' && process.env.GITLAB_WORKSPACE_PREPARED === '1');
 const stages = ['lint', ...(mode === 'release' ? [] : mode === 'extension' ? ['compile', 'webview']
@@ -62,7 +62,7 @@ try {
   }
   // Resolve/download the editor and check launch inputs before the long suites.
   const hostProof = path.join(evidenceDir, 'extension-host.json');
-  if (mode === 'all' || mode === 'extension') {
+  if (mode === 'all' || mode === 'extension' || mode === 'trust') {
     await required(node('host-preflight', 'scripts/run-extension-tests.mjs', '--preflight', hostProof));
   }
   if (!prepared) {
@@ -89,6 +89,9 @@ try {
     // installation metadata alone cannot detect a failed desktop launch.
     if (mode === 'all' || mode === 'extension') {
       await required(node('extension', 'scripts/run-extension-tests.mjs', '--preflight-file', hostProof, '--forbid-only', '--fail-zero'));
+    }
+    if (mode === 'all' || mode === 'trust') {
+      await required(node('workspace-trust', 'scripts/test-workspace-trust.mjs', '--preflight-file', hostProof));
     }
     if (mode === 'all' || mode === 'unit') {
       const files = (await readdir(path.join(root, 'out/test/unit'))).filter(name => name.endsWith('.test.js')).sort();

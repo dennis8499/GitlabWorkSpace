@@ -302,6 +302,7 @@
     "test:release": "node scripts/run-validation.mjs release",
     "test:release:prepared": "node scripts/run-validation.mjs release --prepared",
     "test:unit": "node scripts/run-validation.mjs unit",
+    "test:trust": "node scripts/run-validation.mjs trust",
     "test:unit:prepared": "node scripts/run-validation.mjs unit --prepared",
     "typecheck:webview": "tsc -p tsconfig.webview.json",
     "verify:package": "node scripts/run-python.mjs scripts/verify-vsix.py",

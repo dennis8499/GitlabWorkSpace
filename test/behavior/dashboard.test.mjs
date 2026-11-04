@@ -9,6 +9,21 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+test('rendered Issue Markdown strips style tags, style attributes and event handlers', async t => {
+  const data = snapshot();
+  const view = await mount({}, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData',
+    data: issueDetailData({ ...data.issues[0], description: 'Markdown probe' }, data.projects[0]) } }); await view.tick();
+  const preview = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'preview');
+  assert.ok(preview);
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: preview.request.requestId,
+    result: { html: '<style>body{position:fixed}</style><span id="markdown-style-probe" style="position:fixed" onmouseover="alert(1)">safe Markdown</span>' } } }); await view.tick();
+  const node = view.dom.window.document.querySelector('#markdown-style-probe');
+  assert.equal(node.textContent, 'safe Markdown'); assert.equal(node.hasAttribute('style'), false);
+  assert.equal(node.hasAttribute('onmouseover'), false); assert.equal(view.dom.window.document.querySelector('.markdown style'), null);
+});
+
 test('a virtual workspace keeps GitLab data visible and blocks local controls even with stale saved roots', async t => {
   const data = { ...snapshot('clone'), workspaceCapabilities: { isVirtualWorkspace: true,
     localProjectOperations: { status: 'denied', reason: '需要磁碟上的專案資料夾。' } } };

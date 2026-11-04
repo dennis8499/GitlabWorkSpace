@@ -1,7 +1,8 @@
+import { prepareWebviewHtml } from '../webviewSecurity';
 import { readReviewerCapabilities } from './reviewerCapabilities';
 import * as vscode from 'vscode';
 import { assertWorkspaceAction, getWorkspaceCapabilities } from './workspaceCapabilities';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -426,14 +427,10 @@ export class WorkspacePanel implements vscode.Disposable {
         }
       });
       try {
-        const nonce = randomBytes(16).toString('base64');
         const htmlPath = vscode.Uri.joinPath(assetRoot, 'dashboard.html');
-        let html = await readFile(htmlPath.fsPath, 'utf8');
+        const html = await readFile(htmlPath.fsPath, 'utf8');
         if (this.panel !== panel || this.disposed) return;
-        const base = panel.webview.asWebviewUri(assetRoot).toString().replace(/\/$/, '') + '/';
-        html = html.replace('<head>', `<head><base href="${base}"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${panel.webview.cspSource}; worker-src ${panel.webview.cspSource} blob:; font-src ${panel.webview.cspSource};">`);
-        html = html.replace(/<script([^>]*)>/, `<script nonce="${nonce}"$1>`);
-        panel.webview.html = html;
+        panel.webview.html = prepareWebviewHtml(html, panel.webview, assetRoot, 'dashboard');
       } catch (error) {
         panel.dispose();
         throw new Error('無法載入工作台介面，請查看 GitLab Workspace Log 或重新安裝擴充套件。', { cause: error });

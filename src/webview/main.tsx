@@ -79,7 +79,7 @@ function Markdown({ html, baseUrl, images, onImage, onLink }: { html: string; ba
   const prepared = useMemo(() => {
     const template = document.createElement('template');
     const pendingImages: string[] = [];
-    template.innerHTML = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+    template.innerHTML = DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, FORBID_TAGS: ['style'], FORBID_ATTR: ['style'] });
     for (const element of template.content.querySelectorAll('a[href], img[src]')) {
     const attribute = element.tagName === 'A' ? 'href' : 'src';
     const value = element.getAttribute(attribute);

@@ -33,6 +33,7 @@ npm run test:unit
 npm run test:behavior
 npm run test:release
 npm run test:extension
+npm run test:trust
 npm test
 ```
 
@@ -43,6 +44,8 @@ npm test
 發行流程的 Python 測試預設使用兩個獨立 process，個別保留暫存夾與日誌；可透過 `GITLAB_WORKSPACE_TEST_WORKERS=1` 改為串行（接受 1–16）。每次執行的命令、退出碼、耗時及日誌位置寫入 `.gitlab-workspace-validation/runs/<時間>-<PID>/timings.json`；`GITLAB_WORKSPACE_VALIDATION_DIR` 可指定本次尚未使用的證據目錄。`test/release/*_test.py` 與 `scripts/*.test.mjs` 會自動納入，新增測試須遵循這些命名。
 
 Extension Host 每次建立全新的使用者、擴充功能與日誌目錄，移除繼承的 Electron／VS Code 宿主執行環境，並保留明確指定的 `VSCODE_EXECUTABLE_PATH` 與 `VSCODE_TEST_VERSION`。`extension-host.json` 記錄實際執行檔、版本及移除的環境變數名稱；缺少安裝或指定版本不符會在長時間回歸前失敗。
+
+正式 Dashboard bundle 的 CSP 測試不需要 GitLab 憑證，驗證動態樣式、虛擬清單、原生 Worker、隱藏後重建及 Markdown 清理。`test:trust` 另用獨立設定檔及一般安裝的擴充功能驗證 Restricted Mode，透過原生 Trust 按鈕授予信任並重新載入測試視窗後，確認信任已保存且擴充能啟動；完整 `npm test` 也會執行此檢查。這些設定與信任紀錄只寫入測試暫存目錄。
 
 Git GUI 的本機整合驗證使用獨立的工作目錄、VS Code 設定檔及產生的 bare remote，不需要 GitLab 帳號：
 

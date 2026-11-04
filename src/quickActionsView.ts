@@ -1,8 +1,9 @@
+import { prepareWebviewHtml } from './webviewSecurity';
 import * as vscode from 'vscode';
 import { assertWorkspaceAction, getWorkspaceCapabilities } from './workspace/workspaceCapabilities';
 import type { NotificationCenter } from './notifications/notificationCenter';
 import type { NotificationOrigin } from './notifications/notificationProtocol';
-import { randomBytes } from 'node:crypto';
+
 import { readFile } from 'node:fs/promises';
 import type { GitLabSession } from './connection/session';
 import type { GitRepositoryDetails } from './git/gitProtocol';
@@ -88,13 +89,9 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
 
     try {
       const htmlPath = vscode.Uri.joinPath(webviewUri, 'sidebar.html');
-      let html = await readFile(htmlPath.fsPath, 'utf8');
+      const html = await readFile(htmlPath.fsPath, 'utf8');
       if (this.view !== view) return;
-      const nonce = randomBytes(16).toString('base64');
-      const base = view.webview.asWebviewUri(webviewUri).toString().replace(/\/$/, '') + '/';
-      html = html.replace('<head>', `<head><base href="${base}"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${view.webview.cspSource}; script-src 'nonce-${nonce}' ${view.webview.cspSource}; font-src ${view.webview.cspSource};">`);
-      html = html.replace(/<script\b([^>]*)>/g, (_match, attributes: string) => `<script nonce="${nonce}"${attributes}>`);
-      view.webview.html = html;
+      view.webview.html = prepareWebviewHtml(html, view.webview, webviewUri, 'sidebar');
     } catch (error) {
       if (this.view === view) this.clearView();
       throw new Error('無法載入工作台導覽，請重新開啟檢視或重新安裝擴充套件。', { cause: error });

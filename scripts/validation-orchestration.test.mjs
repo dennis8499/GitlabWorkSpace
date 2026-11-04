@@ -41,6 +41,7 @@ async function fixture(t) {
   await put('scripts/run-extension-tests.mjs', `${header}
     if(process.argv[2]==='--preflight')put(process.argv[3],'{}');
     else if(process.env.FAKE_HOST_FAILURE==='1')process.exit(9);`);
+  await put('scripts/test-workspace-trust.mjs', '');
   await put('scripts/package-extension.mjs', `${header}
     import {assertPrepared} from './validation-runtime.mjs';
     await assertPrepared(process.cwd(),['compile','webview']);
@@ -71,6 +72,7 @@ test('full validation builds once, discovers suites, and packages only after eve
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
   assert.ok(ids.includes('release-one'));
+  assert.ok(ids.includes('workspace-trust'));
   assert.equal(ids.includes('build-kit'), false, 'Extension validation never builds a local installation package');
   assert.ok(ids.indexOf('extension') < ids.indexOf('unit'));
   assert.equal(ids.at(-2), 'package');

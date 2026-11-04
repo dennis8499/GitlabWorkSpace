@@ -20,6 +20,7 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
   const windowed = items.length > 200;
   const container = useRef<HTMLDivElement>(null);
   const observer = useRef<ResizeObserver>();
+  const measurementFrame = useRef<number>();
   const elements = useRef(new Map<string | number, HTMLElement>());
   const measured = useRef(new Map<string | number, number>());
   const rowRefs = useRef(new Map<string | number, (element: HTMLDivElement | null) => void>());
@@ -126,14 +127,26 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
       window.addEventListener('resize', updateViewport);
       return () => window.removeEventListener('resize', updateViewport);
     }
-    const resize = new ResizeObserver(updateViewport);
+    let frame: number | undefined;
+    const resize = new ResizeObserver(() => {
+      if (frame !== undefined) return;
+      frame = window.requestAnimationFrame(() => { frame = undefined; updateViewport(); });
+    });
     resize.observe(element);
-    return () => resize.disconnect();
+    return () => { resize.disconnect(); if (frame !== undefined) window.cancelAnimationFrame(frame); };
   }, [active, windowed]);
 
-  useEffect(() => () => observer.current?.disconnect(), []);
+  useEffect(() => () => {
+    observer.current?.disconnect();
+    if (measurementFrame.current !== undefined) window.cancelAnimationFrame(measurementFrame.current);
+  }, []);
   useEffect(() => {
-    if (!active || !windowed) { observer.current?.disconnect(); return; }
+    if (!active || !windowed) {
+      observer.current?.disconnect();
+      if (measurementFrame.current !== undefined) window.cancelAnimationFrame(measurementFrame.current);
+      measurementFrame.current = undefined; return;
+    }
+    setMeasureRevision(revision => revision + 1);
     for (const [key, element] of elements.current) setRowRef(key, element);
   }, [active, windowed]);
 
@@ -174,7 +187,12 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
           changed = true;
         }
       }
-      if (changed) setMeasureRevision((revision) => revision + 1);
+      // Publish measured geometry in the next frame, outside ResizeObserver's
+      // delivery cycle, so row placement cannot trigger a same-frame resize loop.
+      if (changed && measurementFrame.current === undefined) measurementFrame.current = window.requestAnimationFrame(() => {
+        measurementFrame.current = undefined;
+        if (activeRef.current) setMeasureRevision(revision => revision + 1);
+      });
     });
     observer.current.observe(element);
   }

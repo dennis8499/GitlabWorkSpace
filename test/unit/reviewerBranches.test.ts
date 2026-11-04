@@ -154,6 +154,8 @@ test('copying Reviewer prompts validates the selected workspace Repo and include
   vscode.workspace.workspaceFile = { scheme: 'file', fsPath: path.join(path.dirname(root), 'review.code-workspace') };
   clipboard.length = 0;
   const context = { revision: 'current', mode: 'repository', root, repositories: [{ name: 'service', path: root }],
+    workspaceFile: vscode.workspace.workspaceFile.fsPath, workspaceRoot: path.dirname(vscode.workspace.workspaceFile.fsPath),
+    workspaceRootAmbiguous: false,
     reviewerRepositories: [{ name: 'service', path: root }, { name: 'second', path: other, defaultBranch: 'main' }],
     availableFeatures: ['release-review', 'merge-repo'], installed: { version: 'test' } };
   const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {

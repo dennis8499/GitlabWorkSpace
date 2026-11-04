@@ -1,3 +1,4 @@
+import { prepareWebviewHtml } from '../../src/webviewSecurity';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -653,7 +654,6 @@ async function exercisePackagedGraphWorker(
   };
   try {
     const nonce = randomBytes(16).toString('base64');
-    const base = panel.webview.asWebviewUri(assetRoot).toString().replace(/\/$/, '') + '/';
     const instrumentation = `(() => {
       const probe = window.__glwNativeGraphWorkerProbe = { created: 0, terminated: 0, live: 0, starts: 0,
         pauses: 0, resumes: 0, responses: 0, positions: 0, finitePositions: false, canvasFrames: 0, urls: [], errors: [], nodes: 0,
@@ -678,9 +678,8 @@ async function exercisePackagedGraphWorker(
       CanvasRenderingContext2D.prototype.clearRect = function (...args) { if (this.canvas.classList.contains('issue-graph-canvas')) probe.canvasFrames++; return clearRect.apply(this, args); };
       window.addEventListener('securitypolicyviolation', event => probe.errors.push('CSP: ' + event.violatedDirective + ' ' + event.blockedURI));
     })();`;
-    let html = readFileSync(vscode.Uri.joinPath(assetRoot, 'dashboard.html').fsPath, 'utf8');
-    html = html.replace(/<script([^>]*)>/g, `<script nonce="${nonce}"$1>`);
-    html = html.replace('<head>', `<head><base href="${base}"><meta name="glw-native-graph-worker-probe" content="owned"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${panel.webview.cspSource}; worker-src ${panel.webview.cspSource} blob:; font-src ${panel.webview.cspSource};"><script nonce="${nonce}">${instrumentation}</script>`);
+    let html = prepareWebviewHtml(readFileSync(vscode.Uri.joinPath(assetRoot, 'dashboard.html').fsPath, 'utf8'), panel.webview, assetRoot, 'dashboard', nonce);
+    html = html.replace('</head>', `<meta name="glw-native-graph-worker-probe" content="owned"><script nonce="${nonce}">${instrumentation}</script></head>`);
     panel.webview.html = html;
     const readyDeadline = Date.now() + 20_000;
     while (readyCount === 0 && Date.now() < readyDeadline) await new Promise(resolve => setTimeout(resolve, 50));
