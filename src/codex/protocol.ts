@@ -1,5 +1,6 @@
 import type { BmadCommandRequest } from '../workspace/bmadProtocol';
 import type { ReviewerToolId } from '../workspace/reviewSessionProtocol';
+import type { ModelRoutingBinding, ModelRoutingSummary } from './modelRoutingProtocol';
 
 export type CodexTaskSource =
   | { kind: 'skill'; featureId: string; inputs: Record<string, string>; revision: string }
@@ -15,6 +16,7 @@ export interface CodexTaskSpec {
   writableRoots: string[];
   environmentKey: string;
   review?: { tool: ReviewerToolId; requestId: string; revision: string };
+  routing?: ModelRoutingBinding;
 }
 export type CodexTaskStatus = 'queued' | 'starting' | 'running' | 'waiting' | 'completed' | 'failed' | 'interrupted' | 'uncertain';
 export interface CodexTaskState {
@@ -28,6 +30,7 @@ export interface CodexTaskState {
   turnId?: string;
   error?: string;
   review?: CodexTaskSpec['review'];
+  modelRouting?: ModelRoutingSummary;
 }
 export interface CodexTaskRecord extends CodexTaskState {
   schema: 'GitLabWorkspaceCodexTask/v1';
@@ -35,6 +38,9 @@ export interface CodexTaskRecord extends CodexTaskState {
   ownerPid: number;
   pendingMessage?: string;
   dispatchPending?: boolean;
+  routingThreadIds?: string[];
+  routingUserMessages?: string[];
+  pendingMessageIsUser?: boolean;
 }
 export interface CodexInteraction {
   id: string;
@@ -74,6 +80,6 @@ export function canonicalReviewRequestId(value: string): string {
   return result;
 }
 export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
-  const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review } = record;
-  return { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review };
+  const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting } = record;
+  return { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting };
 }

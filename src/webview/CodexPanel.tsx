@@ -30,7 +30,7 @@ export function CodexSettings({ post }: { post: Post }) {
       <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.codex.executablePath' })}>設定執行檔</button>
       {environment.authenticated === false && <button type="button" onClick={() => post({ type: 'configureCodex', action: 'login' })}>登入 Codex</button>}
       {environment.sandbox && environment.sandbox !== 'ready' && <button type="button" onClick={() => post({ type: 'configureCodex', action: 'sandbox' })}>設定 Windows sandbox</button>}
-    </div><p class="subtle">模型與帳號沿用本機 Codex；工作區內可直接執行，額外權限會在任務面板詢問。</p>
+    </div><p class="subtle">帳號沿用本機 Codex；已啟用 Model Routing 的審查使用 GPT-6 Luna，其餘任務沿用本機模型。額外權限會在任務面板詢問。</p>
   </section>;
 }
 export function CodexPanel({ post, actions, initialState, onStateChange }: {
@@ -114,6 +114,13 @@ export function CodexPanel({ post, actions, initialState, onStateChange }: {
             : <button type="button" onClick={() => post({ type: 'resumeCodexTask', taskId: task.id })}>續作</button>}
           {task.threadId && <button type="button" class="quiet" onClick={() => post({ type: 'codexHistory', taskId: task.id })}>讀取對話</button>}
         </header>
+        {task.modelRouting && <section class="codex-routing" aria-label="Model Routing" role="status">
+          <p><strong>GPT-6 Luna · {task.modelRouting.effort ?? 'auto'}</strong> · {{ assessing: '判斷風險', reviewing: '正式審查', complete: '已產生報告' }[task.modelRouting.phase]}
+            {task.modelRouting.requestedEffort !== 'auto' && '（本次手動指定）'}</p>
+          {task.modelRouting.reason && <p>{task.modelRouting.reason}</p>}
+          {task.modelRouting.history.length > 1 && <ol>{task.modelRouting.history.map((entry, index) => <li key={index}>{entry.effort}：{entry.reason}</li>)}</ol>}
+          {task.modelRouting.reportPath && <p>報告：{task.modelRouting.reportPath}</p>}
+        </section>}
         {task.error && <p class="warning" role="status">{task.error}</p>}
         {history[task.id] && <details class="codex-history" open><summary>已保存的對話</summary>
           <div class="codex-output">{history[task.id].items.map(item => <article key={item.id} class={`codex-item ${item.kind}`}><small>{item.kind === 'agent' ? 'Codex' : item.kind === 'user' ? '你的訊息' : item.kind === 'command' ? '命令' : '檔案變更'}</small><pre>{item.text}</pre></article>)}</div>

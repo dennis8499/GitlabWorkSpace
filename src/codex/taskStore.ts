@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { CodexTaskRecord } from './protocol';
 import { canonicalReviewRequestId } from './protocol';
 import { atomicNetworkJson } from '../api/localNetworkLease';
+import { requestedEffort } from './modelRouting';
 
 export const codexRootKey = (root: string): string => createHash('sha256').update(process.platform === 'win32' ? root.toLowerCase() : root).digest('hex');
 export const validTaskId = (id: unknown): id is string => typeof id === 'string' && /^[a-z0-9-]{1,100}$/i.test(id);
@@ -28,6 +29,14 @@ export class CodexTaskStore {
       }
       if (value.review) value.review.requestId = canonicalReviewRequestId(value.review.requestId);
       if (value.spec.review) value.spec.review.requestId = canonicalReviewRequestId(value.spec.review.requestId);
+      const routing = value.spec.routing;
+      if (routing) {
+        if (!value.spec.review || routing.tool !== value.spec.review.tool || routing.requestId !== value.spec.review.requestId ||
+            !path.isAbsolute(routing.runtimeRoot) || !path.isAbsolute(routing.skillPath) ||
+            path.resolve(routing.skillPath) !== path.join(value.root, '.agents/skills/model-routing/SKILL.md') ||
+            !/^[a-f0-9]{64}$/.test(routing.payloadHash)) throw new Error('Codex 任務的 Model Routing 身分無效。');
+        requestedEffort(routing.requestedEffort);
+      }
       records.push(value);
     }
     return records;

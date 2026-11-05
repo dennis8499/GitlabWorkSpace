@@ -8,7 +8,15 @@ Wiki、合併審查、上版檢查及 BMAD 頁面的「使用 Codex 執行」會
 2. 在「工具與環境」的「Codex 執行環境」按「檢查 Codex」。Windows 需要可用的 Codex sandbox；尚未登入或設定完成時，使用畫面的登入及設定入口。
 3. 安裝此專案對應的 WorkflowKit，並在功能頁填妥參數，按「使用 Codex 執行」。
 
-預設從 VS Code 的 PATH 尋找相容的 Codex，支援官方 npm 安裝。若找不到，於使用者設定填寫 `gitlabWorkspace.codex.executablePath` 的完整路徑；工作區設定不會覆寫此執行檔。模型、provider 與既有帳號沿用本機 Codex，登入由 Codex 自行保存及更新。
+預設從 VS Code 的 PATH 尋找相容的 Codex，支援官方 npm 安裝。若找不到，於使用者設定填寫 `gitlabWorkspace.codex.executablePath` 的完整路徑；工作區設定不會覆寫此執行檔。Provider 與既有帳號沿用本機 Codex，登入由 Codex 自行保存及更新。一般任務沿用本機模型；啟用 Model Routing 的審查使用 GPT-6 Luna。
+
+## Reviewer Model Routing
+
+WorkflowKit 1.4.0 與工作台 0.40.0 起，合併審查、上版檢查提供「Luna 思考強度」。預設 auto 先以 Luna high 讀取固定 diff 與必要上下文，再依共用規則選擇正式審查的 low、medium、high、xhigh 或 max。純敘述文件可用 low、局部簡單邏輯可用 medium，一般程式變更從 high 起；跨 Repo、權限、資料及部署風險提高強度。
+
+手動選擇只套用本次 request 並固定到結束。auto 可在具體新風險出現後保存草稿與 checkpoint，以較高強度接續同一份固定證據。模型與強度透過 App Server 的 model/list 核對，並在每個 turn/start 明確指定；不修改全域 Codex 設定。缺少所需模型或強度時保留進度並回報。
+
+路由回合完成後會繼續正式審查，只有原生 Reviewer 發布收據及 Routing complete 才結束任務。面板顯示實際強度、理由與升級歷程；複製提示詞也包含本次設定。恢復沿用原決策及 request，重新同步建立新 request 並重新路由。直接呼叫 Skill 時，由同一套共用 Routing 以單一 Luna reviewer 子 agent 執行。
 
 ## 執行與互動
 

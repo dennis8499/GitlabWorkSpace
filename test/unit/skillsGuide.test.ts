@@ -57,7 +57,7 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   const prompt = buildSkillGuidePrompt(card, inputs, context);
   assert.ok(prompt.includes(JSON.stringify(inputs['release-review.repo'])));
   assert.match(prompt, /\$release-reviewer/);
-  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
+  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head', 'effort']);
   assert.ok(prompt.includes(`--workspace ${JSON.stringify(context.groupRoot)}`));
   assert.equal(prompt.includes('--include-json'), false);
   assert.match(prompt, /status 恢復、cancel 取消/);
@@ -79,14 +79,14 @@ test('release prompt binds actual folder and saved multi-root workspace without 
   const prompt = buildSkillGuidePrompt(card, inputs, { ...context, workspaceRoot, workspaceFile });
   assert.ok(prompt.includes(`--workspace ${JSON.stringify(workspaceRoot)}`));
   assert.ok(prompt.includes(`--workspace-file ${JSON.stringify(workspaceFile)}`));
-  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
+  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head', 'effort']);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { repositories: [] }), /工作區根目錄/);
 });
 
-test('Skill agent branch review uses only three inputs and actual saved workspace boundaries', () => {
+test('Skill agent branch review adds optional routing effort and retains saved workspace boundaries', () => {
   const card = getSkillGuideCard('merge-reviewer');
-  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
+  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head', 'effort']);
   const inputs = { 'merge-repo.repo': 'service', 'merge-repo.base': 'main', 'merge-repo.head': 'feature/payment' };
   assert.equal(canCopySkillPrompt(card, inputs), true);
   for (const invalid of ['HEAD', 'refs/tags/v1', 'a'.repeat(40), 'main~1', 'main..feature', '-bad', 'bad ref']) {
@@ -119,6 +119,21 @@ test('removed review modes migrate with explicit branch confirmation and preserv
   assert.equal(canCopySkillPrompt(getSkillGuideCard('merge-reviewer'), state.inputs), true);
 });
 
+test('routing effort is optional, included in copied prompts and gated by kit capability', () => {
+  for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
+    const card = getSkillGuideCard(tool);
+    const inputs = { [`${card.id}.repo`]: 'service', [`${card.id}.base`]: 'main', [`${card.id}.head`]: 'feature', [`${card.id}.effort`]: 'max' };
+    assert.equal(canCopySkillPrompt(card, inputs), true);
+    const routed = buildSkillGuidePrompt(card, inputs, { ...context, modelRouting: true });
+    assert.match(routed, /\$model-routing effort=max/);
+    assert.ok(!routed.includes('不建立子 Agent'));
+    assert.throws(() => buildSkillGuidePrompt(card, inputs, context), /尚未提供 Model Routing/);
+    assert.equal(canCopySkillPrompt(card, { ...inputs, [`${card.id}.effort`]: 'ultra' }), false);
+    const restored = restoreSkillGuideState({ tool, selections: { [tool]: card.id }, inputs });
+    assert.equal(restored.inputs[`${card.id}.effort`], 'max');
+  }
+});
+
 test('reviewer Repo resolution prefers paths and accepts only unique saved names', () => {
   const repositories = [
     { name: 'service', path: 'C:/team-a/service' },
@@ -138,7 +153,7 @@ test('both reviewer profiles target the selected workspace Repo and retain the d
   for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
     for (const profile of ['group', 'repository'] as const) {
       const card = getSkillGuideCard(tool, undefined, profile);
-      assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
+      assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head', 'effort']);
       const inputs = { [`${card.id}.repo`]: 'consumer', [`${card.id}.base`]: 'main', [`${card.id}.head`]: 'feature/manual' };
       const reviewContext = { ...context, profile, root: context.repositories[0].path, repositories,
         workspaceRoot: 'C:/saved workspace', workspaceFile: 'C:/saved workspace/team.code-workspace' };

@@ -1,6 +1,7 @@
-// Offline protocol peer. It never runs commands, edits projects, or calls a model.
+// Offline protocol peer. Routing modes only write their temporary test session.
 const readline = require('node:readline');
 const path = require('node:path');
+const fs = require('node:fs');
 const root = process.argv[2];
 const mode = process.argv[3];
 let initialized = false, sequence = 0, active, pending = [];
@@ -34,7 +35,13 @@ rl.on('line', line => {
   if (method === 'account/read') { send({ id, result: { account: mode === 'logged-out' ? null : { type: 'chatgpt' }, requiresOpenaiAuth: true } }); return; }
   if (method === 'windowsSandbox/readiness') { send({ id, result: { status: mode === 'sandbox-missing' ? 'notConfigured' : 'ready' } }); return; }
   if (method === 'configRequirements/read') { send({ id, result: { requirements: mode === 'managed' ? { allowedSandboxModes: ['read-only'] } : null } }); return; }
-  if (method === 'skills/list') { send({ id, result: { data: [{ cwd: root, skills: [{ name: 'codebase-wiki', path: path.join(root, '.agents/skills/codebase-wiki/SKILL.md'), enabled: true }] }] } }); return; }
+  if (method === 'skills/list') { send({ id, result: { data: [{ cwd: root, skills: ['codebase-wiki', 'merge-reviewer', 'release-reviewer', 'model-routing'].map(name => ({ name, path: path.join(root, '.agents/skills', name, 'SKILL.md'), enabled: true })) }] } }); return; }
+  if (method === 'model/list') {
+    const efforts = mode === 'routing-max-missing' ? ['low', 'medium', 'high', 'xhigh'] : ['low', 'medium', 'high', 'xhigh', 'max'];
+    send({ id, result: { data: mode === 'routing-model-missing' || mode === 'routing-page' && !params.cursor ? [] : [
+      { id: 'gpt-6-luna', model: 'gpt-6-luna', supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort })) }
+    ], nextCursor: mode === 'routing-page' && !params.cursor ? 'second' : null } }); return;
+  }
   if (method === 'thread/start') { send({ id, result: { thread: { id: 'thread-' + ++sequence } } }); return; }
   if (method === 'thread/resume') { send({ id, result: { thread: { id: params.threadId } } }); return; }
   if (method === 'thread/turns/list') { send({ id, result: { data: mode === 'empty-thread' ? [] : [{ id: 'old-turn', items: [{ id: 'old-message', type: 'agentMessage', text: '先前已保存的結果' }] }], nextCursor: null } }); return; }
@@ -45,6 +52,37 @@ rl.on('line', line => {
     const prompt = params.input[0].text;
     if (prompt.includes('drop-response')) { process.exit(4); }
     notify('item/agentMessage/delta', { ...active, itemId: 'agent-1', delta: '處理中' });
+    if (prompt.includes('routing_adapter=workbench')) {
+      if (mode === 'routing-hold') return;
+      const config = JSON.parse(fs.readFileSync(path.join(root, 'fixture-routing.json'), 'utf8'));
+      const statePath = path.join(config.runtimeRoot, 'routing', config.tool, config.requestId + '.json');
+      const jobPath = path.join(config.runtimeRoot, 'jobs', config.requestId + '.json');
+      const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(value)); };
+      const job = JSON.parse(fs.readFileSync(jobPath, 'utf8'));
+      const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {
+        schema: 'ReviewModelRouting/v1', tool: config.tool, request_id: config.requestId, runtime_root: config.runtimeRoot,
+        context_dir: job.context_dir, input_digest: job.input_digest, snapshot_hash: 'a'.repeat(64),
+        requested_effort: config.requestedEffort, model: 'gpt-6-luna', effort: null, phase: 'routing', reason: '', checkpoint: '', history: [], revision: 0
+      };
+      if (mode !== 'routing-no-decision') {
+        if (prompt.includes('routing_phase=assess')) {
+          state.effort = config.initialEffort ?? 'high'; state.phase = 'reviewing'; state.reason = 'Fixed API behavior.';
+          state.history.push({ effort: state.effort, reason: state.reason, kind: 'decide' }); state.revision++;
+        } else if (config.escalate && state.effort !== config.escalate) {
+          state.effort = config.escalate; state.phase = 'reviewing'; state.reason = 'New frozen consumer risk.';
+          state.checkpoint = 'Recheck the affected contract before continuing.';
+          state.history.push({ effort: state.effort, reason: state.reason, kind: 'escalate' }); state.revision++;
+        } else if (mode !== 'routing-incomplete') {
+          state.effort ??= config.requestedEffort;
+          if (!state.history.length) state.history.push({ effort: state.effort, reason: 'User-selected effort.', kind: 'manual' });
+          state.phase = 'complete'; state.revision++; state.report_path = path.join(root, 'review-reports', config.tool + '.md');
+          write(jobPath, { ...job, state: 'published', report_path: state.report_path });
+        }
+        write(statePath, state);
+      }
+      if (!(mode === 'routing-hold-assess' && prompt.includes('routing_phase=assess'))) setTimeout(() => complete(), 30);
+      return;
+    }
     if (prompt.includes('unknown-request')) {
       send({ id: 'unknown', method: 'item/tool/call', params: { ...active, name: 'unsupported' } }); return;
     }

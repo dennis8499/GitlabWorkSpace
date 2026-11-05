@@ -143,7 +143,7 @@ test('prepared helpers generate single-agent prompts and restored drafts discard
   assert.equal(canCopySkillPrompt(card, obsolete), false);
   const restored = restoreSkillGuideState({ tool: 'merge-reviewer', selections: { 'merge-reviewer': 'merge-repo' }, inputs: obsolete });
   assert.deepEqual(Object.keys(restored.inputs).filter(key => key.startsWith('merge-repo.')).sort(),
-    ['merge-repo.base', 'merge-repo.head', 'merge-repo.repo']);
+    ['merge-repo.base', 'merge-repo.effort', 'merge-repo.head', 'merge-repo.repo']);
   assert.equal(canCopySkillPrompt(card, restored.inputs), true);
   const staleWorkspacePolicy = buildSkillGuidePrompt(card, inputs, { ...context,
     reviewerExecution: { mode: 'parallel', subagent_model: 'stale-model' } } as never);

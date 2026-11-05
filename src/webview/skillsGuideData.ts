@@ -9,7 +9,7 @@ import {
 export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer';
 export type SkillGuideInputValues = WikiGuideInputValues;
 export type SkillGuideContext = WikiGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string;
-  reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string };
+  reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string; modelRouting?: boolean };
 export type SkillGuideField = WikiGuideField;
 export interface SkillGuideCard extends WikiGuideCard {
   tool: SkillGuideToolId;
@@ -31,7 +31,8 @@ const field = (id: string, label: string, options: Partial<SkillGuideField> = {}
 const repoField = () => field('repo', 'Repo', { required: true });
 const releaseFields = (): SkillGuideField[] => [repoField(),
   field('base', '基礎分支', { required: true, placeholder: '例如 main 或 origin/main' }),
-  field('head', '比較分支', { required: true, placeholder: '例如 feature/payment 或 origin/feature/payment' })
+  field('head', '比較分支', { required: true, placeholder: '例如 feature/payment 或 origin/feature/payment' }),
+  field('effort', 'Luna 思考強度', { kind: 'select', defaultValue: 'auto', options: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] })
 ];
 
 export const skillGuideCards: readonly SkillGuideCard[] = [
@@ -82,7 +83,7 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
   for (const key of Object.keys(inputs)) {
     if (/^merge-(quick|group|mr)\./.test(key)) delete inputs[key];
     for (const prefix of ['release-review.', 'merge-repo.']) {
-      if (key.startsWith(prefix) && !['repo', 'base', 'head',
+      if (key.startsWith(prefix) && !['repo', 'base', 'head', 'effort',
         ...(prefix === 'merge-repo.' ? ['confirmationRequired'] : [])].includes(key.slice(prefix.length))) delete inputs[key];
     }
   }
@@ -133,7 +134,7 @@ export function getSkillGuideFields(card: SkillGuideCard, inputs: SkillGuideInpu
 
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
   if (card.tool === 'codebase-wiki') return canCopyWikiPrompt(card, inputs);
-  if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head'].includes(key.slice(card.id.length + 1)))) return false;
+  if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head', 'effort'].includes(key.slice(card.id.length + 1)))) return false;
   if (!getSkillGuideFields(card, inputs).every(item => {
     if (card.id === 'ingest' && item.id === 'path' && value(card, 'scope', inputs) === '全部專案') return true;
     const input = value(card, item.id, inputs);
@@ -164,10 +165,13 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
   const selectedRepo = resolveReviewerRepository(input('repo'), context.repositories);
   const project = JSON.stringify(selectedRepo?.path ?? '〔請選擇目前工作區的 Repo〕');
-  if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
+  if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head', 'effort'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支及思考強度；請重新載入已保存的輸入。');
   const release = card.tool === 'release-reviewer';
   const reviewer = release || card.tool === 'merge-reviewer';
   const runtime = release ? context.releaseReviewRuntimeRoot : context.reviewRuntimeRoot;
+  const effort = input('effort') || 'auto';
+  if (!['auto', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) throw new Error('Luna 思考強度無效。');
+  if (!context.modelRouting && effort !== 'auto') throw new Error('此工作流程包尚未提供 Model Routing，請先更新。');
   const sessionCapabilities = context.reviewerCapabilities?.schema === 'ReviewCapabilities/v1'
     ? context.reviewerCapabilities : undefined;
   const nativeMergeCapabilities = context.reviewerCapabilities?.schema === 'MergeReviewCapabilities/v1'
@@ -211,7 +215,8 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     ...(nativeMergeCapabilities?.features.read_only_artifact_view ? ['For large local artifacts, use the installed Skill documented view command and its continuation offsets.'] : []),
     ...(reviewer ? [`Session controls: status \u6062\u5fa9\u3001cancel \u53d6\u6d88\u3002 ${python(`${JSON.stringify(script)} ${statusCommand}${runtimeArg}${requestIdArg}`)}; ${python(`${JSON.stringify(script)} cancel${runtimeArg}${requestIdArg}`)}.`] : []),
     ...(release && supports('read_only_view') ? ['Use read-only view and its continuation cursor to inspect existing artifacts.'] : []),
-    '執行方式：單一 Agent。由目前 Agent 完成審查，不建立子 Agent。',
+    context.modelRouting ? `$model-routing effort=${effort}：先固定一次證據，再依實際內容選擇 GPT-6 Luna 思考強度；已路由 continuation 沿用同一 request、SHA、草稿與 checkpoint。auto 可提高，手動指定固定；依 Model Routing 的 direct／workbench adapter 執行。`
+      : '執行方式：單一 Agent。由目前 Agent 完成審查，不建立子 Agent。',
     '啟動 helper：' + python(JSON.stringify(script) + (prepared ? ' start --prepare-evidence' : ' start') +
       requestIdArg +
       ' --workspace ' + JSON.stringify(releaseWorkspace) +

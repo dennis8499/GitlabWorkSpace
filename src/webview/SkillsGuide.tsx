@@ -83,7 +83,8 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
     if (tool === 'merge-reviewer' || tool === 'release-reviewer') onLoadReviewerCapabilities?.(tool);
   }, [tool, skillsContext?.revision, operationScope]);
   let prompt = '', promptError = '';
-  const promptContext = reviewer ? { ...context, repositories } : context;
+  const modelRouting = skillsContext?.installed.capabilities?.includes('model-routing') ?? context.modelRouting ?? false;
+  const promptContext = reviewer ? { ...context, repositories, modelRouting } : context;
   try { prompt = `${buildSkillGuideContext(card, promptContext)}\n\n${buildSkillGuidePrompt(card, state.inputs, promptContext)}`; }
   catch (error) { promptError = error instanceof Error ? error.message : String(error); }
   const reportedPromptError = useRef('');
@@ -138,7 +139,7 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
         <p class="wiki-guide-behavior"><strong>執行方式：</strong>{card.behavior}</p>
         {card.id === 'merge-repo' && state.migrationNotice && <div class="warning" role="status"><p>{state.migrationNotice}</p>
           <button type="button" onClick={() => onChange(current => { const inputs = { ...current.inputs }; delete inputs['merge-repo.confirmationRequired']; return { ...current, inputs, migrationNotice: undefined }; })}>確認使用分支審查</button></div>}
-        <div class="wiki-guide-fields">{getSkillGuideFields(card, state.inputs).map(item => {
+        <div class="wiki-guide-fields">{getSkillGuideFields(card, state.inputs).filter(item => item.id !== 'effort' || modelRouting).map(item => {
           const key = `${card.id}.${item.id}`, value = state.inputs[key] ?? item.defaultValue ?? '';
           const onInput = (value: string) => onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: value } }));
           let control: JSX.Element;
@@ -160,6 +161,11 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
           else control = <input id={`wiki-input-${key}`} type="text" value={value} placeholder={item.placeholder} required={item.required} onInput={event => onInput(event.currentTarget.value)} />;
           return <label class="field wiki-guide-field" key={key} for={`wiki-input-${key}`}><span>{item.label}{item.required && <span class="wiki-required">（必填）</span>}</span>{control}</label>;
         })}</div>
+        {reviewer && modelRouting && <p class="subtle">auto 依固定變更選擇強度；一般程式變更從 high 起，必要時提高。手動選擇僅套用本次審查。</p>}
+        {reviewer && !modelRouting && state.inputs[`${card.id}.effort`] && state.inputs[`${card.id}.effort`] !== 'auto' &&
+          <p class="warning" role="status">此版本尚未提供 Model Routing。可更新工作流程包，或{' '}
+            <button type="button" onClick={() => onChange(current => ({ ...current,
+              inputs: { ...current.inputs, [`${card.id}.effort`]: 'auto' } }))}>改為沿用目前 Codex 模型</button>。</p>}
         {reviewer && <div class="skills-branch-status">
           <p class="subtle" role="status">{!repo ? '請先選擇目前 VSCode 工作區中的 Repo。'
             : branchStatus === 'loading' ? '正在讀取所選 Repo 的分支…'

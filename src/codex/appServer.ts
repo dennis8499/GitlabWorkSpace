@@ -71,10 +71,10 @@ export class CodexAppServer {
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
     this.pending.clear(); this.onExit(error);
   }
-  async close(): Promise<void> {
+  async close(gracefulTimeoutMs = 5000): Promise<void> {
     this.fail(new Error('Codex 通訊已關閉。'));
     this.child.stdin.end();
-    const timer = setTimeout(() => { this.child.kill(); }, 5000);
+    const timer = setTimeout(() => { this.child.kill(); }, gracefulTimeoutMs);
     try { await this.closePromise; } finally { clearTimeout(timer); }
   }
 }

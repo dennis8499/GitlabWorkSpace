@@ -1,6 +1,7 @@
 /** A pipe-owning supervisor: an Extension Host crash closes stdin and stops the owned tree. */
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { windowsTaskkillComplete } from './processTermination';
 const [executable, cwd, receiptPath, nonce] = process.argv.slice(2);
 if (!executable || !cwd) process.exit(2);
 const childEnvironment = { ...process.env };
@@ -18,9 +19,21 @@ function stop(): void {
   if (!child.pid) { process.exitCode = 1; return; }
   if (process.platform === 'win32') {
     stopped = new Promise(resolve => {
-      const killer = spawn('taskkill.exe', ['/PID', String(child.pid!), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+      const killer = spawn('taskkill.exe', ['/PID', String(child.pid!), '/T', '/F'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      let output = '';
+      const collect = (bytes: Buffer): void => { if (output.length <= 1024 * 1024) output += bytes.toString('latin1'); };
+      killer.stdout.on('data', collect); killer.stderr.on('data', collect);
       killer.once('error', () => { child.kill(); resolve(false); });
-      killer.once('close', code => { child.kill(); resolve(code === 0); });
+      killer.once('close', code => {
+        child.kill();
+        const deadline = Date.now() + 1500;
+        const confirm = (): void => {
+          if (windowsTaskkillComplete(code, child.pid!, output)) resolve(true);
+          else if (code === 128 && Date.now() < deadline) setTimeout(confirm, 100);
+          else resolve(false);
+        };
+        confirm();
+      });
     });
   } else {
     try { process.kill(-child.pid, 'SIGKILL'); stopped = Promise.resolve(true); } catch { child.kill('SIGKILL'); stopped = Promise.resolve(false); }
