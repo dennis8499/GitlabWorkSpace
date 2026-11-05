@@ -4,7 +4,7 @@
 .git-workbench > .feature-notices { max-height: 25%; overflow-y: auto; }
 .home-repository-list > .feature-control { display: flex; width: 100%; align-items: stretch; }
 .feature-control { display: inline-flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 100%; }
-.feature-notice { min-width: 0; margin: 5px 0; padding: 6px 9px; border-inline-start: 3px solid var(--vscode-descriptionForeground, #888); color: var(--vscode-descriptionForeground, inherit); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.feature-notice { min-width: 0; margin: 5px 0; padding: 6px 9px; border-inline-start: 3px solid var(--vscode-descriptionForeground, #888); color: var(--vscode-descriptionForeground, inherit); font-size: 1rem; line-height: 1.5; overflow-wrap: anywhere; }
 .feature-notice-warning { border-color: var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-editorWarning-foreground, inherit); }
 .feature-notice-error { border-color: var(--vscode-errorForeground, #f48771); color: var(--vscode-errorForeground, inherit); }
 .feature-notice-reason { white-space: pre-line; }

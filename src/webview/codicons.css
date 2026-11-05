@@ -1,0 +1,21 @@
+@font-face { font-family: codicon; src: url('../../resources/codicons/codicon.ttf') format('truetype'); font-display: block; }
+.codicon { font-family: codicon; font-style: normal; font-weight: normal; font-size: 1.23em; line-height: 1; display: inline-block; flex-shrink: 0; text-rendering: auto; -webkit-font-smoothing: antialiased; }
+.codicon-repo::before { content: "\ea62"; }
+.codicon-git-branch::before { content: "\ea68"; }
+.codicon-git-commit::before { content: "\eafc"; }
+.codicon-diff::before { content: "\eae1"; }
+.codicon-archive::before { content: "\ea98"; }
+.codicon-tag::before { content: "\ea66"; }
+.codicon-cloud::before { content: "\ebaa"; }
+.codicon-cloud-download::before { content: "\eac2"; }
+.codicon-arrow-down::before { content: "\ea9a"; }
+.codicon-arrow-up::before { content: "\eaa1"; }
+.codicon-refresh::before { content: "\eb37"; }
+.codicon-search::before { content: "\ea6d"; }
+.codicon-file::before { content: "\ea7b"; }
+.codicon-chevron-right::before { content: "\eab6"; }
+.codicon-tools::before { content: "\eb6d"; }
+.codicon-symbol-method::before { content: "\ea8c"; }
+.codicon-account::before { content: "\eb99"; }
+.codicon-issues::before { content: "\eb0c"; }
+.codicon-git-pull-request::before { content: "\ea64"; }

@@ -1,4 +1,5 @@
 /** @jsxImportSource preact */
+import { Codicon } from './Codicon';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useBoundedMenus } from './boundedMenus';
 import type { ActionController, DispatchResult } from '../workspace/actionController';
@@ -843,14 +844,6 @@ function GraphCell({ row, width, head, working }: { row: GitGraphRow; width: num
   </svg>;
 }
 function GitIcon({ name }: { name: string }) {
-  const paths: Record<string, string> = {
-    repo: 'M3 2h9v12H3z M6 2v12 M9 5h1 M9 8h1', branch: 'M4 4v8 M4 8c0-3 7 0 7-4 M2 2h4v4H2z M9 1h4v4H9z M2 11h4v4H2z',
-    commit: 'M1 8h4 M11 8h4 M11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
-    changes: 'M3 3h10v10H3z M5 6h6 M5 9h6', stash: 'M2 5h12v9H2z M1 2h14v3H1z M6 8h4',
-    tag: 'M2 2h6l6 6-6 6-6-6z M5 5h.1', remote: 'M4 11H3a2 2 0 0 1 0-4 4 4 0 0 1 8-2 3 3 0 0 1 1 6 M8 8v6 M6 12l2 2 2-2',
-    fetch: 'M8 2v9 M5 8l3 3 3-3 M2 11v3h12v-3', down: 'M8 2v12 M4 10l4 4 4-4', up: 'M8 14V2 M4 6l4-4 4 4',
-    refresh: 'M13 6a5 5 0 1 0 0 4 M13 2v4H9', search: 'M10 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M9 9l5 5',
-    file: 'M3 1h6l4 4v10H3z M9 1v4h4'
-  };
-  return <svg class="git-icon" viewBox="0 0 16 16" aria-hidden="true"><path d={paths[name] ?? paths.commit} /></svg>;
+  const icons: Record<string, string> = { branch: 'git-branch', commit: 'git-commit', changes: 'diff', stash: 'archive', remote: 'cloud', fetch: 'cloud-download', down: 'arrow-down', up: 'arrow-up' };
+  return <Codicon class="git-icon" name={icons[name] ?? name} />;
 }

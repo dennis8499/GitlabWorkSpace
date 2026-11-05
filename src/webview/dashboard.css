@@ -25,7 +25,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .app-shell { width: 100%; height: 100vh; height: 100dvh; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--vscode-sideBar-background); }
 .topbar { min-width: 0; flex: 0 0 auto; display: flex; align-items: center; gap: 20px; justify-content: space-between; padding: 12px 20px; min-height: 58px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
 .brand, .top-controls, .control-inline, .connection, .page-heading, .toolbar, .panel-title, .button-row, .list-actions, .freshness, .sha-pair, .timer-start, .manual-time, .time-row, .reply-row, .drawer-heading, .token-row, .drawer-footer { display: flex; align-items: center; gap: 10px; }
-.brand { white-space: nowrap; gap: 9px; font-size: 14px; }
+.brand { white-space: nowrap; gap: 9px; font-size: 1.077rem; }
 .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: white; background: #fc6d26; font-size: .92rem; font-weight: 750; letter-spacing: -.7px; }
 .top-controls { min-width: 0; justify-content: flex-end; }
 .control-inline { gap: 7px; color: var(--muted); }
@@ -46,7 +46,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .home-card { display: flex; min-width: 0; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--surface); }
 .home-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .home-card-heading .eyebrow { display: block; margin-bottom: 4px; }
-.home-count { display: grid; min-width: 36px; min-height: 36px; place-items: center; border-radius: 18px; background: color-mix(in srgb, var(--focus), transparent 88%); color: var(--vscode-textLink-foreground, var(--focus)); font-size: 16px; font-weight: 600; }
+.home-count { display: grid; min-width: 36px; min-height: 36px; place-items: center; border-radius: 18px; background: color-mix(in srgb, var(--focus), transparent 88%); color: var(--vscode-textLink-foreground, var(--focus)); font-size: 1.231rem; font-weight: 600; }
 .home-path { margin: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: .95rem; }
 .home-repository-list { display: grid; min-height: 74px; gap: 3px; align-content: start; }
 .home-repository { display: grid; min-width: 0; grid-template-columns: 18px minmax(0, .7fr) minmax(0, 1.3fr); align-items: center; gap: 6px; border: 0; border-radius: 4px; padding: 6px; color: var(--vscode-foreground); background: transparent; text-align: left; cursor: pointer; }
@@ -120,9 +120,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .heading-actions { display: flex; gap: 8px; }
 .mobile-switch { display: none; }
 h1, h2, h3, p { margin-top: 0; }
-h1 { margin: 3px 0 0; font-size: 20px; font-weight: 600; }
-h2 { font-size: 15px; margin: 0; font-weight: 600; }
-h3 { font-size: 13px; margin: 0; font-weight: 600; }
+h1 { margin: 3px 0 0; font-size: 1.538rem; font-weight: 600; }
+h2 { font-size: 1.154rem; margin: 0; font-weight: 600; }
+h3 { font-size: 1.000rem; margin: 0; font-weight: 600; }
 .mode-content { display: grid; grid-template-columns: minmax(min(100%, 290px), .9fr) minmax(min(100%, 380px), 1.3fr); gap: 16px; flex: 1 0 auto; min-height: 400px; }
 .mode-content.clone-mode-content { display: flex; min-height: 0; flex-direction: column; }
 .page[data-mode="clone"] .mode-content,
@@ -220,7 +220,7 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .empty { display: flex; flex: 1; min-height: 300px; flex-direction: column; align-items: center; justify-content: center; padding: 28px; text-align: center; }
 .empty h2 { margin: 10px 0 6px; }
 .empty p { max-width: 420px; color: var(--muted); line-height: 1.55; }
-.empty-mark { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--border); border-radius: 50%; color: var(--vscode-textLink-foreground); font-size: 25px; }
+.empty-mark { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--border); border-radius: 50%; color: var(--vscode-textLink-foreground); font-size: 1.923rem; }
 .empty-inline { padding: 14px; color: var(--muted); }
 .segmented, .filter-tabs { display: flex; gap: 4px; padding: 4px; border-bottom: 1px solid var(--border); }
 .segmented button, .filter-tabs button { flex: 1; border: 1px solid transparent; border-radius: 5px; padding: 7px 8px; background: transparent; color: var(--muted); }
@@ -267,7 +267,7 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .field-hint { align-self: center; margin: 0; }
 .diff-list details { border-top: 1px solid var(--border); padding: 8px 0; }
 summary { cursor: pointer; color: var(--vscode-textLink-foreground); }
-pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; padding: 10px; color: var(--vscode-editor-foreground, var(--vscode-foreground)); background: var(--vscode-editor-background); font: 11px/1.5 var(--vscode-editor-font-family, Consolas, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; padding: 10px; color: var(--vscode-editor-foreground, var(--vscode-foreground)); background: var(--vscode-editor-background); font: .95rem/1.5 var(--vscode-editor-font-family, Consolas, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff-stat { color: var(--muted); font-family: var(--vscode-editor-font-family, monospace); }
 .timer-start { flex-wrap: wrap; }
 .timer-start strong { margin-right: auto; }
@@ -311,7 +311,7 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .drawer-scrim { position: fixed; z-index: 10; inset: 0; max-height: 100vh; max-height: 100dvh; display: flex; justify-content: flex-end; background: #0008; }
 .tool-drawer { display: flex; width: min(510px, 96vw); height: 100%; max-height: 100%; min-height: 0; flex-direction: column; gap: 13px; overflow: auto; overscroll-behavior: contain; border-left: 1px solid var(--border); padding: 18px; background: var(--surface-raised); box-shadow: -12px 0 32px #0004; }
 .drawer-heading { justify-content: space-between; }
-.drawer-heading h2 { margin-top: 4px; font-size: 19px; }
+.drawer-heading h2 { margin-top: 4px; font-size: 1.462rem; }
 .source-lines { margin: 0; color: var(--muted); line-height: 1.6; }
 .token-row { align-items: flex-end; }
 .token-row .field { flex: 1; }
@@ -392,7 +392,7 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .issue-graph-detail { min-width: 0; max-height: 100%; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--surface); }
 .issue-graph-detail > summary { position: sticky; z-index: 1; top: -12px; margin: -12px -12px 11px; border-bottom: 1px solid var(--border); padding: 11px 12px; background: var(--surface); cursor: pointer; font-weight: 600; }
 .graph-selected-detail { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.graph-selected-detail h2 { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.graph-selected-detail h2 { font-size: 1.077rem; line-height: 1.4; overflow-wrap: anywhere; }
 .graph-selected-detail > .subtle { overflow-wrap: anywhere; }
 .graph-detail-state { display: flex; align-items: center; gap: 8px; }
 .graph-detail-section, .graph-related-list { display: flex; width: 100%; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
@@ -404,7 +404,7 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .graph-related-link:hover { background: var(--vscode-list-hoverBackground); }
 .graph-related-link > :last-child { overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
 .graph-no-selection { display: flex; min-height: 150px; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); text-align: center; }
-.graph-no-selection .empty-mark { font-size: 25px; }
+.graph-no-selection .empty-mark { font-size: 1.923rem; }
 .graph-relation-legend { display: grid; gap: 7px; border-top: 1px solid var(--border); margin-top: 10px; padding-top: 9px; color: var(--muted); font-size: .92rem; }
 .graph-relation-legend > span { display: flex; align-items: center; gap: 7px; }
 .graph-relation-legend i { display: inline-block; width: 22px; border-top: 2px solid var(--vscode-textLink-foreground, #65a9ef); }

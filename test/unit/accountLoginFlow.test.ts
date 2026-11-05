@@ -321,7 +321,7 @@ test('no-argument Issue command uses a searchable current-Group picker and rejec
   let scope = 'group-one', loads = 0;
   Object.defineProperty(host.session, 'baseUrl', { get: () => 'https://gitlab.test' });
   Object.defineProperty(host.session, 'selectedGroup', { get: () => ({ id: 1 }) });
-  host.connectedScopeKey = () => scope;
+  host.connectedScopeKey = () => scope; host.getNavigationSnapshot = () => ({ scope });
   host.loadNavigationData = async () => { loads++; };
   host.issues = [{ project_id: 1, iid: 7, title: 'Selected issue' }]; host.projects = [{ id: 1, path_with_namespace: 'group/project' }];
   host.openIssue = async (...args: unknown[]) => { opened.push(args); };
@@ -343,4 +343,28 @@ test('empty Issue commands provide recovery actions and cancelled login never qu
   let choices: string[] = [];
   vscode.window.showInformationMessage = async (_message, ...actions) => { choices = actions; return undefined; };
   await host.openIssueFromCommand(); assert.equal(choices.length, 2);
+});
+
+
+test('native navigation snapshots update without a Webview and suppress data from the previous scope', async () => {
+  const { host } = fixture(); await authenticate(host, login('navigation'));
+  Object.defineProperty(host.session, 'selectedGroup', { configurable: true, get: () => ({ id: 2, full_path: 'team' }) });
+  host.navigationListeners = new Set(); host.disposed = false;
+  host.loadedScopeKey = 'https://gitlab.test|1|2'; host.projects = []; host.issues = [{ project_id: 1, iid: 7 }]; host.mergeRequests = [];
+  let changes = 0; const subscription = host.onDidChangeNavigation(() => changes++);
+  const publish = (WorkspacePanel!.prototype as any).sendSnapshot.bind(host);
+  host.panel = undefined; host.webviewReady = false; publish(); publish(); assert.equal(changes, 1);
+  assert.equal(host.getNavigationSnapshot().issues.length, 1);
+  const oldScope = host.getNavigationSnapshot().scope;
+  Object.defineProperty(host.session, 'selectedGroup', { configurable: true, get: () => ({ id: 3, full_path: 'other' }) });
+  assert.notEqual(host.getNavigationSnapshot().scope, oldScope); assert.deepEqual(host.getNavigationSnapshot().issues, []);
+  subscription.dispose(); publish(); assert.equal(changes, 1);
+});
+
+test('hiding the Dashboard preserves native navigation section leases and disposal cancels them', () => {
+  const { host } = fixture(), controller = new AbortController();
+  host.navigationReadCount = 1; host.viewReadAbort = new AbortController(); host.issuePanels.suspendReads = () => undefined;
+  host.workspaceSections = { issues: { status: 'loading' } }; host.workspaceSectionAborts.set('issues', controller);
+  host.suspendViewReads(); assert.equal(controller.signal.aborted, false); assert.equal(host.workspaceSections.issues.status, 'loading');
+  host.disposed = true; host.suspendViewReads(); assert.equal(controller.signal.aborted, true);
 });

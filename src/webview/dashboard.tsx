@@ -1,4 +1,5 @@
 /** @jsxImportSource preact */
+import { Codicon } from './Codicon';
 import { Tabs, tabPanelProps } from './Tabs';
 import { compareVersions } from '../workspace/workflowKitVersion';
 import { render, type ComponentChildren } from 'preact';
@@ -322,7 +323,7 @@ function DashboardOverview({ snapshot, disabled, onNavigate, onLocalRepositories
       {snapshot.dashboardSections?.local.status === 'error' && <p class="warning" role="alert">本機摘要載入失敗：{snapshot.dashboardSections.local.error}</p>}
       <div class="home-repository-list">{repositories.slice(0, 5).map(repository => <FeatureButton class="home-repository" type="button" blocker={localProjectBlocker(snapshot.workspaceCapabilities) ?? blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')}
         key={repository.path} title={repository.path} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>
-        <span>⑂</span><strong>{repository.name}</strong><small>{repository.path}</small></FeatureButton>)}
+        <Codicon name="repo" /><strong>{repository.name}</strong><small>{repository.path}</small></FeatureButton>)}
         {!repositories.length && <p class="subtle">{snapshot.projectContext?.root ? '目前沒有已登錄的 Repo；可掃描工作區尋找其他 Repo。' : '開啟專案資料夾後，VS Code 會自動辨識 Repo。'}</p>}
       </div>
       <div class="home-actions"><button type="button" onClick={onLocalRepositories}>查看所有 Repo</button>
@@ -334,9 +335,9 @@ function DashboardOverview({ snapshot, disabled, onNavigate, onLocalRepositories
 
     <section class="home-card home-tool-card" aria-label="本機工具">
       <div class="home-card-heading"><div><span class="eyebrow">本機功能</span><h2>開發工具</h2></div></div>
-      <button class="home-feature" type="button" onClick={() => onNavigate('git')}><span class="home-feature-icon">⑂</span><span><strong>Git 版控</strong><small>分支、變更、提交與遠端操作</small></span><span class="home-feature-arrow">›</span></button>
-      <button class="home-feature" type="button" onClick={() => onNavigate('sa')}><span class="home-feature-icon">⌕</span><span><strong>Skills、Wiki 與分支審查</strong><small>{kitSummary}</small></span><span class="home-feature-arrow">›</span></button>
-      <button class="home-feature" type="button" onClick={() => onNavigate('bmad')}><span class="home-feature-icon">◇</span><span><strong>BMAD 開發流程</strong><small>{bmadSummary}</small></span><span class="home-feature-arrow">›</span></button>
+      <button class="home-feature" type="button" onClick={() => onNavigate('git')}><Codicon class="home-feature-icon" name="git-branch" /><span><strong>Git 版控</strong><small>分支、變更、提交與遠端操作</small></span><Codicon class="home-feature-arrow" name="chevron-right" /></button>
+      <button class="home-feature" type="button" onClick={() => onNavigate('sa')}><Codicon class="home-feature-icon" name="tools" /><span><strong>Skills、Wiki 與分支審查</strong><small>{kitSummary}</small></span><Codicon class="home-feature-arrow" name="chevron-right" /></button>
+      <button class="home-feature" type="button" onClick={() => onNavigate('bmad')}><Codicon class="home-feature-icon" name="symbol-method" /><span><strong>BMAD 開發流程</strong><small>{bmadSummary}</small></span><Codicon class="home-feature-arrow" name="chevron-right" /></button>
       {kit.status !== 'installed' && kit.status !== 'update-available' && <button class="quiet home-settings-link" type="button" onClick={onOpenSettings}>前往設定管理 WorkflowKit</button>}
     </section>
 

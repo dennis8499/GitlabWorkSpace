@@ -370,6 +370,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.remoteWatchers?.forEach(watcher => watcher.dispose());
     if (this.remoteRefreshTimer) clearTimeout(this.remoteRefreshTimer);
     this.disposed = true;
+    this.navigationListeners?.clear();
     this.workflowKit.dispose();
     this.gitMessages.dispose(); this.gitRepositoryChanges.dispose(); this.readInvalidation.dispose();
     this.suspendViewReads();
@@ -489,6 +490,29 @@ export class WorkspacePanel implements vscode.Disposable {
   getActiveMode(): WorkspaceMode { return this.activeMode; }
   getSelectedGitRepositoryId(): string | undefined { return this.selectedGitRepositoryId; }
   getGitLabProjects(): readonly GitLabProject[] { return this.projects; }
+  private readonly navigationListeners = new Set<() => void>();
+  private publishedNavigation?: import('./navigationProtocol').NavigationSnapshot;
+  onDidChangeNavigation(listener: () => void): vscode.Disposable {
+    this.navigationListeners.add(listener); return { dispose: () => this.navigationListeners.delete(listener) };
+  }
+  getNavigationSnapshot(): import('./navigationProtocol').NavigationSnapshot {
+    const baseUrl = this.session.baseUrl, group = this.session.selectedGroup;
+    const loaded = !!baseUrl && !!group && this.loadedScopeKey === `${baseUrl}|${this.currentUser?.id}|${group.id}`;
+    return { scope: `${this.session.connectionEpoch}:${baseUrl ?? 'offline'}:${this.session.activeAccountId ?? 'none'}:${group?.id ?? 'none'}`, connectedScope: this.connectedScopeKey(),
+      connected: !!baseUrl, account: this.currentUser?.name ?? this.session.accounts.find(account => account.id === this.session.activeAccountId)?.name,
+      group: group?.full_path, projects: loaded ? this.projects : [], issues: loaded ? this.issues : [], mergeRequests: loaded ? this.mergeRequests : [],
+      sections: loaded ? { projects: this.workspaceSections.projects, issues: this.workspaceSections.issues, mergeRequests: this.workspaceSections.mergeRequests } : {} };
+  }
+  private publishNavigation(): void {
+    if (this.disposed || !this.navigationListeners?.size) return;
+    const next = this.getNavigationSnapshot(), previous = this.publishedNavigation;
+    const sameRows = (first: readonly unknown[], second: readonly unknown[]) => first === second || !first.length && !second.length;
+    if (previous && previous.scope === next.scope && previous.connected === next.connected && previous.account === next.account && previous.group === next.group &&
+      sameRows(previous.projects, next.projects) && sameRows(previous.issues, next.issues) && sameRows(previous.mergeRequests, next.mergeRequests) &&
+      (['projects', 'issues', 'mergeRequests'] as const).every(section => previous.sections[section] === next.sections[section])) return;
+    this.publishedNavigation = next;
+    this.navigationListeners.forEach(listener => listener());
+  }
   private navigationReadCount = 0;
   private navigationRead?: { scope: string; promise: Promise<void> };
 
@@ -519,7 +543,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   async openIssueFromCommand(issue?: GitLabIssue, expectedScope?: string): Promise<void> {
-    if (expectedScope && expectedScope !== this.connectedScopeKey()) throw new Error('帳號或 Group 已變更，請重新選取 Issue。');
+    if (expectedScope && expectedScope !== this.getNavigationSnapshot().scope) throw new Error('帳號或 Group 已變更，請重新選取 Issue。');
     if (issue) { await this.openIssue(issue.project_id, issue.iid); return; }
     if (!this.session.baseUrl) await this.connect();
     if (!this.session.baseUrl) return;
@@ -538,6 +562,14 @@ export class WorkspacePanel implements vscode.Disposable {
       description: this.projects.find(project => project.id === item.project_id)?.path_with_namespace ?? String(item.project_id), issue: item })),
     { title: '開啟 Issue 詳情', placeHolder: '選擇目前已載入的 Issue；更多結果可至「我的工作」', matchOnDescription: true });
     if (selected && scope === this.connectedScopeKey()) await this.openIssue(selected.issue.project_id, selected.issue.iid);
+  }
+  async openMergeRequestFromCommand(request: GitLabMergeRequest, expectedScope: string): Promise<void> {
+    if (expectedScope !== this.getNavigationSnapshot().scope || !this.mergeRequests.some(item => item.project_id === request.project_id && item.iid === request.iid)) {
+      throw new Error('帳號或 Group 已變更，請重新選取 MR。');
+    }
+    await this.show('reviewer', { refresh: false });
+    if (expectedScope !== this.getNavigationSnapshot().scope) throw new Error('帳號或 Group 已變更，請重新選取 MR。');
+    await this.loadMergeRequest(request.project_id, request.iid);
   }
   getAccountUiState(): { accountOperation?: AccountOperation; workflowKitPolicy: WorkflowKitPolicy } {
     return { accountOperation: this.accountOperation, workflowKitPolicy: this.getWorkflowKitPolicy() };
@@ -1489,13 +1521,15 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     this.issuePanels.suspendReads();
     for (const [section, controller] of this.workspaceSectionAborts) {
+      if (!this.disposed && this.navigationReadCount && ['projects', 'issues', 'mergeRequests'].includes(section)) continue;
+      this.workspaceSectionAborts.delete(section);
       controller.abort();
       this.workspaceSectionGenerations.set(section, (this.workspaceSectionGenerations.get(section) ?? 0) + 1);
       const previous = this.workspaceSections[section];
       if (previous?.status === 'loading') this.setWorkspaceSectionState(section, 'idle', undefined, false);
       else if (previous?.refreshing) this.workspaceSections[section] = { ...previous, refreshing: false };
     }
-    this.workspaceSectionAborts.clear();
+
     this.busy = false;
   }
 
@@ -1527,14 +1561,17 @@ export class WorkspacePanel implements vscode.Disposable {
       this.selectedMergeRequest = { ...this.selectedMergeRequest, sections };
     }
     for (const [section, state] of Object.entries(this.workspaceSections) as [WorkspaceSection, WorkspaceSectionState][]) {
+      if (!this.disposed && this.navigationReadCount && ['projects', 'issues', 'mergeRequests'].includes(section)) continue;
       if (state.status === 'loading') this.setWorkspaceSectionState(section, 'idle', undefined, false);
       else if (state.refreshing) this.workspaceSections[section] = { ...state, refreshing: false };
     }
     for (const [section, controller] of this.workspaceSectionAborts) {
+      if (!this.disposed && this.navigationReadCount && ['projects', 'issues', 'mergeRequests'].includes(section)) continue;
+      this.workspaceSectionAborts.delete(section);
       controller.abort();
       this.workspaceSectionGenerations.set(section, (this.workspaceSectionGenerations.get(section) ?? 0) + 1);
     }
-    this.workspaceSectionAborts.clear();
+
     this.localRepositoryScanGeneration++;
     this.actualRepositoryScanGeneration++;
     this.hideIssueGraph();
@@ -3092,6 +3129,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private sendSnapshot(): void {
+    this.publishNavigation();
     if (!this.panel || this.panel.visible === false || !this.webviewReady || this.disposed) return;
     const group = this.session.selectedGroup;
     const root = this.projectContext?.root;

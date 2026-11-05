@@ -290,7 +290,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   const action = request.type === 'perform' ? String(request.action) : request.type;
   let kind: ActionKind = request.type === 'perform' ? quickActionKinds[action as QuickAction] ?? 'control'
     : (workspaceActionKinds as Record<string, ActionKind>)[action] ?? 'control';
-  if (action === 'refreshRepositories') kind = 'read';
+  if (['refreshRepositories', 'refreshMyWork', 'findRepositories', 'findMyWork', 'openIssue', 'openMergeRequest', 'openTools'].includes(action)) kind = 'read';
   let resourceKey = action;
   let slot = action;
   if (request.type === 'ensureWorkspaceSection') {

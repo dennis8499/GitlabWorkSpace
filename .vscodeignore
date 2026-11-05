@@ -39,3 +39,7 @@ resources/workflow-kit/**
 
 resources/offline-tools/**
 resources/workflow-kit-installer.py
+
+resources/sidebar-webview/**
+resources/codicons/codicon.ttf
+out/src/quickActionsView.js

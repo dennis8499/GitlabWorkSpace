@@ -54,15 +54,15 @@ def main():
         if manifest['version'] != MANIFEST['version'] or manifest['name'] != MANIFEST['name']:
             raise ValueError('Packaged Extension identity differs')
         for name in ('resources/issue-webview/dashboard.html', 'resources/issue-webview/dashboard.js',
-                     'resources/issue-webview/dashboard.css', 'resources/sidebar-webview/sidebar.html',
-                     'resources/sidebar-webview/sidebar.js', 'resources/sidebar-webview/sidebar.css',
+                     'resources/issue-webview/dashboard.css', 'resources/issue-webview/codicon.ttf',
+                     'resources/codicons/NOTICE.md', 'out/src/navigationViews.js',
                      'resources/workflow-kit-status.py', 'out/src/workspace/workspacePanel.js',
                      'out/src/workspace/workflowKitReleases.js', 'resources/git-askpass.js',
                      'resources/git-askpass.sh', 'resources/git-ssh-askpass.sh',
                      'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1'):
             if archive.read('extension/' + name) != (ROOT / name).read_bytes():
                 raise ValueError('Missing or stale packaged resource: ' + name)
-        forbidden = ('extension/resources/offline-tools/', 'extension/resources/workflow-kit/',
+        forbidden = ('extension/resources/sidebar-webview/', 'extension/resources/offline-tools/', 'extension/resources/workflow-kit/',
                      'extension/.github/', 'extension/scripts/', 'extension/test/', 'extension/.npm-cache/')
         if any(name.startswith(forbidden) or name.endswith('.log') or name in (
             'extension/resources/workflow-kit-installer.py', 'extension/resources/tool-installer.py') for name in members):
