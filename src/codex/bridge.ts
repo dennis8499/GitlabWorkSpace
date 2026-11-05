@@ -32,6 +32,7 @@ const safeText = (value: unknown, limit = 20_000): string => typeof value === 's
 export class CodexBridge {
   private readonly store: CodexTaskStore;
   private records = new Map<string, CodexTaskRecord>();
+  private readonly persisted = new Map<string, CodexTaskState>();
   private enqueuing = new Map<string, Promise<string>>();
   private owned = new Set<string>();
   private watcher?: FSWatcher;
@@ -57,6 +58,7 @@ export class CodexBridge {
           record.error = '先前工作已中斷，請核對紀錄後手動續作。'; await this.store.save(record);
         }
         this.records.set(record.id, record);
+        this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
       }
       if (!this.disposed) {
         this.watcher = watch(this.store.directory, (_event, filename) => {
@@ -70,10 +72,13 @@ export class CodexBridge {
   }
   private async reload(): Promise<void> {
     if (this.disposed) return;
-    for (const record of await this.store.load()) if (!this.owned.has(record.id)) this.records.set(record.id, record);
+    for (const record of await this.store.load()) if (!this.owned.has(record.id)) {
+      this.records.set(record.id, record);
+      this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
+    }
     this.emit({ kind: 'tasks', tasks: this.list() });
   }
-  list(): CodexTaskState[] { return [...this.records.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(projectCodexTask); }
+  list(): CodexTaskState[] { return [...this.persisted.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(value => structuredClone(value)); }
   async publish(): Promise<void> {
     await this.initialize(); await this.reload(); this.emit({ kind: 'environment', environment: this.environment });
     for (const [taskId, items] of this.outputs) this.emit({ kind: 'output', taskId, items, replace: true });
@@ -81,7 +86,10 @@ export class CodexBridge {
   }
   private emit(event: CodexEvent): void { if (!this.disposed) this.options.event(event); }
   private async save(record: CodexTaskRecord): Promise<void> {
-    record.updatedAt = new Date().toISOString(); await this.store.save(record);
+    record.updatedAt = new Date().toISOString();
+    const state = structuredClone(projectCodexTask(record));
+    await this.store.save(record);
+    this.persisted.set(record.id, state);
     this.emit({ kind: 'tasks', tasks: this.list() });
   }
   async enqueue(spec: CodexTaskSpec, operationId: string = randomUUID()): Promise<string> {
@@ -98,6 +106,7 @@ export class CodexBridge {
     const record: CodexTaskRecord = { schema: 'GitLabWorkspaceCodexTask/v1', id: operationId, spec, title: spec.title,
       root: spec.root, review: spec.review, status: 'queued', ownerPid: process.pid, createdAt: now, updatedAt: now };
     await this.store.save(record); this.records.set(record.id, record); this.owned.add(record.id); this.queue.push(record.id);
+    this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
     this.emit({ kind: 'tasks', tasks: this.list() }); this.schedule(); return record.id;
   }
   private requireTrusted(): void {
@@ -524,7 +533,7 @@ export class CodexBridge {
       for (const timer of this.outputTimers.values()) clearTimeout(timer);
       if (this.active && (codexTaskActive(this.active.record.status) || this.active.record.status === 'queued')) await this.cancel(this.active.record.id).catch(() => {});
       await this.processingTask;
-      for (const id of this.queue) { const record = this.records.get(id)!; record.status = 'interrupted'; await this.store.save(record); }
+      for (const id of this.queue) { const record = this.records.get(id)!; record.status = 'interrupted'; await this.save(record); }
       this.queue = []; await this.store.flush();
     })();
   }

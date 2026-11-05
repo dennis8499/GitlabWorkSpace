@@ -10,7 +10,7 @@ import { CodexTaskStore } from '../../src/codex/taskStore';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
 import { resolveCodexExecutable } from '../../src/codex/process';
 import { canonicalRuntime } from '../../src/codex/taskValidation';
-import type { CodexEvent, CodexInteraction, CodexTaskSpec } from '../../src/codex/protocol';
+import type { CodexEvent, CodexInteraction, CodexTaskRecord, CodexTaskSpec } from '../../src/codex/protocol';
 
 const fixture = path.resolve(__dirname, '../../../test/fixtures/codex-app-server.cjs');
 function peer(root = process.cwd(), timeout = 3000, mode = '') {
@@ -72,6 +72,28 @@ test('Bridge persists acceptance, serializes tasks and keeps business outcomes s
   assert.equal(saved.status, 'completed'); assert.ok(saved.threadId); assert.equal(saved.dispatchPending, false);
   assert.equal('spec' in f.bridge.list()[0], false);
   assert.equal(f.events.some(event => event.kind === 'output' && event.items.some(item => item.text.includes('處理中'))), true);
+});
+test('Bridge publishes completed tasks only after their state is durably saved', async t => {
+  const f = await setup(t, 'hold');
+  const save = CodexTaskStore.prototype.save;
+  let blocked = false, release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  t.mock.method(CodexTaskStore.prototype, 'save', function (this: CodexTaskStore, record: CodexTaskRecord) {
+    const writing = save.call(this, record);
+    if (record.id !== 'durable' || record.status !== 'running' || record.dispatchPending || blocked) return writing;
+    return writing.then(async () => { blocked = true; await gate; });
+  });
+  try {
+    await f.bridge.enqueue(f.spec, 'durable');
+    await until(() => blocked, 'running state saved');
+    await f.bridge.message('durable', 'finish now');
+    await f.bridge.publish();
+    assert.equal(f.bridge.list()[0].status, 'running');
+    assert.equal(f.events.some(event => event.kind === 'tasks' && event.tasks[0]?.status === 'completed'), false);
+    assert.equal(JSON.parse(await readFile(path.join(f.root, 'codex-tasks/durable.json'), 'utf8')).status, 'running');
+  } finally { release(); }
+  await until(() => f.bridge.list()[0].status === 'completed', 'completed state saved');
+  assert.equal(JSON.parse(await readFile(path.join(f.root, 'codex-tasks/durable.json'), 'utf8')).status, 'completed');
 });
 test('Bridge routes every supported interaction and rejects expired answers', async t => {
   const f = await setup(t, 'interactive');
