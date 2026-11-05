@@ -923,6 +923,64 @@ test('command navigation starts its handoff before closing Issue reads and relea
   assert.equal(closed, 2); assert.equal(active, false);
 });
 
+test('native and Webview scan entries resolve the local destination before scanning without remote reads', async t => {
+  for (const entry of ['native', 'webview']) await t.test(entry, async () => {
+    const { host, remote, local } = fixture('reviewer', false);
+    host.projectContext = undefined;
+    host.show = async () => { local.push('show'); };
+    const scans: boolean[] = [];
+    host.scanRepositories = async (resume: boolean) => {
+      assert.equal(host.activeMode, 'clone'); assert.equal(host.projectSource, 'local');
+      assert.equal(host.projectContext.root, 'C:/local-project');
+      assert.equal(host.cloneRoot, host.projectContext.root);
+      assert.ok(local.includes('show')); scans.push(resume);
+    };
+    if (entry === 'native') await host.scanFromSidebar();
+    else await host.dispatchMessage({ type: 'scanRepositories', resume: true });
+    assert.deepEqual(scans, [entry === 'webview']);
+    assert.deepEqual(remote, []);
+  });
+});
+
+test('scan preparation joins double clicks and root changes cannot redirect a pending scan', async () => {
+  const { host } = fixture('dashboard', false);
+  let finish!: () => void, scans = 0, navigations = 0, signature = 'original-root';
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  host.projectContextSignature = () => signature;
+  host.navigateTo = async () => { navigations++; host.activeMode = 'clone'; await gate; };
+  host.scanRepositories = async () => { scans++; };
+  const first = host.scanFromSidebar(), second = host.dispatchMessage({ type: 'scanRepositories' });
+  assert.equal(navigations, 1);
+  signature = 'replacement-root'; finish(); await Promise.all([first, second]);
+  assert.equal(scans, 0); assert.equal(host.repositoryScanTask, undefined);
+  await host.scanFromSidebar(); assert.equal(scans, 1); assert.equal(navigations, 2);
+});
+
+test('a native scan destination overrides restored GitLab source when a cold Webview becomes ready', async () => {
+  const { host, remote } = fixture('reviewer');
+  host.webviewReady = false;
+  host.show = async () => undefined;
+  host.scanRepositories = async () => undefined;
+  await host.scanFromSidebar();
+  assert.equal(host.pendingProjectSource, 'local');
+  await host.dispatchMessage({ type: 'ready', projectSource: 'gitlab' });
+  assert.equal(host.projectSource, 'local'); assert.equal(host.pendingProjectSource, undefined);
+  assert.equal(host.activeMode, 'clone'); assert.deepEqual(remote, []);
+});
+
+test('a missing scan root leaves its recovery destination visible and a failed entry can be retried', async () => {
+  const { host } = fixture('reviewer', false);
+  host.show = async () => undefined;
+  host.resolveProjectContext = async () => ({ folders: [], manual: false, revision: 'missing', error: '請先選擇專案資料夾。' });
+  await assert.rejects(host.scanFromSidebar(), /請先選擇專案資料夾/);
+  assert.equal(host.activeMode, 'clone'); assert.equal(host.projectSource, 'local');
+  assert.equal(host.projectContext.root, undefined); assert.equal(host.repositoryScanTask, undefined);
+  let scans = 0;
+  host.resolveProjectContext = async () => ({ folders: [], manual: false, revision: 'resolved', root: 'C:/selected' });
+  host.scanRepositories = async () => { scans++; };
+  await host.scanFromSidebar(); assert.equal(scans, 1);
+});
+
 test('duplicate ready messages load once per view generation and a restored view loads once again', async () => {
   const { host, local, remote } = fixture('sa', false);
   await host.dispatchMessage({ type: 'ready', projectSource: 'local' });

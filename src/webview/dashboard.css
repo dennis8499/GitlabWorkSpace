@@ -33,6 +33,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .root-button { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connection { border: 1px solid var(--border); background: transparent; min-height: 30px; border-radius: 5px; padding: 4px 9px; white-space: nowrap; }
 .connection i { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+.workspace-navigation { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-width: 0; padding: 4px 20px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
+.mode-navigation { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.mode-navigation button { flex: 0 0 auto; min-height: 34px; padding: 6px 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--vscode-foreground); background: transparent; white-space: nowrap; }
+.mode-navigation button:hover { background: var(--vscode-toolbar-hoverBackground); }
+.mode-navigation button[aria-current="page"] { border-bottom-color: var(--focus); color: var(--vscode-textLink-foreground, var(--focus)); background: var(--vscode-tab-activeBackground, var(--surface)); font-weight: 600; }
+.repository-scan-action { flex: 0 0 auto; margin-left: auto; }
+.repository-scan-trigger { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.workspace-navigation > .feature-notices { flex: 1 1 100%; margin: 0; }
 .workbench { display: flex; flex: 1 1 0; min-height: 0; overflow: hidden; }
 .eyebrow { color: var(--muted); font-size: .95rem; letter-spacing: .04em; text-transform: uppercase; }
 .count { margin-left: auto; color: var(--muted); font-size: .95rem; }
@@ -449,6 +457,8 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .home-repository small { grid-column: 2; }
   .wiki-guide-selector { max-width: none; }
   .topbar { padding: 10px; }
+  .workspace-navigation { gap: 4px 8px; padding: 4px 10px; }
+  .mode-navigation button { padding-inline: 8px; }
   .top-controls { gap: 5px; }
   .root-button { max-width: 100%; }
   .page { padding: 12px; }
@@ -482,6 +492,11 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .issue-workspace-layout .inline-form { flex-wrap: wrap; }
   .issue-workspace-layout .inline-form > * { min-width: 0; }
   .issue-workspace-layout .field input, .issue-workspace-layout .field select, .issue-workspace-layout .field textarea { max-width: 100%; }
+}
+@media (max-height: 600px) {
+  .app-shell { overflow-y: auto; }
+  .workspace-navigation { position: sticky; top: 0; z-index: 3; }
+  .workbench { flex: 1 0 240px; min-height: 240px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 

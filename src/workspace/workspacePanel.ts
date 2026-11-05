@@ -223,6 +223,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private selectedProjectId?: number;
   private activeMode: WorkspaceMode;
   private projectSource: 'gitlab' | 'local' = 'gitlab';
+  private pendingProjectSource?: 'local';
+  private repositoryScanTask?: Promise<void>;
   private developerView: 'list' | 'graph' = 'list';
   private currentUser?: GitLabUser;
   private projectRootSelecting = false;
@@ -652,7 +654,31 @@ export class WorkspacePanel implements vscode.Disposable {
       ? this.switchAccount(accountId) : this.removeAccount(accountId));
   }
 
-  async scanFromSidebar(): Promise<void> { await this.runLogged('scanRepositories', () => this.scanRepositories()); }
+  async scanFromSidebar(): Promise<void> { await this.runLogged('scanRepositories', () => this.openRepositoryScan()); }
+
+  /** A single entry owns navigation and root resolution before the scan starts. */
+  private async openRepositoryScan(resume = false): Promise<void> {
+    if (this.repositoryScanTask) return this.repositoryScanTask;
+    const task = this.navigateAndScanRepositories(resume);
+    this.repositoryScanTask = task;
+    try { await task; }
+    finally { if (this.repositoryScanTask === task) this.repositoryScanTask = undefined; }
+  }
+
+  private async navigateAndScanRepositories(resume: boolean): Promise<void> {
+    const signature = this.projectContextSignature();
+    this.projectSource = 'local';
+    if (!this.webviewReady) this.pendingProjectSource = 'local';
+    await this.navigateTo('clone');
+    const current = () => !this.disposed && signature === this.projectContextSignature() && this.activeMode === 'clone' && this.projectSource === 'local';
+    if (!current()) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
+    const context = await this.resolveProjectContext();
+    if (!current()) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
+    this.projectContext = context;
+    this.cloneRoot = context.root; this.cloneRootError = context.error;
+    this.sendSnapshot();
+    await this.scanRepositories(resume);
+  }
 
   private assertAccountTransitionAllowed(): void {
     if (this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites || this.writesInFlight ||
@@ -1138,6 +1164,11 @@ export class WorkspacePanel implements vscode.Disposable {
         this.snapshotGraphScope = undefined;
         this.post({ type: 'operationsSnapshot', snapshot: this.operations.snapshot() });
         if (this.viewReadAbort.signal.aborted) this.viewReadAbort = new AbortController();
+        // A native scan can open a new Webview whose saved source is GitLab.
+        // Apply that command's destination before publishing the first snapshot.
+        if (this.pendingProjectSource) this.projectSource = this.pendingProjectSource;
+        else if (request.projectSource === 'gitlab' || request.projectSource === 'local') this.projectSource = request.projectSource;
+        this.pendingProjectSource = undefined;
         // Local navigation and account forms must not wait for remote data or
         // a Python installation inspection before becoming usable.
         this.sendSnapshot();
@@ -1145,7 +1176,6 @@ export class WorkspacePanel implements vscode.Disposable {
         if (this.pendingNotificationsOpen) { this.post({ type: 'openNotifications' }); this.pendingNotificationsOpen = false; }
         this.publishSettings();
         const generation = this.viewGeneration;
-        if (request.projectSource === 'gitlab' || request.projectSource === 'local') this.projectSource = request.projectSource;
         this.developerView = request.developerView === 'graph' ? 'graph' : 'list';
         if (request.mergeRequestFilter && ['all', 'reviewer', 'assigned'].includes(request.mergeRequestFilter)) this.mergeRequestFilter = request.mergeRequestFilter;
         await this.refresh({ reason: 'entry' });
@@ -1280,7 +1310,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'addAccount': await this.connect(request.accountId); break;
       case 'switchAccount': await this.switchAccount(request.accountId); break;
       case 'removeAccount': await this.removeAccount(request.accountId); break;
-      case 'scanRepositories': await this.scanRepositories(request.resume === true); break;
+      case 'scanRepositories': await this.openRepositoryScan(request.resume === true); break;
       case 'cancelRepositoryScan': this.repositoryScanAbort?.abort(); break;
       case 'openLogs': await vscode.commands.executeCommand('gitlabWorkspace.showLogs'); break;
       case 'selectGroup': await this.selectGroup(request.groupId); break;
@@ -3215,6 +3245,7 @@ export class WorkspacePanel implements vscode.Disposable {
       mergeRequests: this.mergeRequests,
       mergeRequestFilter: this.mergeRequestFilter ?? 'all',
       activeMode: this.activeMode,
+      projectSource: this.projectSource,
       instanceUserScope: this.session.baseUrl && this.currentUser
         ? createHash('sha256').update(`${this.session.baseUrl}\0${this.currentUser.id}`).digest('hex').slice(0, 24)
         : undefined,

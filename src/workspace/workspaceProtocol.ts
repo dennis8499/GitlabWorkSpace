@@ -234,6 +234,7 @@ export interface WorkspaceSnapshot {
   issues: GitLabIssue[];
   mergeRequests: GitLabMergeRequest[];
   activeMode: WorkspaceMode;
+  projectSource?: 'gitlab' | 'local';
   instanceUserScope?: string;
   connectedScope?: string;
   selectedProjectId?: number;

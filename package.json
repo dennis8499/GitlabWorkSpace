@@ -189,7 +189,7 @@
         "command": "gitlabWorkspace.scanRepositories",
         "title": "一鍵掃描工作區 Repo",
         "category": "GitLab Workspace",
-        "icon": "$(search-view)"
+        "icon": "$(search)"
       },
       {
         "command": "gitlabWorkspace.selectWorkflow",
@@ -286,24 +286,29 @@
       ],
       "view/title": [
         {
-          "command": "gitlabWorkspace.refreshRepositories",
+          "command": "gitlabWorkspace.scanRepositories",
           "when": "view == gitlabWorkspace.repositories",
           "group": "navigation@1"
         },
         {
-          "command": "gitlabWorkspace.findRepositories",
+          "command": "gitlabWorkspace.openWorkspace",
           "when": "view == gitlabWorkspace.repositories",
           "group": "navigation@2"
         },
         {
-          "command": "gitlabWorkspace.scanRepositories",
+          "command": "gitlabWorkspace.refreshRepositories",
           "when": "view == gitlabWorkspace.repositories",
-          "group": "navigation@3"
+          "group": "repositories@1"
+        },
+        {
+          "command": "gitlabWorkspace.findRepositories",
+          "when": "view == gitlabWorkspace.repositories",
+          "group": "repositories@2"
         },
         {
           "command": "gitlabWorkspace.selectWorkflow",
           "when": "view == gitlabWorkspace.repositories",
-          "group": "navigation@4"
+          "group": "workspace@1"
         },
         {
           "command": "gitlabWorkspace.openSettings",
@@ -326,19 +331,24 @@
           "group": "workspace"
         },
         {
-          "command": "gitlabWorkspace.refreshMyWork",
+          "command": "gitlabWorkspace.openWorkspace",
           "when": "view == gitlabWorkspace.myWork",
           "group": "navigation@1"
         },
         {
-          "command": "gitlabWorkspace.findMyWork",
+          "command": "gitlabWorkspace.refreshMyWork",
           "when": "view == gitlabWorkspace.myWork",
           "group": "navigation@2"
         },
         {
+          "command": "gitlabWorkspace.findMyWork",
+          "when": "view == gitlabWorkspace.myWork",
+          "group": "work@1"
+        },
+        {
           "command": "gitlabWorkspace.selectWorkflow",
           "when": "view == gitlabWorkspace.myWork",
-          "group": "navigation@3"
+          "group": "workspace@1"
         },
         {
           "command": "gitlabWorkspace.openSettings",

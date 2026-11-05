@@ -1,0 +1,247 @@
+{
+  "checkedAt": "2026-11-05T11:04:56.337Z",
+  "results": [
+    {
+      "kind": "native-scan",
+      "status": "掃描完成：找到 1 個 Repo。"
+    },
+    {
+      "kind": "native-sidebar",
+      "requestedWidth": 240,
+      "width": 240,
+      "scan": {
+        "rect": {
+          "x": 191,
+          "y": 71,
+          "width": 20,
+          "height": 20,
+          "top": 71,
+          "right": 211,
+          "bottom": 91,
+          "left": 191
+        },
+        "className": "action-label codicon codicon-search",
+        "icon": "\"\""
+      }
+    },
+    {
+      "kind": "native-sidebar",
+      "requestedWidth": 320,
+      "width": 320,
+      "scan": {
+        "rect": {
+          "x": 271,
+          "y": 71,
+          "width": 20,
+          "height": 20,
+          "top": 71,
+          "right": 291,
+          "bottom": 91,
+          "left": 271
+        },
+        "className": "action-label codicon codicon-search",
+        "icon": "\"\""
+      }
+    },
+    {
+      "kind": "native-theme",
+      "name": "light",
+      "labels": [
+        "總覽",
+        "我的工作",
+        "專案",
+        "Skills",
+        "BMAD",
+        "待審查",
+        "版控"
+      ],
+      "active": "專案",
+      "width": 656,
+      "theme": "vscode-light",
+      "navWidth": 616,
+      "clientWidth": 616,
+      "glyph": "\"\""
+    },
+    {
+      "kind": "native-theme",
+      "name": "dark",
+      "labels": [
+        "總覽",
+        "我的工作",
+        "專案",
+        "Skills",
+        "BMAD",
+        "待審查",
+        "版控"
+      ],
+      "active": "專案",
+      "width": 656,
+      "theme": "vscode-dark",
+      "navWidth": 616,
+      "clientWidth": 616,
+      "glyph": "\"\""
+    },
+    {
+      "kind": "native-theme",
+      "name": "hc-dark",
+      "labels": [
+        "總覽",
+        "我的工作",
+        "專案",
+        "Skills",
+        "BMAD",
+        "待審查",
+        "版控"
+      ],
+      "active": "專案",
+      "width": 656,
+      "theme": "vscode-high-contrast",
+      "navWidth": 616,
+      "clientWidth": 616,
+      "glyph": "\"\""
+    },
+    {
+      "kind": "native-theme",
+      "name": "hc-light",
+      "labels": [
+        "總覽",
+        "我的工作",
+        "專案",
+        "Skills",
+        "BMAD",
+        "待審查",
+        "版控"
+      ],
+      "active": "專案",
+      "width": 656,
+      "theme": "vscode-high-contrast-light vscode-high-contrast",
+      "navWidth": 616,
+      "clientWidth": 616,
+      "glyph": "\"\""
+    },
+    {
+      "kind": "native-zoom",
+      "scale": 1.25,
+      "sidebarCollapsed": true,
+      "width": 771,
+      "height": 522,
+      "devicePixelRatio": 1.875,
+      "scrollWidth": 731,
+      "clientWidth": 731,
+      "workbenchHeight": 317.8666687011719,
+      "navTop": 92.66667175292969,
+      "buttons": [
+        {
+          "label": "總覽",
+          "right": 86.00000762939453,
+          "left": 40.000003814697266,
+          "bottom": 130.6666717529297
+        },
+        {
+          "label": "我的工作",
+          "right": 159.9916763305664,
+          "left": 88.00000762939453,
+          "bottom": 130.6666717529297
+        },
+        {
+          "label": "專案",
+          "right": 207.99167251586914,
+          "left": 161.99166870117188,
+          "bottom": 130.6666717529297
+        },
+        {
+          "label": "Skills",
+          "right": 258.3166847229004,
+          "left": 209.99168395996094,
+          "bottom": 130.6666717529297
+        },
+        {
+          "label": "BMAD",
+          "right": 316.9416847229004,
+          "left": 260.3166809082031,
+          "bottom": 130.6666717529297
+        },
+        {
+          "label": "待審查",
+          "right": 377.9416847229004,
+          "left": 318.9416809082031,
+          "bottom": 130.6666717529297
+        },
+        {
+          "label": "版控",
+          "right": 425.9416847229004,
+          "left": 379.9416809082031,
+          "bottom": 130.6666717529297
+        },
+        {
+          "label": "一鍵掃描 Repo",
+          "right": 731.2000579833984,
+          "left": 603.1417236328125,
+          "bottom": 128.66667366027832
+        }
+      ]
+    },
+    {
+      "kind": "native-zoom",
+      "scale": 2,
+      "sidebarCollapsed": true,
+      "width": 464,
+      "height": 292,
+      "devicePixelRatio": 3,
+      "scrollWidth": 416,
+      "clientWidth": 416,
+      "workbenchHeight": 240,
+      "navTop": 0,
+      "buttons": [
+        {
+          "label": "總覽",
+          "right": 72,
+          "left": 30,
+          "bottom": 38
+        },
+        {
+          "label": "我的工作",
+          "right": 142,
+          "left": 74,
+          "bottom": 38
+        },
+        {
+          "label": "專案",
+          "right": 186,
+          "left": 144,
+          "bottom": 38
+        },
+        {
+          "label": "Skills",
+          "right": 232.33333587646484,
+          "left": 188,
+          "bottom": 38
+        },
+        {
+          "label": "BMAD",
+          "right": 286.9635543823242,
+          "left": 234.33334350585938,
+          "bottom": 38
+        },
+        {
+          "label": "待審查",
+          "right": 343.96356201171875,
+          "left": 288.96356201171875,
+          "bottom": 38
+        },
+        {
+          "label": "版控",
+          "right": 387.96356201171875,
+          "left": 345.96356201171875,
+          "bottom": 38
+        },
+        {
+          "label": "一鍵掃描 Repo",
+          "right": 425.6666717529297,
+          "left": 296.65625,
+          "bottom": 72
+        }
+      ]
+    }
+  ]
+}

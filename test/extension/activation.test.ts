@@ -44,6 +44,13 @@ suite('GitLab Workspace extension activation', () => {
     }
     const wikiGuideCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSaMode');
     assert.equal(wikiGuideCommand?.title, 'Skills 功能指引');
+    const scanCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.scanRepositories');
+    assert.equal(scanCommand?.icon, '$(search)');
+    const titleActions = extension.packageJSON.contributes.menus['view/title'] as Array<{ command: string; when: string; group: string }>;
+    assert.deepEqual(titleActions.filter(item => item.when === 'view == gitlabWorkspace.repositories' && item.group.startsWith('navigation'))
+      .map(item => item.command), ['gitlabWorkspace.scanRepositories', 'gitlabWorkspace.openWorkspace']);
+    assert.equal(titleActions.some(item => item.when === 'view == gitlabWorkspace.myWork' && item.command === 'gitlabWorkspace.openWorkspace'
+      && item.group.startsWith('navigation')), true);
     const showLogsCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.showLogs');
     assert.equal(showLogsCommand?.title, '開啟 Log');
     const settingsCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSettings');

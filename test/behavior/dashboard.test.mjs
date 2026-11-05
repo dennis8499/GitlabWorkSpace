@@ -9,6 +9,93 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+test('persistent navigation exposes all seven modes, follows host navigation and never reads on focus', async t => {
+  const data = snapshot('developer');
+  const view = await mount({ mode: 'developer' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, buttons = [...document.querySelectorAll('.mode-navigation button')];
+  assert.deepEqual(buttons.map(button => button.textContent), ['總覽', '我的工作', '專案', 'Skills', 'BMAD', '待審查', '版控']);
+  const search = document.querySelector('input[aria-label="搜尋 Issue"]');
+  search.value = 'Alpha'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const before = view.requests.length;
+  for (const button of buttons) button.focus();
+  await view.tick();
+  assert.equal(view.requests.length, before, 'keyboard focus does not navigate or load any page');
+  for (const button of buttons) {
+    button.click(); await view.tick();
+    assert.equal(view.requests.findLast(request => request.type === 'setMode').mode, button.dataset.mode);
+    assert.equal(document.querySelector('.mode-navigation [aria-current="page"]'), button);
+  }
+  view.sendSnapshot({ ...data, activeMode: 'reviewer' }); await view.tick();
+  assert.equal(document.querySelector('.mode-navigation [aria-current="page"]').dataset.mode, 'reviewer');
+  document.querySelector('.mode-navigation [data-mode="developer"]').click(); await view.tick();
+  assert.equal(view.savedState.filters.developer, 'Alpha');
+  assert.equal(document.querySelector('.mode-navigation [aria-current="page"]').dataset.mode, 'developer');
+});
+
+test('persistent navigation stays outside Issue details and retains the comment draft when leaving', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: {
+    ...issueDetailData(data.issues[0], data.projects[0]), canComment: true
+  } } }); await view.tick();
+  const comment = document.querySelector('.issue-embed textarea');
+  comment.value = 'Keep this comment while switching functions';
+  comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const drafts = JSON.stringify(view.savedState.issueEditorDrafts);
+  assert.match(drafts, /Keep this comment/);
+  assert.equal(document.querySelector('.workspace-navigation').closest('.workbench'), null);
+  assert.equal(document.querySelector('.mode-navigation [aria-current="page"]').dataset.mode, 'developer');
+  document.querySelector('.mode-navigation [data-mode="sa"]').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'setMode').mode, 'sa');
+  assert.ok(view.requests.some(request => request.type === 'closeIssue'));
+  assert.equal(JSON.stringify(view.savedState.issueEditorDrafts), drafts);
+});
+
+test('the global scan sends one request, follows the host local destination and preserves its progress and retry', async t => {
+  const data = { ...snapshot('reviewer'), localOperationScope: 'local-scan', projectSource: 'gitlab' };
+  const view = await mount({ mode: 'reviewer', projectSource: 'gitlab' }, data, {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, scan = () => document.querySelector('.repository-scan-trigger');
+  assert.ok(scan().querySelector('.codicon-search'));
+  const before = view.requests.length;
+  scan().click(); scan().click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'scanRepositories').length, 1);
+  assert.equal(view.requests.slice(before).some(request => ['setMode', 'setProjectSource'].includes(request.type)), false,
+    'the Host owns scan navigation and root resolution in a single request');
+  assert.equal(scan().disabled, true); assert.equal(scan().getAttribute('aria-busy'), 'true');
+  const request = view.rawRequests.findLast(request => request.type === 'scanRepositories');
+  const scanning = { ...data, activeMode: 'clone', projectSource: 'local', repositoryScan: {
+    status: 'scanning', checkedDirectories: 12, repositories: [], errors: [], excludes: ['.git']
+  } };
+  view.sendSnapshot(scanning); await view.tick();
+  assert.ok(document.querySelector('.local-repositories-panel'));
+  assert.equal(document.querySelector('.clone-list-column'), null);
+  assert.match(document.querySelector('.local-repositories-panel').textContent, /12 個資料夾/);
+  [...document.querySelectorAll('.local-repositories-panel button')].find(button => button.textContent === '取消掃描').click();
+  assert.equal(view.requests.at(-1).type, 'cancelRepositoryScan');
+  view.receipt(request, { status: 'failed', effect: 'none', error: 'Scan denied' });
+  view.sendSnapshot({ ...scanning, repositoryScan: { ...scanning.repositoryScan, status: 'error' } }); await view.tick();
+  assert.equal(scan().disabled, false);
+  scan().click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'scanRepositories').length, 2);
+  assert.equal(view.savedState.projectSource, 'local');
+});
+
+test('the global scan explains missing local folders while offline navigation remains available', async t => {
+  const data = { ...snapshot('dashboard'), connected: false, group: undefined, groupRoot: undefined, cloneRoot: undefined,
+    projectContext: { folders: [], revision: 'empty', manual: false, error: '請先開啟專案資料夾。' } };
+  const view = await mount({ mode: 'dashboard' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, scan = document.querySelector('.repository-scan-trigger');
+  assert.equal(scan.disabled, true);
+  assert.match(document.getElementById(scan.getAttribute('aria-describedby')).textContent, /開啟專案資料夾/);
+  [...document.querySelectorAll('.workspace-navigation button')].find(button => button.textContent === '開啟資料夾').click();
+  assert.equal(view.requests.at(-1).type, 'openWorkspaceFolder');
+  assert.equal([...document.querySelectorAll('.mode-navigation button')].every(button => !button.disabled), true);
+});
+
 test('rendered Issue Markdown strips style tags, style attributes and event handlers', async t => {
   const data = snapshot();
   const view = await mount({}, data); t.after(() => view.dom.window.close());
@@ -1989,7 +2076,7 @@ test('offline local Repo inventory exposes every copy, scan progress, cancellati
   assert.equal(view.requests.at(-1).type, 'cancelRepositoryScan');
   view.sendSnapshot({ ...data, repositoryScan: { ...data.repositoryScan, status: 'cancelled' } });
   await view.tick();
-  [...document.querySelectorAll('.project-tabs button')].find(button => button.textContent === '一鍵掃描 Repo').click();
+  document.querySelector('.repository-scan-trigger').click();
   assert.equal(view.requests.at(-1).type, 'scanRepositories');
 });
 
