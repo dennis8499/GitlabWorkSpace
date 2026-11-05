@@ -19,6 +19,7 @@ import { SkillsGuide } from './SkillsGuide';
 import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { BmadPanel } from './BmadPanel';
 import { CodexPanel, CodexSettings } from './CodexPanel';
+import type { CodexUiState } from './codexUiState';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
 import { FeatureNotice, FeatureNotices, FeatureButton } from './FeatureNotice';
@@ -45,6 +46,7 @@ import './motion.css';
 
 interface DraftChoice { assigneeId?: number; labels: string[]; milestoneId?: number; }
 interface SavedState {
+  codexUi?: CodexUiState;
   bmadUiByRoot?: Record<string, BmadPanelState>;
   gitUi?: GitPanelUiState;
   issueNavigation?: IssueNavigation | null;
@@ -837,6 +839,10 @@ function App() {
       } else if (message.type === 'requestCloneSelection') {
         setCloneSelectionRequest(message.requestId);
       } else if (message.type === 'busy') { /* Lifecycle receipts own waiting state. */ }
+      else if (message.type === 'protocolError') {
+        if (message.operationId) actions.complete(message.operationId, { status: 'failed', effect: 'none', error: message.message });
+        else setPageError({ message: message.message, mode: modeRef.current, scope: operationScope });
+      }
       else if (message.type === 'error') { if (message.scopeRevision && ![operationScope, localOperationScope].includes(message.scopeRevision)) return; if (!message.operationId) setPageError({ message: message.message, mode: message.mode ?? modeRef.current, scope: message.scopeRevision ?? operationScope }); }
       else if (message.type === 'draftBundle') {
         setBundle(message.bundle);
@@ -1490,7 +1496,8 @@ function App() {
       </section>
     </div>
 
-    {!localBlocked && <CodexPanel post={post} />}
+    {!localBlocked && <CodexPanel post={post} actions={actions} initialState={initial?.codexUi}
+      onStateChange={codexUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), codexUi })} />}
     <div class="workspace-operation-area"><OperationFeedback excludeResources={[...(mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && snapshot.group ? ['repositories'] : []), ...(mode === 'reviewer' && mr ? [`mr:${mr.project_id}:${mr.iid}`] : []), ...(mode === 'sa' || toolDrawer ? ['skills'] : [])]} excludePrefixes={mode === 'git' ? ['git:'] : mode === 'sa' ? ['skill:'] : mode === 'developer' && issueNavigation ? ['issue:'] : []} initialOperations={snapshot.operations} scopeRevision={effectiveOperationScope({ type: 'refresh', mode, projectSource: requestProjectSource }, { scopeRevision: snapshot.operationScope ?? operationScope, localOperationScope: snapshot.localOperationScope ?? localOperationScope })} onRefresh={() => post({ type: 'refresh' })} /></div>
     <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}</footer>
     <NotificationSnackbar snapshot={notifications} onView={id => {

@@ -49,6 +49,7 @@ import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphN
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './workflowKitReleases';
 import type { BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft, CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry } from './workspaceProtocol';
+import { parseWorkspaceRequest, WorkspaceProtocolError } from './workspaceRequestValidation';
 import { WorkflowKitService } from './workflowKitService';
 import { workflowKitInstallationVerified, workflowKitInterfaceCompatible } from './workflowKitCompatibility';
 import { normalizeWorkspaceMode } from './workspaceProtocol';
@@ -834,6 +835,12 @@ export class WorkspacePanel implements vscode.Disposable {
   private async handleMessage(value: unknown): Promise<void> {
     try { await this.handleOperationMessage(value); }
     catch (error) {
+      if (error instanceof WorkspaceProtocolError) {
+        const operationId = value && typeof value === 'object' && 'operationId' in value && typeof value.operationId === 'string'
+          && /^[a-z0-9-]{1,100}$/i.test(value.operationId) ? value.operationId : undefined;
+        this.post({ type: 'protocolError', operationId, message: error.message });
+        throw error;
+      }
       if (value && typeof value === 'object' && 'type' in value && typeof value.type === 'string' && ['control', 'local'].includes(describeAction(value as { type: string }).kind)) {
         this.post({ type: 'error', message: readableError(error) });
       }
@@ -842,8 +849,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async handleOperationMessage(value: unknown): Promise<void> {
-    if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
-    let request = value as WorkspaceRequest;
+    let request = parseWorkspaceRequest(value);
     if (request.operationId !== undefined && (typeof request.operationId !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(request.operationId))) throw new Error('操作識別碼無效，請重新載入工作台。');
     if (request.operationScope !== undefined && (typeof request.operationScope !== 'string' || request.operationScope.length > 500)) throw new Error('工作區識別資料無效，請重新載入工作台。');
     let normalizationError: unknown;
@@ -1081,7 +1087,7 @@ export class WorkspacePanel implements vscode.Disposable {
         await this.getCodexBridge().enqueue(prepared, this.operationContext.getStore() ?? request.operationId);
         this.noteOutcome({ effect: 'applied' }); break;
       }
-      case 'sendCodexMessage': await this.getCodexBridge().message(request.taskId, request.text); break;
+      case 'sendCodexMessage': await this.getCodexBridge().message(request.taskId, request.text); this.noteOutcome({ effect: 'applied' }); break;
       case 'resumeCodexTask': await this.getCodexBridge().resume(request.taskId); break;
       case 'cancelCodexTask': await this.getCodexBridge().cancel(request.taskId); break;
       case 'answerCodex': await this.getCodexBridge().answer(request.taskId, request.interactionId, request.answer); break;
@@ -1297,7 +1303,9 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       }
       case 'syncRepos': await this.syncRepos(request.projectIds); break;
-      case 'selectProject': this.selectedProjectId = request.projectId; await this.context.globalState.update('gitlabWorkspace.selectedProjectId', request.projectId); this.sendSnapshot(); break;
+      case 'selectProject':
+        if (!this.projects.some(project => project.id === request.projectId)) throw new Error('此專案不在目前已載入的 Group，請重新選擇。');
+        this.selectedProjectId = request.projectId; await this.context.globalState.update('gitlabWorkspace.selectedProjectId', request.projectId); this.sendSnapshot(); break;
       case 'selectIssue': await this.selectIssue(request.projectId, request.issueIid); break;
       case 'openIssue': await this.openIssue(request.projectId, request.issueIid, request.tab); break;
       case 'createIssue': this.issueOpenGeneration++; await this.issuePanels.showCreate(); break;

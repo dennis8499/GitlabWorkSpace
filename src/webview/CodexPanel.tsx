@@ -5,6 +5,9 @@ import { codexTaskActive, type CodexEnvironment, type CodexEvent, type CodexInte
   type CodexOutputItem, type CodexTaskState } from '../codex/protocol';
 import './codex-panel.css';
 import { formChoices } from '../codex/forms';
+import type { ActionController, DispatchResult } from '../workspace/actionController';
+import { useActionSelector } from './useActions';
+import { editCodexDraft, restoreCodexUi, settleCodexDrafts, type CodexUiState } from './codexUiState';
 
 type Post = (request: WorkspaceRequest) => void;
 const labels: Record<CodexTaskState['status'], string> = { queued: '排隊中', starting: '準備執行', running: '執行中', waiting: '等待互動',
@@ -30,13 +33,29 @@ export function CodexSettings({ post }: { post: Post }) {
     </div><p class="subtle">模型與帳號沿用本機 Codex；工作區內可直接執行，額外權限會在任務面板詢問。</p>
   </section>;
 }
-export function CodexPanel({ post }: { post: Post }) {
+export function CodexPanel({ post, actions, initialState, onStateChange }: {
+  post: (request: WorkspaceRequest) => DispatchResult; actions: ActionController;
+  initialState?: CodexUiState; onStateChange: (state: CodexUiState) => void;
+}) {
   const [tasks, setTasks] = useState<CodexTaskState[]>([]);
-  const [selected, setSelected] = useState('');
+  const [ui, setUi] = useState(() => restoreCodexUi(initialState));
+  const selected = ui.selectedTaskId ?? '';
+  const setSelected = (value: string | ((current: string) => string)) => setUi(current => ({ ...current,
+    selectedTaskId: typeof value === 'function' ? value(current.selectedTaskId ?? '') : value }));
   const [items, setItems] = useState<Record<string, CodexOutputItem[]>>({});
   const [interactions, setInteractions] = useState<Record<string, CodexInteraction[]>>({});
   const [history, setHistory] = useState<Record<string, Extract<CodexEvent, { kind: 'history' }>>>({});
-  const [text, setText] = useState('');
+  const text = ui.drafts[selected]?.text ?? '';
+  const operations = useActionSelector(actions, states => states);
+  const save = useRef(onStateChange); save.current = onStateChange;
+  const uiRef = useRef(ui); uiRef.current = ui;
+  useEffect(() => { save.current(ui); }, [ui]);
+  useEffect(() => { setUi(current => settleCodexDrafts(current, operations)); }, [operations]);
+  useEffect(() => {
+    const pending = Object.values(uiRef.current.pending);
+    for (const item of pending) actions.restorePending(item);
+    if (pending.length) post({ type: 'reconcileOperations', pendingIds: pending.map(item => item.requestId) });
+  }, []);
   const [open, setOpen] = useState(false);
   const knownIds = useRef<Set<string>>();
   useCodexEvents(event => {
@@ -52,7 +71,7 @@ export function CodexPanel({ post }: { post: Post }) {
   }, post);
   const task = tasks.find(value => value.id === selected);
   const active = tasks.filter(value => codexTaskActive(value.status) || value.status === 'queued').length;
-  const select = (id: string) => { setSelected(id); setText(''); post({ type: 'codexHistory', taskId: id }); };
+  const select = (id: string) => { setSelected(id); post({ type: 'codexHistory', taskId: id }); };
   return <details class="codex-panel" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Codex 任務{active ? ` · ${active} 項執行／排隊` : tasks.length ? ` · ${tasks.length} 項紀錄` : ''}</summary>
     <div class="codex-layout"><nav aria-label="Codex 任務清單">{!tasks.length && <p>從 Wiki、審查或 BMAD 按「使用 Codex 執行」開始。</p>}
@@ -75,8 +94,19 @@ export function CodexPanel({ post }: { post: Post }) {
           {!(items[task.id]?.length) && <p class="subtle">尚無執行訊息；既有對話可按「讀取對話」。</p>}
         </div>
         {(interactions[task.id] ?? []).map(interaction => <Interaction key={interaction.id} interaction={interaction} post={post} />)}
-        <form class="codex-message" onSubmit={event => { event.preventDefault(); if (text.trim()) { post({ type: 'sendCodexMessage', taskId: task.id, text }); setText(''); } }}>
-          <label for="codex-follow-up">補充需求或接續對話</label><textarea id="codex-follow-up" rows={2} maxLength={32000} value={text} onInput={event => setText(event.currentTarget.value)} />
+        <form class="codex-message" onSubmit={event => {
+          event.preventDefault(); if (!text.trim()) return;
+          const result = post({ type: 'sendCodexMessage', taskId: task.id, text });
+          if (result.status !== 'started' || !result.operationId) return;
+          const operation = actions.get(result.operationId);
+          if (!operation) return;
+          setUi(current => settleCodexDrafts({ ...current, pending: { ...current.pending, [operation.requestId]: {
+            requestId: operation.requestId, scopeRevision: operation.scopeRevision, lockKey: operation.lockKey,
+            resourceKey: operation.resourceKey, action: operation.action, label: operation.label,
+            taskId: task.id, text, draftRevision: current.drafts[task.id]?.revision ?? 0
+          } } }, actions.getSnapshot()));
+        }}>
+          <label for="codex-follow-up">補充需求或接續對話</label><textarea id="codex-follow-up" rows={2} maxLength={32000} value={text} onInput={event => { const value = event.currentTarget.value; setUi(current => editCodexDraft(current, task.id, value)); }} />
           <button type="submit" disabled={!text.trim() || ['queued', 'starting', 'waiting'].includes(task.status)}>傳送</button>
         </form><p class="subtle">「本輪完成」表示 Codex 回合結束；審查完整性與 BMAD 進度請查看各功能的報告及產物。</p>
       </> : <CodexSettings post={post} />}</section>

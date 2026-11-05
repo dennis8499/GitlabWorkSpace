@@ -1486,6 +1486,34 @@ test('Codex task projections render messages, bind answers and expose stop, resu
   assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
 });
 
+test('Codex drafts survive task switches, blocked sends, failure, late receipts and Webview recreation', async t => {
+  const data = snapshot('dashboard');
+  const view = await mount({ mode: 'dashboard' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const tasks = ['a', 'b'].map(id => ({ id, title: `Draft task ${id}`, root: `C:/workspace/${id}`, status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' }));
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [] } }); await view.tick();
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  const input = () => document.querySelector('#codex-follow-up');
+  const type = async text => { input().value = text; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
+  const select = async id => { [...document.querySelectorAll('.codex-layout > nav button')].find(button => button.textContent.includes(`Draft task ${id}`)).click(); await view.tick(); };
+  const submit = async () => { document.querySelector('.codex-message').requestSubmit(); await view.tick(); };
+  await type('Draft A'); await select('b'); await type('Draft B'); await select('a'); assert.equal(input().value, 'Draft A');
+  await submit(); const request = view.rawRequests.findLast(item => item.type === 'sendCodexMessage'); assert.ok(request.operationId);
+  assert.equal(input().value, 'Draft A', 'unacknowledged send retains text');
+  await type('Later edit'); await submit();
+  assert.equal(view.rawRequests.filter(item => item.type === 'sendCodexMessage').length, 1, 'conflicting send is blocked'); assert.equal(input().value, 'Later edit');
+  view.receipt(request, { effect: 'applied' }); await view.tick(); assert.equal(input().value, 'Later edit', 'late success retains newer edits');
+  await submit(); const failed = view.rawRequests.findLast(item => item.type === 'sendCodexMessage');
+  view.receipt(failed, { status: 'failed', effect: 'none', error: 'Fixture rejection' }); await view.tick(); assert.equal(input().value, 'Later edit');
+  const saved = view.savedState;
+  const restored = await mount(saved, data); t.after(() => restored.dom.window.close());
+  restored.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await restored.tick();
+  assert.equal(restored.dom.window.document.querySelector('#codex-follow-up').value, 'Later edit');
+  await submit(); const accepted = view.rawRequests.findLast(item => item.type === 'sendCodexMessage');
+  view.receipt(accepted, { effect: 'applied' }); await view.tick(); assert.equal(input().value, '');
+  await type('New text after acceptance'); view.receipt(accepted, { effect: 'applied' }); await view.tick(); assert.equal(input().value, 'New text after acceptance');
+});
+
 test('a connected Dashboard without a selected Group offers Group selection', async t => {
   const data = snapshot('dashboard');
   Object.assign(data, { connected: true, group: undefined, baseUrl: 'https://gitlab.example.test',

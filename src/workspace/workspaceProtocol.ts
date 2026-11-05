@@ -376,6 +376,7 @@ export type WorkspaceRequest = (NotificationRequest
 ) & { projectRevision?: string; operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number };
 
 export type WorkspaceResponse =
+  | { type: 'protocolError'; operationId?: string; message: string }
   | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }

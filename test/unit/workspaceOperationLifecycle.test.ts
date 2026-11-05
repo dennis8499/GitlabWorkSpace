@@ -86,7 +86,7 @@ test('Git preflight rejection is explicitly no-effect even when its adapter neve
     f.host.dispatchMessage = async () => { calls++; };
     f.host.accountTransitionBusy = write;
     const request = { type: 'gitAction', operationId: 'git-preflight', requestId: 'git-domain', repoId: 'repo',
-      action: write ? { type: 'commit', message: 'Retain draft' } : { type: 'open' },
+      action: write ? { type: 'commit', message: 'Retain draft' } : { type: 'open', repoId: 'repo' },
       ...(write ? {} : { hostSessionId: 'retired-host' }) };
     await assert.rejects(f.host.handleMessage(request), write ? /帳號正在切換/ : /連線已更新/);
     const receipt = f.operations.get('git-preflight');
@@ -217,10 +217,19 @@ test('Issue Board read failures settle as failed and stale local feedback is rej
   assert.equal(f.host.issueBoardContent.status, 'error');
   assert.equal(f.host.notifications.snapshot().items[0].messages[0], 'Board unavailable');
   const revision = f.host.notifications.snapshot().revision;
-  for (const context of [{ hostSessionId: 'retired-host' }, { scopeEpoch: 1.5 }, { scopeEpoch: -1 }]) {
-    await f.host.handleMessage({ type: 'publishNotification', level: 'warn', message: 'Stale notice', ...context });
-  }
+  await f.host.handleMessage({ type: 'publishNotification', level: 'warn', message: 'Stale notice', hostSessionId: 'retired-host' });
+  for (const scopeEpoch of [1.5, -1]) await assert.rejects(f.host.handleMessage({ type: 'publishNotification', level: 'warn', message: 'Stale notice', scopeEpoch }), /訊息格式無效/);
   assert.equal(f.host.notifications.snapshot().revision, revision);
+});
+
+test('malformed Webview payloads cannot enter policy, persistence or service adapters', async () => {
+  const f = fixture(); let calls = 0;
+  f.host.dispatchMessage = async () => { calls++; };
+  for (const request of [{ type: 'copy', text: {} }, { type: 'selectProject', projectId: {} },
+    { type: 'gitAction', requestId: 'g', repoId: 'repo', action: { type: 'discard', path: '../outside' } },
+    { type: 'unlisted', operationId: 'bad-operation' }]) await assert.rejects(f.host.handleMessage(request), /訊息格式無效/);
+  assert.equal(calls, 0); assert.equal(f.events.length, 0);
+  assert.equal(f.messages.at(-1).type, 'protocolError'); assert.equal(f.messages.at(-1).operationId, 'bad-operation');
 });
 
 test('applied mutations preserve their outcome when refreshing fails', async () => {
