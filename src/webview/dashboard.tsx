@@ -1,4 +1,5 @@
 /** @jsxImportSource preact */
+import { Tabs, tabPanelProps } from './Tabs';
 import { compareVersions } from '../workspace/workflowKitVersion';
 import { render, type ComponentChildren } from 'preact';
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -1245,7 +1246,7 @@ function App() {
     </header>
 
     <div class="workbench" data-mobile-panel={mobilePanel}>
-      <section class="page" data-mode={mode} role="tabpanel">
+      <section class="page" data-mode={mode} aria-label={modes.find(item => item.id === mode)?.name}>
         {snapshot.connectedScope && remotePage && mode !== 'dashboard' && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
         {snapshot.connectedScope && mode === 'developer' && <>
           <WorkspaceSectionNotice section="issues" label="指派 Issue" status={snapshot.sections?.issues} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'issues', connectedScope: snapshot.connectedScope! })} />
@@ -1462,22 +1463,15 @@ function App() {
                 {<div class="button-row"><button class="primary" type="button" {...availabilityProps('mr-actions', mrBlockers['分支審查'])} onClick={openReviewerTask}>前往分支審查</button><span class="subtle">確認 Repo 與分支後複製提示詞，完成後可將 Markdown 作一般留言發布。</span></div>}
                 <details class="technical-info"><summary>技術詳情（完整 SHA）</summary><div class="sha-pair"><span>差異來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>差異目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div></details>
                 <FeatureNotices id="mr-actions" items={reviewerTab === 'report' ? mrBlockers : { '分支審查': mrBlockers['分支審查'], '核准': mrBlockers['核准'], '合併 MR': mrBlockers['合併 MR'] }}><button type="button" disabled={mrBusy} onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>{selectedMr.mergeAvailability?.status !== 'allowed' ? '重新檢查合併條件' : '重新檢查 MR'}</button></FeatureNotices><OperationFeedback resourceKey={`mr:${mr.project_id}:${mr.iid}`} scopeRevision={snapshot.operationScope ?? operationScope} />
-                <nav class="issue-tabs review-tabs" role="tablist" aria-label="Merge Request 詳情分頁">{([['changes', '變更'], ['discussion', '討論'], ['report', '審查報告']] as const).map(([tab, label], index) => <button role="tab" tabIndex={reviewerTab === tab ? 0 : -1} aria-selected={reviewerTab === tab} class={reviewerTab === tab ? 'active' : ''} onKeyDown={(event) => {
-                  const nextIndex = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
-                  if (nextIndex < 0) return;
-                  event.preventDefault();
-                  const nextTab = (['changes', 'discussion', 'report'] as const)[nextIndex];
-                  updateReviewerTab(nextTab);
-                  event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
-                }} onClick={() => updateReviewerTab(tab)}>{label}</button>)}</nav>
-                <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />
+                <Tabs prefix="mr-detail" label="Merge Request 詳情分頁" className="issue-tabs review-tabs" items={[[ 'changes', '變更' ], [ 'discussion', '討論' ], [ 'report', '審查報告' ]]} selected={reviewerTab} onChange={updateReviewerTab} />
+                <section class="section-card" {...tabPanelProps('mr-detail', 'changes')} hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />
                   {selectedMr.sections.diffs.status === 'ready' && <>
                     {!!selectedMr.warnings?.length && <div class="mr-diff-warnings" role="status">{selectedMr.warnings.map(warning => <p key={warning}>{warning}</p>)}<a href={mr.web_url} target="_blank" rel="noopener noreferrer">在 GitLab 查看完整變更</a></div>}
                     <VirtualRows active={reviewerTab === "changes"} resetKey={snapshot.instanceUserScope + ":" + currentMrKey} className="diff-list" items={selectedMr.diffs} itemKey={diffItemKey} estimateHeight={48} renderItem={(change) => <details open={(mrExpandedFiles[snapshot.instanceUserScope + ":" + currentMrKey] ?? []).includes(change.new_path)} onToggle={event => { const open = event.currentTarget.open, key = snapshot.instanceUserScope + ":" + currentMrKey; setMrExpandedFiles(current => { const files = current[key] ?? []; if (files.includes(change.new_path) === open) return current; return { ...current, [key]: open ? [...files, change.new_path] : files.filter(path => path !== change.new_path) }; }); }}><summary><code>{change.old_path === change.new_path ? change.new_path : change.old_path + ' ' + String.fromCharCode(0x2192) + ' ' + change.new_path}</code>{(change.too_large || change.collapsed) && <span class="diff-limit">{change.too_large ? '檔案差異超過顯示限制' : 'GitLab 已省略此檔案的差異'}</span>}</summary><pre>{change.diff || (change.too_large || change.collapsed ? '請在 GitLab 查看此檔案的完整差異。' : '此檔案沒有可顯示的 diff。')}</pre></details>} />
                     {!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異檔案。</p>}
                   </>}
                 </section>
-                <section class="section-card" hidden={reviewerTab !== 'report'}><h3>審查報告</h3><p class="subtle">新版 Merge Report 是本機分支審查結果。此處以一般留言發布；核准與合併由你決定。</p>
+                <section class="section-card" {...tabPanelProps('mr-detail', 'report')} hidden={reviewerTab !== 'report'}><h3>審查報告</h3><p class="subtle">新版 Merge Report 是本機分支審查結果。此處以一般留言發布；核准與合併由你決定。</p>
                   <label class="field">貼上 Merge Report 或其他審查文字<textarea rows={8} value={currentReport.text} onInput={(event) => {
                     const text = event.currentTarget.value;
                     updateReportDraft(currentMrKey, text);
@@ -1490,7 +1484,7 @@ function App() {
 
 
                 </section>
-                <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 討論串" status={selectedMr.sections.discussions} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'discussions', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.discussions.status === 'ready' && selectedMr.discussions.map((discussion) => <Discussion disabled={mrBusy} key={discussion.id} discussion={discussion} reply={mrReplyDrafts[snapshot.instanceUserScope + ':' + mr.project_id + ':' + mr.iid + ':' + discussion.id] ?? ''} onReplyChange={value => updateMrReplyDraft(snapshot.instanceUserScope + ':' + mr.project_id + ':' + mr.iid + ':' + discussion.id, value)} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
+                <section class="section-card" {...tabPanelProps('mr-detail', 'discussion')} hidden={reviewerTab !== 'discussion'}><h3>討論串</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 討論串" status={selectedMr.sections.discussions} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'discussions', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.discussions.status === 'ready' && selectedMr.discussions.map((discussion) => <Discussion disabled={mrBusy} key={discussion.id} discussion={discussion} reply={mrReplyDrafts[snapshot.instanceUserScope + ':' + mr.project_id + ':' + mr.iid + ':' + discussion.id] ?? ''} onReplyChange={value => updateMrReplyDraft(snapshot.instanceUserScope + ':' + mr.project_id + ':' + mr.iid + ':' + discussion.id, value)} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
               </> : <Empty title="選取一張指派給你的 MR" detail="查看分支同步、變更與討論，再將審查交給 Codex CLI。" />}</article></div>)}
         </div>
       </section>

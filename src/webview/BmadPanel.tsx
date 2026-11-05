@@ -174,7 +174,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
         <textarea id="bmad-requirement" rows={5} maxLength={8000} value={ui.requirement ?? ''}
           placeholder="例如：請分析並完成結帳流程的退款功能，確認畫面與測試。" onInput={event => change({ requirement: event.currentTarget.value })} />
         <p>工作根目錄：<code>{snapshot.root ?? '尚未選擇專案資料夾'}</code>；預設產出放在此目錄的 <code>_bmad-output/</code>。</p>
-        <div class="bmad-inline-actions"><button type="button" class="primary" {...availabilityProps('bmad-actions', taskBlocked)}
+        <div class="bmad-inline-actions"><button type="button" class="secondary" {...availabilityProps('bmad-actions', taskBlocked)}
           onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>複製 BMAD 提示詞</button>
           {onRunCommand && <FeatureButton type="button" class="primary" blocker={taskBlocked} onClick={() => onRunCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>使用 Codex 執行</FeatureButton>}
           <button type="button" class="secondary" {...availabilityProps('bmad-root', rootBlocked)} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button></div>

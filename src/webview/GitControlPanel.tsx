@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useBoundedMenus } from './boundedMenus';
 import type { ActionController, DispatchResult } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
 import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
@@ -88,6 +89,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const [historyViewport, setHistoryViewport] = useState({ top: 0, height: 600 });
   const historyListRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLElement>(null);
+  useBoundedMenus(hostRef, active);
   const dialogTrigger = useRef<{ element: HTMLElement; repoId: string }>();
   const restoringDialogFocus = useRef(false);
   const dialogScopeMatches = dialogTrigger.current?.repoId === selectedId;

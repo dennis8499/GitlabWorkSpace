@@ -174,7 +174,7 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
           <button class="quiet small reviewer-capabilities-retry" type="button" onClick={() => onLoadReviewerCapabilities?.(tool as ReviewerToolId)}>重試讀取能力</button>
         </p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
-          <div class="skills-action-bar">{onRun && <button class="primary" type="button" {...availabilityProps('skills-copy', copyBlocked)} onClick={() => onRun(card.id)}>使用 Codex 執行</button>}<button class="primary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
+          <div class="skills-action-bar">{onRun && <button class="primary" type="button" {...availabilityProps('skills-copy', copyBlocked)} onClick={() => onRun(card.id)}>使用 Codex 執行</button>}<button class="secondary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
             onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button></div><FeatureNotices id="skills-copy" items={{ '複製提示詞': copyBlocked }}>{!available && <button type="button" onClick={onOpenSettings}>準備環境與 Skills</button>}</FeatureNotices>
           <p class="skills-next-step">填寫參數後按「使用 Codex 執行」，進度與互動會顯示於下方 Codex 任務面板；也可複製提示詞自行執行。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />

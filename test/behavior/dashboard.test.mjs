@@ -1526,6 +1526,38 @@ test('a connected Dashboard without a selected Group offers Group selection', as
   assert.equal(view.requests.at(-1).type, 'selectGroup');
 });
 
+test('MR tabs move focus without activating remote content and associate every panel', async t => {
+  const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'Accessible review', state: 'opened', source_branch: 'feature', target_branch: 'main' };
+  data.mergeRequests = [request]; data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'idle' } }, freshness: { state: 'not_checked' } };
+  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, tabs = [...document.querySelectorAll('.review-tabs [role="tab"]')];
+  for (const tab of tabs) { const panel = document.getElementById(tab.getAttribute('aria-controls')); assert.ok(panel); assert.equal(panel.getAttribute('aria-labelledby'), tab.id); assert.equal(panel.getAttribute('role'), 'tabpanel'); }
+  const before = view.requests.length; tabs[0].focus();
+  tabs[0].dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })); await view.tick();
+  assert.equal(document.activeElement, tabs[1]); assert.equal(tabs[0].getAttribute('aria-selected'), 'true'); assert.equal(view.requests.length, before);
+  tabs[1].click(); await view.tick(); assert.equal(tabs[1].getAttribute('aria-selected'), 'true');
+  assert.equal(document.getElementById(tabs[1].getAttribute('aria-controls')).hidden, false);
+});
+
+test('Codex requests and complete states announce once and expose intentional focus actions', async t => {
+  const view = await mount({ mode: 'dashboard' }, snapshot('dashboard')); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const task = { id: 'accessible-task', title: 'Accessible task', root: 'C:/workspace/repo', status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' };
+  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
+  await send({ kind: 'tasks', tasks: [] }); await send({ kind: 'tasks', tasks: [task] });
+  const input = document.getElementById('codex-follow-up'); input.focus();
+  const status = () => document.querySelector('.codex-announcement').textContent;
+  const before = status();
+  for (const text of ['Stream', 'Streaming reply']) await send({ kind: 'output', taskId: task.id, replace: true, items: [{ id: 'reply', kind: 'agent', text }] });
+  assert.equal(status(), before, 'stream tokens do not reannounce');
+  await send({ kind: 'interactions', taskId: task.id, interactions: [{ id: 'approval-1', taskId: task.id, kind: 'command', title: 'Run Git', detail: 'git status' }] });
+  assert.equal(document.activeElement, input); assert.match(status(), /等待回覆/); assert.match(document.querySelector('.codex-interaction').textContent, /Repo：C:\/workspace\/repo/);
+  [...document.querySelectorAll('.codex-announcement button')][0].click(); await view.tick(); assert.equal(document.activeElement, document.querySelector('.codex-interaction'));
+  [...document.querySelectorAll('button')].find(button => button.textContent === '跳至最新回覆').click(); await view.tick(); assert.equal(document.activeElement, document.querySelector('.codex-item.agent'));
+  document.querySelector('[aria-label="複製 Codex 回覆"]').click(); assert.equal(view.requests.at(-1).text, 'Streaming reply');
+  await send({ kind: 'tasks', tasks: [{ ...task, status: 'completed' }] }); assert.match(status(), /本輪完成/);
+});
+
 test('Dashboard reports cached partial and failed GitLab sections with individual retry actions', async t => {
   const data = snapshot('dashboard');
   data.dashboardSections = { local: { status: 'ready' }, gitlab: { status: 'ready' } };

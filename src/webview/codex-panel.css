@@ -1,4 +1,7 @@
 .codex-panel { border-top: 1px solid var(--vscode-panel-border, #555); background: var(--vscode-editor-background); flex-shrink: 0; }
+.codex-announcement { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 4px 12px; font-size: .95rem; }
+.codex-announcement:empty { display: none; }
+.codex-item:focus-visible, .codex-interaction:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .codex-panel > summary { padding: 10px 18px; cursor: pointer; font-weight: 600; }
 .codex-panel button, .codex-settings button { border: 1px solid var(--vscode-button-border, transparent); border-radius: 4px; padding: 6px 10px; background: var(--vscode-button-secondaryBackground, #313135); color: var(--vscode-button-secondaryForeground, #eee); }
 .codex-panel button:not(:disabled):hover, .codex-settings button:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground, #414145); }
@@ -9,7 +12,7 @@
 .codex-conversation { padding: 10px 16px; min-width: 0; overflow: auto; }
 .codex-conversation header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .codex-conversation header > div { flex: 1; min-width: 140px; }
-.codex-root { overflow-wrap: anywhere; font-size: 12px; opacity: .8; }
+.codex-root { overflow-wrap: anywhere; font-size: 1rem; opacity: .8; }
 .codex-output { max-height: 35vh; overflow: auto; margin: 10px 0; }
 .codex-item { padding: 8px 10px; border-left: 2px solid var(--vscode-panel-border, #555); margin-bottom: 8px; }
 .codex-item.agent { border-color: var(--vscode-focusBorder); }
