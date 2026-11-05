@@ -61,6 +61,12 @@ suite('GitLab Workspace extension activation', () => {
     const navigation = api.getNavigationForTesting(), host = api.getWorkspaceForTesting();
     assert.ok(navigation.repositoryView); assert.ok(navigation.workView);
     await vscode.commands.executeCommand('gitlabWorkspace.repositories.focus');
+    if (!navigation.repositoryView.visible) await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => { listener.dispose(); reject(new Error('Native repository view did not become visible')); }, 5000);
+      const listener = navigation.repositoryView.onDidChangeVisibility(event => {
+        if (event.visible) { clearTimeout(timeout); listener.dispose(); resolve(); }
+      });
+    });
     assert.equal(navigation.repositoryView.visible, true);
     const before = host.getNavigationSnapshot();
     navigation.repositories.getChildren(); navigation.repositories.getChildren();

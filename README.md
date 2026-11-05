@@ -19,7 +19,7 @@
 - 瀏覽 GitLab 群組及其子群組中的專案。
 - 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
 - 管理多個 GitLab 站台與同站台的多個帳號；可新增、切換、重新登入、登出及移除，並記住各帳號的 Group。
-- VS Code 側欄整合 Dashboard、「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。工作台設定提供「開啟 Log」入口。
+- VS Code 原生側欄提供「儲存庫」與「我的工作」：搜尋及開啟本機 Repo、Issue、MR，多根工作區依 Folder 分組。「切換工作流程…」可進入 Dashboard、專案、Skills、BMAD、待審查與 Git 工作台。「工具與環境」提供安裝、診斷與 Log，持久設定使用原生 Settings。
 - 各頁進入或重新進入時重用有效資料：Issue／MR／看板清單快取 60 秒，專案清單與成員、標籤、里程碑、範本選項快取 5 分鐘；到期後下次進頁才重抓，也可手動更新。目前頁面停留期間不因背景事件重抓 GitLab API 或執行 Git。使用者操作後讓受影響資料失效。
 - 「我的工作」先載入專案與 Issue；看板、里程碑在點擊載入篩選選項或恢復指定條件時才讀取。選擇 Group 重用有效快取，重選目前 Group 不重載。專案頁只先取得一頁清單（最多 100 筆），載入更多或下載／更新由使用者觸發，進頁的本機目錄檢查不連 Git Server。
 - Issue 預覽與詳情共用 60 秒基本資料快取；閱讀不預抓成員。新增 Issue 的成員、標籤與里程碑各自按需分頁，使用描述範本才讀名稱；切換專案保留完整草稿。Issue 與每則留言的表情分別點擊載入，寫入後只刷新該目標。
@@ -30,7 +30,7 @@
 - 操作 Log 使用 VS Code 原生 Output 面板的「GitLab Workspace」通道，提供原生時間、等級與 Log 等級設定；僅手動開啟，保存與輪替由 VS Code 管理。
 - 操作結果集中於訊息中心，支援未讀、詳情及清除；本次工作階段最多保留 500 筆，重開面板保留，Extension Host 重啟後清空。
 - Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset；Git 狀態通知只標記快取失效，外部變更可重新進入版控或手動更新後查看。
-- Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
+- Git 版控可在未連線 GitLab 時使用；原生側欄顯示分支、變更摘要與完整路徑，點 Repo 開啟含標籤、Stash 及進階操作的 Git 工作台。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，可按「使用 Codex 執行」直接在工作台啟動，或複製後自行執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；審查不建立子 Agent，並在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
@@ -39,6 +39,8 @@
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - Codex 任務面板整合串流進度、對話、核准、停止及手動續作；任務依工作區排隊，重開 VS Code 後可讀取歷史。需要 Codex CLI 0.165.0+，模型與登入沿用本機設定。
 - 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
+
+側欄、鍵盤與設定入口見 [介面操作說明](docs/ui-navigation.md)。
 
 Codex 一鍵執行、設定與任務恢復見 [Codex Bridge 操作說明](docs/codex-bridge.md)。
 
@@ -231,24 +233,24 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 ## 快速開始
 
 1. 在活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台** 進入共用 Dashboard。Git、Repo 管理、Skills／Wiki、分支審查與 BMAD 可直接本機使用；要查看 GitLab 專案、Issue 或 MR 時，再從 Dashboard 選擇連線。
-2. 在 **設定 → 帳號與連線** 的引導表單輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`，再按下一步。
-3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
+2. 執行 **GitLab Workspace: 連線 GitLab**，或在「我的工作」歡迎畫面選擇連線；於 VS Code 原生輸入框輸入完整網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`。
+3. 於原生遮罩輸入框輸入具有 `api` 範圍的 Personal Access Token。Host 驗證成功後存入 `SecretStorage`；取消或驗證失敗會保留原有帳號。Token 不經 Webview 傳送，也不保存為介面草稿。
 4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與操作 Log 不需選擇 Group，亦可免登入使用。
-5. 在 VS Code 開啟本機專案資料夾，再進入 **設定 → 工作區與 Skills** 選擇共用專案根目錄。Git 根目錄使用 repository profile，一般資料夾使用 Group profile；本機根目錄不由 GitLab 帳號或遠端 Group 決定。在 WorkflowKit 區塊選擇 GitHub 或內網 Gitea，按「檢查最新正式版」，再按「下載並安裝」。安裝前會檢查安裝介面、附件摘要及舊工具安裝歸屬。
+5. 在 VS Code 開啟本機專案資料夾，以原生 **設定** 的 `gitlabWorkspace.projectRoot` 管理共用根目錄；留白使用所選資料夾。Git 根目錄使用 repository profile，一般資料夾使用 Group profile，本機根目錄不由 GitLab 帳號或 Group 決定。在 **工具與環境** 選擇 WorkflowKit 來源，按「檢查最新正式版」，再按「下載並安裝」。安裝前會檢查介面、附件摘要及舊工具安裝歸屬。
 6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製後自行在相同根目錄啟動 Codex CLI，再貼上執行。也可選擇 Wiki 圖表、知識維護或分支審查功能。BMAD 頁面則輸入需求、複製提示詞，並在相同根目錄啟動 Codex；預設產物位於 `_bmad-output/`。
-7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**，使用內容與討論、關聯與子工作、工時三個分頁。Git 操作由版控處理，MR 審查使用固定來源與目標 SHA。
+7. 從原生 **我的工作** 點 Issue／MR 可直接開啟詳情，也可從工作台預覽清單進入。命令 **開啟 Issue 詳情** 未帶參數時提供目前 Group 的搜尋選單。Issue／MR 分頁以方向鍵移焦點，再用 Enter／Space 啟用；MR 審查使用固定來源與目標 SHA。
 8. 需要保存新知識時，從 **Skills 功能指引** 選擇 Ingest 或 Synthesis，請 Codex 依實際來源更新 Wiki、index／log 與人工 notes。既有工作及交付紀錄保留，但不再提供續作或交付任務入口。
 
-查看操作紀錄時，從工作台 **設定 → 開啟 Log**，或執行命令 **GitLab Workspace: 開啟 Log**，即可開啟並聚焦原生 Output 的「GitLab Workspace」通道。背景記錄與錯誤不會自動展開 Output，也不會切換工作台頁面。原生 Log 的保存與輪替交由 VS Code 管理；舊版自行保存的 JSONL 檔案不再讀取、不遷移，也不自動刪除。
+查看操作紀錄時，從工作台 **工具與環境 → 開啟 Log**，或執行命令 **GitLab Workspace: 開啟 Log**，即可開啟並聚焦原生 Output 的「GitLab Workspace」通道。背景記錄與錯誤不會自動展開 Output，也不會切換工作台頁面。原生 Log 的保存與輪替交由 VS Code 管理；舊版自行保存的 JSONL 檔案不再讀取、不遷移，也不自動刪除。
 
 按 **複製提示詞** 後，自行開啟終端機，在目前 Skills 情境顯示的 Group 或 Repo 根目錄執行 `codex`，再貼上提示詞執行。狀態檢查與安裝需要 Python 3.11+。下載與安裝由使用者觸發；已驗證的安裝工具會保存於 Extension 儲存區，供後續本機狀態檢查使用。
 
 
-直接在 VS Code 開啟要操作的專案資料夾，再進入 **設定 → 工作區與 Skills → 共用專案根目錄**。留白使用開啟的資料夾；同視窗有多個根資料夾時，先選擇本次操作的專案資料夾，選擇會依工作區保留。根目錄本身為 Git Repo 時使用單專案流程，一般資料夾使用整個工作區的流程，空資料夾亦可安裝。GitLab 帳號、遠端 Group 或其他 Repo 的 origin 不會改變本機根目錄。
+直接在 VS Code 開啟要操作的專案資料夾，再於原生 **設定** 開啟 `gitlabWorkspace.projectRoot`。留白使用開啟的資料夾；同視窗有多個根資料夾時，先選擇本次操作的專案資料夾，選擇會依工作區保留。根目錄本身為 Git Repo 時使用單專案流程，一般資料夾使用整個工作區的流程，空資料夾亦可安裝。GitLab 帳號、遠端 Group 或其他 Repo 的 origin 不會改變本機根目錄。
 
-設定會顯示本機環境核對結果與目前根目錄的整包及工具版本。切換畫面只更新情境；按 **下載並安裝／更新** 才套用對應 profile。Skills 可用性依契約、profile、capabilities 及內容完整性判斷。
+工具與環境會顯示本機環境核對結果與目前根目錄的整包及工具版本。切換畫面只更新情境；按 **下載並安裝／更新** 才套用對應 profile。Skills 可用性依契約、profile、capabilities 及內容完整性判斷。
 
-共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
+共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；可在 Settings 選擇使用者、工作區或資料夾層級；多根工作區請確認要修改的 Folder。在 Settings 重設此設定或清空值，可恢復所選資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理可由命令 **管理 GitLab 帳號** 或 **工具與環境 → 帳號與連線** 開啟。
 
 WorkflowKit 1.3.5 包含 Wiki 0.7.2、MergeReviewer 0.20.4、ReleaseReviewer 0.11.1、Output Style 與 BMAD 6.12.4。兩種 profile 均包含 Python、Node.js 與 uv helper 的安全執行器，並修正 Wiki 圖表輸出的 Windows hard-link 相容性。runner 會保留命令參數與工作目錄，將暫存和 uv 快取放在套件 runtime；Reviewer 仍把工作階段留在 Repo 外設定的 runtime。外部 BMAD 與使用者產物會保留。
 

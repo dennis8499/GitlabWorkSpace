@@ -147,16 +147,17 @@ test('a new loaded Group scope cannot reuse old rows when project loading fails'
 });
 
 test('webview repository results cannot weaken a noted unknown effect or release its lock', async () => {
-  for (const type of ['clone', 'syncRepos']) {
+  for (const type of ['clone', 'syncRepos'] as const) {
     const host = hostFixture(), operations = new OperationTracker(); let adapters = 0;
     host.operationTracker = operations; host.runLogged = (_action: string, task: () => Promise<unknown>) => task();
     host.dispatchMessage = async () => {
       adapters++; host.cloneOperation = { id: 'new-operation', phase: 'cancelled', items: [{ state: 'failed', message: 'interrupted' }] };
       host.noteOutcome({ status: 'failed', effect: 'unknown', error: 'Verify the repository result' });
     };
-    await host.handleMessage({ type, operationId: type + '-unknown' });
+    const request: import('../../src/workspace/workspaceProtocol').WorkspaceRequest = type === 'clone' ? { type, projectIds: [], cloneAll: true } : { type };
+    await host.handleMessage({ ...request, operationId: type + '-unknown' });
     assert.equal(operations.get(type + '-unknown')?.effect, 'unknown');
-    await host.handleMessage({ type, operationId: type + '-repeat' });
+    await host.handleMessage({ ...request, operationId: type + '-repeat' });
     assert.equal(adapters, 1);
   }
 });

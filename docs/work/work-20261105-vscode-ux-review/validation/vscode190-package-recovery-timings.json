@@ -1,0 +1,41 @@
+{
+  "schema": "gitlab-workspace-validation/v1",
+  "mode": "package",
+  "workers": 2,
+  "seconds": 17.624,
+  "nodeVersion": "v24.21.0",
+  "platform": "win32",
+  "arch": "x64",
+  "status": "success",
+  "success": true,
+  "stages": [
+    {
+      "id": "package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/package-extension.mjs",
+        "--prepared"
+      ],
+      "startedAt": "2026-11-05T06:28:06.814Z",
+      "finishedAt": "2026-11-05T06:28:23.499Z",
+      "seconds": 16.685,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\AppData\\Local\\Temp\\glw-ux\\ux-final-source-20261105\\.gitlab-workspace-validation\\runs\\2026-11-05T06-28-06.808Z-27852\\package.log"
+    },
+    {
+      "id": "verify-package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "scripts/verify-vsix.py"
+      ],
+      "startedAt": "2026-11-05T06:28:23.501Z",
+      "finishedAt": "2026-11-05T06:28:24.435Z",
+      "seconds": 0.934,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\AppData\\Local\\Temp\\glw-ux\\ux-final-source-20261105\\.gitlab-workspace-validation\\runs\\2026-11-05T06-28-06.808Z-27852\\verify-package.log"
+    }
+  ]
+}

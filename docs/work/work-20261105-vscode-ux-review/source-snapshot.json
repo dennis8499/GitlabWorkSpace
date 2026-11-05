@@ -1,0 +1,104 @@
+{
+  "baseline": "a3fb62a97117001aa14fe6474bd7fb083be67c26",
+  "isolatedSource": "C:\\Users\\denni\\AppData\\Local\\Temp\\glw-ux\\ux-final-source-20261105",
+  "files": [
+    {
+      "path": ".vscodeignore",
+      "normalizedSha256": "fd3c7bebec2b4ed54be5625a46aa5413e7c3bb9d7145561af1d14c462fdb4378"
+    },
+    {
+      "path": "README.md",
+      "normalizedSha256": "3f44f3096059fbd2bd512d015df613274573ec8b40d0b055cd634fd33abbbe2c"
+    },
+    {
+      "path": "docs/codex-bridge.md",
+      "normalizedSha256": "8b8c92a73b2de223c32d903ccb7bfe33df3934111116a3f1b396e687de4e3e9e"
+    },
+    {
+      "path": "docs/user-guide.md",
+      "normalizedSha256": "64c48a6c058c74c9bfb0e23d7a24ccbd6afe7980f1bebcee1bb5056ed8873525"
+    },
+    {
+      "path": "docs/windows-acceptance.md",
+      "normalizedSha256": "88a216ba93ab86df892faea5d729d2ed51ce581270fdb9f82f26e1a64cedc598"
+    },
+    {
+      "path": "scripts/validate-packaged-ui.mjs",
+      "normalizedSha256": "e966c95c80d1dd1e6c01557092e7a6f6252b22b343321cd2a3ef686efe8bf5a9"
+    },
+    {
+      "path": "scripts/validation-runtime.mjs",
+      "normalizedSha256": "b218a292fd0d818b1db9a6139d273f3e69c97dd1ad579a2649b0921f8e8e32a1"
+    },
+    {
+      "path": "scripts/validation-runtime.test.mjs",
+      "normalizedSha256": "d51781bd3ff53862a7d18ee0e63923d661f4d6b01e91041f0572c8d538c82f34"
+    },
+    {
+      "path": "scripts/verify-ui-artifact-identity.mjs",
+      "normalizedSha256": "a86d186cf17642e532b49155ac27a91ced7591d65436bf8a25d60254782044bd"
+    },
+    {
+      "path": "scripts/verify-ui-artifact-identity.test.mjs",
+      "normalizedSha256": "5432bd1ff97b9eff91ea06fcfb0090087da861c6c7bfcb6af81d300e8f638a12"
+    },
+    {
+      "path": "scripts/verify-vsix.py",
+      "normalizedSha256": "2fd55d1aeebf49406eb5b9ee0241b69183b2c2c88bfe429ba1ffa58342727a93"
+    },
+    {
+      "path": "src/extension.ts",
+      "normalizedSha256": "04ef79b1244a41af541bc0e36dade9528a8db8b701c2804fa8fbbd0cc34e6313"
+    },
+    {
+      "path": "src/navigationViews.ts",
+      "normalizedSha256": "57681cddda7a7b7e01225f65d43fdd4f7502863c48aceb9c724d89665ac5bf44"
+    },
+    {
+      "path": "src/webview/CodexPanel.tsx",
+      "normalizedSha256": "86f5de8d8b10211a41c25e2017080deda284c9d0fd4f3290d6553207eb925a71"
+    },
+    {
+      "path": "src/workspace/workspacePanel.ts",
+      "normalizedSha256": "f16531b7ae6383f9de4d9bf8cbbe1fdff41edfee1b13a33091a82eeb02edc7f3"
+    },
+    {
+      "path": "test/behavior/dashboard.test.mjs",
+      "normalizedSha256": "e72cb6e257df4ad9c4884e1e3b7bf21f2d0ddc8fc54ccca9bb3a344181c456ad"
+    },
+    {
+      "path": "test/behavior/steps.cjs",
+      "normalizedSha256": "319f548b67dcb1b51219abd2b81ee0c6a248f46217c5a337ca24045da1cc7976"
+    },
+    {
+      "path": "test/extension/activation.test.ts",
+      "normalizedSha256": "1147adb240cc0562f3983236eb96225e68f844b427774346cd9b443606059bc3"
+    },
+    {
+      "path": "test/unit/accountLoginFlow.test.ts",
+      "normalizedSha256": "c29bf436187f2bad723e9b03d5564e0493acdc2415a9195fed30e5d94e83d0dd"
+    },
+    {
+      "path": "test/unit/navigationViews.test.ts",
+      "normalizedSha256": "55b4ba50ef70a2a74d5641d02022776c98dc632771ecab709338286739d25fa8"
+    },
+    {
+      "path": "test/unit/workspaceResponsiveness.test.ts",
+      "normalizedSha256": "5f21f845518d0a4d799534622d233ae5d5b40ba1f64cad08781cdae426efbd04"
+    },
+    {
+      "path": "docs/ui-navigation.md",
+      "normalizedSha256": "068b9bfd120e0d668fac3917ead3a130f85bf4982f82974e3c25d5d04584e9d1"
+    },
+    {
+      "path": "src/notifications/nativeCommandFeedback.ts",
+      "normalizedSha256": "d1ea3c59d00d1921c8a77c43a645df56257ed8e43b116c5285ad3bbae0a9e9d6"
+    },
+    {
+      "path": "test/unit/nativeCommandFeedback.test.ts",
+      "normalizedSha256": "5b144a9e57efba171b69c2a5f0374ef0973955eafa49a45e16e5418b147a2548"
+    }
+  ],
+  "lineEndings": "SHA-256 records normalize CRLF to LF, matching Git text normalization.",
+  "excludes": "Concurrent Model Routing work is excluded; only the explicitly listed UX files were overlaid on the fixed baseline."
+}

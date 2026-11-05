@@ -62,7 +62,8 @@ def main():
                      'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1'):
             if archive.read('extension/' + name) != (ROOT / name).read_bytes():
                 raise ValueError('Missing or stale packaged resource: ' + name)
-        forbidden = ('extension/resources/sidebar-webview/', 'extension/resources/offline-tools/', 'extension/resources/workflow-kit/',
+        forbidden = ('extension/.agents/', 'extension/.codex/', 'extension/.aws/',
+                     'extension/resources/sidebar-webview/', 'extension/resources/offline-tools/', 'extension/resources/workflow-kit/',
                      'extension/.github/', 'extension/scripts/', 'extension/test/', 'extension/.npm-cache/')
         if any(name.startswith(forbidden) or name.endswith('.log') or name in (
             'extension/resources/workflow-kit-installer.py', 'extension/resources/tool-installer.py') for name in members):

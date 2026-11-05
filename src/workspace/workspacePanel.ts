@@ -488,6 +488,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   getActiveMode(): WorkspaceMode { return this.activeMode; }
+  isWorkbenchVisible(): boolean { return !this.disposed && !!this.panel?.visible && this.webviewReady; }
   getSelectedGitRepositoryId(): string | undefined { return this.selectedGitRepositoryId; }
   getGitLabProjects(): readonly GitLabProject[] { return this.projects; }
   private readonly navigationListeners = new Set<() => void>();
@@ -549,7 +550,9 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!this.session.baseUrl) return;
     if (!this.session.selectedGroup && !await this.selectGroup()) return;
     await this.loadNavigationData();
+    if (this.workspaceSections.projects?.status === 'error') throw new Error(this.workspaceSections.projects.error ?? 'Group 專案載入失敗，請重試。');
     if (this.workspaceSections.issues?.status === 'error') throw new Error(this.workspaceSections.issues.error ?? 'Issue 載入失敗，請重試。');
+    if (this.workspaceSections.issues?.status !== 'ready') throw new Error('Issue 清單尚未完成載入，請開啟「我的工作」重新整理或載入更多專案。');
     const scope = this.connectedScopeKey();
     if (!this.issues.length) {
       const choice = await vscode.window.showInformationMessage('目前已載入的 Group 沒有可開啟的 Issue。', '開啟我的工作', '新增 Issue');
@@ -3266,7 +3269,8 @@ export class WorkspacePanel implements vscode.Disposable {
       const input = await promptNativeAccountLogin(this.session.accounts, accountId, options => vscode.window.showInputBox(options), this.session.baseUrl);
       if (!input) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
       if (epoch !== this.session.connectionEpoch) throw new Error('帳號已變更，請重新登入。');
-      await this.loginAccount({ ...input, requestId: randomUUID() });
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: '正在驗證 GitLab 帳號', cancellable: false },
+        () => this.loginAccount({ ...input, requestId: randomUUID() }));
     };
     this.nativeLoginPrompt = prompt();
     try { await this.nativeLoginPrompt; } finally { this.nativeLoginPrompt = undefined; }

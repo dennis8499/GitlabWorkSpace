@@ -1,0 +1,66 @@
+{
+  "schema": "GitLabWorkspaceUxProtocolProbe/v1",
+  "checkedAt": "2026-11-05T00:45:39.244Z",
+  "limitations": [
+    "In-memory VS Code adapters; does not establish an exploitable path or real clipboard API acceptance",
+    "Physical Codex write admission is stubbed, as in existing lifecycle tests; these probes use local copy/selection only"
+  ],
+  "results": [
+    {
+      "request": {
+        "type": "copy",
+        "text": "Synthetic valid copy"
+      },
+      "rejected": false,
+      "adapterCalls": [
+        {
+          "adapter": "clipboard",
+          "valueType": "string",
+          "value": "Synthetic valid copy"
+        }
+      ]
+    },
+    {
+      "request": {
+        "type": "copy",
+        "text": {
+          "invalid": "object instead of string"
+        }
+      },
+      "rejected": false,
+      "adapterCalls": [
+        {
+          "adapter": "clipboard",
+          "valueType": "object",
+          "value": {
+            "invalid": "object instead of string"
+          }
+        }
+      ]
+    },
+    {
+      "request": {
+        "type": "selectProject",
+        "projectId": {
+          "invalid": "object instead of numeric project identity"
+        }
+      },
+      "rejected": false,
+      "adapterCalls": [
+        {
+          "adapter": "globalState",
+          "key": "gitlabWorkspace.selectedProjectId",
+          "valueType": "object",
+          "value": {
+            "invalid": "object instead of numeric project identity"
+          }
+        }
+      ]
+    }
+  ],
+  "diffHunkContrast": {
+    "foreground": "#86b6fa",
+    "background": "#f8f8f8",
+    "ratio": 1.961
+  }
+}

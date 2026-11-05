@@ -42,11 +42,11 @@ async function fixture(t, candidateEntries) {
   return { root, reference, candidate };
 }
 
-test('Host-only VSIX changes retain six exact UI assets while both complete artifact hashes differ', async t => {
+test('Host-only VSIX changes retain all current UI assets while both complete artifact hashes differ', async t => {
   const f = await fixture(t, [...assets(), ['extension/out/host.js', 'changed Host']]);
   const report = await compareUiArtifactIdentity(f.reference, f.candidate);
   assert.equal(report.status, 'PASS'); assert.notEqual(report.reference.sha256, report.candidate.sha256);
-  assert.equal(report.assets.length, 6); assert.ok(report.assets.every(asset => asset.identical && asset.reference.sha256 === asset.candidate.sha256));
+  assert.equal(report.assets.length, uiAssetPaths.length); assert.ok(report.assets.every(asset => asset.identical && asset.reference.sha256 === asset.candidate.sha256));
 });
 
 test('a single UI byte change or missing asset prevents a provenance PASS', async t => {

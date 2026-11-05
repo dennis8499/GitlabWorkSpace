@@ -68,3 +68,24 @@ test('native visibility reads once per scope; expand, background updates and hid
   await controller.refreshMyWork(); assert.equal(reads, 3);
   controller.dispose(); changes.fire(undefined); assert.equal(reads, 3); assert.equal(changes.listeners.size, 0);
 });
+
+test('native entry failures expose recovery without polling and old-scope failures cannot overwrite the new view', async () => {
+  views.length = 0;
+  const changes = new Emitter(), repoChanges = new Emitter(); let current = state(), reads = 0;
+  const errors: unknown[] = [], pending: Array<{ resolve(): void; reject(error: Error): void }> = [];
+  const git: any = { onDidChangeRepositories: repoChanges.event, getCachedSummaryState: () => ({ repositories: [] }), getSummaryState: async () => ({ repositories: [] }) };
+  const host = { getNavigationSnapshot: () => current, onDidChangeNavigation: changes.event,
+    loadNavigationData: () => { reads++; return new Promise<void>((resolve, reject) => pending.push({ resolve, reject })); } };
+  const controller = new providers.NavigationViews(git, host, error => errors.push(error));
+  views[1].setVisible(true); pending[0].reject(new Error('403')); await Promise.resolve();
+  assert.match(controller.workView.message ?? '', /無法載入/); assert.equal(errors.length, 1);
+  changes.fire(undefined); assert.equal(reads, 1);
+  const retry = controller.refreshMyWork(); pending[1].resolve(); await retry;
+  assert.doesNotMatch(controller.workView.message ?? '', /無法載入目前帳號/);
+  current = { ...state(), scope: 'epoch:two' }; changes.fire(undefined);
+  current = { ...state(), scope: 'epoch:three' }; changes.fire(undefined);
+  pending[3].resolve(); await Promise.resolve();
+  pending[2].reject(new Error('obsolete failure')); await Promise.resolve();
+  assert.equal(errors.length, 1); assert.doesNotMatch(controller.workView.message ?? '', /無法載入目前帳號/);
+  controller.dispose();
+});

@@ -3,6 +3,9 @@
 GitLab_Issue_Board_使用_SOP.md
 .verification/**
 .github/**
+.agents/**
+.codex/**
+.aws/**
 .gitlab-workspace-validation/**
 .tmp/**
 scripts/**

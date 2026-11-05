@@ -100,6 +100,7 @@ export class NavigationViews implements vscode.Disposable {
   readonly repositoryView: vscode.TreeView<RepositoryNode>;
   readonly workView: vscode.TreeView<WorkNode>;
   private enteredWorkScope?: string;
+  private workFailureScope?: string;
   private repositoryEntered = false;
   private contextKey = '';
   private disposed = false;
@@ -130,7 +131,8 @@ export class NavigationViews implements vscode.Disposable {
     }
     this.workView.description = [state.account, state.group].filter(Boolean).join(' · ');
     const errors = Object.values(state.sections).filter(section => section?.status === 'error').length;
-    this.workView.message = errors ? '部分資料無法載入。可重新整理，或開啟工作台查看原因。' : undefined;
+    this.workView.message = state.connected && state.group && this.workFailureScope === state.scope ? '無法載入目前帳號／Group。請重新整理，或開啟工作台查看訊息。'
+      : errors ? '部分資料無法載入。可重新整理，或開啟工作台查看原因。' : undefined;
     this.repositoryView.message = this.git.getCachedSummaryState().message;
     this.repositories.refresh(); this.work.refresh();
     if (this.workView.visible) this.enterWork();
@@ -139,10 +141,21 @@ export class NavigationViews implements vscode.Disposable {
     const state = this.host.getNavigationSnapshot();
     if (!state.connected || !state.group || this.enteredWorkScope === state.scope) return;
     this.enteredWorkScope = state.scope;
-    void this.host.loadNavigationData().catch(this.onError);
+    this.workFailureScope = undefined; this.workView.message = '正在載入目前帳號／Group…';
+    const current = () => !this.disposed && state.scope === this.host.getNavigationSnapshot().scope;
+    void this.host.loadNavigationData().then(() => { if (current()) this.refresh(); }, error => {
+      if (!current()) return;
+      this.workFailureScope = state.scope; this.refresh(); this.onError(error);
+    });
   }
   async refreshRepositories(): Promise<void> { await this.git.refresh(); this.refresh(); }
-  async refreshMyWork(): Promise<void> { await this.host.loadNavigationData(true); this.refresh(); }
+  async refreshMyWork(): Promise<void> {
+    const scope = this.host.getNavigationSnapshot().scope;
+    this.workFailureScope = undefined;
+    try { await this.host.loadNavigationData(true); }
+    catch (error) { if (scope === this.host.getNavigationSnapshot().scope) this.workFailureScope = scope; throw error; }
+    finally { this.refresh(); }
+  }
   async findRepository(): Promise<string | undefined> {
     const state = await this.git.getSummaryState();
     const selected = await vscode.window.showQuickPick(state.repositories.map(repository => ({ label: repository.name,

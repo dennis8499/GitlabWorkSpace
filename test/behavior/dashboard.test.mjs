@@ -1501,6 +1501,29 @@ test('Codex drafts survive task switches, blocked sends, failure, late receipts 
   await type('New text after acceptance'); view.receipt(accepted, { effect: 'applied' }); await view.tick(); assert.equal(input().value, 'New text after acceptance');
 });
 
+test('Codex last-keystroke drafts and pending IDs are durable before the next render', async t => {
+  const data = snapshot('dashboard');
+  const view = await mount({ mode: 'dashboard' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const task = { id: 'durable-task', title: 'Durable task', root: 'C:/workspace/a', status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' };
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  const document = view.dom.window.document, input = document.querySelector('#codex-follow-up');
+  input.value = 'Last keystroke'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  assert.equal(view.savedState.codexUi.drafts[task.id].text, 'Last keystroke', 'input is durable within the input event');
+  document.querySelector('.codex-message').requestSubmit();
+  const request = view.rawRequests.findLast(item => item.type === 'sendCodexMessage');
+  assert.equal(request.text, 'Last keystroke');
+  assert.equal(view.savedState.codexUi.pending[request.operationId].text, 'Last keystroke', 'pending identity is durable before rendering');
+  input.value = 'Later edit'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  const saved = view.savedState; view.dom.window.close();
+  const restored = await mount(saved, data, {}, () => {}, { autoOperations: false }); t.after(() => restored.dom.window.close());
+  restored.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await restored.tick();
+  assert.equal(restored.dom.window.document.querySelector('#codex-follow-up').value, 'Later edit');
+  assert.ok(restored.requests.some(item => item.type === 'reconcileOperations' && item.pendingIds.includes(request.operationId)));
+  assert.equal(restored.requests.some(item => item.type === 'sendCodexMessage'), false);
+  restored.receipt(request, { effect: 'applied' }); await restored.tick();
+  assert.equal(restored.dom.window.document.querySelector('#codex-follow-up').value, 'Later edit');
+});
+
 test('a connected Dashboard without a selected Group offers Group selection', async t => {
   const data = snapshot('dashboard');
   Object.assign(data, { connected: true, group: undefined, baseUrl: 'https://gitlab.example.test',

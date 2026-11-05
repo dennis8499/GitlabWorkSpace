@@ -1,0 +1,1761 @@
+{
+  "schema": "GitLabWorkspaceUxReview/v1",
+  "checkedAt": "2026-11-05T01:45:17.238Z",
+  "commit": "60e503ad41fbafa7455b0c646ad163daad1cdaa7",
+  "browser": "156.0.8078.80",
+  "dashboardBundleSha256": "9e4bf36dd4fc7496f6bbda48f3f4375c22c7a35f49c1892c355e7fc8a88c00bc",
+  "themeRoot": ".vscode-test\\vscode-win32-x64-archive-1.145.0\\a717861c07\\resources\\app\\extensions\\theme-defaults\\themes",
+  "limitations": [
+    "Synthetic Host messages; no real GitLab or Codex connection",
+    "Theme JSON plus documented fixture fallbacks; not the VS Code theme service",
+    "Viewport resizing is not actual 200% VS Code zoom",
+    "Chromium accessibility tree is not an NVDA test"
+  ],
+  "results": [
+    {
+      "name": "dashboard-light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "dashboard-dark",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "dashboard-hc-dark",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "dashboard-hc-light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "clone-overview",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "sa-overview",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "bmad-overview",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [
+        "開始使用",
+        "我想做什麼"
+      ],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "local-projects-offline",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "sidebar-240",
+      "viewport": {
+        "width": 240,
+        "height": 700
+      },
+      "documentWidth": 240,
+      "sizes": [
+        {
+          "selector": ".quick-actions",
+          "x": 0,
+          "y": 0,
+          "width": 240,
+          "height": 700,
+          "clientWidth": 240,
+          "scrollWidth": 240
+        },
+        {
+          "selector": ".repo-section",
+          "x": 8,
+          "y": 503.65625,
+          "width": 224,
+          "height": 173.34375,
+          "clientWidth": 224,
+          "scrollWidth": 224
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "keyboard": [
+        "管理帳號（0）",
+        "登入 GitLab",
+        "⌂Dashboard",
+        "訊息中心，0 筆未讀",
+        "◷我的工作",
+        "▣專案",
+        "⌕分析",
+        "◇BMAD 開發流程",
+        "⑂待審查",
+        "⑂版控",
+        "⚙設定",
+        "更新本機 Repo",
+        "搜尋 Repo",
+        "展開 service 的分支與 Stash",
+        "⑂servicemain · origin/main2",
+        "展開 另一個很長名稱的工作區專案 的分支與 Stash",
+        "⑂另一個很長名稱的工作區專案feature/long-branch-name · origin/main2"
+      ]
+    },
+    {
+      "name": "sidebar-320",
+      "viewport": {
+        "width": 320,
+        "height": 700
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".quick-actions",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 700,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".repo-section",
+          "x": 8,
+          "y": 487.421875,
+          "width": 304,
+          "height": 189.578125,
+          "clientWidth": 304,
+          "scrollWidth": 304
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "keyboard": [
+        "管理帳號（0）",
+        "登入 GitLab",
+        "⌂Dashboard",
+        "訊息中心，0 筆未讀",
+        "◷我的工作",
+        "▣專案",
+        "⌕分析",
+        "◇BMAD 開發流程",
+        "⑂待審查",
+        "⑂版控",
+        "⚙設定",
+        "更新本機 Repo",
+        "搜尋 Repo",
+        "展開 service 的分支與 Stash",
+        "⑂servicemain · origin/main2",
+        "展開 另一個很長名稱的工作區專案 的分支與 Stash",
+        "⑂另一個很長名稱的工作區專案feature/long-branch-name · origin/main2"
+      ]
+    },
+    {
+      "name": "git-light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".git-workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1265,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".git-shell",
+          "x": 0,
+          "y": 209,
+          "width": 1265,
+          "height": 593,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "theme": "vscode",
+      "typography": [
+        {
+          "text": "本機分支2",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "遠端分支1",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "標籤0",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "Stash0",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "復原點0",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "COMMIT GRAPH",
+          "fontSize": "11.05px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "工作中變更1 已暫存 · 1 未暫存2WIP",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "工作中變更",
+          "fontSize": "12.35px",
+          "color": "rgb(0, 95, 184)"
+        },
+        {
+          "text": "2",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "HEAD · mainMerge featureDDennisaaaaaaaa",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "Merge feature",
+          "fontSize": "12.35px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "DDennis",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "featureAdd featureTTestercccccccc",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "Add feature",
+          "fontSize": "12.35px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "TTester",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "origin/mainInitial commitDDennisbbbbbbbb",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "Initial commit",
+          "fontSize": "12.35px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "DDennis",
+          "fontSize": "11.96px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "WORKING DIRECTORY",
+          "fontSize": "11.05px",
+          "color": "rgb(59, 59, 59)"
+        }
+      ]
+    },
+    {
+      "name": "git-narrow-640",
+      "viewport": {
+        "width": 640,
+        "height": 700
+      },
+      "documentWidth": 640,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 640,
+          "height": 90,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 90,
+          "width": 640,
+          "height": 540,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 90,
+          "width": 640,
+          "height": 540,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 668,
+          "width": 640,
+          "height": 32,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".git-workbench",
+          "x": 0,
+          "y": 90,
+          "width": 625,
+          "height": 540,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".git-shell",
+          "x": 0,
+          "y": 298,
+          "width": 625,
+          "height": 304,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 630,
+          "width": 640,
+          "height": 38,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "account-menu-narrow-640",
+      "viewport": {
+        "width": 640,
+        "height": 700
+      },
+      "documentWidth": 640,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 640,
+          "height": 90,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 90,
+          "width": 640,
+          "height": 540,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 90,
+          "width": 640,
+          "height": 540,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 668,
+          "width": 640,
+          "height": 32,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".git-workbench",
+          "x": 0,
+          "y": 90,
+          "width": 625,
+          "height": 540,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".git-shell",
+          "x": 0,
+          "y": 298,
+          "width": 625,
+          "height": 304,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 630,
+          "width": 640,
+          "height": 38,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "git-menu-narrow-640",
+      "viewport": {
+        "width": 640,
+        "height": 700
+      },
+      "documentWidth": 640,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 640,
+          "height": 90,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 90,
+          "width": 640,
+          "height": 540,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 90,
+          "width": 640,
+          "height": 540,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 668,
+          "width": 640,
+          "height": 32,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        },
+        {
+          "selector": ".git-workbench",
+          "x": 0,
+          "y": 90,
+          "width": 625,
+          "height": 540,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".git-shell",
+          "x": 0,
+          "y": 298,
+          "width": 625,
+          "height": 304,
+          "clientWidth": 625,
+          "scrollWidth": 625
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 630,
+          "width": 640,
+          "height": 38,
+          "clientWidth": 640,
+          "scrollWidth": 640
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "git-diff-light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".git-workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1265,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".git-shell",
+          "x": 0,
+          "y": 209,
+          "width": 1265,
+          "height": 593,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "hunkColors": {
+        "foreground": "rgb(59, 59, 59)",
+        "background": "rgb(248, 248, 248)"
+      }
+    },
+    {
+      "name": "git-hc-dark",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".git-workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1265,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".git-shell",
+          "x": 0,
+          "y": 209,
+          "width": 1265,
+          "height": 593,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "theme": "vscode",
+      "typography": [
+        {
+          "text": "本機分支2",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "遠端分支1",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "標籤0",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "Stash0",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "復原點0",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "COMMIT GRAPH",
+          "fontSize": "11.05px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "工作中變更1 已暫存 · 1 未暫存2WIP",
+          "fontSize": "13px",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "工作中變更",
+          "fontSize": "12.35px",
+          "color": "rgb(77, 170, 252)"
+        },
+        {
+          "text": "2",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "HEAD · mainMerge featureDDennisaaaaaaaa",
+          "fontSize": "13px",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "Merge feature",
+          "fontSize": "12.35px",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "DDennis",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "featureAdd featureTTestercccccccc",
+          "fontSize": "13px",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "Add feature",
+          "fontSize": "12.35px",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "TTester",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "origin/mainInitial commitDDennisbbbbbbbb",
+          "fontSize": "13px",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "Initial commit",
+          "fontSize": "12.35px",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "DDennis",
+          "fontSize": "11.96px",
+          "color": "rgb(157, 157, 157)"
+        },
+        {
+          "text": "WORKING DIRECTORY",
+          "fontSize": "11.05px",
+          "color": "rgb(157, 157, 157)"
+        }
+      ]
+    },
+    {
+      "name": "git-hc-light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 58,
+          "width": 1280,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".git-workbench",
+          "x": 0,
+          "y": 58,
+          "width": 1265,
+          "height": 772,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".git-shell",
+          "x": 0,
+          "y": 209,
+          "width": 1265,
+          "height": 593,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "theme": "vscode",
+      "typography": [
+        {
+          "text": "本機分支2",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "遠端分支1",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "標籤0",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "Stash0",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "復原點0",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "COMMIT GRAPH",
+          "fontSize": "11.05px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "工作中變更1 已暫存 · 1 未暫存2WIP",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "工作中變更",
+          "fontSize": "12.35px",
+          "color": "rgb(0, 95, 184)"
+        },
+        {
+          "text": "2",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "HEAD · mainMerge featureDDennisaaaaaaaa",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "Merge feature",
+          "fontSize": "12.35px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "DDennis",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "featureAdd featureTTestercccccccc",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "Add feature",
+          "fontSize": "12.35px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "TTester",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "origin/mainInitial commitDDennisbbbbbbbb",
+          "fontSize": "13px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "Initial commit",
+          "fontSize": "12.35px",
+          "color": "rgb(59, 59, 59)"
+        },
+        {
+          "text": "DDennis",
+          "fontSize": "11.96px",
+          "color": "rgb(97, 97, 97)"
+        },
+        {
+          "text": "WORKING DIRECTORY",
+          "fontSize": "11.05px",
+          "color": "rgb(97, 97, 97)"
+        }
+      ]
+    },
+    {
+      "name": "mr-tabs",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "issue-detail-permissions",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "codex-interaction",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 69,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 129,
+          "width": 1280,
+          "height": 0,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 129,
+          "width": 1280,
+          "height": 50,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 159,
+          "width": 1280,
+          "height": 650,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "codex-drafts-and-announcements",
+      "draftAfterSwitch": "Second draft while previous operation is pending",
+      "draftAfterUnacknowledgedSend": "Draft while host response is pending",
+      "draftAfterBlockedSend": "Second draft while previous operation is pending",
+      "sentCount": 1,
+      "followupCountAfterBlockedSend": 1,
+      "liveRegions": [
+        {
+          "role": "region",
+          "live": "off",
+          "text": "CodexSynthetic complete reply複製回覆"
+        }
+      ],
+      "focus": {
+        "tag": "BUTTON",
+        "name": "傳送"
+      },
+      "interaction": "Run synthetic commandRepo：C:/workspace/repo-a作用範圍：本次命令git status --short核准本次要求拒絕取消"
+    },
+    {
+      "name": "settings-focus",
+      "modalInitialFocus": "關閉",
+      "modalWrappedFocus": {
+        "name": "重新檢查安裝",
+        "withinDialog": true
+      },
+      "returnedToTrigger": true
+    },
+    {
+      "name": "issue-graph",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 60,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 60,
+          "width": 1280,
+          "height": 770,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 830,
+          "width": 1280,
+          "height": 38,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": []
+    },
+    {
+      "name": "graph-accessibility-tree",
+      "domNodeButtons": 3,
+      "exposedNodeButtons": [
+        {
+          "role": "button",
+          "name": "符合篩選的主要 Issue，team/alpha #1，Alpha milestone issue，沒有 Group Board 歸屬"
+        },
+        {
+          "role": "button",
+          "name": "符合篩選的主要 Issue，team/beta #2，Beta milestone issue，沒有 Group Board 歸屬"
+        },
+        {
+          "role": "button",
+          "name": "符合篩選的主要 Issue，team/beta #3，Beta unassigned issue，沒有 Group Board 歸屬"
+        }
+      ],
+      "imageRoles": [
+        {
+          "role": "image",
+          "name": "Issue 關聯圖譜，3 張主要 Issue、0 張關聯工作"
+        }
+      ]
+    }
+  ]
+}

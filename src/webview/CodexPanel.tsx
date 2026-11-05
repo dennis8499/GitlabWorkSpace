@@ -38,7 +38,15 @@ export function CodexPanel({ post, actions, initialState, onStateChange }: {
   initialState?: CodexUiState; onStateChange: (state: CodexUiState) => void;
 }) {
   const [tasks, setTasks] = useState<CodexTaskState[]>([]);
-  const [ui, setUi] = useState(() => restoreCodexUi(initialState));
+  const [ui, commitUi] = useState(() => restoreCodexUi(initialState));
+  const save = useRef(onStateChange); save.current = onStateChange;
+  const uiRef = useRef(ui);
+  // Drafts and submission identities must survive disposal before the next render/effect.
+  const setUi = (update: (current: CodexUiState) => CodexUiState) => {
+    const next = update(uiRef.current);
+    if (next === uiRef.current) return;
+    uiRef.current = next; save.current(next); commitUi(next);
+  };
   const selected = ui.selectedTaskId ?? '';
   const setSelected = (value: string | ((current: string) => string)) => setUi(current => ({ ...current,
     selectedTaskId: typeof value === 'function' ? value(current.selectedTaskId ?? '') : value }));
@@ -47,9 +55,7 @@ export function CodexPanel({ post, actions, initialState, onStateChange }: {
   const [history, setHistory] = useState<Record<string, Extract<CodexEvent, { kind: 'history' }>>>({});
   const text = ui.drafts[selected]?.text ?? '';
   const operations = useActionSelector(actions, states => states);
-  const save = useRef(onStateChange); save.current = onStateChange;
-  const uiRef = useRef(ui); uiRef.current = ui;
-  useEffect(() => { save.current(ui); }, [ui]);
+  useEffect(() => { save.current(uiRef.current); }, []);
   useEffect(() => { setUi(current => settleCodexDrafts(current, operations)); }, [operations]);
   useEffect(() => {
     const pending = Object.values(uiRef.current.pending);
@@ -121,15 +127,17 @@ export function CodexPanel({ post, actions, initialState, onStateChange }: {
         </div>
         <div ref={interactionRef}>{(interactions[task.id] ?? []).map(interaction => <Interaction key={interaction.id} interaction={interaction} root={task.root} post={post} />)}</div>
         <form class="codex-message" onSubmit={event => {
-          event.preventDefault(); if (!text.trim()) return;
-          const result = post({ type: 'sendCodexMessage', taskId: task.id, text });
+          event.preventDefault();
+          const draft = uiRef.current.drafts[task.id], submittedText = draft?.text ?? '';
+          if (!submittedText.trim()) return;
+          const result = post({ type: 'sendCodexMessage', taskId: task.id, text: submittedText });
           if (result.status !== 'started' || !result.operationId) return;
           const operation = actions.get(result.operationId);
           if (!operation) return;
           setUi(current => settleCodexDrafts({ ...current, pending: { ...current.pending, [operation.requestId]: {
             requestId: operation.requestId, scopeRevision: operation.scopeRevision, lockKey: operation.lockKey,
             resourceKey: operation.resourceKey, action: operation.action, label: operation.label,
-            taskId: task.id, text, draftRevision: current.drafts[task.id]?.revision ?? 0
+            taskId: task.id, text: submittedText, draftRevision: draft?.revision ?? 0
           } } }, actions.getSnapshot()));
         }}>
           <label for="codex-follow-up">補充需求或接續對話</label><textarea id="codex-follow-up" rows={2} maxLength={32000} value={text} onInput={event => { const value = event.currentTarget.value; setUi(current => editCodexDraft(current, task.id, value)); }} />

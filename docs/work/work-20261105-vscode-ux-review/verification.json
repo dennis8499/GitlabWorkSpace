@@ -1,0 +1,297 @@
+{
+  "schema": "GitLabWorkspaceUxVerification/v1",
+  "generatedAt": "2026-11-05T06:29:00.497Z",
+  "baseline": "ddab4c2",
+  "batchCommits": [
+    "dfa3cee",
+    "60e503a",
+    "495fdb7",
+    "a3fb62a"
+  ],
+  "finalBatch": "this commit",
+  "source": {
+    "baseline": "a3fb62a97117001aa14fe6474bd7fb083be67c26",
+    "manifest": "source-snapshot.json",
+    "method": "Isolated fixed batch-4 source plus only the 24 listed UX files. Concurrent Model Routing edits are excluded.",
+    "preparedInputSha256": "e84d2e8520c6b052f65d84982645d9d34203973b9f59bbf497b7714903763579",
+    "preparedOutputSha256": "6360332e1fe6664633cad4166d5f095be7b30b54638156c5b9be111cca8c45f5",
+    "probeCaptureHead": "a3fb62a97117001aa14fe6474bd7fb083be67c26",
+    "probeHeadMeaning": "Capture occurred with uncommitted batch-5 work; the exact dashboard bundle hash, not capture HEAD alone, identifies tested UI."
+  },
+  "fullValidation": {
+    "command": "npm.cmd test",
+    "vscode": "1.90.0",
+    "run": "2026-11-05T05-43-33.835Z-27236",
+    "status": "failed",
+    "success": false,
+    "seconds": 2494.575,
+    "stages": [
+      {
+        "id": "lint",
+        "exitCode": 0,
+        "seconds": 10.694,
+        "log": "validation/vscode190-lint.log"
+      },
+      {
+        "id": "host-preflight",
+        "exitCode": 0,
+        "seconds": 0.236,
+        "log": "validation/vscode190-host-preflight.log"
+      },
+      {
+        "id": "clean-compiled",
+        "exitCode": 0,
+        "seconds": 0.102,
+        "log": "validation/vscode190-clean-compiled.log"
+      },
+      {
+        "id": "compile",
+        "exitCode": 0,
+        "seconds": 13.874,
+        "log": "validation/vscode190-compile.log"
+      },
+      {
+        "id": "typecheck-webview",
+        "exitCode": 0,
+        "seconds": 7.783,
+        "log": "validation/vscode190-typecheck-webview.log"
+      },
+      {
+        "id": "build-dashboard",
+        "exitCode": 0,
+        "seconds": 3.157,
+        "log": "validation/vscode190-build-dashboard.log"
+      },
+      {
+        "id": "build-sidebar",
+        "exitCode": 0,
+        "seconds": 4.401,
+        "log": "validation/vscode190-build-sidebar.log"
+      },
+      {
+        "id": "build-issue-tests",
+        "exitCode": 0,
+        "seconds": 0.898,
+        "log": "validation/vscode190-build-issue-tests.log"
+      },
+      {
+        "id": "extension",
+        "exitCode": 0,
+        "seconds": 605.973,
+        "log": "validation/vscode190-extension.log"
+      },
+      {
+        "id": "workspace-trust",
+        "exitCode": 0,
+        "seconds": 9.917,
+        "log": "validation/vscode190-workspace-trust.log"
+      },
+      {
+        "id": "unit",
+        "exitCode": 0,
+        "seconds": 190.127,
+        "log": "validation/vscode190-unit.log"
+      },
+      {
+        "id": "behavior-node",
+        "exitCode": 0,
+        "seconds": 134.068,
+        "log": "validation/vscode190-behavior-node.log"
+      },
+      {
+        "id": "behavior-issues",
+        "exitCode": 0,
+        "seconds": 34.265,
+        "log": "validation/vscode190-behavior-issues.log"
+      },
+      {
+        "id": "behavior-connect",
+        "exitCode": 0,
+        "seconds": 1.561,
+        "log": "validation/vscode190-behavior-connect.log"
+      },
+      {
+        "id": "release-tooling",
+        "exitCode": 0,
+        "seconds": 12.526,
+        "log": "validation/vscode190-release-tooling.log"
+      },
+      {
+        "id": "release-workflowkit_131_integration",
+        "exitCode": 0,
+        "seconds": 1455.497,
+        "log": "validation/vscode190-release-workflowkit_131_integration.log"
+      },
+      {
+        "id": "package",
+        "exitCode": 1,
+        "seconds": 8.154,
+        "log": "validation/vscode190-package.log"
+      }
+    ],
+    "host": {
+      "passing": 17,
+      "pendingLive": 4,
+      "failing": 0
+    },
+    "unit": {
+      "tests": 1087,
+      "pass": 1084,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 3,
+      "todo": 0
+    },
+    "behavior": {
+      "tests": 235,
+      "pass": 235,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "issues": {
+      "scenarios": 29,
+      "steps": 136,
+      "summary": [
+        "",
+        "29 scenarios (29 passed)",
+        "136 steps (136 passed)",
+        "0m 26.345s (0m 26.241s executing your code)"
+      ]
+    },
+    "connect": {
+      "scenarios": 10,
+      "steps": 35,
+      "summary": [
+        "",
+        "10 scenarios (10 passed)",
+        "35 steps (35 passed)",
+        "0m 0.360s (0m 0.313s executing your code)"
+      ]
+    },
+    "releaseTooling": {
+      "tests": 42,
+      "pass": 42,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "pythonRelease": [
+      {
+        "id": "release-workflowkit_131_integration",
+        "exitCode": 0,
+        "tests": 16
+      }
+    ]
+  },
+  "otherAttempts": [
+    {
+      "vscode": "1.145.0",
+      "status": "FAIL",
+      "passing": 15,
+      "pendingLive": 4,
+      "failing": 2,
+      "failures": [
+        "Native readonly Git Diff: 45000ms timeout",
+        "BMAD filesystem watcher: 1020ms exceeds the unchanged 1000ms gate"
+      ],
+      "log": "validation/vscode145-extension-failed.log",
+      "earlierIndependentHost": {
+        "passing": 17,
+        "pendingLive": 4,
+        "log": "validation/vscode145-extension-earlier-passed.log"
+      },
+      "isolatedRecheck": {
+        "status": "PASS",
+        "passing": 4,
+        "diffMilliseconds": 7569,
+        "bmadMaximumObservedLatencyMilliseconds": 610,
+        "unchangedThresholds": {
+          "diffMilliseconds": 45000,
+          "bmadMilliseconds": 1000
+        },
+        "log": "validation/vscode145-isolated-recheck.log",
+        "scope": "Only the two failed cases and native-view activation; this is not a full 1.145 npm test success."
+      }
+    },
+    {
+      "run": "2026-11-05T05-27-45.692Z-26048",
+      "status": "ABORTED",
+      "reason": "Concurrent source edits after compilation; user confirmed another active work session. Replaced by fixed-source isolated validation."
+    }
+  ],
+  "packageRecovery": {
+    "run": "2026-11-05T06-28-06.808Z-27852",
+    "status": "success",
+    "success": true,
+    "command": "npm.cmd run package:prepared",
+    "stages": [
+      {
+        "id": "package",
+        "exitCode": 0,
+        "log": "validation/vscode190-package-recovery-package.log"
+      },
+      {
+        "id": "verify-package",
+        "exitCode": 0,
+        "log": "validation/vscode190-package-recovery-verify-package.log"
+      }
+    ]
+  },
+  "automatedStages": {
+    "status": "PASS",
+    "meaning": "All test stages passed in npm test. Its initial package stage failed due to shared node_modules junction; packaging and verification were rerun independently without changing source or outputs. The original full command remains recorded as failed."
+  },
+  "bundleSha256": {
+    "dashboard.html": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428",
+    "dashboard.js": "b0cc18395b2baff3bb1664cd650c07190c7c49346d6b953723ea775a13aa27bd",
+    "dashboard.css": "d43cf0f94f361c5997616dee7a76e313d9f8d5e45751d97ee61673fe9069c24b",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+  },
+  "artifact": {
+    "file": "gitlab-workspace-0.39.0.vsix",
+    "bytes": 1067329,
+    "sha256": "2daf1a6830ddcd86cc96fc506cca34e389c698ca3cd92b2e8857925d9a5128ac",
+    "assets": [
+      {
+        "file": "dashboard.html",
+        "sha256": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428",
+        "packagedSha256": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428",
+        "identical": true
+      },
+      {
+        "file": "dashboard.js",
+        "sha256": "b0cc18395b2baff3bb1664cd650c07190c7c49346d6b953723ea775a13aa27bd",
+        "packagedSha256": "b0cc18395b2baff3bb1664cd650c07190c7c49346d6b953723ea775a13aa27bd",
+        "identical": true
+      },
+      {
+        "file": "dashboard.css",
+        "sha256": "d43cf0f94f361c5997616dee7a76e313d9f8d5e45751d97ee61673fe9069c24b",
+        "packagedSha256": "d43cf0f94f361c5997616dee7a76e313d9f8d5e45751d97ee61673fe9069c24b",
+        "identical": true
+      },
+      {
+        "file": "codicon.ttf",
+        "sha256": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0",
+        "packagedSha256": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0",
+        "identical": true
+      }
+    ],
+    "matchesFinalProbe": true
+  },
+  "manual": {
+    "status": "NOT TESTED",
+    "reason": "Windows native computer-use pipes unavailable (os error 2); NVDA not found.",
+    "items": [
+      "F5 and full keyboard workflow",
+      "Native sidebar at 240/320px",
+      "Real VS Code Light/Dark/HC/HC Light at 125%/200% zoom",
+      "NVDA announcements and focus",
+      "Live GitLab/Codex external lifecycle"
+    ]
+  },
+  "mergeDecision": "Needs changes: manual gates remain open. Original 1.145 timing failures are retained; four targeted isolated rechecks passed without changing thresholds."
+}

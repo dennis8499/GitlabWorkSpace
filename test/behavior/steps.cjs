@@ -518,6 +518,12 @@ When('I visit each Issue task tab', async function () {
     selected.focus();
     selected.dispatchEvent(new this.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await this.tick();
+    assert.equal(this.root.querySelector('.issue-tabs[role="tablist"] [role="tab"][aria-selected="true"]'), selected, 'moving focus must not activate or fetch another panel');
+    const focused = this.dom.window.document.activeElement;
+    assert.equal(focused.textContent.trim(), label);
+    // JSDOM does not synthesize a button's native Enter/Space click default.
+    focused.click();
+    await this.tick();
     assert.equal(this.root.querySelector('.issue-tabs[role="tablist"] [role="tab"][aria-selected="true"]').textContent.trim(), label);
   }
 });

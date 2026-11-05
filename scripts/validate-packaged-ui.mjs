@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import yauzl from 'yauzl';
 import { chromium } from 'playwright-core';
 
+// Historical benchmark for artifacts that still contain the Webview sidebar.
+// Current native navigation is tested in test/extension/activation.test.ts;
+// this harness cannot measure native Tree Views or native credential inputs.
 // This exercises actual packaged Webview assets against an isolated, fixed mock
 // host. It does not run VS Code, an Extension Host, Git, Codex or a GitLab server.
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, values) => {
@@ -111,6 +114,7 @@ async function extractAssets(temp) {
     }); zip.readEntry();
   }));
   for (const key of expectedAssets) {
+    if (!files[key] && key.startsWith('sidebar-webview/')) throw new Error('This historical benchmark requires the retired Webview sidebar. Use native Extension Host tests and the current UX probes for native-view releases.');
     assert.ok(files[key], `Missing packaged asset ${key}`);
     const target = path.join(temp, key); await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, files[key]);
   }

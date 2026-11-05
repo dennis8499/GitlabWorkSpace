@@ -10,8 +10,10 @@ const original = loader._load;
 const vscode = {
   Uri: { joinPath: (base: { fsPath: string }, ...parts: string[]) => ({ fsPath: path.join(base.fsPath, ...parts) }) },
   ViewColumn: { Active: 1 },
+  ProgressLocation: { Notification: 15 },
   commands: { executeCommand: async (..._args: unknown[]) => undefined },
   window: { showInputBox: async (_options: unknown): Promise<string | undefined> => undefined,
+    withProgress: async (_options: unknown, task: () => Promise<void>): Promise<void> => task(),
     showQuickPick: async (_items: any[], _options?: unknown): Promise<any> => undefined,
     showInformationMessage: async (_message: string, ..._actions: string[]): Promise<string | undefined> => undefined,
     createWebviewPanel: (..._args: unknown[]): any => { throw new Error('Unexpected panel creation'); } }
@@ -323,6 +325,7 @@ test('no-argument Issue command uses a searchable current-Group picker and rejec
   Object.defineProperty(host.session, 'selectedGroup', { get: () => ({ id: 1 }) });
   host.connectedScopeKey = () => scope; host.getNavigationSnapshot = () => ({ scope });
   host.loadNavigationData = async () => { loads++; };
+  host.workspaceSections = { issues: { status: 'ready' } };
   host.issues = [{ project_id: 1, iid: 7, title: 'Selected issue' }]; host.projects = [{ id: 1, path_with_namespace: 'group/project' }];
   host.openIssue = async (...args: unknown[]) => { opened.push(args); };
   vscode.window.showQuickPick = async (items, options: any) => { assert.equal(options.matchOnDescription, true); assert.equal(items[0].description, 'group/project'); return items[0]; };
@@ -339,10 +342,16 @@ test('empty Issue commands provide recovery actions and cancelled login never qu
   await host.openIssueFromCommand(); assert.equal(groupReads, 0);
   Object.defineProperty(host.session, 'baseUrl', { get: () => 'https://gitlab.test' });
   Object.defineProperty(host.session, 'selectedGroup', { get: () => ({ id: 1 }) });
-  host.loadNavigationData = async () => undefined; host.connectedScopeKey = () => 'group'; host.issues = [];
+  host.loadNavigationData = async () => undefined; host.connectedScopeKey = () => 'group'; host.issues = []; host.workspaceSections = { issues: { status: 'ready' } };
   let choices: string[] = [];
   vscode.window.showInformationMessage = async (_message, ...actions) => { choices = actions; return undefined; };
   await host.openIssueFromCommand(); assert.equal(choices.length, 2);
+  host.workspaceSections.projects = { status: 'error', error: '403 project scope denied' };
+  choices = [];
+  await assert.rejects(host.openIssueFromCommand(), /403 project scope denied/);
+  assert.deepEqual(choices, [], 'failed project scope is never presented as an empty Issue list');
+  host.workspaceSections = { issues: { status: 'idle' } };
+  await assert.rejects(host.openIssueFromCommand(), /尚未完成載入/);
 });
 
 
@@ -367,4 +376,19 @@ test('hiding the Dashboard preserves native navigation section leases and dispos
   host.workspaceSections = { issues: { status: 'loading' } }; host.workspaceSectionAborts.set('issues', controller);
   host.suspendViewReads(); assert.equal(controller.signal.aborted, false); assert.equal(host.workspaceSections.issues.status, 'loading');
   host.disposed = true; host.suspendViewReads(); assert.equal(controller.signal.aborted, true);
+});
+
+
+test('native login validates through Host progress and never opens a credential Webview', async () => {
+  const { host, secrets, probes, messages } = fixture(), steps: any[] = [], progress: any[] = [];
+  const priorInput = vscode.window.showInputBox, priorProgress = vscode.window.withProgress;
+  vscode.window.showInputBox = async (options: any) => { steps.push(options); return options.password ? 'one-secret' : 'https://gitlab.test'; };
+  vscode.window.withProgress = async (options, task) => { progress.push(options); await task(); };
+  try {
+    await host.connectFromSidebar();
+    assert.equal(steps.length, 2); assert.equal(steps[1].password, true); assert.equal(progress.length, 1);
+    assert.equal(progress[0].location, vscode.ProgressLocation.Notification); assert.equal(probes(), 1); assert.equal(secrets.values.size, 1);
+    assert.equal(messages.some(message => message.type === 'openAccountManager'), false);
+    assert.doesNotMatch(JSON.stringify([messages, steps, progress]), /one-secret/);
+  } finally { vscode.window.showInputBox = priorInput; vscode.window.withProgress = priorProgress; }
 });

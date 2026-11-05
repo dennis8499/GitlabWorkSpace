@@ -4,10 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yauzl from 'yauzl';
 
-// The six assets executed by scripts/validate-packaged-ui.mjs.
+// Current packaged Webview assets. Native Tree Views are verified in the Host.
 export const uiAssetPaths = Object.freeze([
   'issue-webview/dashboard.html', 'issue-webview/dashboard.js', 'issue-webview/dashboard.css',
-  'sidebar-webview/sidebar.html', 'sidebar-webview/sidebar.js', 'sidebar-webview/sidebar.css'
+  'issue-webview/codicon.ttf'
 ]);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const resourceRoot = 'extension/resources/';
@@ -55,7 +55,7 @@ export async function compareUiArtifactIdentity(referencePath, candidatePath) {
   return {
     schema: 'GitLabWorkspaceUiArtifactIdentity/v1', generatedAt: new Date().toISOString(),
     status: assets.every(asset => asset.identical) ? 'PASS' : 'FAIL',
-    method: 'Exact Buffer.equals comparison of the six uncompressed packaged Webview assets; SHA-256 is computed from the same archive and asset buffers.',
+    method: 'Exact Buffer.equals comparison of the current uncompressed packaged Webview assets; SHA-256 is computed from the same archive and asset buffers.',
     scope: 'Establishes UI asset identity only; does not establish Extension Host behavior or repeat browser performance measurements.',
     reference: { path: paths[0], bytes: bytes[0].length, sha256: hash(bytes[0]) },
     candidate: { path: paths[1], bytes: bytes[1].length, sha256: hash(bytes[1]) }, assets

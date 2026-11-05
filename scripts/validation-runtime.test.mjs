@@ -8,7 +8,7 @@ import { assertPrepared, preparationInputs, runLogged, runPool, savePreparation,
 test('prepared execution rejects source drift, missing output, and an unprepared stage', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glw-prepared-proof-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const directories = new Set(['src', 'test', 'scripts', 'docs', 'resources/workflow-kit', 'resources/offline-tools/sources', 'resources/bmad']);
+  const directories = new Set(['src', 'test', 'scripts', 'docs', 'resources/workflow-kit', 'resources/offline-tools/sources', 'resources/bmad', 'resources/codicons']);
   for (const name of preparationInputs()) {
     await mkdir(path.dirname(path.join(root, name)), { recursive: true });
     if (directories.has(name)) await mkdir(path.join(root, name), { recursive: true });
@@ -18,6 +18,9 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await writeFile(path.join(root, 'out/extension.js'), 'compiled');
   await savePreparation(root, ['lint', 'compile'], ['out']);
   await assertPrepared(root, ['compile']);
+  await writeFile(path.join(root, 'resources/codicons/codicon.ttf'), 'changed font');
+  await assert.rejects(assertPrepared(root, ['compile']), /changed/);
+  await rm(path.join(root, 'resources/codicons/codicon.ttf'));
   await writeFile(path.join(root, 'eslint.config.mjs'), 'changed lint rules');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await savePreparation(root, ['compile'], ['out']);

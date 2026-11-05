@@ -5,6 +5,7 @@ import { GitLabSession } from './connection/session';
 import { IssuePanels } from './issues/issuePanel';
 import { WorkspacePanel } from './workspace/workspacePanel';
 import { NavigationViews, type RepositoryNode, type WorkNode } from './navigationViews';
+import { withNativeCommandFeedback } from './notifications/nativeCommandFeedback';
 import { GitRepositoryService } from './git/gitRepositoryService';
 import { OperationLog } from './logging/operationLog';
 import { NotificationCenter } from './notifications/notificationCenter';
@@ -70,8 +71,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
         cloneRepositories: 'clone', cloneAllRepositories: 'clone', cloneSelectedRepositories: 'clone', syncLocalDefaultBranches: 'syncRepos'
       };
       const task = () => getWorkspace().runCommandAction(metadata.action ?? aliases[action] ?? action, () => Promise.resolve(callback.apply(thisArg, args)), { ...metadata, operationId });
-      return notifications.runCommand({ operationId, title: operationLabels[aliases[action] ?? action] ?? 'GitLab Workspace',
-        origin: workspacePanel?.getNotificationOrigin() }, task, false);
+      return withNativeCommandFeedback(() => notifications.runCommand({ operationId, title: operationLabels[aliases[action] ?? action] ?? 'GitLab Workspace',
+        origin: workspacePanel?.getNotificationOrigin() }, task, false), {
+        operationId, snapshot: () => notifications.snapshot(), workbenchVisible: () => getWorkspace().isWorkbenchVisible(),
+        show: (level, message) => level === 'error' ? vscode.window.showErrorMessage(message, '開啟訊息中心') : vscode.window.showWarningMessage(message, '開啟訊息中心'),
+        openMessages: () => getWorkspace().openNotifications()
+      });
     });
   context.subscriptions.push(gitRepositories, navigation, issuePanels, workspacePanel);
 

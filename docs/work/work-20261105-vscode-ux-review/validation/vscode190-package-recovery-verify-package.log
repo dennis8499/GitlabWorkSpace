@@ -1,0 +1,2 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","scripts/verify-vsix.py"]
+Verified gitlab-workspace-0.39.0.vsix: online installation bridge, no bundled package

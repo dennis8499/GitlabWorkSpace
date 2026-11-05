@@ -1,0 +1,2 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/test-workspace-trust.mjs","--preflight-file","C:\\Users\\denni\\AppData\\Local\\Temp\\glw-ux\\ux-final-source-20261105\\.gitlab-workspace-validation\\runs\\2026-11-05T05-43-33.835Z-27236\\extension-host.json"]
+{"test":"workspace-trust","vscode":"1.90.0","before":{"trusted":false,"activationAllowed":false},"reloaded":true,"after":{"trusted":true,"active":true}}
