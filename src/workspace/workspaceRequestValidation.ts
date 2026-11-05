@@ -1,4 +1,5 @@
 import type { WorkspaceRequest } from './workspaceProtocol';
+import { workspaceSettingIds } from './workspaceProtocol';
 import type { IssueAction, IssuePanelRequest } from '../issues/protocol';
 import type { GitAction } from '../git/gitProtocol';
 import { isGitPanelRequest } from '../git/gitProtocol';
@@ -125,7 +126,7 @@ export const workspaceRequestSchemas = {
   setMode: { mode, projectSource: optional(one('gitlab', 'local')), mergeRequestFilter: optional(one('all', 'reviewer', 'assigned')) },
   setMergeRequestFilter: { filter: one('all', 'reviewer', 'assigned'), connectedScope: key }, setProjectSource: { source: one('gitlab', 'local') },
   issueRequest: { request: issueRequest, revision: optional(integer) }, closeIssue: {}, connect: {}, openAccountManager: {},
-  submitAccountLogin: { requestId: identity, baseUrl: string(2048, 1), token: string(8192, 1), accountId: optional(identity) },
+  openConfiguration: { setting: optional(one(...workspaceSettingIds)) },
   disconnect: { accountId: optional(identity) }, addAccount: { accountId: optional(identity) }, switchAccount: { accountId: identity }, removeAccount: { accountId: identity },
   openLogs: {}, scanRepositories: { resume: optional(boolean) }, cancelRepositoryScan: {}, cancelRepositoryOperation: {}, resyncWorkspace: {},
   selectGroup: { groupId: optional(id) }, selectIssueBoard: { boardId: id, connectedScope: key, mode: optional(one('continue', 'cancel')) },

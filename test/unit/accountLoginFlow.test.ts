@@ -10,7 +10,11 @@ const original = loader._load;
 const vscode = {
   Uri: { joinPath: (base: { fsPath: string }, ...parts: string[]) => ({ fsPath: path.join(base.fsPath, ...parts) }) },
   ViewColumn: { Active: 1 },
-  window: { createWebviewPanel: (..._args: unknown[]): any => { throw new Error('Unexpected panel creation'); } }
+  commands: { executeCommand: async (..._args: unknown[]) => undefined },
+  window: { showInputBox: async (_options: unknown): Promise<string | undefined> => undefined,
+    showQuickPick: async (_items: any[], _options?: unknown): Promise<any> => undefined,
+    showInformationMessage: async (_message: string, ..._actions: string[]): Promise<string | undefined> => undefined,
+    createWebviewPanel: (..._args: unknown[]): any => { throw new Error('Unexpected panel creation'); } }
 };
 loader._load = (name, parent, main) => name === 'vscode' ? vscode : original(name, parent, main);
 let WorkspacePanel: typeof import('../../src/workspace/workspacePanel').WorkspacePanel;
@@ -88,7 +92,9 @@ function panelLifecycleFixture() {
   return { ...value, panels };
 }
 
-const login = (requestId: string, token = 'one-secret', accountId?: string) => ({ type: 'submitAccountLogin', requestId, baseUrl: 'https://gitlab.test/', token, accountId });
+const login = (requestId: string, token = 'one-secret', accountId?: string) => ({ requestId, baseUrl: 'https://gitlab.test/', token, accountId });
+const authenticate = (host: any, input: ReturnType<typeof login> & { operationId?: string }) =>
+  host.runAction({ type: 'connect', requestId: input.requestId, operationId: input.operationId }, () => host.loginAccount(input));
 const accountResult = (messages: any[], requestId: string) => {
   const result = [...messages].reverse().find(message => message.type === 'accountLoginResult' && message.requestId === requestId);
   assert.ok(result, `login ${requestId} has a domain result`);
@@ -97,7 +103,7 @@ const accountResult = (messages: any[], requestId: string) => {
 
 test('login uses the existing validated account store and replays receipts without authenticating twice', async () => {
   const { host, session, messages, secrets, globalState, snapshots, logMetadata, registeredSecrets, probes } = fixture();
-  await host.handleMessage(login('first'));
+  await authenticate(host, login('first'));
   assert.equal(session.accounts.length, 1);
   assert.equal(secrets.values.get(accountTokenKey(session.activeAccountId!)), 'one-secret');
   assert.equal(accountResult(messages, 'first').name, 'User 1');
@@ -105,7 +111,7 @@ test('login uses the existing validated account store and replays receipts witho
   assert.ok(snapshots.some((value: any) => value.accountOperation === 'login'));
   assert.ok(registeredSecrets.includes('one-secret'));
   for (const value of [messages, snapshots, logMetadata, [...globalState.values], [...host.accountLoginReceipts.values()]]) assert.ok(!JSON.stringify(value).includes('one-secret'));
-  await host.handleMessage(login('first', 'two-secret'));
+  await authenticate(host, login('first', 'two-secret'));
   assert.equal(probes(), 1);
   assert.equal(session.accounts.length, 1);
   assert.equal(accountResult(messages, 'first').name, 'User 1');
@@ -114,10 +120,10 @@ test('login uses the existing validated account store and replays receipts witho
 
 test('invalid credentials, a different identity and network failure keep the previous account and credentials', async () => {
   const { host, session, messages, secrets } = fixture();
-  await host.handleMessage(login('first'));
+  await authenticate(host, login('first'));
   const active = session.activeAccountId!;
   for (const [id, token, pattern] of [['invalid', 'invalid', /Token 無效/], ['forbidden', 'forbidden', /拒絕存取/], ['mismatch', 'two-secret', /身分.*不同/], ['network', 'network', /無法連線/]] as const) {
-    await host.handleMessage(login(id, token, active));
+    await authenticate(host, login(id, token, active));
     assert.match(accountResult(messages, id).error, pattern);
     assert.equal(session.activeAccountId, active);
     assert.equal(secrets.values.get(accountTokenKey(active)), 'one-secret');
@@ -127,13 +133,13 @@ test('invalid credentials, a different identity and network failure keep the pre
 
 test('malformed inputs and a changed relogin site never reach GitLab', async () => {
   const { host, session, messages, probes } = fixture();
-  await host.handleMessage({ ...login('url'), baseUrl: 'https://user:password@gitlab.test' });
+  await authenticate(host, { ...login('url'), baseUrl: 'https://user:password@gitlab.test' });
   assert.match(accountResult(messages, 'url').error, /網址無效/);
-  await host.handleMessage(login('missing', ''));
+  await authenticate(host, login('missing', ''));
   assert.match(accountResult(messages, 'missing').error, /有效/);
   assert.equal(probes(), 0);
-  await host.handleMessage(login('first'));
-  await host.handleMessage({ ...login('other', 'two-secret', session.activeAccountId), baseUrl: 'https://other.test' });
+  await authenticate(host, login('first'));
+  await authenticate(host, { ...login('other', 'two-secret', session.activeAccountId), baseUrl: 'https://other.test' });
   assert.match(accountResult(messages, 'other').error, /原有.*站台/);
   assert.equal(probes(), 1);
 });
@@ -144,10 +150,10 @@ test('a pending login deduplicates its request and blocks another login, switchi
   const started = new Promise<void>(resolve => { start = resolve; });
   session.setFetchForTesting(async () => { probes++; start(); return new Promise(resolve => { finish = resolve; }); });
   const pending = { ...login('pending'), operationId: 'pending-login' };
-  const operation = host.handleMessage(pending);
+  const operation = authenticate(host, pending);
   await started;
-  const duplicate = host.handleMessage(pending);
-  await host.handleMessage({ ...login('other'), operationId: 'competing-login' });
+  const duplicate = authenticate(host, pending);
+  await authenticate(host, { ...login('other'), operationId: 'competing-login' });
   const rejected = [...messages].reverse().find(message => message.type === 'operationChanged' && message.operation.requestId === 'competing-login');
   assert.equal(rejected.operation.status, 'failed');
   assert.equal(rejected.operation.effect, 'none');
@@ -168,20 +174,15 @@ test('a pending login deduplicates its request and blocks another login, switchi
   assert.equal(completed.length, 1); assert.equal(completed[0].operation.status, 'succeeded');
 });
 
-test('sidebar and command entry points open the same panel and retain intent until the webview is ready', async () => {
-  const { host, messages } = fixture();
+test('native login cancellation opens no webview and does not change credentials', async () => {
+  const { host, session, messages, probes } = fixture();
+  let shown = 0;
+  vscode.window.showInputBox = async () => { shown++; return undefined; };
   await host.connectFromSidebar();
-  assert.equal([...messages].reverse().find(message => message.type === 'openAccountManager').intent.startLogin, true);
+  assert.equal(shown, 1); assert.equal(session.accounts.length, 0); assert.equal(probes(), 0);
+  assert.equal(messages.some(message => message.type === 'openAccountManager'), false);
   await host.accountFromSidebar('switchAccount');
-  assert.equal([...messages].reverse().find(message => message.type === 'openAccountManager').intent.startLogin, false);
-  host.show = async () => { host.webviewReady = false; };
-  const count = messages.length;
-  await host.connectFromSidebar();
-  assert.equal(messages.length, count);
-  assert.equal(host.pendingAccountPanel.startLogin, true);
-  host.webviewReady = true; host.publishAccountPanel();
-  assert.equal([...messages].reverse().find(message => message.type === 'openAccountManager').intent.startLogin, true);
-  assert.equal(host.pendingAccountPanel, undefined);
+  assert.equal(messages.at(-1).type, 'openAccountManager');
 });
 
 for (const panelState of ['visible', 'hidden'] as const) {
@@ -284,7 +285,7 @@ test('login succeeds independently of Group selection and reports a workspace lo
   host.connectedUserChanged = WorkspacePanel!.prototype['connectedUserChanged'];
   host.groupRoot = 'old-group';
   host.refresh = async () => { throw new Error('Workspace unavailable'); };
-  await host.handleMessage(login('first'));
+  await authenticate(host, login('first'));
   assert.ok(session.activeAccountId);
   assert.equal(host.groupRoot, 'old-group', 'login must retain the independent local workspace');
   assert.equal(session.selectedGroup, undefined);
@@ -299,8 +300,47 @@ test('a hidden webview retains the sanitized login result for its next ready eve
   const { host } = fixture();
   host.post = WorkspacePanel!.prototype['post'];
   host.panel = { visible: false }; host.webviewReady = false;
-  await host.handleMessage(login('hidden'));
+  await authenticate(host, login('hidden'));
   const result = host.pendingViewNotices.find((message: any) => message.type === 'accountLoginResult');
   assert.equal(result.name, 'User 1');
   assert.ok(!JSON.stringify(host.pendingViewNotices).includes('one-secret'));
+});
+
+
+test('native Settings opens an allowlisted ID without a Dashboard or network read', async () => {
+  const { host, probes } = fixture(), calls: unknown[][] = [];
+  vscode.commands.executeCommand = async (...args: unknown[]) => { calls.push(args); };
+  await host.openConfiguration('gitlabWorkspace.projectRoot');
+  assert.deepEqual(calls, [['workbench.action.openSettings', 'gitlabWorkspace.projectRoot']]);
+  await assert.rejects(host.openConfiguration('other.setting'));
+  assert.equal(calls.length, 1); assert.equal(probes(), 0);
+});
+
+test('no-argument Issue command uses a searchable current-Group picker and rejects stale choices', async () => {
+  const { host } = fixture(), opened: unknown[] = [];
+  let scope = 'group-one', loads = 0;
+  Object.defineProperty(host.session, 'baseUrl', { get: () => 'https://gitlab.test' });
+  Object.defineProperty(host.session, 'selectedGroup', { get: () => ({ id: 1 }) });
+  host.connectedScopeKey = () => scope;
+  host.loadNavigationData = async () => { loads++; };
+  host.issues = [{ project_id: 1, iid: 7, title: 'Selected issue' }]; host.projects = [{ id: 1, path_with_namespace: 'group/project' }];
+  host.openIssue = async (...args: unknown[]) => { opened.push(args); };
+  vscode.window.showQuickPick = async (items, options: any) => { assert.equal(options.matchOnDescription, true); assert.equal(items[0].description, 'group/project'); return items[0]; };
+  await host.openIssueFromCommand(); assert.deepEqual(opened, [[1, 7]]); assert.equal(loads, 1);
+  vscode.window.showQuickPick = async items => { scope = 'group-two'; return items[0]; };
+  await host.openIssueFromCommand(); assert.equal(opened.length, 1);
+  await assert.rejects(host.openIssueFromCommand(host.issues[0], 'group-one'));
+});
+
+test('empty Issue commands provide recovery actions and cancelled login never queries a Group', async () => {
+  const { host } = fixture();
+  let groupReads = 0;
+  host.connect = async () => undefined; host.selectGroup = async () => { groupReads++; return false; };
+  await host.openIssueFromCommand(); assert.equal(groupReads, 0);
+  Object.defineProperty(host.session, 'baseUrl', { get: () => 'https://gitlab.test' });
+  Object.defineProperty(host.session, 'selectedGroup', { get: () => ({ id: 1 }) });
+  host.loadNavigationData = async () => undefined; host.connectedScopeKey = () => 'group'; host.issues = [];
+  let choices: string[] = [];
+  vscode.window.showInformationMessage = async (_message, ...actions) => { choices = actions; return undefined; };
+  await host.openIssueFromCommand(); assert.equal(choices.length, 2);
 });

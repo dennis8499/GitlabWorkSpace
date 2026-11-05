@@ -30,7 +30,7 @@ test('virtual capabilities block local dispatch while preserving remote writes, 
     assert.equal(controller.dispatch({ type }).reason, VIRTUAL_WORKSPACE_REASON);
     assert.equal(sent.length, 0); controller.dispose();
   }
-  for (const type of ['submitAccountLogin', 'selectGroup', 'postMergeRequestNote', 'approveMergeRequest', 'copy', 'openLogs']) {
+  for (const type of ['addAccount', 'selectGroup', 'postMergeRequestNote', 'approveMergeRequest', 'copy', 'openLogs']) {
     const sent: unknown[] = [], controller = new ActionController(request => sent.push(request));
     controller.setContext({ scopeRevision: 'remote', workspaceCapabilities: virtual });
     assert.equal(controller.dispatch({ type, projectId: 1, iid: 2, text: 'sample' }).status, 'started');

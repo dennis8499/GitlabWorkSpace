@@ -114,7 +114,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   context.subscriptions.push(
     registerLoggedCommand('gitlabWorkspace.openWorkspace', () => getWorkspace().navigateTo()),
     registerLoggedCommand('gitlabWorkspace.openNotifications', () => getWorkspace().openNotifications()),
-    registerLoggedCommand('gitlabWorkspace.openSettings', () => getWorkspace().openSettings()),
+    registerLoggedCommand('gitlabWorkspace.openSettings', () => getWorkspace().openConfiguration()),
+    registerLoggedCommand('gitlabWorkspace.openTools', () => getWorkspace().openSettings()),
     registerLoggedCommand('gitlabWorkspace.connect', async () => {
       try {
         await getWorkspace().connectFromSidebar();
@@ -139,9 +140,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     registerLoggedCommand('gitlabWorkspace.cloneSelectedRepositories', () => getWorkspace().cloneFromSidebar('selected')),
     registerLoggedCommand('gitlabWorkspace.syncLocalDefaultBranches', () => getWorkspace().syncFromSidebar()),
     registerLoggedCommand('gitlabWorkspace.createIssue', () => issuePanels.showCreate()),
-    registerLoggedCommand('gitlabWorkspace.openIssue', async (item?: { issue?: GitLabIssue }) => {
-      if (item?.issue) await issuePanels.showIssue(item.issue);
-    }),
+    registerLoggedCommand('gitlabWorkspace.openIssue', (item?: { issue?: GitLabIssue }) => getWorkspace().openIssueFromCommand(item?.issue)),
     registerLoggedCommand('gitlabWorkspace.openCloneMode', () => getWorkspace().navigateTo('clone')),
     registerLoggedCommand('gitlabWorkspace.openSaMode', () => getWorkspace().navigateTo('sa')),
     registerLoggedCommand('gitlabWorkspace.openBmadMode', () => getWorkspace().navigateTo('bmad')),

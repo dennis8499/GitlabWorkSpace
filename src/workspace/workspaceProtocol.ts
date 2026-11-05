@@ -30,6 +30,9 @@ export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
 export type ToolSource = 'gitea' | 'github';
 export type RemoteToolSource = Exclude<ToolSource, 'bundled'>;
+export const workspaceSettingIds = ['gitlabWorkspace.projectRoot', 'gitlabWorkspace.codex.executablePath', 'gitlabWorkspace.pythonPath',
+  'gitlabWorkspace.repositoryScan.excludeDirectories', 'gitlabWorkspace.reviewRuntimePath'] as const;
+export type WorkspaceSettingId = typeof workspaceSettingIds[number];
 export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
 export type IssueDetailTab = 'content' | 'relations' | 'time';
@@ -299,7 +302,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'closeIssue' }
   | { type: 'connect' }
   | { type: 'openAccountManager' }
-  | { type: 'submitAccountLogin'; requestId: string; baseUrl: string; token: string; accountId?: string }
+  | { type: 'openConfiguration'; setting?: WorkspaceSettingId }
   | { type: 'disconnect'; accountId?: string }
   | { type: 'addAccount'; accountId?: string }
   | { type: 'switchAccount'; accountId: string }

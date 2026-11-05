@@ -27,7 +27,7 @@ export function CodexSettings({ post }: { post: Post }) {
     <p role="status">{environment.message ?? '按下檢查確認 Codex CLI、登入與執行權限。'}{environment.version && ` · CLI ${environment.version}`}</p>
     {environment.executable && <p class="subtle codex-root">{environment.executable}</p>}
     <div class="button-row"><button type="button" onClick={() => post({ type: 'checkCodex' })}>檢查 Codex</button>
-      <button type="button" onClick={() => post({ type: 'configureCodex', action: 'executable' })}>設定執行檔</button>
+      <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.codex.executablePath' })}>設定執行檔</button>
       {environment.authenticated === false && <button type="button" onClick={() => post({ type: 'configureCodex', action: 'login' })}>登入 Codex</button>}
       {environment.sandbox && environment.sandbox !== 'ready' && <button type="button" onClick={() => post({ type: 'configureCodex', action: 'sandbox' })}>設定 Windows sandbox</button>}
     </div><p class="subtle">模型與帳號沿用本機 Codex；工作區內可直接執行，額外權限會在任務面板詢問。</p>

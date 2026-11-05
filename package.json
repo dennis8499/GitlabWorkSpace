@@ -46,6 +46,10 @@
         "title": "GitLab Workspace: 設定"
       },
       {
+        "command": "gitlabWorkspace.openTools",
+        "title": "GitLab Workspace: 工具與環境"
+      },
+      {
         "command": "gitlabWorkspace.openWorkspace",
         "icon": "$(layout)",
         "shortTitle": "開啟工作台",

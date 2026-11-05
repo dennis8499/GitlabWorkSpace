@@ -19,7 +19,7 @@ const requests = {
   setMergeRequestFilter: { type: 'setMergeRequestFilter', filter: 'reviewer', connectedScope: 'scope:1' }, setProjectSource: { type: 'setProjectSource', source: 'local' },
   issueRequest: { type: 'issueRequest', request: { type: 'create', projectId: 1, input: { title: 'New Issue', labels: ['bug'] } }, revision: 1 }, closeIssue: { type: 'closeIssue' },
   connect: { type: 'connect' }, openAccountManager: { type: 'openAccountManager' },
-  submitAccountLogin: { type: 'submitAccountLogin', requestId: 'login-1', baseUrl: 'https://gitlab.example.test', token: 'fixture-only' },
+  openConfiguration: { type: 'openConfiguration', setting: 'gitlabWorkspace.projectRoot' },
   disconnect: { type: 'disconnect' }, addAccount: { type: 'addAccount' }, switchAccount: { type: 'switchAccount', accountId: 'account-1' }, removeAccount: { type: 'removeAccount', accountId: 'account-1' },
   openLogs: { type: 'openLogs' }, scanRepositories: { type: 'scanRepositories', resume: true }, cancelRepositoryScan: { type: 'cancelRepositoryScan' },
   cancelRepositoryOperation: { type: 'cancelRepositoryOperation' }, resyncWorkspace: { type: 'resyncWorkspace' }, selectGroup: { type: 'selectGroup', groupId: 1 },
@@ -64,7 +64,7 @@ for (const request of Object.values(requests)) test(`workspace message ${request
 });
 
 test('malformed identities, bodies, nested actions and prototype keys fail closed', () => {
-  const invalid = [null, [], 'copy', {}, { type: 'arbitrary' }, { type: 'copy', text: {} }, { type: 'selectProject', projectId: {} },
+  const invalid = [null, [], 'copy', {}, { type: 'arbitrary' }, { type: 'submitAccountLogin', token: 'forbidden-webview-secret' }, { type: 'openConfiguration', setting: 'arbitrary.setting' }, { type: 'copy', text: {} }, { type: 'selectProject', projectId: {} },
     { type: 'selectProject', projectId: Number.MAX_SAFE_INTEGER + 1 }, { type: 'selectProject', projectId: -1 },
     { type: 'sendCodexMessage', taskId: 'task-1', text: 'a'.repeat(32001) }, { type: 'clone', projectIds: new Array(10001).fill(1) },
     { type: 'issueRequest', request: { type: 'invoke', issueId: 1, action: 'delete', payload: { shell: 'rm' } } },

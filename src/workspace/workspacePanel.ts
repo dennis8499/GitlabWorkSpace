@@ -50,6 +50,8 @@ import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject
 import { WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './workflowKitReleases';
 import type { BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft, CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry } from './workspaceProtocol';
 import { parseWorkspaceRequest, WorkspaceProtocolError } from './workspaceRequestValidation';
+import { promptNativeAccountLogin, type NativeAccountLogin } from '../connection/nativeAccountLogin';
+import { workspaceSettingIds, type WorkspaceSettingId } from './workspaceProtocol';
 import { WorkflowKitService } from './workflowKitService';
 import { workflowKitInstallationVerified, workflowKitInterfaceCompatible } from './workflowKitCompatibility';
 import { normalizeWorkspaceMode } from './workspaceProtocol';
@@ -487,11 +489,62 @@ export class WorkspacePanel implements vscode.Disposable {
   getActiveMode(): WorkspaceMode { return this.activeMode; }
   getSelectedGitRepositoryId(): string | undefined { return this.selectedGitRepositoryId; }
   getGitLabProjects(): readonly GitLabProject[] { return this.projects; }
+  private navigationReadCount = 0;
+  private navigationRead?: { scope: string; promise: Promise<void> };
+
+  /** Shared by native views and the Palette; reads do not require a Webview. */
+  async loadNavigationData(force = false): Promise<void> {
+    const baseUrl = this.session.baseUrl, group = this.session.selectedGroup, epoch = this.session.connectionEpoch;
+    if (!baseUrl || !group || this.disposed) return;
+    const scope = `${epoch}:${baseUrl}:${group.id}`;
+    if (this.navigationRead?.scope === scope) return this.navigationRead.promise;
+    const current = () => !this.disposed && epoch === this.session.connectionEpoch && baseUrl === this.session.baseUrl && group.id === this.session.selectedGroup?.id;
+    const read = async () => {
+      this.navigationReadCount = (this.navigationReadCount ?? 0) + 1;
+      try {
+        if (!this.currentUser) {
+          const user = await this.session.cachedRead('current-user', client => client.getCurrentUser(), { reason: 'navigation-entry' });
+          if (!current()) return;
+          this.currentUser = user; await this.session.updateCurrentUser(user);
+        }
+        const loaded = `${baseUrl}|${this.currentUser.id}|${group.id}` as LoadedWorkspaceIdentity;
+        if (this.loadedScopeKey !== loaded) { this.clearRemoteGroupData(); this.loadedScopeKey = loaded; }
+        await this.loadWorkspaceSection('projects', force, undefined, 'navigation-entry');
+        if (!current()) return;
+        await Promise.all(['issues', 'mergeRequests'].map(section => this.loadWorkspaceSection(section as 'issues' | 'mergeRequests', force, undefined, 'navigation-entry')));
+      } finally { this.navigationReadCount--; this.sendSnapshot(); }
+    };
+    const promise = read(); const pending = { scope, promise }; this.navigationRead = pending;
+    try { await promise; } finally { if (this.navigationRead === pending) this.navigationRead = undefined; }
+  }
+
+  async openIssueFromCommand(issue?: GitLabIssue, expectedScope?: string): Promise<void> {
+    if (expectedScope && expectedScope !== this.connectedScopeKey()) throw new Error('帳號或 Group 已變更，請重新選取 Issue。');
+    if (issue) { await this.openIssue(issue.project_id, issue.iid); return; }
+    if (!this.session.baseUrl) await this.connect();
+    if (!this.session.baseUrl) return;
+    if (!this.session.selectedGroup && !await this.selectGroup()) return;
+    await this.loadNavigationData();
+    if (this.workspaceSections.issues?.status === 'error') throw new Error(this.workspaceSections.issues.error ?? 'Issue 載入失敗，請重試。');
+    const scope = this.connectedScopeKey();
+    if (!this.issues.length) {
+      const choice = await vscode.window.showInformationMessage('目前已載入的 Group 沒有可開啟的 Issue。', '開啟我的工作', '新增 Issue');
+      if (scope !== this.connectedScopeKey()) return;
+      if (choice === '新增 Issue') await this.issuePanels.showCreate();
+      else if (choice === '開啟我的工作') await this.navigateTo('developer');
+      return;
+    }
+    const selected = await vscode.window.showQuickPick(this.issues.map(item => ({ label: `#${item.iid} ${item.title}`,
+      description: this.projects.find(project => project.id === item.project_id)?.path_with_namespace ?? String(item.project_id), issue: item })),
+    { title: '開啟 Issue 詳情', placeHolder: '選擇目前已載入的 Issue；更多結果可至「我的工作」', matchOnDescription: true });
+    if (selected && scope === this.connectedScopeKey()) await this.openIssue(selected.issue.project_id, selected.issue.iid);
+  }
   getAccountUiState(): { accountOperation?: AccountOperation; workflowKitPolicy: WorkflowKitPolicy } {
     return { accountOperation: this.accountOperation, workflowKitPolicy: this.getWorkflowKitPolicy() };
   }
 
   async openAccountManager(accountId?: string, startLogin = false): Promise<void> {
+    if (startLogin) return this.connect(accountId);
     if (accountId && !this.session.accounts.some(account => account.id === accountId)) throw new Error('找不到此 GitLab 帳號。');
     this.pendingAccountPanel = { id: randomUUID(), startLogin, accountId };
     await this.show(undefined, { refresh: false });
@@ -526,6 +579,11 @@ export class WorkspacePanel implements vscode.Disposable {
     try { await this.show(undefined, { refresh: false }); }
     catch (error) { this.pendingSettingsOpen = false; throw error; }
     this.publishSettings();
+  }
+
+  async openConfiguration(setting?: WorkspaceSettingId): Promise<void> {
+    if (setting !== undefined && !workspaceSettingIds.includes(setting)) throw new Error('設定項目無效。');
+    await vscode.commands.executeCommand('workbench.action.openSettings', setting ?? '@ext:local-dev.gitlab-workspace');
   }
 
   private publishSettings(): void {
@@ -931,7 +989,7 @@ export class WorkspacePanel implements vscode.Disposable {
         throw error;
       }
       // Context changes have their own guards; they must not count themselves as an active data write.
-      const contextChange = ['connect', 'submitAccountLogin', 'switchAccount', 'disconnect', 'logoutAccount', 'removeAccount', 'selectGroup',
+      const contextChange = ['connect', 'addAccount', 'switchAccount', 'disconnect', 'logoutAccount', 'removeAccount', 'selectGroup',
         'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot'].includes(policy.action);
       const guardedWrite = policy.kind === 'write' && !contextChange;
       if (guardedWrite) this.writesInFlight++;
@@ -1181,7 +1239,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'closeIssue': this.issueOpenGeneration++; this.issueOpenAbort?.abort(); this.issuePanels.close(); break;
       case 'connect': await this.connect(); break;
       case 'openAccountManager': await this.openAccountManager(); break;
-      case 'submitAccountLogin': await this.submitAccountLogin(request); break;
+      case 'openConfiguration': await this.openConfiguration(request.setting); break;
       case 'disconnect': await this.disconnect(request.accountId); break;
       case 'addAccount': await this.connect(request.accountId); break;
       case 'switchAccount': await this.switchAccount(request.accountId); break;
@@ -1530,7 +1588,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async loadWorkspaceSectionNow(section: 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards', forceNetwork = false, mode?: 'next' | 'all' | 'history' | 'current', reason = forceNetwork ? 'manual' : mode ?? 'entry'): Promise<void> {
-    if (this.disposed || this.panel?.visible === false) return;
+    if (this.disposed || this.panel?.visible === false && !this.navigationReadCount) return;
     const group = this.session.selectedGroup;
     const connectedScope = this.connectedScopeKey();
     if (!group || !connectedScope || !this.session.baseUrl || !this.currentUser) return;
@@ -3161,11 +3219,22 @@ export class WorkspacePanel implements vscode.Disposable {
     return createHash('sha256').update(`${baseUrl}\0${userId}\0${groupId}`).digest('hex').slice(0, 24) as ConnectedScope;
   }
 
+  private nativeLoginPrompt?: Promise<void>;
   private async connect(accountId?: string): Promise<void> {
-    await this.openAccountManager(accountId, true);
+    if (this.nativeLoginPrompt) return this.nativeLoginPrompt;
+    this.assertAccountTransitionAllowed();
+    const epoch = this.session.connectionEpoch;
+    const prompt = async () => {
+      const input = await promptNativeAccountLogin(this.session.accounts, accountId, options => vscode.window.showInputBox(options), this.session.baseUrl);
+      if (!input) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
+      if (epoch !== this.session.connectionEpoch) throw new Error('帳號已變更，請重新登入。');
+      await this.loginAccount({ ...input, requestId: randomUUID() });
+    };
+    this.nativeLoginPrompt = prompt();
+    try { await this.nativeLoginPrompt; } finally { this.nativeLoginPrompt = undefined; }
   }
 
-  private async submitAccountLogin(request: Extract<WorkspaceRequest, { type: 'submitAccountLogin' }>): Promise<void> {
+  private async loginAccount(request: NativeAccountLogin): Promise<void> {
     if (typeof request.requestId !== 'string' || !/^[a-zA-Z0-9-]{1,128}$/.test(request.requestId)) return;
     const receipt = this.accountLoginReceipts.get(request.requestId);
     if (receipt) { this.post(receipt); return; }
@@ -3210,7 +3279,9 @@ export class WorkspacePanel implements vscode.Disposable {
           ? '無法連線 GitLab，請檢查網址、網路或憑證後重試。'
           : readableError(error);
       const safeMessage = token ? message.split(token).join('[redacted]') : message;
-      if (request.operationId) this.operations.noteError(request.operationId, safeMessage);
+      const operationId = request.operationId ?? this.operationContext.getStore();
+      if (operationId) this.operations.noteError(operationId, safeMessage);
+      this.noteOutcome({ status: 'failed', effect: 'none' });
       reply({ error: safeMessage });
     } finally {
       if (ownsTransition) {

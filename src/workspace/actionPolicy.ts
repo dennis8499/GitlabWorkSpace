@@ -38,7 +38,8 @@ export const workspaceActionKinds = {
   closeIssue: 'local',
   openAccountManager: 'local',
   openLogs: 'local',
-  addAccount: 'local',
+  addAccount: 'write',
+  openConfiguration: 'local',
   openLocalWorkspace: 'local',
   openExternal: 'local',
   openWorkflowKitDownload: 'local',
@@ -81,7 +82,6 @@ export const workspaceActionKinds = {
   gitAction: 'read',
   issueRequest: 'read',
   connect: 'write',
-  submitAccountLogin: 'write',
   disconnect: 'write',
   switchAccount: 'write',
   removeAccount: 'write',
@@ -215,7 +215,7 @@ export const quickActionKinds = {
   openRepository: 'read',
   openNotifications: 'read',
   openSettings: 'read',
-  addAccount: 'read',
+  addAccount: 'write',
   manageAccounts: 'read',
   switchAccount: 'write',
   logoutAccount: 'write',
@@ -232,7 +232,7 @@ export const operationLabels: Record<string, string> = {
   copyBmadCommand: '複製 BMAD 指令', openBmadTerminal: '開啟 BMAD 專案終端', openBmadArtifact: '查看 BMAD 產物',
   gitAction: '執行版控操作', issueRequest: '處理 Issue 操作',
   openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟 Log', openLogs: '開啟 Log', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理', openSettings: '開啟設定',
-  refresh: '更新目前頁面', retryInstanceCheck: '偵測 GitLab 功能', connect: '連線 GitLab', addAccount: '登入 GitLab', submitAccountLogin: '驗證帳號', switchAccount: '切換帳號', removeAccount: '移除帳號', disconnect: '登出', logoutAccount: '登出',
+  refresh: '更新目前頁面', retryInstanceCheck: '偵測 GitLab 功能', connect: '連線 GitLab', addAccount: '登入 GitLab', openConfiguration: '開啟設定', switchAccount: '切換帳號', removeAccount: '移除帳號', disconnect: '登出', logoutAccount: '登出',
   selectGroup: '切換 Group', selectProjectFolder: '辨識專案資料夾', selectProjectRoot: '選擇專案目錄', resetProjectRoot: '重新辨識專案目錄', scanRepositories: '掃描本機 Repo', clone: '下載／更新 Repo', syncRepos: '更新預設分支',
   refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', copySkillGuidePrompt: '複製提示詞', copy: '複製內容',
   selectIssue: '載入 Issue', openIssue: '開啟 Issue', createIssue: '開啟新增 Issue', createIssueDrafts: '建立 Issue', selectMergeRequest: '載入 MR', refreshMergeRequest: '檢查 MR 分支', loadMergeRequestSection: '載入 MR 內容', openBranchReview: '準備分支審查', loadSkillBranches: '讀取分支候選',
@@ -241,7 +241,7 @@ export const operationLabels: Record<string, string> = {
 };
 
 const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'loadReviewerCapabilities', 'gitOpenRepository']);
-const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
+const connectionActions = new Set(['connect', 'addAccount', 'disconnect', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
 const localWorkspaceActions = new Set([

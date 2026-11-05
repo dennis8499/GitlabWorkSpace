@@ -125,7 +125,7 @@ test('freshness expiration and cooldown countdown change presentation without au
   assert.equal(view.requests.length, before);
 });
 
-test('drawer exit retains its focus boundary, clears unsent Tokens immediately and does not reload on snapshots', async t => {
+test('drawer exit retains its focus boundary without credential fields and does not reload on snapshots', async t => {
   const view = await mount({}, snapshot(), {}, window => {
     window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     Object.defineProperty(window.HTMLElement.prototype, 'onanimationend', { configurable: true, writable: true, value: null });
@@ -134,13 +134,13 @@ test('drawer exit retains its focus boundary, clears unsent Tokens immediately a
   trigger.focus(); trigger.click(); await view.tick();
   document.querySelector('#settings-tab-accounts').click(); await view.tick();
   document.querySelector('.accounts-heading button').click(); await view.tick();
-  document.querySelector('.account-login').requestSubmit(); await view.tick();
-  const token = document.querySelector('[name="token"]'); token.value = 'unsent-fixture-token'; token.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'addAccount');
+  assert.equal(document.querySelector('[name="token"]'), null);
   const reads = view.requests.filter(item => item.type === 'refreshWorkflowKit').length;
   document.querySelector('.drawer-heading > button').click(); await view.tick();
   const overlay = document.querySelector('.drawer-scrim');
   assert.equal(overlay.dataset.presence, 'exiting');
-  assert.equal(document.querySelector('[name="token"]').value, '');
+  assert.equal(document.querySelector('[name="token"]'), null);
   view.sendSnapshot(snapshot()); await view.tick();
   assert.equal(view.requests.filter(item => item.type === 'refreshWorkflowKit').length, reads);
   document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
@@ -564,41 +564,28 @@ test('responsiveness: the last Issue keystroke is durable once without rebuildin
   await view.tick(); assert.equal(view.stateSaves, before + 1);
 });
 
-test('account preflight terminal receipts release the form even without a domain login reply', async t => {
-  const state = { ...snapshot(), connected: false, accounts: [], currentUser: undefined };
-  const view = await mount({}, state, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+test('native account operation receipts release metadata controls after a failed login', async t => {
+  const view = await mount({}, { ...snapshot(), connected: false, accounts: [] }, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  view.send({ type: 'openAccountManager', intent: { id: 'login', startLogin: true } }); await view.tick(); await view.tick();
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  const token = document.querySelector('[name="token"]'); token.value = 'never-persist';
-  token.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  const request = view.rawRequests.findLast(item => item.type === 'submitAccountLogin');
+  view.send({ type: 'openAccountManager', intent: { id: 'login', startLogin: true } }); await view.tick();
+  document.querySelector('.accounts-heading button').click(); await view.tick();
+  const request = view.rawRequests.findLast(item => item.type === 'addAccount');
+  assert.ok(request); assert.equal(Object.hasOwn(request, 'token'), false);
+  assert.equal(document.querySelector('.accounts-heading button').disabled, true);
   view.receipt(request, { status: 'failed', effect: 'none', error: 'Account switching' }); await view.tick();
-  assert.match(document.querySelector('.account-login-error').textContent, /Account switching/);
-  assert.equal(document.querySelector('.account-login fieldset').disabled, false);
-  assert.ok(!JSON.stringify(view.savedState).includes('never-persist'));
+  assert.equal(document.querySelector('.accounts-heading button').disabled, false);
+  assert.equal(document.querySelector('input'), null);
 });
 
-test('account native and custom validation keep inline feedback and publish one fixed message without field values', async t => {
-  const view = await mount({}, { ...snapshot(), connected: false, accounts: [], currentUser: undefined }); t.after(() => view.dom.window.close());
+test('Webview account actions carry identity only and delegate credential validation to the Host', async t => {
+  const state = { ...snapshot(), connected: false, accounts: [{ id: 'saved', name: 'Saved', username: 'saved', baseUrl: 'https://saved.test', needsLogin: true }] };
+  const view = await mount({}, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  view.send({ type: 'openAccountManager', intent: { id: 'validation', startLogin: true } }); await view.tick(); await view.tick();
-  const notices = () => view.requests.filter(request => request.type === 'publishNotification');
-  const url = document.querySelector('[name="baseUrl"]');
-  url.value = ''; url.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.account-login').requestSubmit(); await view.tick();
-  assert.equal(notices().length, 1); assert.match(document.querySelector('.account-login-error').textContent, /完整 HTTP 或 HTTPS 網址/);
-  url.value = 'ftp://private-user:private-password@private.example.test'; url.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  assert.equal(notices().length, 2); assert.equal(notices()[1].message, notices()[0].message);
-  assert.doesNotMatch(JSON.stringify(notices()), /private-user|private-password|private.example/);
-  url.value = 'https://gitlab.test'; url.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  document.querySelector('.account-login').requestSubmit(); await view.tick();
-  assert.equal(notices().length, 3); assert.equal(notices()[2].message, '請輸入 Personal Access Token。');
-  assert.equal(document.querySelector('.account-login-error').textContent, notices()[2].message);
-  assert.equal(view.requests.some(request => request.type === 'submitAccountLogin'), false);
+  view.send({ type: 'openAccountManager', intent: { id: 'native' } }); await view.tick();
+  document.querySelector('[aria-label="重新登入 Saved 帳號"]').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'addAccount'), { type: 'addAccount', accountId: 'saved' });
+  assert.equal(document.querySelector('input[name="token"], input[name="baseUrl"], .account-login'), null);
+  assert.equal(view.requests.some(request => Object.hasOwn(request, 'token') || request.type === 'submitAccountLogin'), false);
 });
 
 test('Issue and MR selections respond before host data and ignore old busy clearing', async t => {
@@ -687,10 +674,10 @@ test('host settings navigation resets account login intent and preserves the sel
   comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   const readiness = view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'ready').length;
   view.send({ type: 'openAccountManager', intent: { id: 'settings-login', startLogin: true } }); await view.tick();
-  assert.ok(document.querySelector('.account-login'));
+  assert.ok(document.querySelector('.accounts-panel'));
   assert.equal(document.querySelector('#settings-tab-accounts').getAttribute('aria-selected'), 'true');
-  const loginUrl = document.querySelector('.account-login [name="baseUrl"]');
-  loginUrl.focus(); assert.equal(document.activeElement, loginUrl);
+  const addAccount = document.querySelector('.accounts-heading button');
+  addAccount.focus(); assert.equal(document.activeElement, addAccount);
   const before = view.requests.length;
   view.send({ type: 'openSettings' }); await view.tick();
   assert.equal(document.querySelector('#settings-tab-tools').getAttribute('aria-selected'), 'true');
@@ -2193,12 +2180,11 @@ test('offline installation exposes the shared root, reset, errors and busy state
   const button = text => [...document.querySelectorAll('.tool-drawer button')].find(item => item.textContent === text);
   assert.equal(document.querySelector('.project-root-path').textContent, 'C:/local/repo');
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
-  button('選擇共用根目錄').click(); assert.equal(view.requests.at(-1).type, 'selectProjectRoot');
-  await view.tick(); button('恢復 VS Code 根目錄').click(); assert.equal(view.requests.at(-1).type, 'resetProjectRoot');
+  button('開啟根目錄設定').click(); assert.deepEqual(view.requests.at(-1), { type: 'openConfiguration', setting: 'gitlabWorkspace.projectRoot' });
   for (const status of ['checking', 'installing', 'needs-cleanup']) {
     state.workflowKitInstallTarget.state = { status }; view.sendSnapshot(state); await view.tick();
     assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
-    if (status === 'installing') assert.equal(button('選擇共用根目錄').disabled, true);
+    assert.ok(button('開啟根目錄設定'));
   }
   state.workflowKitInstallTarget = { manual: true, error: '專案根目錄不存在', state: { status: 'error' } };
   state.projectContext.root = undefined; state.projectContext.error = '專案根目錄不存在'; view.sendSnapshot(state); await view.tick();
@@ -2229,10 +2215,10 @@ test('Skills offers online Releases and one shared root without Group mode contr
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
   assert.equal(document.querySelector('.skills-policy'), null); assert.equal(document.querySelector('[aria-label="Group 對應狀態"]'), null);
   const button = text => [...document.querySelectorAll('.tool-drawer button')].find(item => item.textContent === text);
-  assert.equal(button('選擇共用根目錄').disabled, false); assert.equal(button('開啟 GitHub Release').disabled, false);
+  assert.equal(button('開啟根目錄設定').disabled, false); assert.equal(button('開啟 GitHub Release').disabled, false);
   button('開啟 GitHub Release').click(); assert.equal(view.requests.at(-1).type, 'openWorkflowKitDownload');
   state.workflowKitOperationBusy = true; view.sendSnapshot(state); await view.tick();
-  assert.equal(button('選擇共用根目錄').disabled, true); assert.equal(button('匯入組合包 ZIP'), undefined); assert.equal(button('檢查最新正式版').disabled, true);
+  assert.equal(button('開啟根目錄設定').disabled, false); assert.equal(button('匯入組合包 ZIP'), undefined); assert.equal(button('檢查最新正式版').disabled, true);
 });
 
 test('online setup explicitly checks Releases and offers only GitHub and Gitea sources', async t => {
@@ -2264,62 +2250,31 @@ test('online installation sends a Release identity without a client-controlled l
   assert.equal(Object.hasOwn(view.requests.at(-1), 'archivePath'), false);
 });
 
-test('guided login keeps secrets transient, matches results by request ID, and allows retry after an invalid Token', async t => {
+test('account management receives metadata after native login without receiving credentials', async t => {
   const state = { ...snapshot(), connected: false, currentUser: undefined, baseUrl: undefined, group: undefined, groupRoot: undefined, accounts: [] };
   const view = await mount({}, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  view.send({ type: 'openAccountManager', intent: { id: 'new', startLogin: true } });
-  await view.tick(); await view.tick();
-  const url = document.querySelector('input[name="baseUrl"]');
-  assert.ok(url); assert.equal(document.activeElement, url);
-  url.value = 'https://gitlab.example.test/gitlab/'; url.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  const token = document.querySelector('input[name="token"]');
-  assert.equal(token.type, 'password'); assert.match(document.querySelector('#token-help').textContent, /api.*SecretStorage/s);
-  token.value = 'transient-token-one'; token.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.token-input button').click(); await view.tick(); assert.equal(token.type, 'text');
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  const first = view.requests.findLast(item => item.type === 'submitAccountLogin');
-  assert.equal(first.baseUrl, 'https://gitlab.example.test/gitlab'); assert.equal(first.token, 'transient-token-one');
-  assert.equal(token.value, ''); assert.equal(token.type, 'password');
-  assert.equal(document.querySelector('.account-login button[type="submit"]').disabled, true);
-  assert.ok(!JSON.stringify(view.savedState).includes('transient-token-one'));
-  view.send({ type: 'accountLoginResult', requestId: 'stale', error: 'An obsolete error' }); await view.tick();
-  assert.equal(document.querySelector('.account-login-error'), null);
-  view.send({ type: 'accountLoginResult', requestId: first.requestId, error: 'Token 無效，請重試。' }); await view.tick();
-  assert.match(document.querySelector('.account-login-error').textContent, /請重試/);
-  token.value = 'transient-token-two'; token.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  const second = view.requests.findLast(item => item.type === 'submitAccountLogin'); assert.notEqual(second.requestId, first.requestId);
-  view.sendSnapshot({ ...state, connected: true, currentUser: { id: 1, name: 'Verified User', username: 'verified' } });
-  view.send({ type: 'accountLoginResult', requestId: second.requestId, name: 'Verified User' }); await view.tick();
-  assert.match(document.querySelector('.account-login-success').textContent, /已登入 Verified User/);
-  assert.match(document.querySelector('.account-workspace').textContent, /尚未選擇/);
-  assert.equal(document.querySelector('.account-login'), null);
-  assert.ok(!JSON.stringify(view.savedState).includes('transient-token'));
-  [...document.querySelectorAll('.account-workspace button')].find(item => item.textContent === '選擇 Group').click();
-  assert.equal(view.requests.at(-1).type, 'selectGroup');
+  view.send({ type: 'openAccountManager', intent: { id: 'new' } }); await view.tick();
+  document.querySelector('.accounts-heading button').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'addAccount');
+  assert.equal(document.querySelector('input[name="baseUrl"], input[name="token"]'), null);
+  view.sendSnapshot({ ...state, connected: true, currentUser: { id: 1, name: 'Verified User', username: 'verified' }, accounts: [{ id: 'verified', name: 'Verified User', username: 'verified', baseUrl: 'https://gitlab.test' }] }); await view.tick();
+  assert.match(document.querySelector('.account-cards').textContent, /Verified User/);
+  document.querySelector('.account-workspace button').click(); assert.equal(view.requests.at(-1).type, 'selectGroup');
+  assert.equal(Object.hasOwn(view.savedState, 'token'), false);
 });
 
-test('account settings support keyboard navigation, locked relogin sites, and clearing unsent Tokens on close', async t => {
-  const state = snapshot();
-  state.accounts = [{ id: 'saved', name: 'Saved User', username: 'saved', baseUrl: 'https://saved.test', userId: 1, needsLogin: true }];
+test('account settings preserve keyboard focus and delegate relogin with the saved account ID', async t => {
+  const state = snapshot(); state.accounts = [{ id: 'saved', name: 'Saved User', username: 'saved', baseUrl: 'https://saved.test', userId: 1, needsLogin: true }];
   const view = await mount({}, state); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const trigger = document.querySelector('.settings-trigger'); trigger.click(); await view.tick();
+  const document = view.dom.window.document, trigger = document.querySelector('.settings-trigger'); trigger.click(); await view.tick();
   const tab = document.querySelector('#settings-tab-tools'); tab.focus();
   tab.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await view.tick();
-  assert.equal(document.querySelector('#settings-tab-accounts').getAttribute('aria-selected'), 'true');
   assert.equal(document.activeElement.id, 'settings-tab-accounts');
-  document.querySelector('button[aria-label="重新登入 Saved User 帳號"]').click(); await view.tick();
-  const url = document.querySelector('[name="baseUrl"]'); assert.equal(url.readOnly, true); assert.equal(url.value, 'https://saved.test');
-  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
-  const token = document.querySelector('[name="token"]'); token.value = 'never-persist-this'; token.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('[aria-label="重新登入 Saved User 帳號"]').click(); await view.tick();
+  assert.equal(view.requests.at(-1).accountId, 'saved'); assert.equal(view.requests.at(-1).type, 'addAccount');
   document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await view.tick();
   assert.equal(document.querySelector('.tool-drawer'), null); assert.equal(document.activeElement, trigger);
-  trigger.click(); await view.tick(); document.querySelector('#settings-tab-accounts').click(); await view.tick();
-  assert.equal(document.querySelector('[name="token"]'), null);
-  assert.ok(!JSON.stringify(view.savedState).includes('never-persist-this'));
 });
 
 test('an installed custom folder does not enable the Group guide when the Group kit is missing', async (t) => {
@@ -2733,9 +2688,9 @@ test('mixed workspaces use the common root for downloads, sync and settings', as
   await view.tick(); sync.click(); assert.equal(view.requests.at(-1).type, 'syncRepos');
   assert.equal(Object.hasOwn(view.requests.at(-1), 'projectIds'), false);
   document.querySelector('.clone-select-root').click(); await view.tick();
-  const reset = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '恢復 VS Code 根目錄');
-  reset.click(); assert.equal(view.requests.at(-1).type, 'resetProjectRoot');
-  view.sendSnapshot({ ...state, busy: true }); await view.tick(); assert.equal(reset.disabled, true);
+  const configure = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '開啟根目錄設定');
+  configure.click(); assert.equal(view.requests.at(-1).type, 'openConfiguration');
+  assert.equal(view.requests.at(-1).setting, 'gitlabWorkspace.projectRoot');
 });
 
 test('settings display the same root for installation and Skills', async t => {

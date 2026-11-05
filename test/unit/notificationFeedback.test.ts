@@ -7,11 +7,11 @@ test('blocked feedback is published once and preserves inline text without sendi
   const requests: any[] = [], inline: string[] = [];
   const actions = new ActionController(request => requests.push(request));
   actions.setContext({ scopeRevision: 'accounts', scopeEpoch: 3 });
-  dispatchWithFeedback(actions, { type: 'submitAccountLogin', requestId: 'first', baseUrl: 'https://gitlab.test', token: 'private-first' });
-  const result = dispatchWithFeedback(actions, { type: 'submitAccountLogin', requestId: 'second', baseUrl: 'https://gitlab.test', token: 'private-second' },
+  dispatchWithFeedback(actions, { type: 'addAccount', accountId: 'first' });
+  const result = dispatchWithFeedback(actions, { type: 'addAccount', accountId: 'second' },
     { title: '帳號與連線', onBlocked: message => inline.push(message), context: { operationScope: 'accounts', scopeEpoch: 3 } });
   assert.equal(result.status, 'blocked');
-  assert.equal(requests.filter(request => request.type === 'submitAccountLogin').length, 1);
+  assert.equal(requests.filter(request => request.type === 'addAccount').length, 1);
   const notices = requests.filter(request => request.type === 'publishNotification');
   assert.equal(notices.length, 1); assert.deepEqual(inline, [notices[0].message]);
   assert.equal(notices[0].title, '帳號與連線'); assert.equal(notices[0].operationScope, 'accounts');

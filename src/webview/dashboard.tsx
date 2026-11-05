@@ -1234,7 +1234,8 @@ function App() {
       <div class="top-controls">
         <ProjectFolderSelect snapshot={snapshot} disabled={!!(snapshot.projectOperationBusy ?? blockingWork) || !!snapshot.workflowKitOperationBusy} post={post} />
         {remotePage && (snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={blockingWork} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={blockingWork} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>)}
-        <button class="quiet settings-trigger" type="button" onClick={event => openSettings(event.currentTarget)}>設定</button>
+        <button class="quiet settings-trigger" type="button" onClick={event => openSettings(event.currentTarget)}>工具與環境</button>
+        <button class="quiet native-settings-trigger" type="button" onClick={() => post({ type: 'openConfiguration' })}>設定</button>
         <button class="quiet notifications-trigger" type="button" aria-label={`訊息中心，${notifications?.unreadCount ?? 0} 筆未讀`} onClick={event => { notificationReturnFocus.current = event.currentTarget; setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); }}>訊息中心 <span class="notification-count">{notifications?.unreadCount ?? 0}</span></button>
         <details class="account-menu"><summary class={`connection ${snapshot.connected ? 'connected' : ''}`}><i />{snapshot.connected ? `${snapshot.currentUser?.name ?? 'GitLab 已連線'}${snapshot.currentUser?.username ? ` · @${snapshot.currentUser.username}` : ''}` : '尚未登入 GitLab'}　⌄</summary>
           <div class="account-popover account-manager"><strong>{snapshot.baseUrl ?? '選擇或新增 GitLab 帳號'}</strong>
@@ -1505,8 +1506,7 @@ function App() {
       onSource={(source) => { setWorkflowKitSource(source); post({ type: 'setWorkflowKitSource', source }); }}
       onInstall={(releaseId) => post({ type: 'installWorkflowKit', releaseId })}
       onOpenDownload={(source) => post({ type: 'openWorkflowKitDownload', source })}
-      onSelectProjectRoot={() => post({ type: 'selectProjectRoot' })}
-      onResetProjectRoot={() => post({ type: 'resetProjectRoot' })}
+      onSelectProjectRoot={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.projectRoot' })}
       onRefresh={() => post({ type: 'checkWorkflowKitReleases', source: workflowKitSource })} onSelectGroup={() => post({ type: 'selectGroup' })}
       onConnect={() => post({ type: 'connect' })}
       onOpenLogs={() => { skipDrawerReturnFocus.current = true; setToolDrawer(false); post({ type: 'openLogs' }); }}
@@ -1547,14 +1547,14 @@ function Discussion({ disabled, discussion, reply, onReplyChange, onReply }: { d
   }}>回覆</button><FeatureNotices id={'mr-reply-' + discussion.id} items={{ '回覆': firstBlocker(blockedWhen(disabled, 'MR 操作正在處理，請稍候。'), blockedWhen(!reply.trim(), '請先填寫回覆內容。')) }} /></div></div>;
 }
 
-function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInstall, onOpenDownload, onSelectProjectRoot, onResetProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenLogs, onClose, section, onSection, accountIntent, post, open, presence }: {
+function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInstall, onOpenDownload, onSelectProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenLogs, onClose, section, onSection, accountIntent, post, open, presence }: {
   open: boolean; presence: ReturnType<typeof usePresence>;
   actions: ActionController; section: 'tools' | 'accounts'; onSection: (section: 'tools' | 'accounts') => void; accountIntent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void;
   snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource;
   onRefresh: () => void; onRetryInstance: () => void;
   onSource: (source: ToolSource) => void;
   onInstall: (releaseId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
-  onSelectProjectRoot: () => void; onResetProjectRoot: () => void;
+  onSelectProjectRoot: () => void;
   onSelectGroup: () => void; onConnect: () => void; onOpenLogs: () => void; onClose: () => void;
 }) {
   const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
@@ -1587,28 +1587,30 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
   const localBlocked = localProjectBlocker(snapshot.workspaceCapabilities);
   const settingsWaiting = firstBlocker(localBlocked, blockedWhen(operationBusy || kitBusy, '工作區或 Skills 作業正在處理，請稍候。'));
   const checkKitBlocked = firstBlocker(settingsWaiting, blockedWhen(!policy.allowed, policy.reason ?? '目前尚無法檢查 Skills。'));
-  const rootBlockers = { '選擇共用根目錄': firstBlocker(settingsWaiting, blockedWhen(!snapshot.projectContext?.selectedFolderUri, '請先在 VS Code 開啟或選擇專案資料夾。')),
-    '恢復 VS Code 根目錄': firstBlocker(settingsWaiting, blockedWhen(!snapshot.projectContext?.manual, '目前已使用 VS Code 根目錄。')) };
 
   return <div class="drawer-scrim motion-overlay" data-presence={presence.phase} onAnimationEnd={presence.onAnimationEnd} role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer motion-surface" role="dialog" aria-modal="true" aria-labelledby="tool-title" onClickCapture={event => { if (!open) { event.preventDefault(); event.stopPropagation(); } }} onKeyDownCapture={event => { if (!open && !['Tab', 'Escape'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); } }}>
-    <div class="drawer-heading"><div><span class="eyebrow">GitLab Workspace 設定</span><h2 id="tool-title">{section === 'accounts' ? '帳號與連線' : '工作區與工具'}</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
+    <div class="drawer-heading"><div><span class="eyebrow">GitLab Workspace</span><h2 id="tool-title">{section === 'accounts' ? '帳號與連線' : '工具與環境'}</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
     <div class="settings-tabs" role="tablist" aria-label="設定類別" onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault(); const next = event.key === 'Home' ? 'tools' : event.key === 'End' ? 'accounts' : section === 'tools' ? 'accounts' : 'tools';
       onSection(next); drawerRef.current?.querySelector<HTMLButtonElement>(`#settings-tab-${next}`)?.focus();
-    }}>{(['tools', 'accounts'] as const).map(id => <button id={`settings-tab-${id}`} type="button" role="tab" aria-selected={section === id} aria-controls={`settings-content-${id}`} tabIndex={section === id ? 0 : -1} onClick={() => onSection(id)}>{id === 'tools' ? '工作區與 Skills' : '帳號與連線'}</button>)}</div>
+    }}>{(['tools', 'accounts'] as const).map(id => <button id={`settings-tab-${id}`} type="button" role="tab" aria-selected={section === id} aria-controls={`settings-content-${id}`} tabIndex={section === id ? 0 : -1} onClick={() => onSection(id)}>{id === 'tools' ? '工具與環境' : '帳號與連線'}</button>)}</div>
     {section === 'accounts' ? <div role="tabpanel" id="settings-content-accounts" aria-labelledby="settings-tab-accounts"><AccountPanel active={open} actions={actions} snapshot={snapshot} intent={accountIntent} post={post} /></div> : <div role="tabpanel" id="settings-content-tools" aria-labelledby="settings-tab-tools">
     <section class="workspace-settings project-root-settings" aria-label="共用專案根目錄"><h3>共用專案根目錄</h3>
       <ProjectFolderSelect snapshot={snapshot} disabled={operationBusy || kitBusy || !!localBlocked} post={post} />
       <p class="project-root-path" role="status">{snapshot.projectContext?.root ?? snapshot.projectContext?.error ?? '請先在 VS Code 開啟或選擇專案資料夾。'}</p>
       <p class="subtle">專案下載、Skills 安裝與執行共用此位置。留白時使用 VS Code 開啟的專案資料夾。</p>
-      <div class="button-row"><button type="button" {...availabilityProps('settings-root', rootBlockers['選擇共用根目錄'])} onClick={onSelectProjectRoot}>選擇共用根目錄</button>
-        <button class="quiet" type="button" {...availabilityProps('settings-root', rootBlockers['恢復 VS Code 根目錄'])} onClick={onResetProjectRoot}>恢復 VS Code 根目錄</button><FeatureNotices id="settings-root" items={rootBlockers} />
+      <div class="button-row"><button type="button" onClick={onSelectProjectRoot}>開啟根目錄設定</button>
         {!snapshot.projectContext?.folders.length && <button type="button" disabled={operationBusy || kitBusy} onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟專案資料夾</button>}
       </div>
     </section>
     <section class="workspace-settings"><h3>GitLab 專案來源</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>遠端群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 GitLab 群組</button></div></> : <><p>連線後可瀏覽 GitLab 專案、Issue 與 MR。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
     {localBlocked ? <FeatureNotice reason={localBlocked.reason} /> : <CodexSettings post={post} />}
+    <section class="workspace-settings"><h3>持久設定</h3><p>使用 VS Code Settings 管理工具路徑與掃描選項。</p><div class="button-row">
+      <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.pythonPath' })}>Python 路徑</button>
+      <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.repositoryScan.excludeDirectories' })}>掃描排除目錄</button>
+      <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.reviewRuntimePath' })}>審查資料目錄</button>
+    </div></section>
     <section class="workspace-settings"><h3>操作紀錄</h3><p>在 VS Code 原生 Output 面板查看 GitLab Workspace Log。</p><button type="button" onClick={onOpenLogs}>開啟 Log</button></section>
     <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
       <p>版本：GitLab {snapshot.instance?.version ?? '未知'} · 版本類型：{snapshot.instance?.enterprise === false ? 'Community Edition' : snapshot.instance?.enterprise === true ? 'Enterprise Edition' : '未知'}</p>
