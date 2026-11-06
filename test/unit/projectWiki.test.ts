@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -57,6 +57,17 @@ test('Wiki remote changes require a new preview before overwriting', async t => 
   const next = await f.store.preview(f.id, f.origin, f.client, () => {}, true);
   assert.equal(next.pages[0].previousContent, 'Human edit'); assert.equal(next.pages[0].action, 'update');
   assert.equal((await f.store.publish(f.id, f.origin, next.revision, f.client, () => {})).state, 'published');
+});
+
+test('Wiki accepts an aliased snapshot parent while rejecting a redirected Wiki output directory', async t => {
+  const f = await fixture(t), alias = path.join(f.root, 'snapshot-alias');
+  await symlink(f.source, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal((await f.store.create(f.id, f.origin, alias)).state, 'draft');
+  const redirected = path.join(f.root, 'outside-wiki');
+  await rename(path.join(f.source, 'wiki'), redirected);
+  await symlink(redirected, path.join(f.source, 'wiki'), process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(f.store.create(f.id, f.origin, alias), /快照外/);
+  assert.deepEqual(f.writes, []);
 });
 
 test('Wiki follow-ups refresh the stored draft, preserve publication baselines and validate source citations', async t => {

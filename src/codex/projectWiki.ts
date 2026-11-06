@@ -120,7 +120,7 @@ export class ProjectWikiStore {
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     if (existing?.pages.some(page => page.sending)) throw new Error('請先核對先前的 Wiki 發布結果，再修改草稿。');
     const root = path.join(executionRoot, 'wiki'), actual = await realpath(root);
-    if (!sameWorkflowPath(root, actual)) throw new Error('Wiki 產物目錄不可指向快照外。');
+    if (!sameWorkflowPath(path.join(await realpath(executionRoot), 'wiki'), actual)) throw new Error('Wiki 產物目錄不可指向快照外。');
     const files: string[] = [];
     let total = 0;
     const scan = async (relative: string): Promise<void> => {
