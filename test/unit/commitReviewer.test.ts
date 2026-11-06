@@ -24,6 +24,8 @@ test('CommitReviewer cards keep native mode inputs, data argv and current model 
     assert.equal(args[args.indexOf('--mode') + 1], feature === 'commit-draft' ? 'commit' : 'mr');
     assert.match(prompt, /shell=False/);
     assert.match(prompt, /exit 3/);
+    assert.match(prompt, /只有收到開發者明確確認後/);
+    assert.match(prompt, /confirmations 記錄該項 ID、確認人及理由/);
     assert.doesNotMatch(prompt, /review_session\.py|\$model-routing|Luna/);
     assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, repositories: [] }), /唯一/);
     assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
