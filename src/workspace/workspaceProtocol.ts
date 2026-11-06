@@ -281,6 +281,13 @@ export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId
 
 export type WorkspaceRequest = (NotificationRequest
   | { type: 'startCodexTask'; source: import('../codex/protocol').CodexTaskSource }
+  | { type: 'showCodexTask'; taskId: string }
+  | { type: 'readCodexResult'; taskId: string }
+  | { type: 'openCodexOrigin'; taskId: string }
+  | { type: 'openCodexChanges'; taskId: string }
+  | { type: 'previewProjectWiki'; taskId: string; refresh?: boolean; confirmRetry?: boolean }
+  | { type: 'publishProjectWiki'; taskId: string; revision: string }
+  | { type: 'publishCodexReview'; taskId: string; body: string }
   | { type: 'listCodexTasks' }
   | { type: 'codexHistory'; taskId: string; cursor?: string }
   | { type: 'sendCodexMessage'; taskId: string; text: string }
@@ -386,6 +393,7 @@ export type WorkspaceResponse =
   | { type: 'protocolError'; operationId?: string; message: string }
   | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
   | { type: 'codexTaskStarted'; taskId: string }
+  | { type: 'codexWorkflowResult'; taskId: string; result?: import('../codex/protocol').CodexTaskResult; report?: string; wiki?: import('../codex/workflowProtocol').ProjectWikiPreview }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
   | { type: 'openSettings' }

@@ -12,6 +12,30 @@ Wiki、合併審查、上版檢查及 BMAD 頁面的「使用 Codex 執行」會
 
 預設從 VS Code 的 PATH 尋找相容的 Codex，支援官方 npm 安裝。若找不到，於使用者設定填寫 `gitlabWorkspace.codex.executablePath` 的完整路徑；工作區設定不會覆寫此執行檔。Provider 與既有帳號沿用本機 Codex，登入由 Codex 自行保存及更新。一般任務沿用本機模型；啟用 Model Routing 的審查使用 GPT-6 Luna。
 
+## 從 GitLab 工作直接啟動
+
+以下三個入口需要已登入 GitLab、已核對的本機 Repo、已安裝的 WorkflowKit，以及支援共用 Skills 的 Codex CLI 0.166.0+。既有 Skills／BMAD 手動入口保留。多份本機副本會以原生選單選擇；沒有副本時提供 Clone／掃描入口。
+
+### 從 Issue 開發
+
+在 Issue 預覽或詳情按「使用 Codex 開發」。任務會保存當下的標題、描述、標籤與版本，從專案預設分支的固定 SHA 建立 `issue/<iid>-<slug>` 分支，再由 BMAD 自動選擇流程，接續實作與測試。Repo 有未提交變更時，請先在版控保存或提交，再重新啟動。
+
+單純產生規格不算開發完成。Host 會檢查實際差異及測試命令的退出碼，必要時接續最多三輪；仍缺少實作或成功測試時顯示「尚需接續」。Issue 原頁可查看任務及差異。提交、推送、建立 MR 和結案仍由使用者操作。排隊期間 Issue 或來源版本改變時會要求重新建立任務，原修改保留。
+
+### 建立專案 Wiki
+
+在 GitLab 專案列或已對應專案的本機 Repo 列按「建立／更新 Wiki」。Host 會取得遠端預設分支 SHA，以 `git archive` 建立隔離快照。Codex 的執行與寫入目錄為快照中的 `wiki/`，來源檔案不列入寫入範圍。
+
+草稿完成後，在 Codex 頁檢查來源、頁面清單與內容；更新頁面可展開目前 GitLab 內容。只有按「發布至 GitLab Wiki」才會寫入網站。生成頁面放在 `codebase/`，不刪除其他頁面；Wiki 連結及程式來源引用會轉成 GitLab 連結。頁面內容改變後需重新預覽，部分成功及每頁收據會持續保存。
+
+發布逾時不會自動重送。先按「重新預覽／核對結果」讀取 GitLab；已找到相同內容時會完成對帳。仍不確定時，須先在網站人工核對，再使用「確認後允許重試」。結果未明時不可刪除或接續修改這份任務。
+
+### 一鍵 MR 審查
+
+在 MR 詳情按「一鍵 Code Review」。Host 會取得來源與目標版本，從已驗證 remote 同步 MR ref（含 fork），建立固定的本機審查 refs，再交給 MergeReviewer；不會切換工作分支。原生報告完成後，原 MR 的審查報告分頁會讀取全文並填入空白留言草稿，既有草稿不會被覆蓋。
+
+使用「作一般留言發布」前會再次核對原任務、帳號、來源及目標 SHA；版本改變時需重新審查。過長報告可保留完整版，將留言草稿整理為 50,000 字以內。手動選擇 Repo／分支的既有入口仍可使用。
+
 ## Reviewer Model Routing
 
 WorkflowKit 1.4.0 與工作台 0.40.0 起，合併審查、上版檢查提供「Luna 思考強度」。預設 auto 先以 Luna high 讀取固定 diff 與必要上下文，再依共用規則選擇正式審查的 low、medium、high、xhigh 或 max。純敘述文件可用 low、局部簡單邏輯可用 medium，一般程式變更從 high 起；跨 Repo、權限、資料及部署風險提高強度。

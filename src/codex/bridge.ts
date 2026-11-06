@@ -13,7 +13,8 @@ import { readModelRouting, requireRoutingEffort, routingModel, routingEfforts, r
   routingTurnPrompt, routingAssessmentOutputSchema } from './modelRouting';
 export { validateForm } from './forms';
 import { codexTaskActive, codexOutputKey, projectCodexTask, type CodexEnvironment, type CodexEvent, type CodexInteraction,
-  type CodexInteractionAnswer, type CodexOutputItem, type CodexTaskRecord, type CodexTaskSpec, type CodexTaskState } from './protocol';
+  type CodexInteractionAnswer, type CodexOutputItem, type CodexTaskRecord, type CodexTaskSpec, type CodexTaskState, type CodexTaskResult } from './protocol';
+import { workflowOriginKey } from './workflowProtocol';
 
 interface PendingInteraction { projection: CodexInteraction; request: RpcMessage; client: CodexAppServer; responding?: boolean; }
 interface ActiveExecution {
@@ -32,7 +33,8 @@ export interface CodexBridgeOptions {
   event(event: CodexEvent): void;
   openUrl(url: string): Promise<void>;
   cancelReview?(spec: CodexTaskSpec): Promise<void>;
-  completed?(spec: CodexTaskSpec): Promise<void>;
+  started?(spec: CodexTaskSpec, signal: AbortSignal): Promise<void>;
+  completed?(spec: CodexTaskSpec, taskId: string, output: readonly CodexOutputItem[]): Promise<CodexTaskResult | void>;
   approved?(event: { taskId: string; threadId?: string; turnId?: string; requestId: number | string; kind: string; scope: 'once' | 'turn' }): void;
   client?(root: string): Promise<{ client: CodexAppServer; version: string; executable: string }>;
 }
@@ -108,7 +110,7 @@ export class CodexBridge {
       const settling = this.active?.record.id === value.id || this.controlling.has(value.id);
       return { ...structuredClone(value), controls: {
         external, canPause: busy && !external && value.status !== 'pausing',
-        canResume: !busy && !settling, canDelete: !busy && !settling && value.status !== 'uncertain',
+        canResume: !busy && !settling && value.result?.state !== 'uncertain', canDelete: !busy && !settling && value.status !== 'uncertain' && value.result?.state !== 'uncertain',
         canAutoAccept: !external && value.status !== 'pausing', autoAccept: this.autoAccept.has(value.id),
         autoAcceptError: this.autoAcceptErrors.get(value.id)
       } };
@@ -137,6 +139,17 @@ export class CodexBridge {
   }
   private async enqueueNow(spec: CodexTaskSpec, operationId: string): Promise<string> {
     this.requireTrusted(); await this.initialize();
+    if (spec.origin) return this.store.control('workflow-admission', async () => {
+      await this.reload();
+      const existing = [...this.records.values()].find(record => record.spec.origin &&
+        workflowOriginKey(record.spec.origin) === workflowOriginKey(spec.origin!) &&
+        (codexTaskActive(record.status) || record.status === 'queued'));
+      if (existing) { await this.publish(); return existing.id; }
+      return this.enqueueRecord(spec, operationId);
+    });
+    return this.enqueueRecord(spec, operationId);
+  }
+  private async enqueueRecord(spec: CodexTaskSpec, operationId: string): Promise<string> {
     if (!validTaskId(operationId)) throw new Error('Codex 任務識別無效。');
     if (this.records.has(operationId)) { await this.publish(); return operationId; }
     const now = new Date().toISOString();
@@ -145,6 +158,17 @@ export class CodexBridge {
     await this.store.save(record); this.records.set(record.id, record); this.owned.add(record.id); this.queue.push(record.id);
     this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
     this.emit({ kind: 'tasks', tasks: this.list() }); this.schedule(); return record.id;
+  }
+  async specification(id: string): Promise<CodexTaskSpec> { await this.initialize(); return structuredClone(this.record(id).spec); }
+  async resultAction(id: string, action: (spec: CodexTaskSpec) => Promise<CodexTaskResult>): Promise<void> {
+    this.requireTrusted(); await this.initialize();
+    await this.store.control(id, async () => {
+      await this.reload(); const record = this.record(id);
+      if (codexTaskActive(record.status) || record.status === 'queued' || this.active?.record.id === id) throw new Error('請等待任務停止後再發布成果。');
+      this.controlling.add(id);
+      try { record.result = await action(structuredClone(record.spec)); await this.save(record); }
+      finally { this.controlling.delete(id); this.emit({ kind: 'tasks', tasks: this.list() }); }
+    });
   }
   private requireTrusted(): void {
     if (this.disposed) throw new Error('Codex Bridge 已關閉。');
@@ -223,6 +247,7 @@ export class CodexBridge {
     const active: ActiveExecution = { record, abort: new AbortController(), settled: new Promise(resolve => { settle = resolve; }), settle: () => settle() };
     this.active = active;
     let lease: CodexWorkspaceLease | undefined;
+    const repositoryLeases: CodexWorkspaceLease[] = [];
     let sent = false;
     try {
       const directory = path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(await realpath(record.root)) + '.lock');
@@ -234,6 +259,15 @@ export class CodexBridge {
       this.requireTrusted();
       const prepared = await this.options.prepare(record.spec.source, record.spec);
       if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root) throw new Error('專案或 Skills 環境已變更，請重新確認表單再建立任務。');
+      if (record.spec.origin && codexRootKey(record.spec.origin.repositoryRoot) !== codexRootKey(record.root)) {
+        let repositoryLease: CodexWorkspaceLease | undefined;
+        const directory = path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(await realpath(record.spec.origin.repositoryRoot)) + '.lock');
+        while (!repositoryLease) {
+          try { repositoryLease = await CodexWorkspaceLease.acquire(directory, { signal: active.abort.signal, timeoutMs: 30_000 }); }
+          catch (error) { if ((error as Error).name !== 'TimeoutError') throw error; }
+        }
+        repositoryLeases.push(repositoryLease);
+      }
       record.status = 'starting'; record.error = undefined; await this.save(record);
       const connection = await this.makeClient(record.root, lease); active.client = connection.client;
       const client = connection.client;
@@ -241,7 +275,13 @@ export class CodexBridge {
       this.environment = await this.inspect(client, connection.version, connection.executable);
       this.emit({ kind: 'environment', environment: this.environment });
       if (this.environment.state !== 'ready') throw new Error(this.environment.message);
+      if (record.spec.workflow) {
+        try { await client.request('skills/extraRoots/set', { extraRoots: [path.dirname(path.dirname(record.spec.skill.path))] }); }
+        catch { throw new Error('此流程需要支援共用 Skills 的 Codex CLI，請升級至 0.166.0 或更新版本。'); }
+      }
+      await this.options.started?.(record.spec, active.abort.signal);
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
+      const cwd = record.spec.executionRoot ?? record.root;
       client.onRequest = message => this.receiveInteraction(record, client, message);
       client.onNotification = message => this.receiveNotification(record, message);
       client.onExit = error => {
@@ -252,15 +292,15 @@ export class CodexBridge {
       };
       let hasPriorTurns = false;
       if (record.threadId) {
-        await client.request('thread/resume', { threadId: record.threadId, cwd: record.root, approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write', excludeTurns: true });
+        await client.request('thread/resume', { threadId: record.threadId, cwd, approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write', excludeTurns: true });
         hasPriorTurns = await this.loadHistory(record, client);
         if (!hasPriorTurns && record.dispatchPending) throw new Error('先前送出結果不明，且無法讀取已保存的回合；請先核對本機 Codex 與產物，不會自動重送。');
       } else {
-        const started = await client.request('thread/start', { cwd: record.root, approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write' });
+        const started = await client.request('thread/start', { cwd, approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write' });
         if (typeof started.thread?.id !== 'string') throw new Error('Codex 未傳回有效的 thread 識別。');
         record.threadId = started.thread.id; active.unmaterializedThreadId = record.threadId; await this.save(record);
       }
-      const skills = await client.request('skills/list', { cwds: [record.root], forceReload: true });
+      const skills = await client.request('skills/list', { cwds: [cwd], forceReload: true });
       const found = skills.data?.flatMap((entry: any) => entry.skills ?? []).some((skill: any) =>
         skill.name === record.spec.skill.name && skill.enabled !== false && typeof skill.path === 'string' && path.resolve(skill.path).toLowerCase() === path.resolve(record.spec.skill.path).toLowerCase());
       if (!found) throw new Error('Codex 尚未載入此專案的對應 Skill；請重新檢查 Skills 安裝。');
@@ -270,36 +310,55 @@ export class CodexBridge {
         throw new Error('Codex 尚未載入 Model Routing；請核對工作流程包安裝。');
       }
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
-      const message = hasPriorTurns ? record.pendingMessage ?? record.spec.prompt
+      let message = hasPriorTurns ? record.pendingMessage ?? record.spec.prompt
         : record.spec.prompt + (record.pendingMessage ? `\n\n使用者補充：\n${record.pendingMessage}` : '');
       if (record.spec.routing) {
         sent = true;
         await this.executeRoutedReview(record, client, message);
       } else {
+      for (let round = 0; round < (record.spec.origin?.kind === 'issue' ? 3 : 1); round++) {
+      record.turnId = undefined;
+      active.turnStatus = undefined;
       record.status = 'running'; record.dispatchPending = true; await this.save(record);
       this.output(record.id, { id: 'dispatch-' + randomUUID(), kind: 'notice', text: record.pendingMessageIsUser ? '接續使用者的要求' : `執行：${record.title}` });
       const finished = new Promise<void>(resolve => { active.finish = resolve; });
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       sent = true;
       active.unmaterializedThreadId = undefined;
-      const result = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: randomUUID(),
+      const dispatched = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: randomUUID(),
         input: [{ type: 'text', text: message }, { type: 'skill', name: record.spec.skill.name, path: record.spec.skill.path }],
-        approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd: record.root,
+        approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd,
         sandboxPolicy: { type: 'workspaceWrite', writableRoots: record.spec.writableRoots, networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false } });
-      if (typeof result.turn?.id !== 'string') throw new Error('Codex 未傳回有效的 turn 識別，請先核對結果。');
-      record.turnId = result.turn.id; record.dispatchPending = false; record.pendingMessage = undefined;
+      if (typeof dispatched.turn?.id !== 'string') throw new Error('Codex 未傳回有效的 turn 識別，請先核對結果。');
+      record.turnId = dispatched.turn.id; record.dispatchPending = false; record.pendingMessage = undefined;
       record.pendingMessageIsUser = undefined;
       await this.save(record);
       await finished;
+      if (active.turnStatus !== 'completed' || active.abort.signal.aborted) break;
+      const result = await this.options.completed?.(record.spec, record.id,
+        mergeCodexTranscript(this.histories.get(record.id)?.items ?? [], this.outputs.get(record.id) ?? []));
+      if (result) record.result = result;
+      if (active.abort.signal.aborted) break;
+      if (record.spec.origin?.kind !== 'issue' || result?.state !== 'needs-work' || round === 2) { record.status = 'completed'; break; }
+      message = `${result.summary}\n請沿用原 Issue 與工作分支，接續 BMAD 的實作及測試。已有規格時直接接續 Build；修正失敗測試並以實際命令驗證。不得自動提交、推送或建立 MR。`;
       }
-      if ((record.status as CodexTaskState['status']) === 'completed') await this.options.completed?.(record.spec);
+      }
+      if (record.spec.routing && (record.status as CodexTaskState['status']) === 'completed') {
+        const result = await this.options.completed?.(record.spec, record.id, this.outputs.get(record.id) ?? []);
+        if (result) record.result = result;
+      }
     } catch (error) {
-      if (record.spec.routing && (record.status as CodexTaskState['status']) === 'failed') record.error = this.errorText(error);
+      if (error && typeof error === 'object' && 'workflowCleanupUncertain' in error) active.cleanupFailed = true;
+      if (record.spec.origin && active.turnStatus === 'completed' && !active.abort.signal.aborted && !active.cleanupFailed) {
+        record.status = 'completed'; record.error = this.errorText(error);
+        record.result = { state: 'needs-work', summary: `成果尚未就緒：${record.error}` };
+      }
+      else if (record.spec.routing && (record.status as CodexTaskState['status']) === 'failed') record.error = this.errorText(error);
       else if ((record.status as CodexTaskState['status']) === 'completed') record.error = 'Codex 本輪已完成，但工作台資料更新失敗；請手動更新產物狀態。';
       else if (record.status !== 'uncertain') { record.status = active.abort.signal.aborted ? 'pausing' : sent || record.dispatchPending ? 'uncertain' : 'failed'; record.error = active.abort.signal.aborted ? undefined : this.errorText(error); }
     } finally {
       this.clearInteractions(record.id);
-      if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing ? 30_000 : 5000).catch(() => { record.status = 'uncertain'; record.error = 'Codex 程序停止結果待核對。'; }); }
+      if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing || record.spec.workflow ? 30_000 : 5000).catch(() => { record.status = 'uncertain'; record.error = 'Codex 程序停止結果待核對。'; }); }
       await active.cancellation?.catch(() => {});
       // A new thread has no durable conversation before its first dispatch.
       // Pausing during setup must allow the original input to start once later.
@@ -309,6 +368,10 @@ export class CodexBridge {
       try {
         if (active.cleanupFailed) await lease?.quarantine(); else await lease?.release(sent);
       } catch { record.status = 'uncertain'; record.error = 'Codex 工作區鎖尚未釋放，請先核對程序狀態。'; }
+      for (const extra of repositoryLeases) {
+        try { if (active.cleanupFailed || record.status === 'uncertain') await extra.quarantine(); else await extra.release(); }
+        catch { record.status = 'uncertain'; record.error = 'Repo 執行鎖尚未釋放，請先核對程序狀態。'; }
+      }
       if (active.stopAs && record.status !== 'uncertain') record.status = active.stopAs;
       if (this.active === active) this.active = undefined;
       await this.save(record).catch(() => { this.emit({ kind: 'environment', environment: { state: 'blocked', message: 'Codex 任務紀錄無法保存；請先核對結果。' } }); });
@@ -344,7 +407,7 @@ export class CodexBridge {
           // A fresh reviewer context prevents the assessment's stop condition
           // from carrying into semantic review. A paused reviewer at the same
           // effort keeps its conversation and the native session identity.
-          const started = await client.request('thread/start', { cwd: record.root, model: routingModel,
+          const started = await client.request('thread/start', { cwd: record.spec.executionRoot ?? record.root, model: routingModel,
             approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write', developerInstructions: binding.reviewerInstructions });
           if (typeof started.thread?.id !== 'string') throw new Error('Codex 未傳回有效的 reviewer thread 識別。');
           record.routingThreadIds = [...new Set([...(record.routingThreadIds ?? []), record.threadId!, started.thread.id])];
@@ -401,7 +464,7 @@ export class CodexBridge {
     this.active!.unmaterializedThreadId = undefined;
     const result = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: randomUUID(), input,
       model: routingModel, effort, ...(phase === 'assess' ? { outputSchema: routingAssessmentOutputSchema } : {}),
-      approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd: record.root,
+      approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd: record.spec.executionRoot ?? record.root,
       sandboxPolicy: { type: 'workspaceWrite', writableRoots: record.spec.writableRoots, networkAccess: false,
         excludeTmpdirEnvVar: false, excludeSlashTmp: false } });
     if (typeof result.turn?.id !== 'string') throw new Error('Codex 未傳回有效的路由回合識別，請先核對結果。');
@@ -414,7 +477,7 @@ export class CodexBridge {
     if (!this.records.has(record.id)) return;
     const params = message.params ?? {};
     if (params.threadId && params.threadId !== record.threadId) return;
-    const eventTurnId = params.turnId ?? (record.spec.routing ? params.turn?.id : undefined);
+    const eventTurnId = params.turnId ?? params.turn?.id;
     if (eventTurnId && record.turnId && eventTurnId !== record.turnId) return;
     if (message.method === 'turn/started') {
       record.turnId = params.turn?.id;
@@ -443,7 +506,7 @@ export class CodexBridge {
     }
     if (message.method === 'turn/completed') {
       if (this.active) this.active.turnStatus = params.turn?.status;
-      if (!this.active?.stopAs) record.status = params.turn?.status === 'completed' ? record.spec.routing ? 'running' : 'completed' : params.turn?.status === 'interrupted' ? 'interrupted' : 'failed';
+      if (!this.active?.stopAs) record.status = params.turn?.status === 'completed' ? record.spec.routing || record.spec.origin?.kind === 'issue' ? 'running' : 'completed' : params.turn?.status === 'interrupted' ? 'interrupted' : 'failed';
       for (const item of params.turn?.items ?? []) {
         const output = projectCodexItem(record.threadId, params.turn?.id ?? record.turnId, item, true); if (output) this.output(record.id, output);
       }
@@ -590,6 +653,7 @@ export class CodexBridge {
   }
   private async resumeNow(id: string, pending?: string): Promise<void> {
     const record = this.record(id);
+    if (record.result?.state === 'uncertain') throw new Error('請先核對 Wiki 發布結果，再接續修改草稿。');
     if (codexTaskActive(record.status) || record.status === 'queued' || this.active?.record.id === id) throw new Error('此任務已在執行、清理或排隊。');
     const prepared = await this.options.prepare(record.spec.source, record.spec);
     if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root) throw new Error('原任務的專案或 Skills 已變更，請從功能頁重新確認。');
@@ -621,7 +685,7 @@ export class CodexBridge {
             catch { record.error = '中斷結果待核對。'; }
           }
           // Keep workspace admission until both the process and helper have stopped.
-          if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing ? 30_000 : 5000); }
+          if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing || record.spec.workflow ? 30_000 : 5000); }
           if (record.spec.review) await this.options.cancelReview?.(record.spec);
         } catch {
           active.cleanupFailed = true;

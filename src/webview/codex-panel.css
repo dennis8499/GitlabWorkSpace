@@ -49,6 +49,16 @@
 .codex-routing { margin: 6px 18px; max-height: 100px; overflow: auto; flex: 0 0 auto; }
 .codex-empty { overflow: auto; padding: 24px; }
 .codex-settings { margin-top: 18px; }
+.codex-workflow-launch { min-width: 0; margin: 10px 0; overflow-wrap: anywhere; }
+.codex-workflow-launch.compact { margin: 0; }
+.codex-workflow-launch p { margin: 6px 0; }
+.codex-workflow-result { flex: 0 1 auto; min-height: 0; max-height: 45vh; overflow: auto; padding: 8px 18px; border-bottom: 1px solid var(--vscode-panel-border); overflow-wrap: anywhere; }
+.codex-workflow-result p { margin: 6px 0; }
+.codex-workflow-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; font-family: var(--vscode-editor-font-family, monospace); }
+.codex-workflow-result select { width: 100%; min-width: 0; }
+.codex-workflow-result label { display: block; margin: 8px 0; }
+.codex-workflow-result summary { cursor: pointer; }
+.codex-linked-report pre { max-height: 350px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .codex-announcement { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 20px; font-size: .9rem; color: var(--vscode-descriptionForeground); }
 .codex-announcement:empty { display: none; }
 .codex-nav-count { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 10px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: .85rem; }

@@ -48,6 +48,7 @@ rl.on('line', line => {
     else send({ id, result });
     return;
   }
+  if (method === 'skills/extraRoots/set') { send({ id, result: {} }); return; }
   if (method === 'model/list') {
     const efforts = mode === 'routing-max-missing' ? ['low', 'medium', 'high', 'xhigh'] : ['low', 'medium', 'high', 'xhigh', 'max'];
     send({ id, result: { data: mode === 'routing-model-missing' || mode === 'routing-page' && !params.cursor ? [] : [

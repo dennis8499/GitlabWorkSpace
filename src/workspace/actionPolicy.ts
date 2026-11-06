@@ -17,6 +17,8 @@ export interface ActionPolicy {
 // produce further lifecycle messages or notifications.
 export const workspaceActionKinds = {
   startCodexTask: 'write', listCodexTasks: 'control', codexHistory: 'read', sendCodexMessage: 'write',
+  showCodexTask: 'read', readCodexResult: 'read', openCodexOrigin: 'read', openCodexChanges: 'read',
+  previewProjectWiki: 'read', publishProjectWiki: 'write', publishCodexReview: 'write',
   cancelCodexTask: 'control', resumeCodexTask: 'write', answerCodex: 'write', checkCodex: 'read', configureCodex: 'write',
   pauseCodexTask: 'control', deleteCodexTask: 'write', setCodexAutoAccept: 'control',
   ready: 'control',
@@ -226,6 +228,8 @@ export const quickActionKinds = {
 
 export const operationLabels: Record<string, string> = {
   startCodexTask: '啟動 Codex 任務', sendCodexMessage: '傳送 Codex 訊息', resumeCodexTask: '續作 Codex 任務',
+  showCodexTask: '查看 Codex 任務', readCodexResult: '讀取任務成果', openCodexOrigin: '返回任務來源', openCodexChanges: '檢視 Issue 修改',
+  previewProjectWiki: '預覽 GitLab Wiki', publishProjectWiki: '發布 GitLab Wiki', publishCodexReview: '發布審查留言',
   pauseCodexTask: '暫停 Codex 任務', deleteCodexTask: '刪除 Codex 任務紀錄', setCodexAutoAccept: '設定 Auto-Accept', openCodex: '開啟 Codex',
   answerCodex: '回覆 Codex', codexHistory: '讀取 Codex 對話', checkCodex: '檢查 Codex', configureCodex: '設定 Codex',
   checkWorkflowKitReleases: '檢查最新正式版',
@@ -248,6 +252,7 @@ const connectionActions = new Set(['connect', 'addAccount', 'disconnect', 'switc
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
 const localWorkspaceActions = new Set([
+  'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'publishProjectWiki', 'publishCodexReview',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex',
   'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
@@ -336,7 +341,8 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (request.type === 'cancelRepositoryDetails' || request.type === 'reconcileOperations') kind = 'control';
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
-  else if (['startCodexTask', 'sendCodexMessage', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'cancelCodexTask', 'codexHistory', 'checkCodex', 'configureCodex'].includes(action)) { resourceKey = 'codex:' + (request.taskId ?? 'queue'); slot = resourceKey + ':' + action; }
+  else if (['startCodexTask', 'sendCodexMessage', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'cancelCodexTask', 'codexHistory', 'checkCodex', 'configureCodex', 'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'publishProjectWiki'].includes(action)) { resourceKey = 'codex:' + (request.taskId ?? 'queue'); slot = resourceKey + ':' + action; }
+  else if (action === 'publishCodexReview') resourceKey = 'codex-review:' + request.taskId;
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;
   else if (action === 'loadReviewerCapabilities') { resourceKey = 'review-capabilities:' + request.tool; slot = resourceKey; }
   else if (['loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport'].includes(action)) resourceKey = 'review:' + request.tool + ':' + (request.requestId ?? 'sessions');

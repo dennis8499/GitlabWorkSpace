@@ -6,10 +6,13 @@ import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
 import { VirtualRows } from './VirtualRows';
 import { FeatureButton } from './FeatureNotice';
 import { blockedWhen } from './featureAvailability';
+import type { CodexTaskState } from '../codex/protocol';
+import { CodexWorkflowLaunch } from './CodexWorkflow';
 const repositoryKey = (repository: ScannedRepository) => repository.path;
 
-export function LocalRepositoriesPanel({ repositories, scan, projects, post }: {
+export function LocalRepositoriesPanel({ repositories, scan, projects, post, codexTasks = [], connected = false }: {
   repositories: ScannedRepository[]; scan?: RepositoryScanState; projects: GitLabProject[]; post: (request: WorkspaceRequest) => void;
+  codexTasks?: CodexTaskState[]; connected?: boolean;
 }) {
   const [search, setSearch] = useState('');
   const visible = useMemo(() => repositories.filter(repository => (repository.name + ' ' + repository.path).toLocaleLowerCase().includes(search.toLocaleLowerCase())), [repositories, search]);
@@ -20,7 +23,7 @@ export function LocalRepositoriesPanel({ repositories, scan, projects, post }: {
     <p role="status">{scanning ? `掃描中：已檢查 ${scan.checkedDirectories} 個資料夾，找到 ${scan.repositories.length} 個 Repo。` : scan?.status === 'cancelled' ? '掃描已取消，已取得的結果保留。' : scan?.status === 'completed' ? `掃描完成：找到 ${scan.repositories.length} 個 Repo。` : scan?.status === 'error' ? '掃描未完成，請查看下方錯誤後重試。' : '顯示 VS Code Git 已辨識的 Repo；一鍵掃描可補齊工作區中的其他 Repo。'}</p>
     <p class="subtle">掃描略過：{(scan?.excludes ?? ['.git', 'node_modules', '.venv']).join('、')}。可在 VS Code 的 GitLab Workspace 設定調整。</p>
     {scan?.canResume && <div class="section-status" role="status"><span>{scan.pausedReason ?? '掃描已暫停，已取得的結果保留。'} 待掃描 {scan.remainingDirectories ?? 0} 個資料夾。</span><button type="button" disabled={scanning} onClick={() => post({ type: 'scanRepositories', resume: true })}>繼續掃描</button></div>}
-    <VirtualRows resetKey={search} className="repo-list local-repo-list" items={visible} itemKey={repositoryKey} estimateHeight={96} renderItem={repository => <div class="repo-row local-repo-row"><span class="repo-details"><strong>{repository.name}</strong><small>{repository.path}</small><small>{repository.projectIds?.length ? repository.projectIds.map(id => projectNames.get(id)).filter(Boolean).join('、') : '未匹配目前 GitLab Group 的專案'}</small>{repository.registrationError && <small role="alert">{repository.registrationError}</small>}</span><span class={`pill ${repository.repositoryId ? 'success' : 'danger'}`}>{repository.repositoryId ? 'VS Code 已登錄' : 'Git 未登錄'}</span><FeatureButton type="button" blocker={blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>開啟版控</FeatureButton></div>} />
+    <VirtualRows resetKey={search} className="repo-list local-repo-list" items={visible} itemKey={repositoryKey} estimateHeight={96} renderItem={repository => <div class="repo-row local-repo-row"><span class="repo-details"><strong>{repository.name}</strong><small>{repository.path}</small><small>{repository.projectIds?.length ? repository.projectIds.map(id => projectNames.get(id)).filter(Boolean).join('、') : '未匹配目前 GitLab Group 的專案'}</small>{repository.registrationError && <small role="alert">{repository.registrationError}</small>}</span><span class={`pill ${repository.repositoryId ? 'success' : 'danger'}`}>{repository.repositoryId ? 'VS Code 已登錄' : 'Git 未登錄'}</span><FeatureButton type="button" blocker={blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>開啟版控</FeatureButton>{connected && repository.projectIds?.length === 1 && projectNames.has(repository.projectIds[0]) && <CodexWorkflowLaunch compact tasks={codexTasks} source={{ kind: 'project-wiki', projectId: repository.projectIds[0] }} post={post} />}</div>} />
     {!visible.length && <p class="empty-inline">{search ? '沒有符合條件的本機 Repo。' : '尚未找到本機 Repo。請開啟工作區後按「一鍵掃描 Repo」。'}</p>}
     {!!scan?.errors.length && <details class="scan-errors"><summary>{scan.errors.length} 項掃描錯誤</summary>{scan.errors.map(error => <p><strong>{error.path}</strong><br />{error.message}</p>)}</details>}
   </section>;

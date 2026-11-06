@@ -76,6 +76,7 @@ export class GitLabWriteUnknownError extends Error {
 }
 
 import type { IssueCreateInput, IssueUpdateInput, GitLabIssueCapabilities, GitLabWorkItemScope, GitLabMergeRequestCreateInput } from './requestTypes';
+import type { GitLabWikiPage } from './types';
 export type { IssueCreateInput, IssueUpdateInput, GitLabIssueCapabilities, GitLabWorkItemScope, GitLabMergeRequestCreateInput } from './requestTypes';
 
 export class GitLabConflictError extends Error {
@@ -596,6 +597,34 @@ export class GitLabClient {
 
   createMergeRequestNote(projectId: number, iid: number, body: string): Promise<GitLabIssueNote> {
     return this.postJson<GitLabIssueNote>(`${this.projectPath(projectId)}/merge_requests/${iid}/notes`, { body });
+  }
+
+  listProjectWikiPages(projectId: number): Promise<GitLabWikiPage[]> {
+    return this.getPages<GitLabWikiPage>(`${this.projectPath(projectId)}/wikis?with_content=1&per_page=100`);
+  }
+
+  getProjectWikiPage(projectId: number, slug: string): Promise<GitLabWikiPage> {
+    return this.getJson<GitLabWikiPage>(`${this.projectPath(projectId)}/wikis/${encodeURIComponent(this.wikiSlug(slug))}`);
+  }
+
+  createProjectWikiPage(projectId: number, slug: string, content: string): Promise<GitLabWikiPage> {
+    return this.postJson<GitLabWikiPage>(`${this.projectPath(projectId)}/wikis`, this.wikiPayload(slug, content));
+  }
+
+  updateProjectWikiPage(projectId: number, slug: string, content: string): Promise<GitLabWikiPage> {
+    return this.putJson<GitLabWikiPage>(`${this.projectPath(projectId)}/wikis/${encodeURIComponent(this.wikiSlug(slug))}`, this.wikiPayload(slug, content));
+  }
+
+  private wikiSlug(slug: string): string {
+    if (!slug || slug.length > 1024 || /[\\?#]/.test(slug) || [...slug].some(character => character.charCodeAt(0) < 32) || slug.split('/').some(part => !part || part === '.' || part === '..')) {
+      throw new GitLabApiError('Wiki page path is invalid.');
+    }
+    return slug;
+  }
+
+  private wikiPayload(slug: string, content: string): Record<string, string> {
+    if (typeof content !== 'string' || !content.trim() || content.length > 128_000) throw new GitLabApiError('Wiki content must contain 1 to 128,000 characters.');
+    return { title: this.wikiSlug(slug), content, format: 'markdown' };
   }
 
   replyToMergeRequestDiscussion(projectId: number, iid: number, discussionId: string, body: string): Promise<GitLabIssueNote> {

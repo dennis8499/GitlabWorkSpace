@@ -38,6 +38,19 @@ export class CodexTaskStore {
       }
       if (value.review) value.review.requestId = canonicalReviewRequestId(value.review.requestId);
       if (value.spec.review) value.spec.review.requestId = canonicalReviewRequestId(value.spec.review.requestId);
+      if (value.spec.origin || value.spec.workflow || value.spec.executionRoot) {
+        const origin = value.spec.origin, workflow = value.spec.workflow;
+        if (!origin || !workflow || !['issue', 'project-wiki', 'merge-request'].includes(origin.kind) || value.spec.source.kind !== origin.kind ||
+          !/^[a-f0-9-]{32,36}$/i.test(workflow.id) || !path.isAbsolute(workflow.runtimeRoot) ||
+          workflow.sourceRoot !== undefined && !path.isAbsolute(workflow.sourceRoot) ||
+          !value.spec.executionRoot || !path.isAbsolute(value.spec.executionRoot) || !path.isAbsolute(origin.repositoryRoot) ||
+          typeof origin.accountKey !== 'string' || !origin.accountKey || typeof origin.baseUrl !== 'string' ||
+          !Number.isSafeInteger(origin.projectId) || origin.projectId < 1 || typeof origin.sourceBranch !== 'string' ||
+          !/^[a-f0-9]{40,64}$/.test(origin.sourceSha) || origin.kind === 'issue' && (!origin.branch || !Number.isSafeInteger(origin.iid)) ||
+          origin.kind === 'merge-request' && (!Number.isSafeInteger(origin.iid) || !origin.targetBranch || !/^[a-f0-9]{40,64}$/.test(origin.targetSha ?? ''))) {
+          throw new Error('Codex 任務來源或執行綁定格式無效。');
+        }
+      }
       const routing = value.spec.routing;
       if (routing) {
         if (!value.spec.review || routing.tool !== value.spec.review.tool || routing.requestId !== value.spec.review.requestId ||
@@ -84,7 +97,7 @@ export class CodexTaskStore {
       if (await this.isDeleted(id)) return;
       const record = (await this.load()).find(value => value.id === id);
       if (!record) return;
-      if (codexTaskActive(record.status) || ['queued', 'uncertain'].includes(record.status)) throw new Error('請先暫停任務並確認清理完成，再刪除紀錄。');
+      if (codexTaskActive(record.status) || ['queued', 'uncertain'].includes(record.status) || record.result?.state === 'uncertain') throw new Error('請先暫停任務並確認清理及發布結果，再刪除紀錄。');
       await atomicNetworkJson(path.join(this.directory, id + '.deleted.json'), {
         schema: 'GitLabWorkspaceCodexDeleted/v1', id, deletedAt: new Date().toISOString()
       });

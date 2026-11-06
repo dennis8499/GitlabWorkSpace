@@ -1,10 +1,15 @@
 import type { BmadCommandRequest } from '../workspace/bmadProtocol';
 import type { ReviewerToolId } from '../workspace/reviewSessionProtocol';
 import type { ModelRoutingBinding, ModelRoutingSummary } from './modelRoutingProtocol';
+import type { CodexTaskOrigin, CodexTaskResult, CodexWorkflowBinding } from './workflowProtocol';
+export type { CodexTaskOrigin, CodexTaskResult } from './workflowProtocol';
 
 export type CodexTaskSource =
   | { kind: 'skill'; featureId: string; inputs: Record<string, string>; revision: string }
   | { kind: 'bmad'; request: BmadCommandRequest }
+  | { kind: 'issue'; projectId: number; issueIid: number }
+  | { kind: 'project-wiki'; projectId: number }
+  | { kind: 'merge-request'; projectId: number; iid: number }
   | { kind: 'review'; action: 'resume' | 'refresh'; tool: ReviewerToolId; requestId: string; revision: string };
 export interface CodexTaskSpec {
   source: CodexTaskSource;
@@ -17,6 +22,9 @@ export interface CodexTaskSpec {
   environmentKey: string;
   review?: { tool: ReviewerToolId; requestId: string; revision: string };
   routing?: ModelRoutingBinding;
+  executionRoot?: string;
+  origin?: CodexTaskOrigin;
+  workflow?: CodexWorkflowBinding;
 }
 export type CodexTaskStatus = 'queued' | 'starting' | 'running' | 'waiting' | 'pausing' | 'paused' | 'completed' | 'failed' | 'interrupted' | 'uncertain';
 export interface CodexTaskControls {
@@ -41,6 +49,8 @@ export interface CodexTaskState {
   review?: CodexTaskSpec['review'];
   modelRouting?: ModelRoutingSummary;
   controls?: CodexTaskControls;
+  origin?: CodexTaskOrigin;
+  result?: CodexTaskResult;
 }
 export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
   schema: 'GitLabWorkspaceCodexTask/v1';
@@ -101,6 +111,6 @@ export function canonicalReviewRequestId(value: string): string {
   return result;
 }
 export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
-  const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting } = record;
-  return { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting };
+  const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, result } = record;
+  return { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin, result };
 }

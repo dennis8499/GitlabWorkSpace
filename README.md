@@ -32,6 +32,7 @@
 - Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset；Git 狀態通知只標記快取失效，外部變更可重新進入版控或手動更新後查看。
 - Git 版控可在未連線 GitLab 時使用；原生側欄顯示分支、變更摘要與完整路徑，點 Repo 開啟含標籤、Stash 及進階操作的 Git 工作台。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
+- Issue 預覽與詳情可按「使用 Codex 開發」，自動建立 Issue 分支，由 BMAD 接續實作與測試，再從原 Issue 檢視差異及人工提交。專案列可建立 GitLab Wiki，先預覽再發布；MR 詳情可一鍵 Code Review，自動回填報告及留言草稿。這三個入口需要 Codex CLI 0.166.0+，原有 Skills 與 BMAD 入口保留。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，可按「使用 Codex 執行」直接在工作台啟動，或複製後自行執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；審查不建立子 Agent，並在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
@@ -45,6 +46,15 @@
 Codex 一鍵執行、設定與任務恢復見 [Codex Bridge 操作說明](docs/codex-bridge.md)。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
+
+## 0.41.0 更新
+
+- 從 Issue 直接啟動 BMAD 開發與測試，建立獨立分支，從原 Issue 查看成果及差異。
+- 從專案建立固定 SHA 的 Wiki 草稿，預覽後發布至 GitLab Wiki，支援逐頁收據、衝突檢查及逾時對帳。
+- MR 提供一鍵 Code Review，回填原生審查報告及留言草稿，發布前重新核對來源與目標版本。
+- 保留原有 Skills、BMAD 進階入口，以及手動提交、推送與發布操作。
+
+完整變更、使用需求與實機驗收限制見 [0.41.0 發布說明](docs/releases/v0.41.0.md)。
 
 ## 0.39.0 更新
 

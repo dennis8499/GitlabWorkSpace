@@ -113,10 +113,16 @@ const json: Check = value => {
 const taskSource: Check = value => record(value) && (
   value.kind === 'skill' ? object({ kind: one('skill'), featureId: identity, inputs: dictionary(text, 100), revision: key })(value)
     : value.kind === 'bmad' ? object({ kind: one('bmad'), request: object(bmad) })(value)
-      : value.kind === 'review' && object({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
+      : value.kind === 'issue' ? object({ kind: one('issue'), projectId: id, issueIid: id })(value)
+        : value.kind === 'project-wiki' ? object({ kind: one('project-wiki'), projectId: id })(value)
+          : value.kind === 'merge-request' ? object({ kind: one('merge-request'), projectId: id, iid: id })(value)
+            : value.kind === 'review' && object({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
 
 export const workspaceRequestSchemas = {
   startCodexTask: { source: taskSource }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key) },
+  showCodexTask: { taskId: identity }, readCodexResult: { taskId: identity }, openCodexOrigin: { taskId: identity }, openCodexChanges: { taskId: identity },
+  previewProjectWiki: { taskId: identity, refresh: optional(boolean), confirmRetry: optional(boolean) },
+  publishProjectWiki: { taskId: identity, revision: identity }, publishCodexReview: { taskId: identity, body: string(50000, 1) },
   sendCodexMessage: { taskId: identity, text }, cancelCodexTask: { taskId: identity }, resumeCodexTask: { taskId: identity },
   pauseCodexTask: { taskId: identity }, deleteCodexTask: { taskId: identity }, setCodexAutoAccept: { taskId: identity, enabled: boolean },
   answerCodex: { taskId: identity, interactionId: identity, answer: object({ decision: one('accept', 'decline', 'cancel'), answers: optional(dictionary(string(8000), 100)), content: optional(json) }) },

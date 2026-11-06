@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import os from 'node:os';
 import path from 'node:path';
 import { CodexAppServer } from '../../src/codex/appServer';
-import { CodexBridge, validateForm } from '../../src/codex/bridge';
+import { CodexBridge, validateForm, type CodexBridgeOptions } from '../../src/codex/bridge';
 import { CodexTaskStore, codexRootKey } from '../../src/codex/taskStore';
 import { networkRuntimeRoot } from '../../src/api/localNetworkLease';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
@@ -38,7 +38,7 @@ test('Codex rejects malformed output, deadlines and exited processes', async () 
     finally { await client.close(); }
   }
 });
-async function setup(t: { after(fn: () => Promise<void>): void }, prompt = 'success', mode = '') {
+async function setup(t: { after(fn: () => Promise<void>): void }, prompt = 'success', mode = '', hooks: Partial<Pick<CodexBridgeOptions, 'started' | 'completed'>> = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'codex-bridge-'));
   const skill = path.join(root, '.agents/skills/codebase-wiki/SKILL.md');
   await mkdir(path.dirname(skill), { recursive: true }); await writeFile(skill, 'offline test Skill');
@@ -47,6 +47,7 @@ async function setup(t: { after(fn: () => Promise<void>): void }, prompt = 'succ
     prompt, skill: { name: 'codebase-wiki', path: skill }, writableRoots: [root], environmentKey: 'environment' };
   let trusted = true, changed = false;
   const make = (storage = root) => new CodexBridge({ storage, version: 'test', executable: () => '', trusted: () => trusted,
+    ...hooks,
     prepare: async () => ({ ...spec, environmentKey: changed ? 'changed' : 'environment' }), event: event => events.push(event), openUrl: async () => {},
     client: async () => {
       const client = peer(root, 3000, mode); const request = client.request.bind(client);
@@ -61,6 +62,67 @@ async function setup(t: { after(fn: () => Promise<void>): void }, prompt = 'succ
   return { root, spec, bridge, events, requests, responses, change: () => { changed = true; }, restore: () => { changed = false; }, untrust: () => { trusted = false; },
     second: () => { const value = make(path.join(root, 'second')); bridges.push(value); return value; } };
 }
+function linkIssue(spec: CodexTaskSpec): void {
+  spec.source = { kind: 'issue', projectId: 1, issueIid: 2 }; spec.executionRoot = spec.root;
+  spec.origin = { kind: 'issue', accountKey: 'test', baseUrl: 'https://gitlab.test', projectId: 1, iid: 2, projectPath: 'team/project',
+    repositoryRoot: spec.root, webUrl: 'https://gitlab.test/team/project/-/issues/2', sourceBranch: 'main', sourceSha: 'a'.repeat(40), branch: 'issue/2-development' };
+  spec.workflow = { id: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', runtimeRoot: path.join(spec.root, 'runtime'), remote: 'origin' };
+}
+
+test('Issue workflow continues from specification to verified implementation and only publishes the final completed state', async t => {
+  let turns = 0;
+  const f = await setup(t, 'success', '', { completed: async () => ++turns === 1
+    ? { state: 'needs-work', summary: 'Only a specification exists.' } : { state: 'ready', summary: 'Implementation and tests verified.' } });
+  linkIssue(f.spec); await f.bridge.enqueue(f.spec, 'issue-workflow');
+  await until(() => f.bridge.list()[0]?.status === 'completed');
+  assert.equal(turns, 2); assert.equal(f.bridge.list()[0].result?.state, 'ready');
+  assert.equal(f.requests.filter(request => request.method === 'turn/start').length, 2);
+  assert.ok(f.requests.some(request => request.method === 'skills/extraRoots/set'));
+  assert.equal(f.events.filter(event => event.kind === 'tasks' && event.tasks[0]?.status === 'completed').length, 1);
+});
+
+test('Issue handoff remains pausable and never starts another turn after pause', async t => {
+  let entered = false, release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const f = await setup(t, 'success', '', { completed: async () => { entered = true; await held; return { state: 'needs-work', summary: 'Continue Build.' }; } });
+  linkIssue(f.spec); await f.bridge.enqueue(f.spec, 'pausable-issue');
+  await until(() => entered);
+  assert.equal(f.bridge.list()[0].controls?.canPause, true);
+  const pause = f.bridge.pause('pausable-issue');
+  await until(() => f.bridge.list()[0].status === 'pausing'); release(); await pause;
+  await until(() => f.bridge.list()[0].status === 'paused');
+  assert.equal(f.requests.filter(request => request.method === 'turn/start').length, 1);
+});
+
+test('Linked task admission reuses an active task instead of launching another conversation', async t => {
+  const f = await setup(t, 'hold'); linkIssue(f.spec);
+  const first = await f.bridge.enqueue(f.spec, 'first-issue');
+  const second = await f.bridge.enqueue({ ...f.spec }, 'second-issue');
+  assert.equal(second, first); assert.equal(f.bridge.list().length, 1);
+});
+
+test('An artifact collection failure remains actionable after a confirmed completed turn', async t => {
+  const f = await setup(t, 'success', '', { completed: async () => { throw new Error('Draft needs a source link repair.'); } });
+  linkIssue(f.spec); await f.bridge.enqueue(f.spec, 'repair-artifact');
+  await until(() => f.bridge.list()[0]?.status === 'completed');
+  assert.equal(f.bridge.list()[0].result?.state, 'needs-work');
+  assert.match(f.bridge.list()[0].result!.summary, /source link repair/);
+  assert.equal(f.bridge.list()[0].controls?.canResume, true);
+});
+
+test('Unknown publication outcomes retain their record until reconciliation', async t => {
+  const f = await setup(t);
+  await f.bridge.enqueue(f.spec, 'pending-publication'); await until(() => f.bridge.list()[0]?.status === 'completed');
+  await f.bridge.resultAction('pending-publication', async () => ({ state: 'uncertain', summary: 'Verify the remote page.' }));
+  assert.equal(f.bridge.list()[0].controls?.canResume, false);
+  assert.equal(f.bridge.list()[0].controls?.canDelete, false);
+  await assert.rejects(f.bridge.resume('pending-publication'), /核對/);
+  await assert.rejects(f.bridge.delete('pending-publication'), /暫停/);
+  await assert.rejects(new CodexTaskStore(path.join(f.root, 'codex-tasks')).remove('pending-publication'), /發布結果/);
+  await f.bridge.resultAction('pending-publication', async () => ({ state: 'published', summary: 'Remote page confirmed.' }));
+  await f.bridge.delete('pending-publication'); assert.deepEqual(f.bridge.list(), []);
+});
+
 test('Bridge persists acceptance, serializes tasks and keeps business outcomes separate', async t => {
   const f = await setup(t, 'hold');
   await Promise.all([f.bridge.enqueue(f.spec, 'one'), f.bridge.enqueue(f.spec, 'one')]);

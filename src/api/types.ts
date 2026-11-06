@@ -90,12 +90,21 @@ export interface GitLabProject {
   ssh_url_to_repo?: string | null;
   default_branch?: string | null;
   empty_repo?: boolean;
+  wiki_enabled?: boolean;
+  wiki_access_level?: 'disabled' | 'private' | 'enabled';
   namespace?: { full_path?: string; name?: string };
   owner?: { id: number } | null;
   permissions?: {
     project_access?: { access_level: number } | null;
     group_access?: { access_level: number } | null;
   };
+}
+
+export interface GitLabWikiPage {
+  slug: string;
+  title: string;
+  content: string;
+  format: string;
 }
 
 export interface GitLabIssue {

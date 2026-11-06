@@ -8,6 +8,7 @@ import { editCodexDraft, restoreCodexUi, retainCodexTasks, settleCodexDrafts, ty
 import { useActionSelector } from './useActions';
 import { CodexSettings, Interaction } from './CodexPanel';
 import './codex-panel.css';
+import { CodexWorkflowResult, type WorkflowPayload } from './CodexWorkflow';
 
 type Post = (request: WorkspaceRequest) => DispatchResult;
 export const codexStatusLabels: Record<CodexTaskState['status'], string> = {
@@ -16,9 +17,9 @@ export const codexStatusLabels: Record<CodexTaskState['status'], string> = {
 };
 
 /** Stays mounted at the dashboard root, independently of the visible workspace page. */
-export function useCodexWorkspace({ post, actions, initialState, onStateChange, onOpen, enabled, visible }: {
+export function useCodexWorkspace({ post, actions, initialState, onStateChange, onOpen, enabled, visible, scope }: {
   post: Post; actions: ActionController; initialState?: CodexUiState; onStateChange(state: CodexUiState): void;
-  onOpen(): void; enabled: boolean; visible: boolean;
+  onOpen(): void; enabled: boolean; visible: boolean; scope?: string;
 }) {
   const [tasks, setTasks] = useState<CodexTaskState[]>([]);
   const [ui, commitUi] = useState(() => restoreCodexUi(initialState));
@@ -36,11 +37,13 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
   const [interactions, setInteractions] = useState<Record<string, CodexInteraction[]>>({});
   const [history, setHistory] = useState<Record<string, { loaded: boolean; older: boolean; nextCursor?: string }>>({});
   const [environment, setEnvironment] = useState<CodexEnvironment>({ state: 'unchecked' });
+  const [results, setResults] = useState<Record<string, WorkflowPayload>>({});
   const [announcement, setAnnouncement] = useState('');
   const statuses = useRef(new Map<string, string>()), requests = useRef(new Set<string>());
   const knownTasks = useRef(new Set<string>());
   const operations = useActionSelector(actions, states => states);
   const restoredPending = useRef(false);
+  const previousScope = useRef(scope);
   useEffect(() => { setUi(current => settleCodexDrafts(current, operations)); }, [operations]);
   useEffect(() => {
     if (!enabled || restoredPending.current) return;
@@ -50,9 +53,15 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     if (pending.length) post({ type: 'reconcileOperations', pendingIds: pending.map(item => item.requestId) });
   }, [enabled]);
   useEffect(() => {
+    if (previousScope.current !== scope) {
+      previousScope.current = scope;
+      setTasks(current => current.filter(task => !task.origin)); setResults({});
+      transcriptCache.current = {}; setItems({}); setInteractions({}); setHistory({});
+    }
     if (!enabled) return;
     const listener = (event: MessageEvent<WorkspaceResponse>) => {
       const message = event.data;
+      if (message?.type === 'codexWorkflowResult') { setResults(current => ({ ...current, [message.taskId]: { ...current[message.taskId], ...message } })); return; }
       if (message?.type === 'codexTaskStarted') {
         setUi(current => ({ ...current, selectedTaskId: message.taskId })); open.current(); return;
       }
@@ -62,6 +71,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         const ids = value.tasks.map(task => task.id), keep = new Set(ids);
         knownTasks.current = keep;
         setTasks(value.tasks); setUi(current => retainCodexTasks(current, ids));
+        setResults(current => Object.fromEntries(Object.entries(current).filter(([id]) => keep.has(id))));
         transcriptCache.current = Object.fromEntries(Object.entries(transcriptCache.current).filter(([id]) => keep.has(id)));
         setItems(transcriptCache.current);
         setInteractions(current => Object.fromEntries(Object.entries(current).filter(([id]) => keep.has(id))));
@@ -89,7 +99,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     };
     window.addEventListener('message', listener); post({ type: 'listCodexTasks' });
     return () => window.removeEventListener('message', listener);
-  }, [enabled]);
+  }, [enabled, scope]);
   const select = (id: string) => setUi(current => ({ ...current, selectedTaskId: id }));
   const submit = () => {
     const taskId = uiRef.current.selectedTaskId, draft = taskId ? uiRef.current.drafts[taskId] : undefined;
@@ -103,7 +113,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
       taskId, text: draft.text, draftRevision: draft.revision
     } } }, actions.getSnapshot()));
   };
-  return { tasks, ui, items, interactions, history, environment, announcement, select, submit, post,
+  return { tasks, ui, items, interactions, history, environment, announcement, select, submit, post, results,
     edit: (id: string, text: string) => setUi(current => editCodexDraft(current, id, text)),
     read: (id: string, top: number, follow: boolean) => setUi(current => ({ ...current, reading: { ...current.reading, [id]: { top, follow } } })),
     activeCount: tasks.filter(task => codexTaskActive(task.status) || task.status === 'queued').length,
@@ -152,22 +162,24 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
       {c.tasks.map(value => <button type="button" key={value.id} class={value.id === selected ? 'active' : ''}
         aria-current={value.id === selected ? 'true' : undefined} onClick={() => c.select(value.id)}>
         <strong>{value.title}</strong><span>{codexStatusLabels[value.status]}{value.controls?.external ? ' · 其他視窗' : ''}</span>
-        <small class="codex-root">{value.root}</small><small>{new Date(value.createdAt).toLocaleString()}</small>
+        <small class="codex-root">{value.origin?.repositoryRoot ?? value.root}</small><small>{new Date(value.createdAt).toLocaleString()}</small>
       </button>)}
     </nav>
     <section class="codex-conversation" aria-label="Codex 對話">{task ? <>
-      <header class="codex-task-heading"><div><h2>{task.title}</h2><p class="codex-root">{task.root}</p></div><span role="status">{codexStatusLabels[task.status]}</span></header>
+      <header class="codex-task-heading"><div><h2>{task.title}</h2><p class="codex-root">{task.origin?.repositoryRoot ?? task.root}</p></div><span role="status">{codexStatusLabels[task.status]}</span></header>
       <div class="codex-controls" role="group" aria-label="任務控制">
         {(codexTaskActive(task.status) || task.status === 'queued')
           ? <button class="primary" type="button" disabled={!task.controls?.canPause} aria-busy={task.status === 'pausing'} onClick={() => post({ type: 'pauseCodexTask', taskId: task.id })}>{task.status === 'pausing' ? '暫停中…' : '暫停'}</button>
           : <button class="primary" type="button" disabled={!task.controls?.canResume} onClick={() => post({ type: 'resumeCodexTask', taskId: task.id })}>{task.status === 'completed' ? '接續' : '恢復'}</button>}
         <label class="codex-auto-accept"><input type="checkbox" checked={task.controls?.autoAccept ?? false} disabled={!task.controls?.canAutoAccept}
           onChange={event => post({ type: 'setCodexAutoAccept', taskId: task.id, enabled: event.currentTarget.checked })} />Auto-Accept: {task.controls?.external ? '由原視窗管理' : task.controls?.autoAccept ? 'ON' : 'OFF'}</label>
+        {task.origin && <button type="button" class="quiet" onClick={() => post({ type: 'openCodexOrigin', taskId: task.id })}>返回{task.origin.kind === 'issue' ? ' Issue' : task.origin.kind === 'merge-request' ? ' MR' : '專案'}</button>}
         <button type="button" class="quiet" disabled={!task.threadId || !historyReady && !task.turnId} onClick={() => post({ type: 'codexHistory', taskId: task.id })}>讀取對話</button>
         <button type="button" class="quiet" disabled={!task.controls?.canDelete} title={task.controls?.canDelete ? '保留 Codex 對話、檔案及報告' : '請先暫停並確認清理完成'} onClick={() => post({ type: 'deleteCodexTask', taskId: task.id })}>刪除紀錄</button>
       </div>
       {task.controls?.external && <p class="subtle">任務正在另一個 VS Code 視窗執行，請至原視窗控制。</p>}
       {(task.error || task.controls?.autoAcceptError) && <p class="warning" role="status">{task.error ?? task.controls?.autoAcceptError}</p>}
+      <CodexWorkflowResult task={task} payload={c.results[task.id]} post={post} active={active} />
       {task.modelRouting && <details class="codex-routing"><summary>GPT-6 Luna · {task.modelRouting.effort ?? 'auto'} · {{ assessing: '判斷風險', reviewing: '正式審查', complete: '已產生報告' }[task.modelRouting.phase]}</summary>
         <p>{task.modelRouting.reason}</p>{task.modelRouting.history.map((entry, index) => <p key={index}>{entry.effort}：{entry.reason}</p>)}
         {task.modelRouting.reportPath && <p>報告：{task.modelRouting.reportPath}</p>}</details>}

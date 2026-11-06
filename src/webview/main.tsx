@@ -20,6 +20,8 @@ import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } fro
 import type { ActionAvailability } from '../api/actionAvailability';
 import type { IssueCapability } from '../issues/protocol';
 import './style.css';
+import type { CodexTaskState } from '../codex/protocol';
+import { CodexWorkflowLaunch } from './CodexWorkflow';
 
 function postIssueRequest(message: IssuePanelRequest): void {
   window.dispatchEvent(new CustomEvent<IssuePanelRequest>('workspaceIssueRequest', { detail: message }));
@@ -233,7 +235,8 @@ function IssueTimerPanel({ snapshot, issue, onRequest, timeEdits, onTimeEdit }: 
   </>;
 }
 
-export function IssueView({ active = true, onBack, snapshot, navigation, actions: sharedActions, onWorkspaceRequest, onWorkspaceAction, relationResponses, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit, draftState, onDraftStateChange }: {
+export function IssueView({ codexTasks = [], active = true, onBack, snapshot, navigation, actions: sharedActions, onWorkspaceRequest, onWorkspaceAction, relationResponses, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit, draftState, onDraftStateChange }: {
+  codexTasks?: CodexTaskState[];
   active?: boolean;
   onBack?: () => void;
   snapshot?: WorkspaceSnapshot;
@@ -1062,6 +1065,7 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
       <div class="issue-workspace-layout">
       {snapshot && <aside class="issue-list-panel"><div class="issue-list-heading"><strong>我的工作</strong><button type="button" onClick={() => onWorkspaceAction?.({ type: 'createIssue' })}>＋ 新增</button></div><input aria-label="搜尋 Issue 清單" placeholder="搜尋標題、Repo 或編號…" value={issueSearch} onInput={(event) => updateIssueSearch(event.currentTarget.value)} /><div class="issue-list-items">{<VirtualRows active={active} resetKey={snapshot.connectedScope + ":" + issueSearch} className="issue-list-items" items={workspaceIssues} itemKey={workspaceIssueKey} estimateHeight={68} renderItem={(item) => <button type="button" class={`issue-list-item ${item.project_id === issue.project_id && item.iid === issue.iid ? "selected" : ""}`} onClick={() => onWorkspaceAction?.({ type: "openIssue", projectId: item.project_id, issueIid: item.iid })}><strong>{item.title}</strong><small>{workspaceProjects.get(item.project_id)} #{item.iid}</small></button>} />}{!workspaceIssues.length && <p class="muted small">{snapshot.issues.length ? '找不到符合條件的 Issue。' : '目前清單沒有 Issue。'}</p>}</div></aside>}
       <div class="issue-detail-column">
+      {onWorkspaceAction && snapshot && <CodexWorkflowLaunch tasks={codexTasks} source={{ kind: 'issue', projectId: issue.project_id, issueIid: issue.iid }} post={onWorkspaceAction} disabled={snapshot.workspaceCapabilities?.localProjectOperations.status === 'denied'} />}
       <Tabs prefix="issue-detail" sharedPanel label="Issue 工作區分頁" items={[[ 'content', '內容與討論' ], [ 'relations', '關聯與子工作' ], [ 'time', '工時' ]]} selected={detailTab} onChange={updateDetailTab} />
       <div class="layout" {...tabPanelProps('issue-detail', detailTab, true)}><div class="main-column">
         <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar"><button type="button" {...availabilityProps(noticeScope + '-content', contentBlockers['編輯需求／變更狀態'])} onClick={toggleIssueEditing}>{editing ? '取消編輯' : '編輯需求'}</button><button type="button" {...availabilityProps(noticeScope + '-content', contentBlockers['編輯需求／變更狀態'])} onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button></div></div>

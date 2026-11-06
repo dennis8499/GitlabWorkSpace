@@ -9,6 +9,90 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+function linkedWorkflowTask(kind, patch = {}) {
+  return { id: 'linked-workflow', title: 'Linked work', root: 'C:/workspace/team', status: 'completed',
+    createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z',
+    controls: { canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false },
+    origin: { kind, accountKey: 'account', baseUrl: 'https://gitlab.example.test', projectId: 1, projectPath: 'team/alpha',
+      repositoryRoot: 'C:/workspace/team/alpha', webUrl: 'https://gitlab.example.test/team/alpha', iid: kind === 'issue' ? 1 : 4,
+      sourceBranch: 'feature', sourceSha: gitHead, targetSha: gitParent }, ...patch };
+}
+
+test('Issue preview and detail launch development by identity and reopen the active task without duplicating work', async t => {
+  const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] };
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  document.querySelector('.issue-detail .codex-workflow-launch button').click(); await view.tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'issue', projectId: 1, issueIid: 1 });
+  const task = linkedWorkflowTask('issue', { status: 'running' });
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  const launch = document.querySelector('.issue-detail .codex-workflow-launch button'); assert.equal(launch.textContent, '查看開發任務');
+  launch.click(); await view.tick(); assert.equal(view.requests.findLast(request => request.type === 'showCodexTask').taskId, task.id);
+  assert.equal(view.requests.filter(request => request.type === 'startCodexTask').length, 1);
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } });
+  await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
+  assert.ok(document.querySelector('.issue-embed .codex-workflow-launch button'));
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, status: 'completed', result: { state: 'ready', summary: 'Implementation verified.',
+    files: ['src/main.ts'], tests: [{ command: 'npm test', exitCode: 0 }] } }] } }); await view.tick();
+  assert.match(document.querySelector('.issue-embed .codex-workflow-launch details').textContent, /npm test.*exit 0/);
+});
+
+test('Project Wiki shows a safe preview and sends publication only after the explicit publish action', async t => {
+  const data = snapshot('clone'), view = await mount({ mode: 'clone', projectSource: 'gitlab' }, data);
+  t.after(() => view.dom.window.close()); const document = view.dom.window.document;
+  const launch = document.querySelector('.repo-row .codex-workflow-launch button'); assert.ok(launch); launch.click(); await view.tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'project-wiki', projectId: 1 });
+  const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'generated', summary: 'Draft ready' } });
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } });
+  view.send({ type: 'codexTaskStarted', taskId: task.id }); await view.tick();
+  assert.ok(view.requests.some(request => request.type === 'previewProjectWiki' && request.taskId === task.id));
+  view.send({ type: 'codexWorkflowResult', taskId: task.id, result: task.result, wiki: { id: task.result.draftId, revision: 'previewed-revision',
+    sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha', pages: [{ slug: 'codebase/index', title: 'Overview',
+      action: 'create', published: false, content: '# Overview\n<script>window.wikiInjected=true</script>' }] } }); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'publishProjectWiki').length, 0);
+  assert.equal(view.dom.window.wikiInjected, undefined); assert.match(document.querySelector('.codex-wiki-preview pre').textContent, /<script>/);
+  const publish = [...document.querySelectorAll('.codex-wiki-preview button')].find(button => button.textContent === '發布至 GitLab Wiki');
+  publish.focus(); assert.equal(document.activeElement, publish); publish.click(); await view.tick();
+  const sent = view.requests.findLast(request => request.type === 'publishProjectWiki');
+  assert.equal(sent.taskId, task.id); assert.equal(sent.revision, 'previewed-revision'); assert.equal(sent.content, undefined);
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, controls: { ...task.controls, canResume: false, canDelete: false },
+    result: { ...task.result, state: 'uncertain', summary: 'Verify the timed-out publication.' } }] } });
+  view.send({ type: 'codexWorkflowResult', taskId: task.id, result: { ...task.result, state: 'uncertain' }, wiki: { id: task.result.draftId,
+    revision: 'unknown-publication', error: 'Confirm the remote result.', uncertain: true, sourceBranch: 'main', sourceSha: gitHead,
+    projectPath: 'team/alpha', pages: [{ slug: 'codebase/index', title: 'Overview', action: 'create', published: false, content: '# Overview' }] } });
+  await view.tick();
+  const reconcile = [...document.querySelectorAll('.codex-wiki-preview button')].find(button => button.textContent === '重新預覽／核對結果');
+  assert.equal(reconcile.disabled, false, 'uncertain publication must allow reconciliation'); reconcile.click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'previewProjectWiki').refresh, true);
+  assert.equal(publish.disabled, true);
+  view.sendSnapshot({ ...data, activeAccountId: 'another', instanceUserScope: 'another-user', activeMode: 'codex' }); await view.tick();
+  assert.equal(document.querySelector('.codex-wiki-preview'), null, 'another account cannot see the previous draft');
+});
+
+test('One-click MR review fills its report draft and preserves the task binding through edits and publication', async t => {
+  const data = snapshot('reviewer');
+  const mr = { id: 4, iid: 4, project_id: 1, title: 'Review change', state: 'opened', source_branch: 'feature', target_branch: 'main',
+    web_url: 'https://gitlab.example.test/team/alpha/-/merge_requests/4', diff_refs: { head_sha: gitHead } };
+  data.mergeRequests = [mr]; data.selectedMergeRequest = { request: mr, diffs: [], discussions: [],
+    sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'current', checkedAt: Date.now() }, sourceSha: gitHead, targetSha: gitParent };
+  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close()); const document = view.dom.window.document;
+  document.querySelector('.reviewer-detail .codex-workflow-launch button').click(); await view.tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'merge-request', projectId: 1, iid: 4 });
+  const task = linkedWorkflowTask('merge-request', { result: { state: 'ready', reportPath: 'C:/workspace/team/alpha/review-reports/report.md', summary: 'Review ready' } });
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  assert.ok(view.requests.some(request => request.type === 'readCodexResult' && request.taskId === task.id));
+  view.send({ type: 'codexWorkflowResult', taskId: task.id, result: task.result, report: '# 合併審查\n\nNo blocking findings.' }); await view.tick();
+  [...document.querySelectorAll('.review-tabs button')].find(button => button.textContent === '審查報告').click(); await view.tick();
+  const input = document.querySelector('.reviewer-detail textarea'); assert.match(input.value, /No blocking findings/);
+  input.value += '\nReviewed by developer.'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  [...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '作一般留言發布').click(); await view.tick();
+  const sent = view.requests.findLast(request => request.type === 'publishCodexReview');
+  assert.equal(sent.taskId, task.id); assert.match(sent.body, /Reviewed by developer/);
+  view.sendSnapshot({ ...data, selectedMergeRequest: { ...data.selectedMergeRequest, sourceSha: 'c'.repeat(40), request: { ...mr, diff_refs: { head_sha: 'c'.repeat(40) } } } }); await view.tick();
+  assert.equal([...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '作一般留言發布').disabled, true);
+});
+
 test('persistent navigation exposes all eight modes, follows host navigation and never reads on focus', async t => {
   const data = snapshot('developer');
   const view = await mount({ mode: 'developer' }, data);
@@ -1779,7 +1863,7 @@ test('MR reasons are deduplicated and remain visible with changes or discussion 
     diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead };
   const view = await mount({ mode: 'reviewer', reviewerTab: 'changes' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const branch = [...document.querySelectorAll('button')].find(button => button.textContent === '前往分支審查');
+  const branch = [...document.querySelectorAll('button')].find(button => button.textContent === '手動選擇分支審查');
   const explanation = document.getElementById(branch.getAttribute('aria-describedby'));
   assert.ok(explanation); assert.equal(explanation.closest('[hidden]'), null);
   assert.equal([...document.querySelectorAll('.feature-notice-reason')].filter(item => item.textContent.includes('MR 還有未解決的討論。')).length, 1);
@@ -2768,7 +2852,7 @@ test('MR branch review keeps the selected workspace Repo and carried branches in
     sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } } };
   const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  [...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '前往分支審查').click(); await view.tick();
+  [...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '手動選擇分支審查').click(); await view.tick();
   assert.deepEqual(view.requests.findLast(request => request.type === 'openBranchReview'), { type: 'openBranchReview', projectId: 2, iid: 4 });
   const inputs = { 'merge-repo.repo': 'C:/workspace/team/beta', 'merge-repo.base': 'origin/main', 'merge-repo.head': 'origin/feature/payment' };
   view.send({ type: 'branchReviewReady', revision: 'obsolete-revision', inputs }); await view.tick();
