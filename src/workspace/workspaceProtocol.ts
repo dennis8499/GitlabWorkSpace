@@ -369,6 +369,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'loadMergeRequestSection'; section: 'diffs' | 'discussions'; projectId: number; iid: number }
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
   | { type: 'openBranchReview'; projectId: number; iid: number }
+  | { type: 'prepareCommitReview'; mode: 'commit' | 'mr'; revision: string; repo?: string; projectId?: number; issueIid?: number }
   | { type: 'loadSkillBranches'; repo: string; revision: string; requestId: string }
   | { type: 'loadReviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
   | { type: 'loadReviewSessions'; revision: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
@@ -400,6 +401,7 @@ export type WorkspaceResponse =
   | { type: 'openSettings' }
   | { type: 'operationChanged'; operation: WorkspaceOperationState }
   | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
+  | { type: 'commitReviewReady'; revision: string; mode: 'commit' | 'mr'; inputs: Record<string, string>; notice?: string }
   | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
   | { type: 'skillBranches'; revision: string; repo: string; requestId: string; branches: string[]; error?: string }
   | { type: 'reviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId;

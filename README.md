@@ -34,7 +34,7 @@
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - Issue 預覽與詳情可按「使用 Codex 開發」，自動建立 Issue 分支，由 BMAD 接續實作與測試，再從原 Issue 檢視差異及人工提交。專案列可建立 GitLab Wiki，先預覽再發布；MR 詳情可一鍵 Code Review，自動回填報告及留言草稿。這三個入口需要 Codex CLI 0.166.0+，原有 Skills 與 BMAD 入口保留。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，可按「使用 Codex 執行」直接在工作台啟動，或複製後自行執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；審查不建立子 Agent，並在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
+- 在「Skills 功能指引」選擇 Wiki、MergeReviewer、ReleaseReviewer 或 CommitReviewer；四工具分頁提供分類功能、必要欄位、產出與下一步。提示詞帶入實際工作區及套件版本，可按「使用 Codex 執行」在工作台啟動，或複製後自行執行。合併審查與上版檢查每次指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 追查 Diff 及相關影響，在所選 Repo 的 `review-reports/` 產生報告。CommitReviewer 提供 Commit 草稿與 MR 前檢查，沿用一般 Codex 模型設定，草稿由開發者手動複製。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 「BMAD 開發流程」透過 WorkflowKit 安裝 BMAD 6.12.4。輸入需求後可使用 Codex 一鍵執行，由 BMAD 選擇流程；頁面保留能力參考，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
@@ -323,3 +323,9 @@ Extension 建置只產生 VSIX，並驗證其線上安裝橋接及狀態檢查�
 - Validation commands: npm test, npm run typecheck:webview, and npm run benchmark:performance. The benchmark uses production helpers and synthetic data; it does not represent a live GitLab instance or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
 
 查詢後續的一次確認、全量 Ingest 使用方式見[Wiki 工作流程](docs/wiki-workflows.md)。
+
+## CommitReviewer 整合（0.42.0）
+
+安裝 WorkflowKit 1.5.0 後，可在 Skills 的 CommitReviewer 使用「Commit 草稿」及「MR 前檢查」。Git 提交區提供兩個快捷入口；Issue 的 Codex 開發區會帶入對應 Repo 與完整 Issue 引用，確認表單後才開始執行。
+
+Commit 草稿只涵蓋已暫存差異，結果由開發者手動複製到提交訊息欄。MR 前檢查只精確 Fetch 選定目標；多遠端時須明確指定，目標留空則採該遠端預設分支。任務沿用一般 Codex 模型設定，證據保存在工作區 `.commit-reviewer-runtime/`，繁中報告位於受檢 Repo `review-reports/`。待確認或不符合條件仍會交付報告；工具不自動提交、重排歷史、Push 或建立 MR。

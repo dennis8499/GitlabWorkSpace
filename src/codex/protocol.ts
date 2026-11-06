@@ -21,6 +21,7 @@ export interface CodexTaskSpec {
   writableRoots: string[];
   environmentKey: string;
   review?: { tool: ReviewerToolId; requestId: string; revision: string };
+  commitReview?: { runtimeRoot: string };
   routing?: ModelRoutingBinding;
   executionRoot?: string;
   origin?: CodexTaskOrigin;

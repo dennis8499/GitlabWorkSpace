@@ -71,6 +71,7 @@ export const workspaceActionKinds = {
   reconcileMergeRequestWrite: 'read',
   confirmOperationResult: 'read',
   openBranchReview: 'read',
+  prepareCommitReview: 'read',
   loadSkillBranches: 'read',
   loadReviewerCapabilities: 'read',
   loadReviewSessions: 'read',
@@ -242,7 +243,7 @@ export const operationLabels: Record<string, string> = {
   refresh: '更新目前頁面', retryInstanceCheck: '偵測 GitLab 功能', connect: '連線 GitLab', addAccount: '登入 GitLab', openConfiguration: '開啟設定', switchAccount: '切換帳號', removeAccount: '移除帳號', disconnect: '登出', logoutAccount: '登出',
   selectGroup: '切換 Group', selectProjectFolder: '辨識專案資料夾', selectProjectRoot: '選擇專案目錄', resetProjectRoot: '重新辨識專案目錄', scanRepositories: '掃描本機 Repo', clone: '下載／更新 Repo', syncRepos: '更新預設分支',
   refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', copySkillGuidePrompt: '複製提示詞', copy: '複製內容',
-  selectIssue: '載入 Issue', openIssue: '開啟 Issue', createIssue: '開啟新增 Issue', createIssueDrafts: '建立 Issue', selectMergeRequest: '載入 MR', refreshMergeRequest: '檢查 MR 分支', loadMergeRequestSection: '載入 MR 內容', openBranchReview: '準備分支審查', loadSkillBranches: '讀取分支候選',
+  selectIssue: '載入 Issue', openIssue: '開啟 Issue', createIssue: '開啟新增 Issue', createIssueDrafts: '建立 Issue', selectMergeRequest: '載入 MR', refreshMergeRequest: '檢查 MR 分支', loadMergeRequestSection: '載入 MR 內容', openBranchReview: '準備分支審查', prepareCommitReview: '準備 CommitReviewer', loadSkillBranches: '讀取分支候選',
   postMergeRequestNote: '發布 MR 留言', replyMergeRequest: '回覆 MR', approveMergeRequest: '核准 MR', mergeMergeRequest: '合併 MR', submitTimeEntry: '送出工時',
   loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', ensureWorkspaceSection: '載入篩選選項', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
 };
@@ -269,6 +270,7 @@ const localWorkspaceActions = new Set([
 export function isLocalWorkspaceAction(value: string | { type: string; [key: string]: unknown }): boolean {
   if (typeof value === 'string') return localWorkspaceActions.has(value);
   const action = value.type === 'perform' ? String(value.action) : value.type;
+  if (action === 'prepareCommitReview') return typeof value.repo === 'string';
   if (action === 'refresh') return ['sa', 'bmad', 'git', 'codex'].includes(String(value.mode)) ||
     value.mode === 'clone' && value.projectSource === 'local';
   if (action === 'confirmOperationResult' && value.recovery && typeof value.recovery === 'object') {

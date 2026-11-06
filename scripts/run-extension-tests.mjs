@@ -31,6 +31,9 @@ if (proof) env.VSCODE_EXECUTABLE_PATH = proof.executable;
 const tempParent = await realpath(os.tmpdir());
 const prefix = 'gitlab-workspace-host-tests-';
 const temporaryRoot = await mkdtemp(path.join(tempParent, prefix));
+// Native installers need short paths; workbench Git handles release after exit.
+const kitPrefix = 'gk-';
+const kitRoot = await mkdtemp(path.join(tempParent, kitPrefix));
 try {
   const networkRuntime = path.join(temporaryRoot, 'network-runtime');
   await mkdir(networkRuntime);
@@ -42,7 +45,8 @@ try {
   process.exitCode = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...argumentsToCli], {
       stdio: 'inherit', windowsHide: true,
-      env: { ...env, GITLAB_WORKSPACE_TEST_TMP: temporaryRoot, GITLAB_WORKSPACE_TEST_WORKSPACE: workspaceFile, GITLAB_WORKSPACE_RUNTIME_DIR: networkRuntime }
+      env: { ...env, GITLAB_WORKSPACE_TEST_TMP: temporaryRoot, GITLAB_WORKSPACE_KIT_TEST_TMP: kitRoot,
+        GITLAB_WORKSPACE_TEST_WORKSPACE: workspaceFile, GITLAB_WORKSPACE_RUNTIME_DIR: networkRuntime }
     });
     child.once('error', reject);
     child.once('close', code => resolve(code ?? 1));
@@ -50,8 +54,14 @@ try {
 } finally {
   // Windows workbench watchers can retain .git handles until the test window exits.
   const target = await realpath(temporaryRoot);
+  const kitTarget = await realpath(kitRoot);
   // eslint-disable-next-line no-unsafe-finally -- Cleanup failures must surface before unsafe recovery or deletion.
   if (path.dirname(target) !== tempParent || !path.basename(target).startsWith(prefix)) throw new Error('Unsafe Extension Host fixture cleanup path.');
-  if (process.exitCode) console.error(`Extension Host failed; isolated logs retained at ${target}`);
-  else await rm(target, { recursive: true, force: true, maxRetries: 12, retryDelay: 100 });
+  // eslint-disable-next-line no-unsafe-finally -- Verify the independent short fixture root before recursive deletion.
+  if (path.dirname(kitTarget) !== tempParent || !path.basename(kitTarget).startsWith(kitPrefix)) throw new Error('Unsafe WorkflowKit fixture cleanup path.');
+  if (process.exitCode) console.error(`Extension Host failed; isolated logs retained at ${target}; kit fixtures at ${kitTarget}`);
+  else {
+    await rm(kitTarget, { recursive: true, force: true, maxRetries: 12, retryDelay: 100 });
+    await rm(target, { recursive: true, force: true, maxRetries: 12, retryDelay: 100 });
+  }
 }

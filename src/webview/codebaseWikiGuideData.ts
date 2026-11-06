@@ -167,7 +167,7 @@ export function createDefaultWikiGuideInputs(): WikiGuideInputValues {
 /** Restore inputs only for guide cards that are still available. */
 
 export function migrateWikiGuideInputs(inputs: WikiGuideInputValues): WikiGuideInputValues {
-  const supportedOwners = new Set([...wikiGuideCards.map(card => card.id), 'merge-repo', 'release-review']);
+  const supportedOwners = new Set([...wikiGuideCards.map(card => card.id), 'merge-repo', 'release-review', 'commit-draft', 'mr-precheck']);
   return Object.fromEntries(Object.entries(inputs).filter(([key]) => {
     const separator = key.indexOf('.');
     return separator > 0 && supportedOwners.has(key.slice(0, separator));

@@ -1,0 +1,55 @@
+{
+  "schema": "WorkflowKitCapabilities/v1",
+  "version": "1.5.0",
+  "capabilities": {
+    "group": [
+      "adr",
+      "archaeology",
+      "audit",
+      "bmad-workflow",
+      "business-analysis",
+      "commit-draft",
+      "functional-exploration",
+      "ingest",
+      "lint",
+      "merge-repo",
+      "model-routing",
+      "mr-precheck",
+      "notebooklm-export",
+      "query",
+      "release-review",
+      "synthesis",
+      "system-analysis",
+      "system-design",
+      "visualize"
+    ],
+    "repository": [
+      "adr",
+      "archaeology",
+      "audit",
+      "bmad-workflow",
+      "business-analysis",
+      "commit-draft",
+      "functional-exploration",
+      "ingest",
+      "lint",
+      "merge-repo",
+      "model-routing",
+      "mr-precheck",
+      "notebooklm-export",
+      "query",
+      "release-review",
+      "synthesis",
+      "system-analysis",
+      "system-design",
+      "visualize"
+    ]
+  },
+  "upstreamVersions": {
+    "bmad-method": "6.12.4",
+    "codebase-wiki": "0.7.2",
+    "commit-reviewer": "0.1.0",
+    "merge-reviewer": "0.20.6",
+    "release-reviewer": "0.12.0"
+  }
+}

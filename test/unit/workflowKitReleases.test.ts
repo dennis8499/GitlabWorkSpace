@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES, PackageIntegrityError, type ReleaseDescriptor } from '../../src/workspace/workflowKitReleases';
+import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES, MAX_INSTALLER_BYTES, PackageIntegrityError, parseDescriptor, type ReleaseDescriptor } from '../../src/workspace/workflowKitReleases';
 
 const sha = (data: Uint8Array) => createHash('sha256').update(data).digest('hex');
 function release(version = '1.0.0', source: 'github' | 'gitea' = 'github', contract = 2) {
@@ -133,6 +133,22 @@ test('downloads, verifies and persists only the selected release and supports of
   assert.equal((await restarted.getRelease(cached[0].id)).version, '2.0.0');
   assert.equal(calls.length, 4);
   assert.deepEqual(await readFile(result.archivePath), Buffer.from('verified release ZIP'));
+});
+
+test('downloads expanded installer metadata and rejects executables above the bounded limit', async t => {
+  const item = release('1.5.0');
+  const bytes = Buffer.alloc(4 * 1024 * 1024 + 1, 35);
+  const installer = { ...item.descriptor.assets.installer, size: bytes.length, sha256: sha(bytes) };
+  item.files.set(installer.name, bytes);
+  Object.assign(item.api.assets.find(asset => asset.name === installer.name)!, { size: bytes.length, digest: `sha256:${sha(bytes)}` });
+  updateDescriptor(item, { assets: { ...item.descriptor.assets, installer } });
+  const { manager } = await context(t, [item]);
+  const [selected] = await manager.refresh('github');
+  assert.equal(selected.available, true);
+  const result = await manager.getRelease(selected.id);
+  assert.deepEqual(await readFile(result.installerPath), bytes);
+  assert.throws(() => parseDescriptor({ ...selected.descriptor, assets: { ...selected.descriptor.assets,
+    installer: { ...installer, size: MAX_INSTALLER_BYTES + 1 } } }), PackageIntegrityError);
 });
 test('rejects tampered cached executable bytes before running a status helper', async t => {
   const { manager } = await context(t); const [item] = await manager.refresh('github');

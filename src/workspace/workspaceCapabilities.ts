@@ -22,7 +22,7 @@ const localProjectActions = new Set([
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'openLocalWorkspace',
   'gitReady', 'gitOpenRepository', 'gitOpenFile', 'gitOpenDiff', 'gitOpenMergeEditor', 'gitAction',
   'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'installWorkflowKit',
-  'loadSkillBranches', 'copySkillGuidePrompt', 'openBranchReview', 'loadReviewerCapabilities',
+  'prepareCommitReview', 'loadSkillBranches', 'copySkillGuidePrompt', 'openBranchReview', 'loadReviewerCapabilities',
   'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask',

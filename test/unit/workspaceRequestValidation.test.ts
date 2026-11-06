@@ -48,6 +48,7 @@ const requests = {
   submitTimeEntry: { type: 'submitTimeEntry', id: 'timer-1' }, acknowledgeTimeEntry: { type: 'acknowledgeTimeEntry', id: 'timer-1' },
   selectMergeRequest: { type: 'selectMergeRequest', ...mr }, refreshMergeRequest: { type: 'refreshMergeRequest', ...mr }, reconcileMergeRequestWrite: { type: 'reconcileMergeRequestWrite', ...mr },
   loadMergeRequestSection: { type: 'loadMergeRequestSection', ...mr, section: 'diffs' }, postMergeRequestNote: { type: 'postMergeRequestNote', ...mr, body: 'Review' }, openBranchReview: { type: 'openBranchReview', ...mr },
+  prepareCommitReview: { type: 'prepareCommitReview', mode: 'commit', revision: 'root:1', repo: 'C:/workspace' },
   loadSkillBranches: { type: 'loadSkillBranches', repo: 'C:/workspace', revision: 'root:1', requestId: 'branches-1' }, loadReviewerCapabilities: { type: 'loadReviewerCapabilities', ...review },
   loadReviewSessions: { type: 'loadReviewSessions', revision: 'root:1', tool: 'merge-reviewer' }, cancelReviewSession: { type: 'cancelReviewSession', ...review },
   copyReviewRefresh: { type: 'copyReviewRefresh', ...review }, copyReviewResume: { type: 'copyReviewResume', ...review }, openReviewReport: { type: 'openReviewReport', ...review },

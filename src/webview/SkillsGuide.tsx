@@ -58,9 +58,11 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
   const card = getSkillGuideCard(tool, state.selections[tool], profile);
   const available = skillsContext ? skillsContext.availableFeatures.includes(card.id) : !!context.groupRoot && kitInstalled;
   const reviewer = tool === 'merge-reviewer' || tool === 'release-reviewer';
+  const repositoryTool = reviewer || tool === 'commit-reviewer';
+  const explicitRepositoryRequired = tool === 'commit-reviewer' && state.commitRepositoryRequired?.[card.id] === true;
   const repositories = reviewerRepositories ?? context.repositories;
   const repoInput = state.inputs[`${card.id}.repo`] ?? '';
-  const selectedRepo = reviewer ? resolveReviewerRepository(repoInput, repositories) : undefined;
+  const selectedRepo = repositoryTool ? resolveReviewerRepository(repoInput, repositories) : undefined;
   const repo = selectedRepo?.path;
   const actions = useContext(ActionContext) ?? fallbackActions;
   const copyPending = useActionSelector(actions, operations => operations.some(operation =>
@@ -68,11 +70,11 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
     && (!operationScope || operation.scopeRevision === operationScope)
     && (operation.status === 'queued' || operation.status === 'running' || operation.effect === 'unknown')));
   useEffect(() => {
-    if (!reviewer) return;
+    if (!repositoryTool || explicitRepositoryRequired) return;
     const candidate = selectedRepo ?? (!repoInput && repositories.length === 1 ? repositories[0] : undefined);
     if (candidate && repoInput !== candidate.path) onChange(current => ({ ...current,
       inputs: { ...current.inputs, [`${card.id}.repo`]: candidate.path } }));
-  }, [reviewer, card.id, repoInput, repo, repositories]);
+  }, [repositoryTool, explicitRepositoryRequired, card.id, repoInput, repo, repositories]);
   useEffect(() => {
     if (reviewer && repo) onLoadBranches?.(repo);
   }, [tool, repo, skillsContext?.revision, operationScope]);
@@ -84,8 +86,10 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
   }, [tool, skillsContext?.revision, operationScope]);
   let prompt = '', promptError = '';
   const modelRouting = skillsContext?.installed.capabilities?.includes('model-routing') ?? context.modelRouting ?? false;
-  const promptContext = reviewer ? { ...context, repositories, modelRouting } : context;
-  try { prompt = `${buildSkillGuideContext(card, promptContext)}\n\n${buildSkillGuidePrompt(card, state.inputs, promptContext)}`; }
+  const promptContext = repositoryTool ? { ...context, repositories, modelRouting } : context;
+  try { prompt = tool === 'commit-reviewer' && !canCopySkillPrompt(card, state.inputs)
+    ? '請填妥必要欄位後預覽並執行。'
+    : `${buildSkillGuideContext(card, promptContext)}\n\n${buildSkillGuidePrompt(card, state.inputs, promptContext)}`; }
   catch (error) { promptError = error instanceof Error ? error.message : String(error); }
   const reportedPromptError = useRef('');
   useEffect(() => {
@@ -101,7 +105,7 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
     reportLocalFeedback(notice => actions.dispatch(notice), fixedErrors.includes(promptError) ? promptError : '無法產生 Skills 提示詞，請檢查工作區與欄位後重試。',
       { title: 'Skills 提示詞', context: { operationScope } });
   }, [actions, operationScope, skillsContext?.revision, context.root, context.groupRoot, context.workspaceRoot, card.id, promptError]);
-  const ready = available && context.repositoryScanStatus === 'ready' && (!reviewer || !!selectedRepo)
+  const ready = available && context.repositoryScanStatus === 'ready' && !explicitRepositoryRequired && (!repositoryTool || !!selectedRepo)
     && !promptError && canCopySkillPrompt(card, state.inputs);
   const unavailable = skillsContext?.reason ?? (!context.root && !context.groupRoot ? '請先選擇專案資料夾。'
     : !kitInstalled ? '請先安裝或更新工作流程包。'
@@ -137,17 +141,18 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
         <p class="wiki-guide-description">{card.description}</p>
         <p class="wiki-guide-output"><strong>預期產出：</strong>{card.output}</p>
         <p class="wiki-guide-behavior"><strong>執行方式：</strong>{card.behavior}</p>
+        {explicitRepositoryRequired && <p class="warning" role="status">此 Issue 尚未對應唯一的本機 Repo，請明確選擇要檢查的 Repo。</p>}
         {card.id === 'merge-repo' && state.migrationNotice && <div class="warning" role="status"><p>{state.migrationNotice}</p>
           <button type="button" onClick={() => onChange(current => { const inputs = { ...current.inputs }; delete inputs['merge-repo.confirmationRequired']; return { ...current, inputs, migrationNotice: undefined }; })}>確認使用分支審查</button></div>}
         <div class="wiki-guide-fields">{getSkillGuideFields(card, state.inputs).filter(item => item.id !== 'effort' || modelRouting).map(item => {
           const key = `${card.id}.${item.id}`, value = state.inputs[key] ?? item.defaultValue ?? '';
           const onInput = (value: string) => onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: value } }));
           let control: JSX.Element;
-          if (reviewer && item.id === 'repo') control = <select id={`wiki-input-${key}`} value={repo ?? value} required={item.required}
+          if (repositoryTool && item.id === 'repo') control = <select id={`wiki-input-${key}`} value={repo ?? value} required={item.required}
             onChange={event => {
               const nextRepo = event.currentTarget.value;
-              onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: nextRepo,
-                [`${card.id}.base`]: '', [`${card.id}.head`]: '' } }));
+              onChange(current => ({ ...current, ...(tool === 'commit-reviewer' ? { commitRepositoryRequired: { ...current.commitRepositoryRequired, [card.id]: false } } : {}), inputs: { ...current.inputs, [key]: nextRepo,
+                ...(reviewer ? { [`${card.id}.base`]: '', [`${card.id}.head`]: '' } : card.id === 'mr-precheck' ? { [`${card.id}.remote`]: '', [`${card.id}.target`]: '' } : {}) } }));
             }}>
             <option value="">{repositories.length ? '請選擇 VSCode 工作區中的 Repo' : '目前 VSCode 工作區尚未找到 Repo'}</option>
             {value && !selectedRepo && <option value={value} disabled>已保存的 Repo 不在目前工作區：{value}</option>}

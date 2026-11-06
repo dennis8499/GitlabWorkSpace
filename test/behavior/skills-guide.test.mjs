@@ -7,6 +7,41 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const { version } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 
+for (const profile of ['group', 'repository']) test(`CommitReviewer ${profile} handoff fills a native form without starting a task`, async t => {
+  const view = await mount(t, profile, undefined, ['commit-draft', 'mr-precheck']);
+  const revision = `${profile}-revision`, repo = 'C:/工作區 with spaces/service';
+  await view.send({ type: 'commitReviewReady', revision: 'stale', mode: 'commit', inputs: { 'commit-draft.issues': '#999' } });
+  assert.equal(view.document.querySelector('[id="wiki-input-commit-draft.issues"]'), null);
+  await view.send({ type: 'commitReviewReady', revision, mode: 'commit', inputs: { 'commit-draft.repo': repo, 'commit-draft.issues': 'team/service#123' } });
+  assert.equal(view.document.querySelector('[id="wiki-input-commit-draft.issues"]').value, 'team/service#123');
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
+  assert.equal(view.requests.some(request => request.type === 'loadReviewerCapabilities' || request.type === 'loadReviewSessions'), false);
+  view.document.querySelector('.wiki-copy-button').click(); await view.tick();
+  const copied = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
+  assert.equal(copied.featureId, 'commit-draft');
+  assert.equal(copied.inputs['commit-draft.repo'], repo);
+  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /--mode.*commit/);
+  await view.send({ type: 'commitReviewReady', revision, mode: 'commit', inputs: { 'commit-draft.repo': repo, 'commit-draft.issues': 'team/service#456' } });
+  assert.equal(view.document.querySelector('[id="wiki-input-commit-draft.issues"]').value, 'team/service#456');
+  await view.send({ type: 'commitReviewReady', revision, mode: 'mr', inputs: { 'mr-precheck.repo': '', 'mr-precheck.target': 'main' } });
+  await view.tick();
+  assert.equal(view.document.querySelector('[id="wiki-input-mr-precheck.repo"]').value, '');
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
+  assert.equal(view.document.querySelector('[id="wiki-input-mr-precheck.target"]').value, 'main');
+  await view.change('[id="wiki-input-mr-precheck.repo"]', repo);
+  assert.equal(view.document.querySelector('[id="wiki-input-mr-precheck.target"]').value, '');
+  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /--mode.*mr/);
+});
+
+test('CommitReviewer on an older kit shows an update action and cannot dispatch', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo']);
+  view.document.getElementById('skill-tool-commit-reviewer').click(); await view.tick();
+  await view.change('[id="wiki-input-commit-draft.issues"]', '#123', 'input');
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
+  assert.match(view.document.querySelector('.skills-environment').textContent, /更新 Skills/);
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
+});
+
 function snapshot(profile, features) {
   const groupRoot = 'C:/工作區 with spaces';
   const repo = { name: 'service', path: `${groupRoot}/service`, matched: profile === 'group' };
@@ -157,11 +192,11 @@ for (const profile of ['group', 'repository']) test(`${profile} unknown saved se
   assert.equal(document.querySelector('.wiki-guide-card h2').textContent, '查詢 Wiki');
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'saved question');
   const tabs = [...document.querySelectorAll('.skills-tool-tabs [role="tab"]')];
-  assert.equal(tabs.length, 3);
+  assert.equal(tabs.length, 4);
   tabs[0].dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
   await view.tick();
-  assert.equal(document.getElementById('skill-tool-release-reviewer').getAttribute('aria-selected'), 'true');
-  tabs[2].dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.equal(document.getElementById('skill-tool-commit-reviewer').getAttribute('aria-selected'), 'true');
+  tabs[3].dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
   await view.tick();
   assert.equal(document.getElementById('skill-tool-codebase-wiki').getAttribute('aria-selected'), 'true');
   document.querySelector('.wiki-copy-button').click(); await view.tick();

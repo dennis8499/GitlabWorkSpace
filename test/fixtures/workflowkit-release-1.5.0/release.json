@@ -1,0 +1,62 @@
+{
+  "assets": {
+    "installer": {
+      "name": "workflowkit-installer-1.5.0.py",
+      "sha256": "abac5318434c07a84705e74262ba9bd7826e0ea1acc6e82b7f1bb1e787e6bcae",
+      "size": 4681968
+    },
+    "package": {
+      "name": "gitlab-workspace-kit-1.5.0.zip",
+      "sha256": "2de59b1433e0ff0a347358aa9d823d891dac444a487ad44580d12d58cde909ea",
+      "size": 32830380
+    }
+  },
+  "installerApi": 1,
+  "minimumExtensionVersion": "0.40.0",
+  "package": "gitlab-workspace-kit",
+  "profiles": [
+    "group",
+    "repository"
+  ],
+  "schema": "workflowkit-release/v1",
+  "skills": [
+    "bmad-advanced-elicitation",
+    "bmad-agent-analyst",
+    "bmad-agent-architect",
+    "bmad-agent-dev",
+    "bmad-agent-pm",
+    "bmad-agent-ux-designer",
+    "bmad-architecture",
+    "bmad-brainstorming",
+    "bmad-build",
+    "bmad-build-auto",
+    "bmad-code-review",
+    "bmad-correct-course",
+    "bmad-create-epics-and-stories",
+    "bmad-customize",
+    "bmad-deep-recon",
+    "bmad-forge-idea",
+    "bmad-help",
+    "bmad-party-mode",
+    "bmad-prd",
+    "bmad-prfaq",
+    "bmad-product-brief",
+    "bmad-project-context",
+    "bmad-qa-generate-e2e-tests",
+    "bmad-retrospective",
+    "bmad-review",
+    "bmad-spec",
+    "bmad-sprint-planning",
+    "bmad-ux",
+    "bmad-walkthrough",
+    "codebase-wiki",
+    "commit-reviewer",
+    "merge-reviewer",
+    "model-routing",
+    "output-style",
+    "release-reviewer"
+  ],
+  "statusApi": 1,
+  "version": "1.5.0",
+  "workspaceContract": 2
+}

@@ -665,6 +665,15 @@ function App() {
         if (message.revision === snapshotRef.current?.skillsContext?.revision && message.tool === skillsGuideRef.current.tool) setReviewSessions(message);
         return;
       }
+      if (message.type === 'commitReviewReady') {
+        if (message.revision !== snapshotRef.current?.skillsContext?.revision) return;
+        const feature = message.mode === 'commit' ? 'commit-draft' : 'mr-precheck';
+        updateSkillsGuide(current => ({ ...current, tool: 'commit-reviewer',
+          selections: { ...current.selections, 'commit-reviewer': feature },
+          commitRepositoryRequired: { ...current.commitRepositoryRequired, [feature]: !message.inputs[`${feature}.repo`] },
+          inputs: { ...Object.fromEntries(Object.entries(current.inputs).filter(([key]) => !key.startsWith(feature + '.'))), ...message.inputs } }));
+        setMode('sa'); return;
+      }
       if (message.type === 'branchReviewReady') {
         if (message.revision !== snapshotRef.current?.skillsContext?.revision) return;
         updateSkillsGuide(current => ({ ...current, tool: 'merge-reviewer', selections: { ...current.selections, 'merge-reviewer': 'merge-repo' },
@@ -1309,7 +1318,7 @@ function App() {
         <div ref={workspaceVisual} class="workspace-tasks" hidden={!!issueNavigation}>
         {!localBlocked && <CodexWorkspace controller={codex} active={mode === 'codex' && !issueNavigation} onNavigate={modeChange} />}
         <div class="git-mode-host" hidden={mode !== 'git'}>
-          {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
+          {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel skills={snapshot.skillsContext} active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
         {mode !== 'git' && mode !== 'bmad' && mode !== 'codex' && <div class="page-heading"><div><div class="eyebrow">{mode === 'dashboard' ? '共用工作台' : remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'clone' && mode !== 'dashboard' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}<button class="quiet" type="button" disabled={busy || !!localBlocked && mode !== 'dashboard' && !remotePage} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button></div></div>}
@@ -1493,7 +1502,7 @@ function App() {
                   <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
                   <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>
                   <div class="label-list">{(selectedIssue.labels ?? []).map(label => <span class="label-chip">{label}</span>)}</div><p class="subtle">指派給：{selectedIssue.assignees?.map(user => user.name || user.username).join('、') || '未指派'}</p>
-                  <CodexWorkflowLaunch tasks={codex.tasks} source={{ kind: 'issue', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid }} post={post} disabled={!!localBlocked} />
+                  <CodexWorkflowLaunch skillsContext={snapshot.skillsContext} tasks={codex.tasks} source={{ kind: 'issue', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid }} post={post} disabled={!!localBlocked} />
                   <div class="next-step"><strong>下一步</strong><p>開啟詳情後，可在同一工作台繼續閱讀與討論、準備開發交付，並管理關聯工作與工時。</p></div>
                   <button class="primary" type="button" disabled={snapshot.issuePreview?.status === 'loading'} onClick={() => post({ type: 'openIssue', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid })}>開啟 Issue 詳情</button>
                 </> : !snapshot.issuePreview && <Empty title="選取一張指派給你的 Issue" detail="先在此預覽內容，再按「開啟 Issue 詳情」繼續閱讀、討論與開發。" />}</article>

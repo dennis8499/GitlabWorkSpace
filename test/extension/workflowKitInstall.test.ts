@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { mkdtemp, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES } from '../../src/workspace/workflowKitReleases';
 import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 import { WorkspacePanel } from '../../src/workspace/workspacePanel';
 import { readBmadWorkflow } from '../../src/workspace/bmadWorkflow';
+import { readInstalledCommitReviewer } from '../../src/workspace/commitReviewer';
 import { readInstalledReviewerBinding } from '../../src/workspace/installedReviewer';
 import { readReviewerCapabilities } from '../../src/workspace/reviewerCapabilities';
 import { resolvePythonRuntime } from '../../src/workspace/pythonRuntime';
@@ -30,13 +30,13 @@ suite('Online workflow kit installation', () => {
     }
   });
 
-  for (const kitVersion of ['1.0.0', '1.3.1', '1.3.4', '1.3.5']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
-    this.timeout(240_000);
-    const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
+  for (const kitVersion of ['1.0.0', '1.3.1', '1.3.4', '1.3.5', '1.5.0']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
+    this.timeout(kitVersion === '1.5.0' ? 480_000 : 240_000);
+    const temporaryParent = process.env.GITLAB_WORKSPACE_KIT_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
     // Wiki's native installer adds its own staging tree; avoid Windows MAX_PATH in the fixture.
-    const tempBase = await realpath(os.tmpdir());
-    const temporary = await mkdtemp(path.join(tempBase, 'gw-kit-'));
+    const tempBase = await realpath(temporaryParent);
+    const temporary = await mkdtemp(path.join(tempBase, 'k-'));
     let configuration: vscode.WorkspaceConfiguration | undefined;
     let previous: ReturnType<vscode.WorkspaceConfiguration['inspect']>;
     const setting = 'projectRoot';
@@ -129,8 +129,9 @@ suite('Online workflow kit installation', () => {
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
-      assert.equal((await readdir(root)).includes('_bmad'), ['1.3.1', '1.3.4', '1.3.5'].includes(kitVersion));
-      if (['1.3.1', '1.3.4', '1.3.5'].includes(kitVersion)) {
+      if (kitVersion === '1.5.0') console.log('WorkflowKit 1.5.0: repository installation verified');
+      assert.equal((await readdir(root)).includes('_bmad'), ['1.3.1', '1.3.4', '1.3.5', '1.5.0'].includes(kitVersion));
+      if (['1.3.1', '1.3.4', '1.3.5', '1.5.0'].includes(kitVersion)) {
         assert.equal(host.workflowKit.snapshot.state.bmadMode, 'bundled');
         assert.ok(host.workflowKit.snapshot.state.capabilities.includes('visualize'));
         const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
@@ -139,26 +140,26 @@ suite('Online workflow kit installation', () => {
         assert.ok(bmad.codex.skills.includes('bmad-help'));
         const python = await resolvePythonRuntime('python');
         const hasManagedRunner = await readdir(path.join(root, '.agents/gitlab-workspace-kit')).then(names => names.includes('run.py'), () => false);
-        assert.equal(hasManagedRunner, kitVersion === '1.3.5');
+        assert.equal(hasManagedRunner, ['1.3.5', '1.5.0'].includes(kitVersion));
         for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
           const binding = await readInstalledReviewerBinding(root, tool);
-          assert.equal(binding.workflow_kit_runner !== undefined, kitVersion === '1.3.5');
+          assert.equal(binding.workflow_kit_runner !== undefined, ['1.3.5', '1.5.0'].includes(kitVersion));
           if (binding.workflow_kit_runner) {
             assert.equal(createHash('sha256').update(await readFile(binding.workflow_kit_runner.script_path)).digest('hex'),
               binding.workflow_kit_runner.script_sha256);
           }
-          assert.equal(binding.version, kitVersion === '1.3.4'
-            || kitVersion === '1.3.5'
+          assert.equal(binding.version, kitVersion === '1.5.0' ? tool === 'merge-reviewer' ? '0.20.6' : '0.12.0' : kitVersion === '1.3.4'
+            || ['1.3.5', '1.5.0'].includes(kitVersion)
             ? tool === 'merge-reviewer' ? '0.20.4' : '0.11.1'
             : tool === 'merge-reviewer' ? '0.20.3' : '0.10.1');
           const capabilities = await readReviewerCapabilities(binding, python, root);
-          if (['1.3.4', '1.3.5'].includes(kitVersion) && tool === 'merge-reviewer') {
+          if (['1.3.4', '1.3.5', '1.5.0'].includes(kitVersion) && tool === 'merge-reviewer') {
             assert.equal(capabilities?.schema, 'MergeReviewCapabilities/v1');
             if (capabilities?.schema === 'MergeReviewCapabilities/v1') {
               assert.equal(capabilities.protocol_version, 1);
               assert.equal(capabilities.features.read_only_artifact_view, true);
             }
-          } else if (['1.3.4', '1.3.5'].includes(kitVersion) && tool === 'release-reviewer') {
+          } else if (['1.3.4', '1.3.5', '1.5.0'].includes(kitVersion) && tool === 'release-reviewer') {
             assert.equal(capabilities?.schema, 'ReviewCapabilities/v1');
             if (capabilities?.schema === 'ReviewCapabilities/v1') {
               assert.equal(capabilities.updates_schema, 'ReleaseReviewUpdates/v1');
@@ -169,6 +170,13 @@ suite('Online workflow kit installation', () => {
           } else assert.equal(capabilities, undefined);
         }
       }
+      if (kitVersion === '1.5.0') {
+        const commit = await readInstalledCommitReviewer(root);
+        assert.equal(commit.version, '0.1.0');
+        assert.ok(host.workflowKit.snapshot.state.capabilities.includes('commit-draft'));
+        assert.ok(host.workflowKit.snapshot.state.capabilities.includes('mr-precheck'));
+        console.log('WorkflowKit 1.5.0: native CommitReviewer binding verified');
+      }
       assert.equal(host.getSkillsContext().mode, 'unavailable', 'settings classification does not fabricate full Skills discovery');
       await host.refreshWorkflowKit(false);
       const skills = host.getSkillsContext();
@@ -177,7 +185,7 @@ suite('Online workflow kit installation', () => {
         const external = path.join(temporary, `外部 ${profile}`); await mkdir(external);
         if (profile === 'repository') execFileSync('git', ['init', '--quiet', external]);
         const externalRoot = await realpath(external);
-        const existingBmad = kitVersion === '1.3.1' && profile === 'group' || kitVersion === '1.3.4' || kitVersion === '1.3.5';
+        const existingBmad = kitVersion === '1.3.1' && profile === 'group' || kitVersion === '1.3.4' || ['1.3.5', '1.5.0'].includes(kitVersion);
         if (existingBmad) {
           await mkdir(path.join(externalRoot, '_bmad'), { recursive: true });
           await writeFile(path.join(externalRoot, '_bmad', 'config.toml'), '# user BMAD\n');
@@ -189,6 +197,7 @@ suite('Online workflow kit installation', () => {
         assert.equal(host.workflowKit.snapshot.installTarget.root, externalRoot);
         assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
         assert.equal(host.workflowKit.snapshot.installTarget.state.profile, profile);
+        if (kitVersion === '1.5.0') console.log(`WorkflowKit 1.5.0: external ${profile} installation verified`);
         assert.deepEqual((await readdir(path.join(externalRoot, '.agents/skills'))).sort(),
           existingBmad ? expectedSkills.filter((name: string) => !name.startsWith('bmad-')) : expectedSkills);
         assert.equal((await readdir(externalRoot)).includes('_bmad'), existingBmad || kitVersion === '1.3.1');
@@ -203,6 +212,9 @@ suite('Online workflow kit installation', () => {
         assert.notEqual(host.getSkillsContext().revision, skills.revision);
         assert.equal(vscode.workspace.workspaceFolders?.some(folder => folder.uri.fsPath === externalRoot), false);
       }
+    } catch (error) {
+      console.error(`WorkflowKit ${kitVersion} installation assertion failed:`, error);
+      throw error;
     } finally {
       if (host) {
         host.disposed = true;
@@ -221,7 +233,7 @@ suite('Online workflow kit installation', () => {
       }
       if (process.cwd().toLocaleLowerCase().startsWith(temporary.toLocaleLowerCase() + path.sep)) process.chdir(originalCwd);
       assert.equal(path.dirname(await realpath(temporary)), tempBase);
-      await rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      // The isolated runner removes this owned root once Windows Git watchers exit.
     }
   });
 });

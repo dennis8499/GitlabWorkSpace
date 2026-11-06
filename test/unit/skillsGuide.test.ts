@@ -12,7 +12,9 @@ test('all executable guide prompts route optional output style once and preserve
   for (const profile of ['group', 'repository'] as const) {
     for (const card of getSkillGuideCards(profile)) {
       const inputs = Object.fromEntries(card.fields.map(field => [`${card.id}.${field.id}`,
-        field.id === 'base' ? 'main' : field.id === 'head' ? 'feature/change' : field.defaultValue ?? 'fixture']));
+        field.id === 'repo' ? context.repositories[0].path : field.id === 'issues' ? '#123'
+          : field.id === 'selfEmails' ? 'dev@example.test' : field.id === 'remote' ? 'origin' : field.id === 'target' ? 'main'
+          : field.id === 'base' ? 'main' : field.id === 'head' ? 'feature/change' : field.defaultValue ?? 'fixture']));
       const prompt = buildSkillGuidePrompt(card, inputs, { ...context, profile, root: context.repositories[0].path });
       assert.equal(prompt.split('載入 $output-style').length - 1, 1, `${profile}/${card.id}`);
       assert.match(prompt, /未安裝時沿用原 Skill 的 output style/);
@@ -27,14 +29,18 @@ test('both Analysis profiles expose the frozen analysis capabilities while BMAD 
   for (const profile of ['group', 'repository'] as const) {
     assert.equal(snapshot.capabilities[profile].includes('bmad-workflow'), false);
     assert.equal(snapshot.capabilities[profile].length, 14);
-    assert.deepEqual(getSkillGuideCards(profile).filter(card => card.id !== 'visualize').map(card => card.id).sort(), snapshot.capabilities[profile]);
+    const legacyCards = getSkillGuideCards(profile).filter(card => card.tool !== 'commit-reviewer');
+    assert.deepEqual(legacyCards.filter(card => card.id !== 'visualize').map(card => card.id).sort(), snapshot.capabilities[profile]);
     assert.ok(current.capabilities[profile].includes('bmad-workflow'));
-    assert.deepEqual(getSkillGuideCards(profile).map(card => card.id).sort(),
+    assert.deepEqual(legacyCards.map(card => card.id).sort(),
       current.capabilities[profile].filter((capability: string) => capability !== 'bmad-workflow'));
+    const latest = JSON.parse(readFileSync(path.join(__dirname, '../../../test/fixtures/workflowkit-release-1.5.0/capabilities.json'), 'utf8'));
+    assert.deepEqual(getSkillGuideCards(profile).map(card => card.id).sort(),
+      latest.capabilities[profile].filter((capability: string) => !['bmad-workflow', 'model-routing'].includes(capability)));
   }
 });
 
-test('three tool entrances retain Wiki drafts and supported default selections', () => {
+test('four tool entrances retain Wiki drafts and supported default selections', () => {
   const state = restoreSkillGuideState(undefined, { 'query.question': '退款流程？\n請附來源。' }, 'query');
   assert.equal(state.tool, 'codebase-wiki');
   assert.equal(state.selections['codebase-wiki'], 'query');

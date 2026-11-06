@@ -1,7 +1,8 @@
 /** @jsxImportSource preact */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { codexTaskActive, type CodexTaskSource, type CodexTaskState } from '../codex/protocol';
-import type { WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
+import { CommitReviewLaunch } from './CommitReviewLaunch';
+import type { SkillsContext, WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import './codex-panel.css';
 
 type LinkedSource = Extract<CodexTaskSource, { kind: 'issue' | 'project-wiki' | 'merge-request' }>;
@@ -14,8 +15,8 @@ export function taskForSource(tasks: readonly CodexTaskState[], source: LinkedSo
   return matches.find(task => codexTaskActive(task.status) || task.status === 'queued') ?? matches[0];
 }
 
-export function CodexWorkflowLaunch({ tasks, source, post, compact = false, disabled = false }: {
-  tasks: readonly CodexTaskState[]; source: LinkedSource; post: Post; compact?: boolean; disabled?: boolean;
+export function CodexWorkflowLaunch({ tasks, source, post, compact = false, disabled = false, skillsContext }: {
+  tasks: readonly CodexTaskState[]; source: LinkedSource; post: Post; compact?: boolean; disabled?: boolean; skillsContext?: SkillsContext;
 }) {
   const task = taskForSource(tasks, source), busy = task && (codexTaskActive(task.status) || task.status === 'queued');
   const label = { issue: '使用 Codex 開發', 'project-wiki': '建立／更新 Wiki', 'merge-request': '一鍵 Code Review' }[source.kind];
@@ -26,6 +27,7 @@ export function CodexWorkflowLaunch({ tasks, source, post, compact = false, disa
       {task && !busy && <button type="button" class="quiet small" onClick={() => post({ type: 'showCodexTask', taskId: task.id })}>查看上次成果</button>}
       {source.kind === 'issue' && task?.result?.files?.length ? <button type="button" class="quiet small" onClick={() => post({ type: 'openCodexChanges', taskId: task.id })}>檢視差異</button> : null}
     </div>
+    {source.kind === 'issue' && <CommitReviewLaunch post={post} skills={skillsContext} projectId={source.projectId} issueIid={source.issueIid} disabled={disabled} />}
     {!compact && task?.result && <p class="subtle" role="status">{task.result.summary}</p>}
     {!compact && source.kind === 'issue' && task?.result && (!!task.result.files?.length || !!task.result.tests?.length) &&
       <details><summary>修改與測試結果</summary>

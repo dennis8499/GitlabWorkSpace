@@ -1,4 +1,6 @@
 /** @jsxImportSource preact */
+import { CommitReviewLaunch } from './CommitReviewLaunch';
+import type { SkillsContext } from '../workspace/workspaceProtocol';
 import { Codicon } from './Codicon';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useBoundedMenus } from './boundedMenus';
@@ -26,7 +28,7 @@ export interface GitPanelUiState {
   historyFilter: string;
   pendingWrites: Array<{ id: string; repoId: string; label: string; commitMessage?: string; operationId?: string; scopeRevision?: string; lockKey?: string }>;
 }
-interface Props { active?: boolean; post: (message: WorkspaceRequest) => void; actions?: ActionController; initialState?: GitPanelUiState; onStateChange?: (state: GitPanelUiState) => void; }
+interface Props { skills?: SkillsContext; active?: boolean; post: (message: WorkspaceRequest) => void; actions?: ActionController; initialState?: GitPanelUiState; onStateChange?: (state: GitPanelUiState) => void; }
 interface DialogState { kind: 'branch' | 'fetch' | 'pull' | 'push' | 'stash' | 'rebase' | 'rebaseEditor' | 'merge' | 'reset' | 'commit' | 'pick' | 'stashAction'; value?: string; operation?: 'cherryPick' | 'revert'; pullSource?: { remote: string; branch: string }; }
 interface RequestContext { repoId: string; action: GitAction; key: string; write: boolean; operationId?: string; scopeRevision?: string; lockKey?: string; }
 type GitRequestSender = (action: GitAction, repoId?: string) => DispatchResult;
@@ -59,7 +61,7 @@ function callName(action: GitAction): string {
   return names[action.type] ?? action.type;
 }
 
-export function GitControlPanel({ active = true, post, actions: sharedActions, initialState, onStateChange }: Props) {
+export function GitControlPanel({ active = true, post, actions: sharedActions, initialState, onStateChange, skills }: Props) {
   const actions = useDomainActions(sharedActions, post, 'git-panel', operation => operation.resourceKey.startsWith('git:'));
   const restoredWrites = initialState?.pendingWrites ?? [];
   const [repositories, setRepositories] = useState<GitRepositorySummary[]>([]);
@@ -737,6 +739,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
               if (section === 'conflict' && !changes.length) return null;
               return <section class="git-change-section" key={section}><h3><span class={'git-section-dot ' + section} />{section === 'conflict' ? '衝突' : section === 'staged' ? '已暫存' : '未暫存'}<span class="git-count">{changes.length}</span></h3><VirtualRows active={active} resetKey={selectedId} className="git-virtual-changes" items={changes} itemKey={changeKey} estimateHeight={30} renderItem={(change) => <div key={change.path} class={'git-change-row ' + (ui.selectedPath === change.path && ui.selectedSection === section ? 'selected' : '')}><button class="git-change-name" title={change.path} onClick={() => selectChange(change)}><span class={'git-change-status ' + section}>{change.kind}</span><span>{change.path}</span></button>{section === 'conflict' ? <><button class="quiet small" aria-label={'開啟 Merge Editor ' + change.path} disabled={!!pending} onClick={() => openNativeConflict(change.path)}>Merge</button><button class="quiet small" title="儲存解決內容後，標記此檔為已解決" disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: true })}>✓</button></> : <button class="quiet small" title={section === 'staged' ? '取消暫存整檔' : '暫存整檔'} aria-label={(section === 'staged' ? '取消暫存 ' : '暫存 ') + change.path} disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: section !== 'staged' })}>{section === 'staged' ? '−' : '+'}</button>}{section === 'unstaged' && <button class="quiet small" title="先建立復原 Stash，再還原此檔" aria-label={'捨棄 ' + change.path} disabled={!!pending} onClick={() => send({ type: 'discard', path: change.path })}>↶</button>}</div>} />{!changes.length && <p class="git-nav-empty">{section === 'staged' ? '暫存檔案後即可提交' : '沒有未暫存變更'}</p>}</section>;
             })}</div>
+            <CommitReviewLaunch post={post} skills={skills} repo={snapshot.path} stagedCount={snapshot.stagedCount} disabled={!!pending} />
             <form class="git-commit-composer" onSubmit={(event) => submitCommit(event)}><label class="git-field"><span>提交訊息</span><textarea aria-label="提交訊息" name="message" rows={5} value={ui.draft} placeholder="描述這次變更…" onInput={(event) => setUi({ draft: event.currentTarget.value })} /></label><div class="git-commit-preview"><span>{snapshot.stagedCount} 個已暫存檔案</span>{snapshot.conflictCount > 0 && <span class="warning">先解決衝突</span>}</div><button class="primary git-commit-launch" type="submit" {...availabilityProps(gitNoticeScope + '-commit', commitBlocked)}><GitIcon name="commit" />Commit 已暫存變更</button><button class="git-amend" type="button" {...availabilityProps(gitNoticeScope + '-commit', commitBlockers['Amend'])} onClick={(event) => submitCommit(event, true)}>Amend 最近一次提交…</button><FeatureNotices id={gitNoticeScope + '-commit'} items={commitBlockers} /></form>
           </> : <div class="git-commit-detail">{selectedCommit ? <>
             <strong class="git-detail-subject">{selectedCommit.subject}</strong><p>{selectedCommit.author} · {new Date(selectedCommit.date).toLocaleString()}</p><code>{selectedCommit.hash}</code>

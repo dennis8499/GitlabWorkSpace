@@ -1,14 +1,15 @@
 import type { ReviewerCapabilities, ReviewerSessionCapabilities } from '../workspace/reviewSessionProtocol';
+import { buildCommitGuidePrompt, commitGuideCards, validCommitInputs, type CommitGuideContext } from './commitGuideData';
 import { withOutputStyle } from '../workspace/outputStyle';
 import type { InstalledReviewerBinding } from '../workspace/reviewSessionProtocol';
 import {
   buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
-  type WikiGuideCard, type WikiGuideContext, type WikiGuideField, type WikiGuideInputValues
+  type WikiGuideCard, type WikiGuideField, type WikiGuideInputValues
 } from './codebaseWikiGuideData';
 
-export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer';
+export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer' | 'commit-reviewer';
 export type SkillGuideInputValues = WikiGuideInputValues;
-export type SkillGuideContext = WikiGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string;
+export type SkillGuideContext = CommitGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string;
   reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string; modelRouting?: boolean };
 export type SkillGuideField = WikiGuideField;
 export interface SkillGuideCard extends WikiGuideCard {
@@ -19,12 +20,14 @@ export interface SkillGuideState {
   selections: Partial<Record<SkillGuideToolId, string>>;
   inputs: SkillGuideInputValues;
   migrationNotice?: string;
+  commitRepositoryRequired?: Record<string, boolean>;
 }
 
 export const skillGuideTools: ReadonlyArray<{ id: SkillGuideToolId; title: string; defaultCard: string }> = [
   { id: 'codebase-wiki', title: 'Codebase LLM Wiki', defaultCard: DEFAULT_WIKI_GUIDE_CARD_ID },
   { id: 'merge-reviewer', title: 'MergeReviewer', defaultCard: 'merge-repo' },
-  { id: 'release-reviewer', title: 'ReleaseReviewer', defaultCard: 'release-review' }
+  { id: 'release-reviewer', title: 'ReleaseReviewer', defaultCard: 'release-review' },
+  { id: 'commit-reviewer', title: 'CommitReviewer', defaultCard: 'commit-draft' }
 ];
 
 const field = (id: string, label: string, options: Partial<SkillGuideField> = {}): SkillGuideField => ({ id, label, ...options });
@@ -36,6 +39,7 @@ const releaseFields = (): SkillGuideField[] => [repoField(),
 ];
 
 export const skillGuideCards: readonly SkillGuideCard[] = [
+  ...commitGuideCards,
   ...wikiGuideCards.filter(card => card.id !== 'install').map(card => ({ ...card, tool: 'codebase-wiki' as const })),
   {
     tool: 'merge-reviewer', id: 'merge-repo', title: '分支合併審查',
@@ -89,7 +93,8 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
   }
   if (removedMode) inputs['merge-repo.confirmationRequired'] = 'true';
   const migrationNotice = removedMode ? 'MergeReviewer 已更新為分支審查。原先選擇的模式已移除，請確認 Repo 與兩個分支後再複製。' : saved?.migrationNotice;
-  return { tool, selections, inputs, ...(migrationNotice ? { migrationNotice } : {}) };
+  return { tool, selections, inputs, ...(migrationNotice ? { migrationNotice } : {}),
+    ...(saved?.commitRepositoryRequired ? { commitRepositoryRequired: saved.commitRepositoryRequired } : {}) };
 }
 
 export function legacyWikiInputs(inputs: SkillGuideInputValues): WikiGuideInputValues {
@@ -134,6 +139,7 @@ export function getSkillGuideFields(card: SkillGuideCard, inputs: SkillGuideInpu
 
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
   if (card.tool === 'codebase-wiki') return canCopyWikiPrompt(card, inputs);
+  if (card.tool === 'commit-reviewer') return validCommitInputs(card, inputs);
   if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head', 'effort'].includes(key.slice(card.id.length + 1)))) return false;
   if (!getSkillGuideFields(card, inputs).every(item => {
     if (card.id === 'ingest' && item.id === 'path' && value(card, 'scope', inputs) === '全部專案') return true;
@@ -157,6 +163,7 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
 
 function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {
   if (card.tool === 'codebase-wiki') return buildWikiGuidePrompt(card.id, inputs, context);
+  if (card.tool === 'commit-reviewer') return buildCommitGuidePrompt(card, inputs, context);
   const releaseWorkspace = context.workspaceRoot ?? context.groupRoot ?? context.root;
   if (['release-reviewer', 'merge-reviewer'].includes(card.tool) && (context.workspaceRootAmbiguous || !releaseWorkspace)) {
     throw new Error('無法辨識唯一 VSCode 工作區根目錄；請先儲存 multi-root 工作區或開啟明確資料夾。');

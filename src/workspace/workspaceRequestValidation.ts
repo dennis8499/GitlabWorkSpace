@@ -154,6 +154,7 @@ export const workspaceRequestSchemas = {
   addManualTime: { ...projectIssue, ...time }, updateTimeEntry: { id: identity, ...time, spentAt: string(64) }, submitTimeEntry: { id: identity }, acknowledgeTimeEntry: { id: identity },
   selectMergeRequest: projectMr, refreshMergeRequest: projectMr, reconcileMergeRequestWrite: projectMr,
   loadMergeRequestSection: { ...projectMr, section: one('diffs', 'discussions') }, postMergeRequestNote: { ...projectMr, body: string(1_100_000, 1) }, openBranchReview: projectMr,
+  prepareCommitReview: { mode: one('commit', 'mr'), revision: key, repo: optional(path), projectId: optional(id), issueIid: optional(id) },
   loadSkillBranches: { repo: path, revision: key, requestId: identity }, loadReviewerCapabilities: review, loadReviewSessions: { revision: key, tool },
   cancelReviewSession: review, copyReviewRefresh: review, copyReviewResume: review, openReviewReport: review,
   replyMergeRequest: { ...projectMr, discussionId: key, body: string(1_100_000, 1) }, approveMergeRequest: { ...projectMr, sha: string(64, 40) }, mergeMergeRequest: { ...projectMr, sha: string(64, 40) },
@@ -171,6 +172,9 @@ export class WorkspaceProtocolError extends Error {
 export function isWorkspaceRequest(value: unknown): value is WorkspaceRequest {
   if (!variant(workspaceRequestSchemas, metadata)(value)) return false;
   const request = value as WorkspaceRequest;
+  if (request.type === 'prepareCommitReview') return request.repo !== undefined
+    ? request.projectId === undefined && request.issueIid === undefined
+    : request.projectId !== undefined && request.issueIid !== undefined;
   if (!request.type.startsWith('git')) return true;
   const payload = Object.fromEntries(Object.entries(request).filter(([name]) => !Object.hasOwn(metadata, name)));
   return isGitPanelRequest(payload);

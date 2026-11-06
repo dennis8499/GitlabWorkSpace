@@ -9,6 +9,48 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+function commitReviewSkills() {
+  return { mode: 'group', root: 'C:/workspace', revision: 'commit-skills-current',
+    installed: { status: 'installed', capabilities: ['commit-draft', 'mr-precheck'] },
+    availableFeatures: ['commit-draft', 'mr-precheck'], repositories: [{ name: 'service', path: 'C:/workspace/repo-a' }] };
+}
+
+test('CommitReviewer Git shortcuts use the selected Repo and leave the Commit message untouched', async t => {
+  const view = await mountGit(t);
+  view.sendSnapshot({ ...snapshot('git'), skillsContext: commitReviewSkills() }); await view.tick();
+  const document = view.dom.window.document, composer = document.querySelector('.git-commit-composer textarea');
+  composer.value = 'Existing developer draft'; composer.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const buttons = document.querySelectorAll('.git-control-panel .commit-review-launch button');
+  const launch = buttons.length ? buttons : document.querySelectorAll('.commit-review-launch button');
+  assert.equal(launch.length, 2);
+  for (const [index, mode] of ['commit', 'mr'].entries()) {
+    launch[index].click(); await view.tick();
+    const request = view.requests.findLast(request => request.type === 'prepareCommitReview');
+    assert.equal(request.mode, mode); assert.equal(request.repo, 'C:/workspace/repo-a');
+    assert.equal(request.revision, 'commit-skills-current');
+  }
+  assert.equal(composer.value, 'Existing developer draft');
+  assert.equal(gitActions(view, 'commit').length, 0);
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
+});
+
+test('CommitReviewer Issue shortcuts carry Issue identity from preview and embedded detail', async t => {
+  const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] }; data.skillsContext = commitReviewSkills();
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  for (const [index, mode] of ['commit', 'mr'].entries()) {
+    document.querySelectorAll('.issue-detail .commit-review-launch button')[index].click(); await view.tick();
+    const request = view.requests.findLast(request => request.type === 'prepareCommitReview');
+    assert.equal(request.mode, mode); assert.equal(request.projectId, 1); assert.equal(request.issueIid, 1);
+    assert.equal(request.repo, undefined); assert.equal(request.revision, 'commit-skills-current');
+  }
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
+  document.querySelector('.issue-embed .commit-review-launch button').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'prepareCommitReview').issueIid, 1);
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
+});
+
 function linkedWorkflowTask(kind, patch = {}) {
   return { id: 'linked-workflow', title: 'Linked work', root: 'C:/workspace/team', status: 'completed',
     createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z',
@@ -2672,7 +2714,7 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   assert.ok(document.querySelector('.skills-feature-navigation'));
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
 });
-test('three Skills tools preserve legacy Wiki drafts and isolate release inputs across roots and reopening', async (t) => {
+test('four Skills tools preserve legacy Wiki drafts and isolate release inputs across roots and reopening', async (t) => {
   const data = snapshot('sa');
   const selectedRepo = 'C:/工作區 with spaces/service';
   data.groupRepositories = [{ name: 'service', path: selectedRepo }, { name: 'alpha', path: 'C:/workspace/team/alpha' }];
@@ -2688,7 +2730,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
     input.dispatchEvent(new view.dom.window.Event(event, { bubbles: true }));
     await view.tick();
   };
-  assert.equal(document.querySelectorAll('.skills-tool-tabs [role=tab]').length, 3);
+  assert.equal(document.querySelectorAll('.skills-tool-tabs [role=tab]').length, 4);
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
   await change('.skills-tool-selector select', 'release-reviewer');
   assert.equal(selectedSkillFeature(document), 'release-review');

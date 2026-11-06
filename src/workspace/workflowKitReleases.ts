@@ -8,6 +8,7 @@ export { compareVersions } from './workflowKitVersion';
 
 export const TOOL_SOURCE_KEY = 'gitlabWorkspace.workflowKit.source';
 export const MAX_PACKAGE_BYTES = 80 * 1024 * 1024;
+export const MAX_INSTALLER_BYTES = 8 * 1024 * 1024;
 const META = 1024 * 1024;
 export const WORKFLOW_KIT_RELEASES: Record<RemoteToolSource, string> = {
   github: 'https://github.com/dennis8499/WorkflowKit/releases',
@@ -199,7 +200,7 @@ export class WorkflowKitReleaseManager {
     const url = asset === release.descriptor.assets.installer ? release.assetUrls.installer : release.assetUrls.package;
     let data: Buffer;
     try {
-      data = await this.download(url, release.source, asset === release.descriptor.assets.installer ? 4 * META : MAX_PACKAGE_BYTES, signal);
+      data = await this.download(url, release.source, asset === release.descriptor.assets.installer ? MAX_INSTALLER_BYTES : MAX_PACKAGE_BYTES, signal);
       if (data.length !== asset.size || digest(data) !== asset.sha256) throw new PackageIntegrityError('下載附件的 SHA-256 或大小與 Release 索引不符。');
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -269,7 +270,7 @@ export function parseDescriptor(value: unknown): ReleaseDescriptor {
     !data.assets?.package || !data.assets?.installer || Object.keys(data.assets).length !== 2) throw new PackageIntegrityError('WorkflowKit Release 索引格式無效。');
   for (const [kind, asset] of Object.entries(data.assets)) {
     if (!asset || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(asset.name) || !/^[a-f0-9]{64}$/.test(asset.sha256) ||
-      !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > (kind === 'installer' ? 4 * META : MAX_PACKAGE_BYTES)) throw new PackageIntegrityError('Release 附件索引無效。');
+      !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > (kind === 'installer' ? MAX_INSTALLER_BYTES : MAX_PACKAGE_BYTES)) throw new PackageIntegrityError('Release 附件索引無效。');
   }
   if (!data.assets.package.name.endsWith('.zip') || !data.assets.installer.name.endsWith('.py')) throw new PackageIntegrityError('Release 附件類型無效。');
   return data;

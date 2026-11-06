@@ -1,4 +1,5 @@
 import { prepareWebviewHtml } from '../webviewSecurity';
+import { commitReviewRuntime, readInstalledCommitReviewer } from './commitReviewer';
 import { readReviewerCapabilities } from './reviewerCapabilities';
 import * as vscode from 'vscode';
 import { assertWorkspaceAction, getWorkspaceCapabilities } from './workspaceCapabilities';
@@ -1519,6 +1520,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'loadMergeRequestSection': await this.loadMergeRequestSection(request.section, request.projectId, request.iid); break;
       case 'postMergeRequestNote': await this.postMergeRequestNote(request.projectId, request.iid, request.body); break;
       case 'openBranchReview': await this.openBranchReview(request.projectId, request.iid); break;
+      case 'prepareCommitReview': await this.prepareCommitReview(request); break;
       case 'loadSkillBranches': await this.loadSkillBranches(request.repo, request.revision, request.requestId); break;
       case 'loadReviewerCapabilities': await this.loadReviewerCapabilities(request.revision, request.requestId, request.tool); break;
       case 'replyMergeRequest': await this.replyMergeRequest(request.projectId, request.iid, request.discussionId, request.body); break;
@@ -2616,7 +2618,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (source.kind === 'skill') {
       if (!source.inputs || typeof source.inputs !== 'object' || Array.isArray(source.inputs) || Object.values(source.inputs).some(value => typeof value !== 'string' || value.length > 32_000 || value.includes('\0'))) throw new Error('Skills 輸入格式無效。');
       await this.refreshWorkflowKit();
-      prepared = await this.prepareSkillGuideTask({ ...source, revision: previous ? this.getSkillsContext().revision : source.revision }, previous?.review?.requestId);
+      prepared = await this.prepareSkillGuideTask({ ...source, revision: previous ? this.getSkillsContext().revision : source.revision }, previous?.review?.requestId, previous?.commitReview?.runtimeRoot);
     } else if (source.kind === 'bmad') {
       if (!source.request || !['task', 'skill'].includes(source.request.command)) throw new Error('請選擇可執行的 BMAD 工作。');
       await this.refreshWorkflowKitInstallState();
@@ -2657,20 +2659,37 @@ export class WorkspacePanel implements vscode.Disposable {
     this.post({ type: 'message', message: '已複製目前環境的 Skills 提示詞。' });
   }
 
-  private async prepareSkillGuideTask(request: { featureId: string; inputs: Record<string, string>; revision: string }, requestId?: string): Promise<CodexTaskSpec> {
+  private async prepareSkillGuideTask(request: { featureId: string; inputs: Record<string, string>; revision: string }, requestId?: string, previousCommitRuntime?: string): Promise<CodexTaskSpec> {
     this.operationPhase('copySkillGuidePrompt', '核對目前環境與 Skills…');
     const previous = this.getSkillsContext();
     if (request.revision !== previous.revision) throw new Error('Skills 環境已變更，請重新確認提示詞。');
     await this.refreshWorkflowKit();
-    if (request.featureId === 'merge-repo' || request.featureId === 'release-review') await this.refreshInventory();
+    if (['merge-repo', 'release-review', 'commit-draft', 'mr-precheck'].includes(request.featureId)) await this.refreshInventory();
     const current = this.getSkillsContext();
     if (request.revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認提示詞。');
     const card = getSkillGuideCards(current.mode === 'group' ? 'group' : 'repository').find(item => item.id === request.featureId);
     if (!card || !current.availableFeatures.includes(card.id) || !canCopySkillPrompt(card, request.inputs)) throw new Error(current.reason ?? '此功能目前無法使用。');
     const reviewer = card.tool === 'merge-reviewer' || card.tool === 'release-reviewer';
-    const repositories = reviewer ? current.reviewerRepositories ?? [] : current.repositories;
-    const selectedRepository = reviewer ? resolveReviewerRepository(request.inputs[`${card.id}.repo`] ?? '', repositories) : undefined;
-    if (reviewer && !selectedRepository) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
+    const repositoryTool = reviewer || card.tool === 'commit-reviewer';
+    const repositories = repositoryTool ? current.reviewerRepositories ?? [] : current.repositories;
+    const selectedRepository = repositoryTool ? resolveReviewerRepository(request.inputs[`${card.id}.repo`] ?? '', repositories) : undefined;
+    if (repositoryTool && !selectedRepository) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
+    if (card.tool === 'commit-reviewer') {
+      if (!current.root || !selectedRepository || current.workspaceRootAmbiguous) throw new Error('請選擇明確的工作區及本機 Repo。');
+      const binding = await readInstalledCommitReviewer(current.root);
+      const runtime = commitReviewRuntime(current.workspaceRoot ?? current.root, previousCommitRuntime);
+      if (this.getSkillsContext().revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認表單。');
+      const inputs = { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path };
+      const context = { root: current.root, workspaceRoot: current.workspaceRoot ?? current.root, repositories,
+        workflowKitVersion: current.installed.version, workflowKitRunner: binding.workflowKitRunner,
+        commitRuntimeRoot: runtime, commitHelperPath: binding.helper };
+      const spec = await this.codexSpec({ kind: 'skill', ...request, inputs }, card.title, current.root, card.tool,
+        `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`,
+        [selectedRepository.path, path.dirname(runtime)], undefined, JSON.stringify([binding, runtime]));
+      spec.commitReview = { runtimeRoot: runtime };
+      spec.executionRoot = selectedRepository.path;
+      return spec;
+    }
     const reviewerBinding = reviewer && current.root ? await readInstalledReviewerBinding(current.root, card.tool as ReviewerToolId) : undefined;
     const workflowKitRunner = reviewerBinding?.workflow_kit_runner ?? (current.root && current.installed.status === 'installed'
       ? await readWorkflowKitRunnerBinding(current.root) : undefined);
@@ -4726,6 +4745,34 @@ export class WorkspacePanel implements vscode.Disposable {
     if (epoch !== this.session.connectionEpoch) return;
     this.post({ type: 'branchReviewReady', revision: this.getSkillsContext().revision, inputs,
       notice: unique ? undefined : '此 MR 為 fork 或無法唯一對應本機 Repo。請選擇含兩個明確分支的 Repo，再準備審查。' });
+  }
+
+  private async prepareCommitReview(request: Extract<WorkspaceRequest, { type: 'prepareCommitReview' }>): Promise<void> {
+    const before = this.getSkillsContext();
+    if (request.revision !== before.revision) throw new Error('工作區或 Skills 已變更，請重新開啟表單。');
+    const epoch = this.session.connectionEpoch, scope = this.connectedScopeKey();
+    await this.refreshWorkflowKit();
+    await this.refreshInventory();
+    const current = this.getSkillsContext();
+    if (request.revision !== current.revision) throw new Error('工作區或 Skills 已變更，請重新開啟表單。');
+    const repositories = current.reviewerRepositories ?? current.repositories;
+    const feature = request.mode === 'commit' ? 'commit-draft' : 'mr-precheck';
+    const inputs: Record<string, string> = { [`${feature}.repo`]: '' };
+    if (request.repo) {
+      const selected = resolveReviewerRepository(request.repo, repositories);
+      if (!selected) throw new Error('此 Repo 已不在目前 VS Code 工作區，請重新選擇。');
+      inputs[`${feature}.repo`] = selected.path;
+    } else {
+      const project = await this.resolveGroupProject(request.projectId!);
+      const environment = await this.inspectEnvironment(this.projects);
+      if (epoch !== this.session.connectionEpoch || scope !== this.connectedScopeKey()) throw new Error('GitLab 帳號或專案已變更，請重新選擇 Issue。');
+      const candidates = environment.repositories.filter(repo => repo.projectId === project.id && resolveReviewerRepository(repo.path, repositories));
+      if (candidates.length === 1) inputs[`${feature}.repo`] = candidates[0].path;
+      if (request.mode === 'commit') inputs[`${feature}.issues`] = `${project.path_with_namespace}#${request.issueIid}`;
+      if (request.mode === 'mr' && project.default_branch) inputs[`${feature}.target`] = project.default_branch;
+    }
+    if (this.getSkillsContext().revision !== current.revision) throw new Error('工作區已變更，請重新開啟表單。');
+    this.post({ type: 'commitReviewReady', revision: current.revision, mode: request.mode, inputs });
   }
 
   private async loadSkillBranches(repo: string, revision: string, requestId: string): Promise<void> {
