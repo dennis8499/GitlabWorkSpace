@@ -8,6 +8,7 @@
 
 | 工作項目 | 保留的說明與摘要 |
 | --- | --- |
+| `work-20261106-codex-console` | [Codex 統一管理與 Auto-Accept 驗收](work-20261106-codex-console/verification.md) |
 | `work-20260924-gitlab-workspace` | [plan](work-20260924-gitlab-workspace/plan.md)、[requirements](work-20260924-gitlab-workspace/requirements.md)、[workflow](work-20260924-gitlab-workspace/workflow.md) |
 | `work-20260924-issue-parity` | [plan](work-20260924-issue-parity/plan.md)、[requirements](work-20260924-issue-parity/requirements.md) |
 | `work-20260929-gitlab-custom-url` | [plan](work-20260929-gitlab-custom-url/plan.md)、[requirements](work-20260929-gitlab-custom-url/requirements.md)、[workflow](work-20260929-gitlab-custom-url/workflow.md) |

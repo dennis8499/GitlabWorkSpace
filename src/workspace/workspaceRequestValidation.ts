@@ -22,7 +22,7 @@ const object = (shape: Shape): Check => value => record(value) && Object.keys(va
 const dictionary = (check: Check, max = 1000): Check => value => record(value) && Object.keys(value).length <= max
   && Object.entries(value).every(([name, item]) => identity(name) && !['__proto__', 'constructor', 'prototype'].includes(name) && check(item));
 const strings = array(key), ids = array(id, 10000), tool = one('merge-reviewer', 'release-reviewer');
-const source = one('gitea', 'github'), mode = one('dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git');
+const source = one('gitea', 'github'), mode = one('dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'codex');
 const metadata: Shape = { operationId: optional(value => identity(value) && /^[a-z0-9-]{1,100}$/i.test(String(value))),
   operationScope: optional(string(500)), hostSessionId: optional(identity), scopeEpoch: optional(integer), projectRevision: optional(key) };
 const issueMetadata: Shape = { requestId: optional(identity), operationId: optional(identity), operationScope: optional(string(500)),
@@ -118,6 +118,7 @@ const taskSource: Check = value => record(value) && (
 export const workspaceRequestSchemas = {
   startCodexTask: { source: taskSource }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key) },
   sendCodexMessage: { taskId: identity, text }, cancelCodexTask: { taskId: identity }, resumeCodexTask: { taskId: identity },
+  pauseCodexTask: { taskId: identity }, deleteCodexTask: { taskId: identity }, setCodexAutoAccept: { taskId: identity, enabled: boolean },
   answerCodex: { taskId: identity, interactionId: identity, answer: object({ decision: one('accept', 'decline', 'cancel'), answers: optional(dictionary(string(8000), 100)), content: optional(json) }) },
   checkCodex: {}, configureCodex: { action: one('login', 'sandbox', 'executable') },
   ready: { projectSource: optional(one('gitlab', 'local')), developerView: optional(one('list', 'graph')), mergeRequestFilter: optional(one('all', 'reviewer', 'assigned')) },

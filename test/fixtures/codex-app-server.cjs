@@ -12,13 +12,19 @@ function complete(status = 'completed') {
 }
 function next() {
   const request = pending.shift();
-  if (request) send({ id: request.id, method: request.method, params: { threadId: active.threadId, turnId: active.turnId, ...request.params } });
+  if (request) {
+    const message = { id: request.id, method: request.method, params: { threadId: active.threadId, turnId: active.turnId, ...request.params } };
+    send(message); if (mode === 'duplicate-approval' && request.id === 91) send(message);
+  }
   else complete();
 }
 const rl = readline.createInterface({ input: process.stdin });
 rl.on('line', line => {
   const message = JSON.parse(line), { id, method, params = {} } = message;
-  if (!method) { notify('serverRequest/resolved', { threadId: active.threadId, requestId: id }); next(); return; }
+  if (!method) {
+    if (mode === 'exit-after-approval') process.exit(5);
+    notify('serverRequest/resolved', { threadId: active.threadId, requestId: id }); next(); return;
+  }
   if (method === 'initialize') { send({ id, result: { userAgent: 'offline-test', platformFamily: 'windows' } }); return; }
   if (method === 'initialized') { initialized = true; return; }
   if (!initialized) { send({ id, error: { code: -32000, message: 'Not initialized' } }); return; }
@@ -35,7 +41,13 @@ rl.on('line', line => {
   if (method === 'account/read') { send({ id, result: { account: mode === 'logged-out' ? null : { type: 'chatgpt' }, requiresOpenaiAuth: true } }); return; }
   if (method === 'windowsSandbox/readiness') { send({ id, result: { status: mode === 'sandbox-missing' ? 'notConfigured' : 'ready' } }); return; }
   if (method === 'configRequirements/read') { send({ id, result: { requirements: mode === 'managed' ? { allowedSandboxModes: ['read-only'] } : null } }); return; }
-  if (method === 'skills/list') { send({ id, result: { data: [{ cwd: root, skills: ['codebase-wiki', 'merge-reviewer', 'release-reviewer', 'model-routing'].map(name => ({ name, path: path.join(root, '.agents/skills', name, 'SKILL.md'), enabled: true })) }] } }); return; }
+  if (method === 'skills/list') {
+    const result = { data: [{ cwd: root, skills: ['codebase-wiki', 'merge-reviewer', 'release-reviewer', 'model-routing'].map(name => ({ name, path: path.join(root, '.agents/skills', name, 'SKILL.md'), enabled: true })) }] };
+    const held = path.join(root, 'fixture-held-setup');
+    if (mode === 'hold-before-turn' && !fs.existsSync(held)) { fs.writeFileSync(held, '1'); setTimeout(() => send({ id, result }), 1000); }
+    else send({ id, result });
+    return;
+  }
   if (method === 'model/list') {
     const efforts = mode === 'routing-max-missing' ? ['low', 'medium', 'high', 'xhigh'] : ['low', 'medium', 'high', 'xhigh', 'max'];
     send({ id, result: { data: mode === 'routing-model-missing' || mode === 'routing-page' && !params.cursor ? [] : [
@@ -44,7 +56,13 @@ rl.on('line', line => {
   }
   if (method === 'thread/start') { send({ id, result: { thread: { id: 'thread-' + ++sequence } } }); return; }
   if (method === 'thread/resume') { send({ id, result: { thread: { id: params.threadId } } }); return; }
-  if (method === 'thread/turns/list') { send({ id, result: { data: mode === 'empty-thread' ? [] : [{ id: 'old-turn', items: [{ id: 'old-message', type: 'agentMessage', text: '先前已保存的結果' }] }], nextCursor: null } }); return; }
+  if (method === 'thread/turns/list') {
+    const page = params.cursor ? 'earlier' : 'latest';
+    send({ id, result: { data: mode === 'empty-thread' ? [] : mode === 'paged-history'
+      ? [{ id: page, status: 'completed', items: [{ id: page, type: 'agentMessage', text: page }] }]
+      : [{ id: 'old-turn', items: [{ id: 'old-message', type: 'agentMessage', text: '先前已保存的結果' }] }],
+    nextCursor: mode === 'paged-history' ? params.cursor ? 'oldest' : 'older' : null } }); return;
+  }
   if (method === 'turn/start') {
     active = { threadId: params.threadId, turnId: 'turn-' + ++sequence };
     send({ id, result: { turn: { id: active.turnId, status: 'inProgress', items: [] } } });
@@ -64,6 +82,12 @@ rl.on('line', line => {
         context_dir: job.context_dir, input_digest: job.input_digest, snapshot_hash: 'a'.repeat(64),
         requested_effort: config.requestedEffort, model: 'gpt-6-luna', effort: null, phase: 'routing', reason: '', checkpoint: '', history: [], revision: 0
       };
+      const heldReview = path.join(root, 'fixture-held-review');
+      if (mode === 'routing-hold-review' && prompt.includes('routing_phase=review') && !fs.existsSync(heldReview)) {
+        state.effort ??= config.requestedEffort; state.phase = 'reviewing'; state.revision++;
+        state.history.push({ effort: state.effort, reason: 'User-selected effort.', kind: 'manual' });
+        write(statePath, state); write(heldReview, true); return;
+      }
       if (mode !== 'routing-no-decision') {
         if (prompt.includes('routing_phase=assess')) {
           state.effort = config.initialEffort ?? 'high'; state.phase = 'reviewing'; state.reason = 'Fixed API behavior.';
@@ -86,6 +110,18 @@ rl.on('line', line => {
     if (prompt.includes('unknown-request')) {
       send({ id: 'unknown', method: 'item/tool/call', params: { ...active, name: 'unsupported' } }); return;
     }
+    if (prompt.includes('auto-approvals')) {
+      pending = [
+        { id: 91, method: 'item/commandExecution/requestApproval', params: { command: 'git status', cwd: root, availableDecisions: mode === 'no-single-approval' ? ['decline', 'cancel'] : ['accept', 'decline'] } },
+        { id: 92, method: 'item/commandExecution/requestApproval', params: { networkApprovalContext: { host: 'example.test', protocol: 'https' } } },
+        { id: 93, method: 'item/commandExecution/requestApproval', params: { command: 'write_stdin', cwd: root } },
+        { id: 94, method: 'item/fileChange/requestApproval', params: { grantRoot: root } },
+        { id: 95, method: 'item/permissions/requestApproval', params: { permissions: { network: { enabled: true } } } },
+        { id: 96, method: 'item/tool/requestUserInput', params: { questions: [{ id: 'choice', question: 'Choose a plan', options: [{ label: 'A' }, { label: 'B' }] }] } },
+        { id: 97, method: 'mcpServer/elicitation/request', params: { mode: 'form', message: 'MCP form', requestedSchema: { type: 'object', required: ['name'], properties: { name: { type: 'string' } } } } },
+        { id: 98, method: 'mcpServer/elicitation/request', params: { mode: 'url', url: 'https://example.test/auth', message: 'Sign in' } }
+      ]; next(); return;
+    }
     if (prompt.includes('interactive')) {
       pending = [
         { id: 91, method: 'item/commandExecution/requestApproval', params: { command: 'git status', cwd: root } },
@@ -96,7 +132,7 @@ rl.on('line', line => {
         { id: 96, method: 'mcpServer/elicitation/request', params: { mode: 'url', serverName: 'test', url: 'https://example.test/auth', message: '登入工具' } }
       ]; next(); return;
     }
-    if (!prompt.includes('hold')) setTimeout(() => complete(), 30);
+    if (!prompt.includes('hold') || prompt.includes('原始任務（先核對已完成進度')) setTimeout(() => complete(), 30);
     return;
   }
   if (method === 'turn/steer') { send({ id, result: { turnId: active.turnId } }); complete(); return; }

@@ -66,14 +66,49 @@ suite('Codex one-click packaged extension', function () {
         await bridge.cancel(taskId); throw new Error(`Codex live task timed out: ${taskId}`);
       }
       async function clickRun(selector: string, name: string): Promise<CodexTaskState> {
+        const checks: Record<string, boolean> = {};
         const before = new Set(bridge.list().map(value => value.id));
         await ui!.waitForProperty(selector, 'disabled', false, 30_000);
         await ui!.click(selector);
         await wait(() => bridge.list().some(value => !before.has(value.id)), `${name}: one-click did not enqueue a task`, 90_000);
         const task = bridge.list().find(value => !before.has(value.id))!;
+        await ui!.waitForVisible('.codex-workspace:not([hidden])', 30_000);
+        if (name === 'wiki') {
+          await ui!.waitForProperty('.codex-auto-accept input', 'disabled', false, 30_000);
+          await ui!.click('.codex-auto-accept input');
+          await wait(() => bridge.list().find(value => value.id === task.id)?.controls?.autoAccept === true, 'Auto-Accept did not enable');
+          await ui!.waitForProperty('.codex-auto-accept input', 'checked', true, 30_000);
+          await ui!.click('.codex-auto-accept input');
+          await wait(() => bridge.list().find(value => value.id === task.id)?.controls?.autoAccept === false, 'Auto-Accept did not disable');
+          await ui!.waitForProperty('.codex-auto-accept input', 'checked', false, 30_000);
+          checks.autoAcceptToggle = true;
+          await wait(() => !!bridge.list().find(value => value.id === task.id)?.turnId || bridge.list().find(value => value.id === task.id)?.status === 'failed', 'Wiki did not enter a turn');
+          const running = bridge.list().find(value => value.id === task.id)!;
+          if (running.status === 'running') {
+            await ui!.click('.codex-controls > button.primary');
+            await wait(() => bridge.list().find(value => value.id === task.id)?.status === 'paused', 'Wiki pause did not settle', 90_000);
+            assert.equal((bridge as any).active, undefined, 'paused is published after process cleanup');
+            await ui!.waitForVisible('.codex-controls > button.primary:not([aria-busy]):not([disabled])', 30_000);
+            await ui!.click('.codex-controls > button.primary');
+            await wait(() => ['queued', 'starting', 'running', 'completed'].includes(bridge.list().find(value => value.id === task.id)!.status), 'Wiki resume was not accepted');
+            assert.equal(bridge.list().find(value => value.id === task.id)?.threadId, running.threadId, 'resume retains the real Codex conversation');
+            checks.pauseAndResume = true;
+          }
+        }
         await finish(task.id);
+        if (name === 'wiki') {
+          const reply = ((bridge as any).outputs.get(task.id) as Array<{ kind: string; text: string }>).filter(item => item.kind === 'agent').at(-1)?.text ?? '';
+          assert.match(reply, /calculator|add|加法|減法/i, 'resuming Wiki still answers the original calculator question');
+          assert.doesNotMatch(reply, /請提供原\s*request|未找到審查\s*runtime/, 'Wiki resume does not ask for reviewer state');
+          await wait(() => !host.operations.list().some((operation: { action: string; status: string }) => operation.action === 'codexHistory' && ['queued', 'running'].includes(operation.status)),
+            'automatic history did not finish');
+          assert.equal(host.operations.list().filter((operation: { action: string; status: string }) => operation.action === 'codexHistory' && operation.status === 'failed').length, 0,
+            'automatic history waits until the thread has a persisted user message');
+          checks.originalGoal = true;
+          checks.historyReadiness = true;
+        }
         const final = bridge.list().find(value => value.id === task.id)!;
-        results.push({ name, ...final });
+        results.push({ name, ...final, checks });
         const page = browser.contexts()[0].pages().find(page => page.url().includes('workbench')) ?? browser.contexts()[0].pages()[0];
         await page.screenshot({ path: path.join(evidence, `${name}.png`) });
         await writeFile(path.join(evidence, 'results.json'), JSON.stringify(results, null, 2));
@@ -86,6 +121,8 @@ suite('Codex one-click packaged extension', function () {
       }
       for (const [tool, feature] of [['merge-reviewer', 'merge-repo'], ['release-reviewer', 'release-review']] as const) {
         if (!enabled.has(tool)) continue;
+        await vscode.commands.executeCommand('gitlabWorkspace.openSaMode');
+        await ui.waitForVisible('.skills-action-bar', 30_000);
         await ui.evaluate(`document.getElementById(${JSON.stringify('skill-tool-' + tool)}).click()`);
         await ui.waitForVisible(`[id="wiki-input-${feature}.base"]`, 30_000);
         await ui.evaluate(`(() => { for (const [field, value] of [['repo', ${JSON.stringify(path.join(root, 'service'))}], ['base', 'main'], ['head', 'feature']]) { const input = document.getElementById(${JSON.stringify('wiki-input-' + feature + '.')} + field); input.value = value; input.dispatchEvent(new Event(input.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); } })()`);
@@ -114,9 +151,10 @@ suite('Codex one-click packaged extension', function () {
       }
       assert.ok(files.some(file => /\.md$/i.test(String(file))), 'BMAD produces a real saved document');
       }
-      await ui.evaluate(`document.querySelector('.codex-panel > summary').click()`);
-      await ui.evaluate(`document.querySelector('.codex-panel > summary').click()`);
-      assert.equal(bridge.list().length, enabled.size, 'collapsing and reopening the task panel never resubmits work');
+      await vscode.commands.executeCommand('gitlabWorkspace.openWorkspace');
+      await vscode.commands.executeCommand('gitlabWorkspace.openCodexMode');
+      await ui.waitForVisible('.codex-workspace:not([hidden])', 30_000);
+      assert.equal(bridge.list().length, enabled.size, 'leaving and reopening Codex never resubmits work');
       await writeFile(path.join(evidence, 'results.json'), JSON.stringify({ success: true, vscode: vscode.version, tasks: results }, null, 2));
     } catch (error) {
       await writeFile(path.join(evidence, 'failure.json'), JSON.stringify({ error: String(error), skills: host.getSkillsContext(), tasks: host.getCodexBridge().list() }, null, 2));

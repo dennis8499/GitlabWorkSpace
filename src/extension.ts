@@ -67,7 +67,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       const operationId = metadata.operationId ?? randomUUID();
       const aliases: Record<string, string> = {
         openCloneMode: 'openProjects', openSaMode: 'openAnalysis', openBmadMode: 'openBmad', openDeveloperMode: 'openMyWork',
-        openReviewerMode: 'openReviewer', openGitMode: 'openGit', openRepository: 'openRepository',
+        openReviewerMode: 'openReviewer', openGitMode: 'openGit', openCodexMode: 'openCodex', openRepository: 'openRepository',
         cloneRepositories: 'clone', cloneAllRepositories: 'clone', cloneSelectedRepositories: 'clone', syncLocalDefaultBranches: 'syncRepos'
       };
       const task = () => getWorkspace().runCommandAction(metadata.action ?? aliases[action] ?? action, () => Promise.resolve(callback.apply(thisArg, args)), { ...metadata, operationId });
@@ -116,6 +116,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     registerLoggedCommand('gitlabWorkspace.openDeveloperMode', () => getWorkspace().navigateTo('developer')),
     registerLoggedCommand('gitlabWorkspace.openReviewerMode', () => getWorkspace().navigateTo('reviewer')),
     registerLoggedCommand('gitlabWorkspace.openGitMode', (repoId?: string) => getWorkspace().navigateTo('git', repoId)),
+    registerLoggedCommand('gitlabWorkspace.openCodexMode', () => getWorkspace().navigateTo('codex')),
     registerLoggedCommand('gitlabWorkspace.openRepository', async (value?: string | RepositoryNode) => {
       const id = typeof value === 'string' ? value : value?.kind === 'repository' ? value.repository.id : await navigation?.findRepository();
       if (id) await getWorkspace().navigateTo('git', id);

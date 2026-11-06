@@ -1,17 +1,12 @@
 /** @jsxImportSource preact */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
-import { codexTaskActive, type CodexEnvironment, type CodexEvent, type CodexInteraction, type CodexInteractionAnswer,
-  type CodexOutputItem, type CodexTaskState } from '../codex/protocol';
+import type { CodexEnvironment, CodexEvent, CodexInteraction, CodexInteractionAnswer } from '../codex/protocol';
 import './codex-panel.css';
 import { formChoices } from '../codex/forms';
-import type { ActionController, DispatchResult } from '../workspace/actionController';
-import { useActionSelector } from './useActions';
-import { editCodexDraft, restoreCodexUi, settleCodexDrafts, type CodexUiState } from './codexUiState';
+import type { DispatchResult } from '../workspace/actionController';
 
 type Post = (request: WorkspaceRequest) => void;
-const labels: Record<CodexTaskState['status'], string> = { queued: '排隊中', starting: '準備執行', running: '執行中', waiting: '等待互動',
-  completed: '本輪完成', failed: '執行失敗', interrupted: '已中斷', uncertain: '結果待核對' };
 function useCodexEvents(receive: (event: CodexEvent) => void, post: Post): void {
   const receiver = useRef(receive); receiver.current = receive;
   useEffect(() => {
@@ -33,128 +28,7 @@ export function CodexSettings({ post }: { post: Post }) {
     </div><p class="subtle">帳號沿用本機 Codex；已啟用 Model Routing 的審查使用 GPT-6 Luna，其餘任務沿用本機模型。額外權限會在任務面板詢問。</p>
   </section>;
 }
-export function CodexPanel({ post, actions, initialState, onStateChange }: {
-  post: (request: WorkspaceRequest) => DispatchResult; actions: ActionController;
-  initialState?: CodexUiState; onStateChange: (state: CodexUiState) => void;
-}) {
-  const [tasks, setTasks] = useState<CodexTaskState[]>([]);
-  const [ui, commitUi] = useState(() => restoreCodexUi(initialState));
-  const save = useRef(onStateChange); save.current = onStateChange;
-  const uiRef = useRef(ui);
-  // Drafts and submission identities must survive disposal before the next render/effect.
-  const setUi = (update: (current: CodexUiState) => CodexUiState) => {
-    const next = update(uiRef.current);
-    if (next === uiRef.current) return;
-    uiRef.current = next; save.current(next); commitUi(next);
-  };
-  const selected = ui.selectedTaskId ?? '';
-  const setSelected = (value: string | ((current: string) => string)) => setUi(current => ({ ...current,
-    selectedTaskId: typeof value === 'function' ? value(current.selectedTaskId ?? '') : value }));
-  const [items, setItems] = useState<Record<string, CodexOutputItem[]>>({});
-  const [interactions, setInteractions] = useState<Record<string, CodexInteraction[]>>({});
-  const [history, setHistory] = useState<Record<string, Extract<CodexEvent, { kind: 'history' }>>>({});
-  const text = ui.drafts[selected]?.text ?? '';
-  const operations = useActionSelector(actions, states => states);
-  useEffect(() => { save.current(uiRef.current); }, []);
-  useEffect(() => { setUi(current => settleCodexDrafts(current, operations)); }, [operations]);
-  useEffect(() => {
-    const pending = Object.values(uiRef.current.pending);
-    for (const item of pending) actions.restorePending(item);
-    if (pending.length) post({ type: 'reconcileOperations', pendingIds: pending.map(item => item.requestId) });
-  }, []);
-  const [open, setOpen] = useState(false);
-  const [announcement, setAnnouncement] = useState('');
-  const announcedStatuses = useRef(new Map<string, string>());
-  const announcedInteractions = useRef(new Set<string>());
-  const outputRef = useRef<HTMLDivElement>(null);
-  const interactionRef = useRef<HTMLDivElement>(null);
-  const knownIds = useRef<Set<string>>();
-  useCodexEvents(event => {
-    if (event.kind === 'tasks') {
-      const added = knownIds.current && event.tasks.find(task => !knownIds.current!.has(task.id));
-      knownIds.current = new Set(event.tasks.map(task => task.id));
-      setTasks(event.tasks);
-      for (const task of event.tasks) {
-        if (announcedStatuses.current.get(task.id) !== task.status) {
-          if (task.id === uiRef.current.selectedTaskId || added?.id === task.id) setAnnouncement(`${task.title}：${labels[task.status]}`);
-          announcedStatuses.current.set(task.id, task.status);
-        }
-      }
-      if (added) { setOpen(true); setSelected(current => current || added.id); }
-      else setSelected(current => current || event.tasks[0]?.id || '');
-    } else if (event.kind === 'output') setItems(current => ({ ...current, [event.taskId]: event.replace ? event.items : [...current[event.taskId] ?? [], ...event.items] }));
-    else if (event.kind === 'history') setHistory(current => ({ ...current, [event.taskId]: event }));
-    else if (event.kind === 'interactions') {
-      setInteractions(current => ({ ...current, [event.taskId]: event.interactions }));
-      const fresh = event.interactions.filter(item => !announcedInteractions.current.has(item.id));
-      for (const item of fresh) announcedInteractions.current.add(item.id);
-      if (fresh.length) setAnnouncement(`Codex 有 ${fresh.length} 項新要求等待回覆，可使用「前往待回覆要求」。`);
-    }
-  }, post);
-  const task = tasks.find(value => value.id === selected);
-  const active = tasks.filter(value => codexTaskActive(value.status) || value.status === 'queued').length;
-  const select = (id: string) => { setSelected(id); post({ type: 'codexHistory', taskId: id }); };
-  const waiting = Object.entries(interactions).filter(([, values]) => values.length);
-  const focusInteraction = () => {
-    const target = interactions[selected]?.length ? selected : waiting[0]?.[0];
-    if (!target) return; setOpen(true); setSelected(target);
-    requestAnimationFrame(() => { const node = interactionRef.current?.querySelector<HTMLElement>('form'); node?.focus(); node?.scrollIntoView?.({ block: 'nearest' }); });
-  };
-  return <><div class="codex-announcement" role="status" aria-live="polite" aria-atomic="true">{announcement}
-    {!!waiting.length && <button type="button" onClick={focusInteraction}>前往待回覆要求（{waiting.reduce((sum, [, values]) => sum + values.length, 0)}）</button>}</div>
-  <details class="codex-panel" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>Codex 任務{active ? ` · ${active} 項執行／排隊` : tasks.length ? ` · ${tasks.length} 項紀錄` : ''}</summary>
-    <div class="codex-layout"><nav aria-label="Codex 任務清單">{!tasks.length && <p>從 Wiki、審查或 BMAD 按「使用 Codex 執行」開始。</p>}
-      {tasks.map(value => <button type="button" key={value.id} class={value.id === selected ? 'active' : ''} aria-current={value.id === selected ? 'true' : undefined} onClick={() => select(value.id)}>
-        <strong>{value.title}</strong><span>{labels[value.status]}</span><small>{new Date(value.createdAt).toLocaleString()}</small>
-      </button>)}</nav>
-      <section class="codex-conversation" aria-label="Codex 對話">{task ? <>
-        <header><div><strong>{task.title}</strong><p class="codex-root">{task.root}</p></div><span>{labels[task.status]}</span>
-          {(codexTaskActive(task.status) || task.status === 'queued') ? <button type="button" onClick={() => post({ type: 'cancelCodexTask', taskId: task.id })}>停止</button>
-            : <button type="button" onClick={() => post({ type: 'resumeCodexTask', taskId: task.id })}>續作</button>}
-          {task.threadId && <button type="button" class="quiet" onClick={() => post({ type: 'codexHistory', taskId: task.id })}>讀取對話</button>}
-        </header>
-        {task.modelRouting && <section class="codex-routing" aria-label="Model Routing" role="status">
-          <p><strong>GPT-6 Luna · {task.modelRouting.effort ?? 'auto'}</strong> · {{ assessing: '判斷風險', reviewing: '正式審查', complete: '已產生報告' }[task.modelRouting.phase]}
-            {task.modelRouting.requestedEffort !== 'auto' && '（本次手動指定）'}</p>
-          {task.modelRouting.reason && <p>{task.modelRouting.reason}</p>}
-          {task.modelRouting.history.length > 1 && <ol>{task.modelRouting.history.map((entry, index) => <li key={index}>{entry.effort}：{entry.reason}</li>)}</ol>}
-          {task.modelRouting.reportPath && <p>報告：{task.modelRouting.reportPath}</p>}
-        </section>}
-        {task.error && <p class="warning" role="status">{task.error}</p>}
-        {history[task.id] && <details class="codex-history" open><summary>已保存的對話</summary>
-          <div class="codex-output">{history[task.id].items.map(item => <article key={item.id} class={`codex-item ${item.kind}`}><small>{item.kind === 'agent' ? 'Codex' : item.kind === 'user' ? '你的訊息' : item.kind === 'command' ? '命令' : '檔案變更'}</small><pre>{item.text}</pre></article>)}</div>
-          {history[task.id].nextCursor && <button type="button" onClick={() => post({ type: 'codexHistory', taskId: task.id, cursor: history[task.id].nextCursor })}>讀取更早的對話</button>}
-        </details>}
-        <button type="button" class="quiet" onClick={() => { const node = outputRef.current?.querySelectorAll<HTMLElement>('.codex-item.agent'); const latest = node?.[node.length - 1]; latest?.focus(); latest?.scrollIntoView?.({ block: 'nearest' }); }}>跳至最新回覆</button>
-        <div ref={outputRef} class="codex-output" tabIndex={0} role="region" aria-live="off" aria-label="Codex 執行訊息">{(items[task.id] ?? []).map(item =>
-          <article key={item.id} tabIndex={-1} class={`codex-item ${item.kind}`}><small>{{ agent: 'Codex', user: '你的訊息', command: '命令', file: '檔案變更', tool: '工具' }[item.kind]}</small><pre>{item.text}</pre>
-            {item.kind === 'agent' && <button type="button" class="quiet small" aria-label="複製 Codex 回覆" onClick={() => post({ type: 'copy', text: item.text })}>複製回覆</button>}</article>)}
-          {!(items[task.id]?.length) && <p class="subtle">尚無執行訊息；既有對話可按「讀取對話」。</p>}
-        </div>
-        <div ref={interactionRef}>{(interactions[task.id] ?? []).map(interaction => <Interaction key={interaction.id} interaction={interaction} root={task.root} post={post} />)}</div>
-        <form class="codex-message" onSubmit={event => {
-          event.preventDefault();
-          const draft = uiRef.current.drafts[task.id], submittedText = draft?.text ?? '';
-          if (!submittedText.trim()) return;
-          const result = post({ type: 'sendCodexMessage', taskId: task.id, text: submittedText });
-          if (result.status !== 'started' || !result.operationId) return;
-          const operation = actions.get(result.operationId);
-          if (!operation) return;
-          setUi(current => settleCodexDrafts({ ...current, pending: { ...current.pending, [operation.requestId]: {
-            requestId: operation.requestId, scopeRevision: operation.scopeRevision, lockKey: operation.lockKey,
-            resourceKey: operation.resourceKey, action: operation.action, label: operation.label,
-            taskId: task.id, text: submittedText, draftRevision: draft?.revision ?? 0
-          } } }, actions.getSnapshot()));
-        }}>
-          <label for="codex-follow-up">補充需求或接續對話</label><textarea id="codex-follow-up" rows={2} maxLength={32000} value={text} onInput={event => { const value = event.currentTarget.value; setUi(current => editCodexDraft(current, task.id, value)); }} />
-          <button type="submit" disabled={!text.trim() || ['queued', 'starting', 'waiting'].includes(task.status)}>傳送</button>
-        </form><p class="subtle">「本輪完成」表示 Codex 回合結束；審查完整性與 BMAD 進度請查看各功能的報告及產物。</p>
-      </> : <CodexSettings post={post} />}</section>
-    </div>
-  </details></>;
-}
-function Interaction({ interaction, root, post }: { interaction: CodexInteraction; root: string; post: (request: WorkspaceRequest) => DispatchResult }) {
+export function Interaction({ interaction, root, post }: { interaction: CodexInteraction; root: string; post: (request: WorkspaceRequest) => DispatchResult }) {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(interaction.schema?.properties ?? {}).filter(([, field]: [string, any]) => field.default !== undefined).map(([key, field]: [string, any]) => [key, field.type === 'array' ? JSON.stringify(field.default) : String(field.default)])));
   const [submitted, setSubmitted] = useState(false);
   const answer = (decision: CodexInteractionAnswer['decision']) => {

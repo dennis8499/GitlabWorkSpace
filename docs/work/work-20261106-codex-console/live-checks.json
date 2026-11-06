@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-06",
+  "codexCli": "0.166.0",
+  "vscode": "1.145.1",
+  "workflowKitFixture": "1.3.5",
+  "environment": "isolated disposable repository, VS Code profile, extension directory and runtime",
+  "candidateFourFlowRun": {
+    "evidence": ".tmp/codex-live-5pUF7m/results.json",
+    "success": true,
+    "completed": ["wiki", "merge-reviewer", "release-reviewer", "bmad"],
+    "reviewerReportsVerified": true,
+    "bmadSavedDocumentVerified": true
+  },
+  "finalPackageWikiRun": {
+    "evidence": ".tmp/codex-live-9k5fTM/results.json",
+    "success": true,
+    "status": "completed",
+    "checks": {
+      "autoAcceptToggle": true,
+      "pauseAndResume": true,
+      "originalGoal": true,
+      "historyReadiness": true
+    }
+  },
+  "finalOfflineRegression": {
+    "unitPassed": 162,
+    "uiPassed": 9,
+    "failed": 0
+  },
+  "package": {
+    "artifact": "dist/gitlab-workspace-0.40.0.vsix",
+    "sha256": "a32c716ae99b0a5064767dc9f688080424b6ec10fc4ba9969fcf176e84284c15",
+    "validationRun": "2026-11-06T05-59-46.581Z-10468",
+    "success": true
+  },
+  "limits": [
+    "Other three flows passed on an earlier candidate; only Wiki was repeated on the final package.",
+    "The full npm test run passed all test stages but its packaging step rejected stale preparation after source updates; the final package command passed separately.",
+    "NVDA manual listening was not performed."
+  ]
+}

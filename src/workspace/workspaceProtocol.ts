@@ -15,13 +15,13 @@ import type { RepositoryScanState, ScannedRepository } from '../git/repositorySc
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
 
-export type WorkspaceMode = 'dashboard' | 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git';
+export type WorkspaceMode = 'dashboard' | 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git' | 'codex';
 
 /** Older versions persisted modes that no longer have a workspace page. */
 export function normalizeWorkspaceMode(value: unknown): WorkspaceMode {
   switch (value) {
     case 'dashboard':
-    case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': return value;
+    case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': case 'codex': return value;
     case 'admin': return 'developer';
     default: return 'dashboard';
   }
@@ -285,6 +285,9 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'codexHistory'; taskId: string; cursor?: string }
   | { type: 'sendCodexMessage'; taskId: string; text: string }
   | { type: 'cancelCodexTask'; taskId: string }
+  | { type: 'pauseCodexTask'; taskId: string }
+  | { type: 'deleteCodexTask'; taskId: string }
+  | { type: 'setCodexAutoAccept'; taskId: string; enabled: boolean }
   | { type: 'resumeCodexTask'; taskId: string }
   | { type: 'answerCodex'; taskId: string; interactionId: string; answer: import('../codex/protocol').CodexInteractionAnswer }
   | { type: 'checkCodex' }
@@ -382,6 +385,7 @@ export type WorkspaceRequest = (NotificationRequest
 export type WorkspaceResponse =
   | { type: 'protocolError'; operationId?: string; message: string }
   | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
+  | { type: 'codexTaskStarted'; taskId: string }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
   | { type: 'openSettings' }

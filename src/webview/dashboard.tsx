@@ -20,7 +20,8 @@ import { legacyWikiInputs, resolveReviewerRepository, restoreSkillGuideState, ty
 import { SkillsGuide } from './SkillsGuide';
 import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { BmadPanel } from './BmadPanel';
-import { CodexPanel, CodexSettings } from './CodexPanel';
+import { CodexSettings } from './CodexPanel';
+import { CodexWorkspace, useCodexWorkspace } from './CodexWorkspace';
 import type { CodexUiState } from './codexUiState';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
@@ -151,7 +152,8 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string }> = [
   { id: 'sa', name: 'Skills 功能指引', short: 'Skills' },
   { id: 'bmad', name: 'BMAD 開發流程', short: 'BMAD' },
   { id: 'reviewer', name: '待審查', short: '待審查' },
-  { id: 'git', name: '版控', short: '版控' }
+  { id: 'git', name: '版控', short: '版控' },
+  { id: 'codex', name: 'Codex', short: 'Codex' }
 ];
 const emptySaved = (): SavedState => ({
   mode: 'dashboard', filters: {}, selectedIds: {}, selectedProjectIds: [], issueBoardId: 'all', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
@@ -384,6 +386,9 @@ function App() {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   requestMode = mode;
+  const codex = useCodexWorkspace({ post, actions, initialState: initial?.codexUi,
+    enabled: !!snapshot && !localProjectBlocker(snapshot.workspaceCapabilities), visible: mode === 'codex', onOpen: () => modeChange('codex'),
+    onStateChange: codexUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), codexUi }) });
   const [gitPanelVisited, setGitPanelVisited] = useState(initial?.mode === 'git');
   useEffect(() => { if (mode === 'git') setGitPanelVisited(true); }, [mode]);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
@@ -1259,7 +1264,7 @@ function App() {
     <div class="workspace-navigation">
       <nav class="mode-navigation" aria-label="主要功能">{modes.map(item => <button key={item.id} type="button"
         data-mode={item.id} aria-current={mode === item.id ? 'page' : undefined} title={item.name}
-        onClick={() => modeChange(item.id)}>{item.short}</button>)}</nav>
+        onClick={() => modeChange(item.id)}>{item.short}{item.id === 'codex' && !!(codex.activeCount || codex.waitingCount) && <span class="codex-nav-count" aria-label={`${codex.activeCount} 項執行或排隊，${codex.waitingCount} 項待回覆`}>{codex.waitingCount ? `${codex.waitingCount} 待回覆` : codex.activeCount}</span>}</button>)}</nav>
       <div class="repository-scan-action"><button class="quiet repository-scan-trigger" type="button"
         {...availabilityProps('workspace-scan', scanBlocked)} disabled={scanBusy || !!scanBlocked} aria-busy={scanBusy}
         title={projectRoot ? `掃描目前專案根目錄：${projectRoot}` : '掃描目前專案根目錄'}
@@ -1267,6 +1272,11 @@ function App() {
       <FeatureNotices id="workspace-scan" items={{ '一鍵掃描 Repo': scanBlocked }}>{!projectRoot && !localBlocked && !snapshot.projectContext?.folders.length && <button type="button" onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟資料夾</button>}</FeatureNotices>
     </div>
 
+    <div class="codex-announcement" role="status" aria-live="polite" aria-atomic="true">{codex.announcement}
+      {mode !== 'codex' && !!codex.waitingCount && <button type="button" onClick={() => {
+        const id = Object.keys(codex.interactions).find(key => codex.interactions[key].length);
+        if (id) codex.select(id); modeChange('codex');
+      }}>前往待回覆要求（{codex.waitingCount}）</button>}</div>
     <div class="workbench" data-mobile-panel={mobilePanel}>
       <section class="page" data-mode={mode} aria-label={modes.find(item => item.id === mode)?.name}>
         {snapshot.connectedScope && remotePage && mode !== 'dashboard' && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
@@ -1284,13 +1294,14 @@ function App() {
             onOpenSettings={() => setToolDrawer(true)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div ref={workspaceVisual} class="workspace-tasks" hidden={!!issueNavigation}>
+        {!localBlocked && <CodexWorkspace controller={codex} active={mode === 'codex' && !issueNavigation} onNavigate={modeChange} />}
         <div class="git-mode-host" hidden={mode !== 'git'}>
           {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
-        {mode !== 'git' && mode !== 'bmad' && <div class="page-heading"><div><div class="eyebrow">{mode === 'dashboard' ? '共用工作台' : remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
+        {mode !== 'git' && mode !== 'bmad' && mode !== 'codex' && <div class="page-heading"><div><div class="eyebrow">{mode === 'dashboard' ? '共用工作台' : remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'clone' && mode !== 'dashboard' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}<button class="quiet" type="button" disabled={busy || !!localBlocked && mode !== 'dashboard' && !remotePage} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button></div></div>}
         {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('gitlab')} {...availabilityProps('project-source', remoteBlocked)}>GitLab 專案</button><FeatureNotices id="project-source" items={{ 'GitLab 專案': remoteBlocked }}>{!snapshot.connected ? <button type="button" onClick={() => post({ type: 'connect' })}>登入 GitLab</button> : !snapshot.group && <button type="button" onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}</FeatureNotices><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('local')}>本機 Repo</button></div>}
-        {mode !== 'git' && (
+        {mode !== 'git' && mode !== 'codex' && (
         mode === 'dashboard' ? <DashboardOverview snapshot={snapshot} disabled={blockingWork} onNavigate={modeChange}
           onLocalRepositories={showLocalRepositories} onGitLabProjects={showGitLabProjects} onOpenSettings={() => openSettings()} post={post} />
           : localBlocked && (mode === 'sa' || mode === 'bmad' || mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local')) ? <FeatureNotice reason={localBlocked.reason} />
@@ -1512,8 +1523,6 @@ function App() {
       </section>
     </div>
 
-    {!localBlocked && <CodexPanel post={post} actions={actions} initialState={initial?.codexUi}
-      onStateChange={codexUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), codexUi })} />}
     <div class="workspace-operation-area"><OperationFeedback excludeResources={[...(mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && snapshot.group ? ['repositories'] : []), ...(mode === 'reviewer' && mr ? [`mr:${mr.project_id}:${mr.iid}`] : []), ...(mode === 'sa' || toolDrawer ? ['skills'] : [])]} excludePrefixes={mode === 'git' ? ['git:'] : mode === 'sa' ? ['skill:'] : mode === 'developer' && issueNavigation ? ['issue:'] : []} initialOperations={snapshot.operations} scopeRevision={effectiveOperationScope({ type: 'refresh', mode, projectSource: requestProjectSource }, { scopeRevision: snapshot.operationScope ?? operationScope, localOperationScope: snapshot.localOperationScope ?? localOperationScope })} onRefresh={() => post({ type: 'refresh' })} /></div>
     <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}</footer>
     <NotificationSnackbar snapshot={notifications} onView={id => {

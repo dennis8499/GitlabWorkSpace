@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { CodexAppServer } from '../../src/codex/appServer';
 import { CodexBridge, validateForm } from '../../src/codex/bridge';
-import { CodexTaskStore } from '../../src/codex/taskStore';
+import { CodexTaskStore, codexRootKey } from '../../src/codex/taskStore';
+import { networkRuntimeRoot } from '../../src/api/localNetworkLease';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
 import { resolveCodexExecutable } from '../../src/codex/process';
 import { canonicalRuntime } from '../../src/codex/taskValidation';
@@ -41,7 +42,7 @@ async function setup(t: { after(fn: () => Promise<void>): void }, prompt = 'succ
   const root = await mkdtemp(path.join(os.tmpdir(), 'codex-bridge-'));
   const skill = path.join(root, '.agents/skills/codebase-wiki/SKILL.md');
   await mkdir(path.dirname(skill), { recursive: true }); await writeFile(skill, 'offline test Skill');
-  const events: CodexEvent[] = [], requests: Array<{ method: string; params: any }> = [];
+  const events: CodexEvent[] = [], requests: Array<{ method: string; params: any }> = [], responses: Array<{ id: number | string; result: any }> = [];
   const spec: CodexTaskSpec = { title: 'Wiki 查詢', root, workspaceKey: root, source: { kind: 'skill', featureId: 'query', inputs: {}, revision: 'r' },
     prompt, skill: { name: 'codebase-wiki', path: skill }, writableRoots: [root], environmentKey: 'environment' };
   let trusted = true, changed = false;
@@ -50,12 +51,14 @@ async function setup(t: { after(fn: () => Promise<void>): void }, prompt = 'succ
     client: async () => {
       const client = peer(root, 3000, mode); const request = client.request.bind(client);
       client.request = (method, params) => { requests.push({ method, params }); return request(method, params); };
+      const respond = client.respond.bind(client);
+      client.respond = (id, result) => { responses.push({ id, result }); respond(id, result); };
       await client.initialize('test'); return { client, version: '0.165.0', executable: 'offline-peer' };
     } });
   const bridges: CodexBridge[] = [];
   const bridge = make(); bridges.push(bridge);
   t.after(async () => { await Promise.all(bridges.map(value => value.shutdown())); await rm(root, { recursive: true, force: true }); });
-  return { root, spec, bridge, events, requests, change: () => { changed = true; }, restore: () => { changed = false; }, untrust: () => { trusted = false; },
+  return { root, spec, bridge, events, requests, responses, change: () => { changed = true; }, restore: () => { changed = false; }, untrust: () => { trusted = false; },
     second: () => { const value = make(path.join(root, 'second')); bridges.push(value); return value; } };
 }
 test('Bridge persists acceptance, serializes tasks and keeps business outcomes separate', async t => {
@@ -140,6 +143,23 @@ test('Reopening the Bridge preserves saved threads without automatically executi
   t.after(() => bridge.shutdown());
   await bridge.publish(); assert.equal(bridge.list()[0].status, 'completed'); assert.equal(f.requests.length, before); await bridge.shutdown();
 });
+test('Reopening a webview replays already loaded historical pages without losing the oldest cursor', async t => {
+  const f = await setup(t, 'success', 'paged-history');
+  await f.bridge.enqueue(f.spec, 'history-cache'); await until(() => f.bridge.list()[0].status === 'completed');
+  await f.bridge.history('history-cache');
+  await f.bridge.history('history-cache', 'older');
+  await f.bridge.history('history-cache');
+  const before = f.requests.filter(request => request.method === 'thread/turns/list').length;
+  f.events.length = 0;
+  await f.bridge.publish();
+  const replay = f.events.find(event => event.kind === 'history');
+  assert.ok(replay?.kind === 'history');
+  assert.deepEqual(replay.items.map(item => item.text), ['earlier', 'latest']);
+  assert.equal(replay.cursor, 'older'); assert.equal(replay.nextCursor, 'oldest');
+  assert.equal(f.requests.filter(request => request.method === 'thread/turns/list').length, before);
+  await f.bridge.delete('history-cache'); f.events.length = 0; await f.bridge.publish();
+  assert.equal(f.events.some(event => event.kind === 'history'), false, 'deletion also clears historical page caches');
+});
 test('MCP form answers are checked before forwarding to tools', () => {
   const schema = { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 2 }, count: { type: 'integer', minimum: 1 } } };
   validateForm(schema, { name: 'ok', count: 2 });
@@ -158,6 +178,8 @@ test('A recovered task loads its saved conversation and sends a follow-up rather
   assert.equal(f.bridge.list()[0].threadId, threadId);
   assert.ok(f.requests.some(value => value.method === 'thread/resume'));
   assert.match(f.requests.filter(value => value.method === 'turn/start')[1].params.input[0].text, /先核對/);
+  assert.match(f.requests.filter(value => value.method === 'turn/start')[1].params.input[0].text, /原始任務/);
+  assert.doesNotMatch(f.requests.filter(value => value.method === 'turn/start')[1].params.input[0].text, /審查 request ID/);
   assert.ok(f.events.some(value => value.kind === 'history' && value.items[0].text.includes('先前')));
 });
 test('Unknown server requests stop the turn and release the queue', async t => {
@@ -166,6 +188,164 @@ test('Unknown server requests stop the turn and release the queue', async t => {
   await until(() => ['interrupted', 'uncertain'].includes(f.bridge.list()[0].status));
   await f.bridge.enqueue({ ...f.spec, prompt: 'success' }, 'after-unknown');
   await until(() => f.bridge.list().find(value => value.id === 'after-unknown')?.status === 'completed');
+});
+
+test('Pause settles process cleanup, preserves the conversation, and lets the next task run', async t => {
+  const f = await setup(t, 'hold');
+  await f.bridge.enqueue(f.spec, 'pause-one');
+  await until(() => !!f.bridge.list().find(task => task.id === 'pause-one')?.turnId);
+  const thread = f.bridge.list()[0].threadId;
+  await f.bridge.setAutoAccept('pause-one', true);
+  await f.bridge.enqueue({ ...f.spec, prompt: 'success' }, 'after-pause');
+  await f.bridge.enqueue(f.spec, 'pause-queued');
+  await f.bridge.pause('pause-queued');
+  assert.equal(f.bridge.list().find(task => task.id === 'pause-queued')?.status, 'paused');
+  await f.bridge.pause('pause-one');
+  assert.equal(f.bridge.list().find(task => task.id === 'pause-one')?.status, 'paused');
+  assert.equal(f.bridge.list().find(task => task.id === 'pause-one')?.controls?.canDelete, true);
+  await until(() => f.bridge.list().find(task => task.id === 'after-pause')?.status === 'completed');
+  await f.bridge.resume('pause-one');
+  await until(() => f.requests.filter(request => request.method === 'turn/start').length === 3);
+  await until(() => f.bridge.list().find(task => task.id === 'pause-one')?.status === 'completed');
+  assert.equal(f.bridge.list().find(task => task.id === 'pause-one')?.threadId, thread);
+  assert.equal(f.bridge.list().find(task => task.id === 'pause-one')?.controls?.autoAccept, true);
+  assert.match(f.requests.filter(request => request.method === 'turn/start').at(-1)!.params.input[0].text, /先核對/);
+  assert.equal(f.requests.filter(request => request.method === 'turn/start').some(request => request.params.threadId === undefined), false);
+});
+
+test('Pausing before the first dispatch does not retain an unmaterialized thread or resend the original input', async t => {
+  const f = await setup(t, 'original setup task', 'hold-before-turn');
+  await f.bridge.enqueue(f.spec, 'pause-setup');
+  await until(() => !!f.bridge.list()[0]?.threadId);
+  await f.bridge.pause('pause-setup');
+  assert.equal(f.bridge.list()[0].status, 'paused'); assert.equal(f.bridge.list()[0].threadId, undefined);
+  assert.equal(f.requests.some(request => request.method === 'turn/start'), false);
+  await f.bridge.resume('pause-setup'); await until(() => f.bridge.list()[0].status === 'completed');
+  const turns = f.requests.filter(request => request.method === 'turn/start');
+  assert.equal(turns.length, 1); assert.equal(turns[0].params.input[0].text, f.spec.prompt);
+  assert.equal(f.requests.some(request => request.method === 'thread/resume'), false);
+});
+
+test('A failed helper cleanup keeps the task uncertain and prevents deletion', async t => {
+  const f = await setup(t, 'hold');
+  const spec = { ...f.spec, review: { tool: 'merge-reviewer' as const, requestId: 'a'.repeat(32), revision: 'r' } };
+  (f.bridge as any).options.cancelReview = async () => { throw new Error('helper cleanup not confirmed'); };
+  await f.bridge.enqueue(spec, 'helper-pause');
+  await until(() => !!f.bridge.list()[0].turnId);
+  await f.bridge.pause('helper-pause');
+  assert.equal(f.bridge.list()[0].status, 'uncertain');
+  assert.equal(f.bridge.list()[0].controls?.canDelete, false);
+  await assert.rejects(f.bridge.delete('helper-pause'), /清理/);
+  const directory = path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(await realpath(f.root)) + '.lock');
+  assert.equal(JSON.parse(await readFile(path.join(directory, 'owner.json'), 'utf8')).state, 'quarantined');
+  await assert.rejects(CodexWorkspaceLease.acquire(directory, { timeoutMs: 50 }), /incompatible|quarantined/);
+});
+
+test('A watcher reload cannot replace the queued record while resume is being saved', async t => {
+  const f = await setup(t);
+  await f.bridge.enqueue(f.spec, 'resume-race'); await until(() => f.bridge.list()[0].status === 'completed');
+  const save = CodexTaskStore.prototype.save;
+  let entered = false, release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  t.mock.method(CodexTaskStore.prototype, 'save', async function (this: CodexTaskStore, record: CodexTaskRecord) {
+    if (record.id === 'resume-race' && record.status === 'queued' && !entered) { entered = true; await gate; }
+    return save.call(this, record);
+  });
+  const resumed = f.bridge.resume('resume-race');
+  try {
+    await until(() => entered); await f.bridge.publish();
+    assert.equal(f.bridge.list()[0].controls?.canResume, false);
+    assert.equal(f.bridge.list()[0].controls?.canDelete, false);
+  } finally { release(); }
+  await resumed;
+  await until(() => f.requests.filter(request => request.method === 'turn/start').length === 2);
+  await until(() => f.bridge.list()[0].status === 'completed');
+});
+
+test('A stale watcher snapshot cannot regress a paused task or clear its Auto-Accept setting', async t => {
+  const f = await setup(t, 'hold');
+  await f.bridge.enqueue(f.spec, 'stale-pause'); await until(() => !!f.bridge.list()[0].turnId);
+  const stale = structuredClone((f.bridge as any).records.get('stale-pause')) as CodexTaskRecord;
+  await f.bridge.setAutoAccept('stale-pause', true); await f.bridge.pause('stale-pause');
+  t.mock.method(CodexTaskStore.prototype, 'load', async () => [stale]);
+  await f.bridge.publish();
+  assert.equal(f.bridge.list()[0].status, 'paused');
+  assert.equal(f.bridge.list()[0].controls?.autoAccept, true);
+});
+
+test('Deletion retains generated results and conversations, and tombstones reject stale writers in every host', async t => {
+  const f = await setup(t, 'hold');
+  await f.bridge.enqueue(f.spec, 'delete-me');
+  await until(() => !!f.bridge.list()[0].turnId);
+  await assert.rejects(f.bridge.delete('delete-me'), /暫停/);
+  await f.bridge.pause('delete-me');
+  const store = new CodexTaskStore(path.join(f.root, 'codex-tasks')), stale = (await store.load())[0];
+  const result = path.join(f.root, 'generated-report.md'); await writeFile(result, 'Retained report');
+  const observer = new CodexBridge({ ...(f.bridge as any).options, event: () => {} });
+  t.after(() => observer.shutdown()); await observer.publish();
+  await f.bridge.delete('delete-me'); await observer.publish();
+  assert.equal(f.bridge.list().length, 0); assert.equal(observer.list().length, 0);
+  assert.equal(await readFile(result, 'utf8'), 'Retained report');
+  await assert.rejects(store.save(stale), /已刪除/);
+  await assert.rejects(f.bridge.enqueue(f.spec, 'delete-me'), /已刪除/);
+  assert.equal((await store.load()).length, 0);
+  assert.equal(f.requests.some(request => ['thread/archive', 'thread/delete'].includes(request.method)), false);
+});
+
+test('A late watcher snapshot cannot resurrect a deleted task', async t => {
+  const f = await setup(t);
+  await f.bridge.enqueue(f.spec, 'deleted-snapshot'); await until(() => f.bridge.list()[0].status === 'completed');
+  const stale = structuredClone((f.bridge as any).records.get('deleted-snapshot')) as CodexTaskRecord;
+  await f.bridge.delete('deleted-snapshot');
+  t.mock.method(CodexTaskStore.prototype, 'load', async () => [stale]);
+  await f.bridge.publish(); assert.deepEqual(f.bridge.list(), []);
+});
+
+test('Auto-Accept is off by default, drains pending approvals once, and leaves questions and MCP interactions manual', async t => {
+  const f = await setup(t, 'auto-approvals', 'duplicate-approval');
+  await f.bridge.enqueue(f.spec, 'auto-task');
+  await until(() => f.bridge.list()[0].status === 'waiting');
+  assert.equal(f.bridge.list()[0].controls?.autoAccept, false); assert.equal(f.responses.length, 0);
+  await f.bridge.setAutoAccept('auto-task', true);
+  await until(() => f.responses.length === 5);
+  assert.deepEqual(f.responses.map(response => response.id), [91, 92, 93, 94, 95]);
+  assert.deepEqual(f.responses.slice(0, 4).map(response => response.result), Array.from({ length: 4 }, () => ({ decision: 'accept' })));
+  assert.deepEqual(f.responses[4].result, { permissions: { network: { enabled: true } }, scope: 'turn' });
+  await until(() => [...(f.bridge as any).interactions.values()].some((value: any) => value.projection.kind === 'questions'));
+  assert.equal(f.responses.length, 5);
+  await f.bridge.setAutoAccept('auto-task', false);
+  for (const kind of ['questions', 'form', 'url']) {
+    await until(() => [...(f.bridge as any).interactions.values()].some((value: any) => value.projection.kind === kind));
+    const pending = [...(f.bridge as any).interactions.values()].find((value: any) => value.projection.kind === kind) as any;
+    await f.bridge.answer('auto-task', pending.projection.id, { decision: 'accept', answers: { choice: 'A' }, content: { name: 'test' } });
+  }
+  await until(() => f.bridge.list()[0].status === 'completed');
+  const observer = new CodexBridge({ ...(f.bridge as any).options, event: () => {} }); t.after(() => observer.shutdown());
+  await observer.publish(); assert.equal(observer.list()[0].controls?.autoAccept, false);
+  await until(() => f.events.some(event => event.kind === 'output' && event.items.some(item => item.kind === 'notice' && item.text.includes('已自動核准'))));
+});
+
+test('Auto-Accept respects allowed decisions and turns off after a transport response error', async t => {
+  const f = await setup(t, 'auto-approvals', 'no-single-approval');
+  await f.bridge.enqueue(f.spec, 'restricted-auto'); await until(() => f.bridge.list()[0].status === 'waiting');
+  await f.bridge.setAutoAccept('restricted-auto', true); assert.equal(f.responses.length, 0);
+  const pending = [...(f.bridge as any).interactions.values()][0] as any;
+  pending.request.params.availableDecisions = ['accept', 'decline'];
+  pending.client.respond = () => { throw new Error('response transport failed'); };
+  await f.bridge.setAutoAccept('restricted-auto', true);
+  assert.equal(f.bridge.list()[0].controls?.autoAccept, false);
+  assert.match(f.bridge.list()[0].controls?.autoAcceptError ?? '', /已關閉/);
+  assert.equal((f.bridge as any).interactions.size, 1);
+});
+
+test('A connection lost after sending an approval disables Auto-Accept and retains an uncertain outcome', async t => {
+  const f = await setup(t, 'auto-approvals', 'exit-after-approval');
+  await f.bridge.enqueue(f.spec, 'lost-approval'); await until(() => f.bridge.list()[0].status === 'waiting');
+  await f.bridge.setAutoAccept('lost-approval', true);
+  await until(() => f.bridge.list()[0].status === 'uncertain');
+  assert.equal(f.bridge.list()[0].controls?.autoAccept, false);
+  assert.match(f.bridge.list()[0].controls?.autoAcceptError ?? '', /連線已中斷/);
+  assert.equal(f.responses.length, 1);
 });
 test('Workspace lease recovery requires an exact supervisor completion receipt', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'codex-lease-'));

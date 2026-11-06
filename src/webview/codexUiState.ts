@@ -7,6 +7,7 @@ export interface CodexUiState {
   selectedTaskId?: string;
   drafts: Record<string, CodexDraft>;
   pending: Record<string, CodexPendingDraft>;
+  reading?: Record<string, { top: number; follow: boolean }>;
 }
 export function restoreCodexUi(value?: Partial<CodexUiState>): CodexUiState {
   const drafts = Object.fromEntries(Object.entries(value?.drafts ?? {}).filter(([id, draft]) =>
@@ -15,7 +16,15 @@ export function restoreCodexUi(value?: Partial<CodexUiState>): CodexUiState {
     item && id === item.requestId && typeof item.taskId === 'string' && item.taskId.length <= 160 &&
     item.resourceKey === `codex:${item.taskId}` && item.action === 'sendCodexMessage' &&
     typeof item.text === 'string' && item.text.length <= 32000 && Number.isSafeInteger(item.draftRevision)));
-  return { selectedTaskId: typeof value?.selectedTaskId === 'string' ? value.selectedTaskId : undefined, drafts, pending };
+  const reading = Object.fromEntries(Object.entries(value?.reading ?? {}).filter(([id, position]) =>
+    id.length <= 160 && position && Number.isFinite(position.top) && position.top >= 0 && typeof position.follow === 'boolean'));
+  return { selectedTaskId: typeof value?.selectedTaskId === 'string' ? value.selectedTaskId : undefined, drafts, pending, reading };
+}
+export function retainCodexTasks(state: CodexUiState, ids: readonly string[]): CodexUiState {
+  const keep = new Set(ids), filter = <T>(values: Record<string, T>): Record<string, T> => Object.fromEntries(Object.entries(values).filter(([id]) => keep.has(id)));
+  return { ...state, selectedTaskId: state.selectedTaskId && keep.has(state.selectedTaskId) ? state.selectedTaskId : ids[0],
+    drafts: filter(state.drafts), reading: filter(state.reading ?? {}),
+    pending: Object.fromEntries(Object.entries(state.pending).filter(([, item]) => keep.has(item.taskId))) };
 }
 export function editCodexDraft(state: CodexUiState, taskId: string, text: string): CodexUiState {
   return { ...state, drafts: { ...state.drafts, [taskId]: { text, revision: (state.drafts[taskId]?.revision ?? 0) + 1 } } };

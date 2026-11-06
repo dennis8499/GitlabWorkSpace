@@ -9,12 +9,12 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
-test('persistent navigation exposes all seven modes, follows host navigation and never reads on focus', async t => {
+test('persistent navigation exposes all eight modes, follows host navigation and never reads on focus', async t => {
   const data = snapshot('developer');
   const view = await mount({ mode: 'developer' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document, buttons = [...document.querySelectorAll('.mode-navigation button')];
-  assert.deepEqual(buttons.map(button => button.textContent), ['總覽', '我的工作', '專案', 'Skills', 'BMAD', '待審查', '版控']);
+  assert.deepEqual(buttons.map(button => button.textContent), ['總覽', '我的工作', '專案', 'Skills', 'BMAD', '待審查', '版控', 'Codex']);
   const search = document.querySelector('input[aria-label="搜尋 Issue"]');
   search.value = 'Alpha'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   const before = view.requests.length;
@@ -1525,14 +1525,14 @@ test('offline Dashboard keeps local Repo and tool entry points available without
 });
 
 test('Codex task projections render messages, bind answers and expose stop, resume and history controls', async t => {
-  const view = await mount({ mode: 'dashboard' }, snapshot('dashboard')); t.after(() => view.dom.window.close());
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const event = async value => { view.send({ type: 'codexEvent', event: value }); await view.tick(); };
   const task = { id: 'codex-ui-test', title: 'Wiki task', root: 'C:/workspace', status: 'waiting',
-    createdAt: '2026-11-03T00:00:00Z', updatedAt: '2026-11-03T00:00:00Z', threadId: 'thread-ui', turnId: 'turn-ui' };
+    createdAt: '2026-11-03T00:00:00Z', updatedAt: '2026-11-03T00:00:00Z', threadId: 'thread-ui', turnId: 'turn-ui', controls: { canPause: true, canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false, external: false } };
   await event({ kind: 'tasks', tasks: [] }); await event({ kind: 'tasks', tasks: [task] });
   await event({ kind: 'output', taskId: task.id, replace: true, items: [{ id: 'message', kind: 'agent', text: 'Streaming result' }] });
-  assert.equal(document.querySelector('.codex-panel').open, true);
+  assert.equal(document.querySelector('.codex-workspace').hidden, false);
   assert.match(document.querySelector('.codex-conversation').textContent, /Streaming result/);
   await event({ kind: 'interactions', taskId: task.id, interactions: [{ id: 'question-ui', taskId: task.id,
     kind: 'questions', title: 'Choose scope', questions: [{ id: 'scope', question: 'Which scope?' }] }] });
@@ -1546,10 +1546,10 @@ test('Codex task projections render messages, bind answers and expose stop, resu
   assert.equal(document.querySelector('.codex-interaction'), null);
   const control = text => [...document.querySelectorAll('.codex-conversation button')].find(button => button.textContent === text);
   await event({ kind: 'tasks', tasks: [{ ...task, status: 'running' }] });
-  control('停止').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'cancelCodexTask');
+  control('暫停').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'pauseCodexTask');
   assert.equal(view.requests.at(-1).taskId, task.id);
   await event({ kind: 'tasks', tasks: [{ ...task, status: 'completed' }] });
-  control('續作').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'resumeCodexTask');
+  control('接續').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'resumeCodexTask');
   const followUp = document.getElementById('codex-follow-up'); followUp.value = 'Continue';
   followUp.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   document.querySelector('.codex-message').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
@@ -1561,15 +1561,15 @@ test('Codex task projections render messages, bind answers and expose stop, resu
 });
 
 test('Codex drafts survive task switches, blocked sends, failure, late receipts and Webview recreation', async t => {
-  const data = snapshot('dashboard');
-  const view = await mount({ mode: 'dashboard' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const data = snapshot('codex');
+  const view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const tasks = ['a', 'b'].map(id => ({ id, title: `Draft task ${id}`, root: `C:/workspace/${id}`, status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' }));
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [] } }); await view.tick();
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
   const input = () => document.querySelector('#codex-follow-up');
   const type = async text => { input().value = text; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
-  const select = async id => { [...document.querySelectorAll('.codex-layout > nav button')].find(button => button.textContent.includes(`Draft task ${id}`)).click(); await view.tick(); };
+  const select = async id => { [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes(`Draft task ${id}`)).click(); await view.tick(); };
   const submit = async () => { document.querySelector('.codex-message').requestSubmit(); await view.tick(); };
   await type('Draft A'); await select('b'); await type('Draft B'); await select('a'); assert.equal(input().value, 'Draft A');
   await submit(); const request = view.rawRequests.findLast(item => item.type === 'sendCodexMessage'); assert.ok(request.operationId);
@@ -1589,8 +1589,8 @@ test('Codex drafts survive task switches, blocked sends, failure, late receipts 
 });
 
 test('Codex last-keystroke drafts and pending IDs are durable before the next render', async t => {
-  const data = snapshot('dashboard');
-  const view = await mount({ mode: 'dashboard' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const data = snapshot('codex');
+  const view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
   const task = { id: 'durable-task', title: 'Durable task', root: 'C:/workspace/a', status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' };
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
   const document = view.dom.window.document, input = document.querySelector('#codex-follow-up');
@@ -1609,6 +1609,94 @@ test('Codex last-keystroke drafts and pending IDs are durable before the next re
   assert.equal(restored.requests.some(item => item.type === 'sendCodexMessage'), false);
   restored.receipt(request, { effect: 'applied' }); await restored.tick();
   assert.equal(restored.dom.window.document.querySelector('#codex-follow-up').value, 'Later edit');
+});
+
+test('Codex waits for a materialized turn before automatically reading history', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const task = { id: 'new-thread', title: 'New task', root: 'C:/workspace', threadId: 'new-thread', status: 'starting', createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z' };
+  const send = async value => { view.send({ type: 'codexEvent', event: value }); await view.tick(); };
+  await send({ kind: 'tasks', tasks: [task] });
+  assert.equal(view.requests.some(request => request.type === 'codexHistory'), false);
+  assert.equal([...view.dom.window.document.querySelectorAll('.codex-controls button')].find(button => button.textContent === '讀取對話').disabled, true);
+  await send({ kind: 'tasks', tasks: [{ ...task, status: 'running', turnId: 'turn' }] });
+  assert.equal(view.requests.some(request => request.type === 'codexHistory'), false);
+  await send({ kind: 'tasks', tasks: [{ ...task, status: 'completed', turnId: 'turn' }] });
+  assert.equal(view.requests.findLast(request => request.type === 'codexHistory').taskId, task.id);
+});
+
+test('Codex only opens for an explicit start and binds auto-accept and deletion to the selected task', async t => {
+  const view = await mount({ mode: 'dashboard' }, snapshot('dashboard')); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const task = { id: 'first', title: 'First task', root: 'C:/workspace/repo', status: 'paused', createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z',
+    controls: { external: false, canPause: false, canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false } };
+  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
+  await send({ kind: 'tasks', tasks: [task] });
+  assert.equal(document.querySelector('.page').dataset.mode, 'dashboard', 'background task updates never navigate');
+  await send({ kind: 'output', taskId: task.id, items: [{ id: 'background', kind: 'agent', text: 'Background output is retained' }] });
+  assert.equal(document.querySelector('.codex-item.agent'), null, 'hidden console buffers streaming updates');
+  view.send({ type: 'codexTaskStarted', taskId: task.id }); await view.tick();
+  assert.equal(document.querySelector('.page').dataset.mode, 'codex');
+  assert.equal(document.querySelector('.codex-workspace').hidden, false);
+  assert.match(document.querySelector('.codex-output').textContent, /Background output is retained/);
+  const checkbox = document.querySelector('.codex-auto-accept input'); assert.equal(checkbox.checked, false);
+  checkbox.click(); await view.tick();
+  const request = view.requests.findLast(value => value.type === 'setCodexAutoAccept');
+  assert.equal(request.taskId, task.id); assert.equal(request.enabled, true);
+  await send({ kind: 'tasks', tasks: [{ ...task, controls: { ...task.controls, autoAccept: true } }] });
+  assert.equal(document.querySelector('.codex-auto-accept input').checked, true);
+  const input = document.getElementById('codex-follow-up'); input.value = 'Delete this draft'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  [...document.querySelectorAll('.codex-controls button')].find(button => button.textContent === '刪除紀錄').click(); await view.tick();
+  assert.equal(view.requests.findLast(value => value.type === 'deleteCodexTask').taskId, task.id);
+  await send({ kind: 'tasks', tasks: [] });
+  assert.equal(view.savedState.codexUi.drafts[task.id], undefined); assert.equal(document.querySelector('.codex-message'), null);
+  await send({ kind: 'output', taskId: task.id, items: [{ id: 'late', kind: 'agent', text: 'Late output must not reappear' }] });
+  assert.doesNotMatch(document.querySelector('.codex-workspace').textContent, /Late output/);
+});
+
+test('Codex merges saved pages with live output and preserves reading position across streaming and page changes', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, task = { id: 'reading', title: 'Reading task', root: 'C:/workspace', status: 'running',
+    threadId: 'thread', turnId: 'turn-b', createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z' };
+  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
+  const item = (turnId, id, text, final = false) => ({ threadId: 'thread', turnId, id, kind: 'agent', text, final });
+  await send({ kind: 'tasks', tasks: [task] });
+  await send({ kind: 'output', taskId: task.id, items: [item('turn-b', 'answer', 'Live answer')] });
+  await send({ kind: 'history', taskId: task.id, items: [item('turn-a', 'answer', 'Earlier answer', true), item('turn-b', 'answer', 'Stale partial')], nextCursor: 'older' });
+  assert.deepEqual([...document.querySelectorAll('.codex-item.agent pre')].map(node => node.textContent), ['Earlier answer', 'Live answer']);
+  const output = document.querySelector('.codex-output'); let height = 1000;
+  Object.defineProperties(output, { scrollHeight: { get: () => height }, clientHeight: { value: 300 } });
+  output.scrollTop = 100; output.dispatchEvent(new view.dom.window.Event('scroll')); await view.tick();
+  height = 1200;
+  await send({ kind: 'output', taskId: task.id, items: [item('turn-b', 'answer', 'Live answer grows')] });
+  assert.equal(output.scrollTop, 100); assert.equal(view.savedState.codexUi.reading[task.id].follow, false);
+  [...document.querySelectorAll('.codex-output button')].find(button => button.textContent === '讀取更早的對話').click(); await view.tick();
+  height = 1500;
+  await send({ kind: 'history', taskId: task.id, cursor: 'older', items: [item('turn-0', 'answer', 'Oldest answer', true)] });
+  assert.equal(output.scrollTop, 400, 'prepending history retains the visible content anchor');
+  output.dispatchEvent(new view.dom.window.Event('scroll')); await view.tick();
+  document.querySelector('.mode-navigation [data-mode="dashboard"]').click(); await view.tick();
+  document.querySelector('.mode-navigation [data-mode="codex"]').click(); await view.tick();
+  assert.equal(output.scrollTop, 400);
+  [...document.querySelectorAll('.codex-reading-actions button')].find(button => button.textContent === '回到最新').click(); await view.tick();
+  assert.equal(view.savedState.codexUi.reading[task.id].follow, true);
+});
+
+test('Codex restores older cached pages and a saved reading position when its webview is recreated', async t => {
+  const task = { id: 'reopened', title: 'Reopened task', root: 'C:/workspace', status: 'running', threadId: 'thread', turnId: 'turn',
+    createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z' };
+  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: task.id, drafts: {}, pending: {}, reading: { [task.id]: { top: 400, follow: false } } } }, snapshot('codex'));
+  t.after(() => view.dom.window.close());
+  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
+  await send({ kind: 'tasks', tasks: [task] });
+  const output = view.dom.window.document.querySelector('.codex-output');
+  Object.defineProperties(output, { scrollHeight: { value: 1500 }, clientHeight: { value: 300 } });
+  await send({ kind: 'history', taskId: task.id, cursor: 'older', nextCursor: 'oldest', items: [
+    { id: 'earlier', kind: 'agent', text: 'Previously loaded older page' }, { id: 'latest', kind: 'agent', text: 'Latest page' }
+  ] });
+  assert.match(output.textContent, /Previously loaded older page/);
+  assert.equal(output.scrollTop, 400);
+  [...output.querySelectorAll('button')].find(button => button.textContent === '讀取更早的對話').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'codexHistory').cursor, 'oldest');
 });
 
 test('a connected Dashboard without a selected Group offers Group selection', async t => {
@@ -1637,7 +1725,7 @@ test('MR tabs move focus without activating remote content and associate every p
 });
 
 test('Codex requests and complete states announce once and expose intentional focus actions', async t => {
-  const view = await mount({ mode: 'dashboard' }, snapshot('dashboard')); t.after(() => view.dom.window.close());
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const task = { id: 'accessible-task', title: 'Accessible task', root: 'C:/workspace/repo', status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' };
   const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
@@ -1649,7 +1737,7 @@ test('Codex requests and complete states announce once and expose intentional fo
   assert.equal(status(), before, 'stream tokens do not reannounce');
   await send({ kind: 'interactions', taskId: task.id, interactions: [{ id: 'approval-1', taskId: task.id, kind: 'command', title: 'Run Git', detail: 'git status' }] });
   assert.equal(document.activeElement, input); assert.match(status(), /等待回覆/); assert.match(document.querySelector('.codex-interaction').textContent, /Repo：C:\/workspace\/repo/);
-  [...document.querySelectorAll('.codex-announcement button')][0].click(); await view.tick(); assert.equal(document.activeElement, document.querySelector('.codex-interaction'));
+  [...document.querySelectorAll('.codex-reading-actions button')].find(button => button.textContent.startsWith('前往待回覆要求')).click(); await view.tick(); assert.equal(document.activeElement, document.querySelector('.codex-interaction'));
   [...document.querySelectorAll('button')].find(button => button.textContent === '跳至最新回覆').click(); await view.tick(); assert.equal(document.activeElement, document.querySelector('.codex-item.agent'));
   document.querySelector('[aria-label="複製 Codex 回覆"]').click(); assert.equal(view.requests.at(-1).text, 'Streaming reply');
   await send({ kind: 'tasks', tasks: [{ ...task, status: 'completed' }] }); assert.match(status(), /本輪完成/);

@@ -9,6 +9,7 @@
     "onCommand:gitlabWorkspace.openDeveloperMode",
     "onCommand:gitlabWorkspace.openReviewerMode",
     "onCommand:gitlabWorkspace.openGitMode",
+    "onCommand:gitlabWorkspace.openCodexMode",
     "onCommand:gitlabWorkspace.openRepository",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
@@ -84,6 +85,11 @@
       {
         "command": "gitlabWorkspace.openReviewerMode",
         "title": "待審查",
+        "category": "GitLab Workspace"
+      },
+      {
+        "command": "gitlabWorkspace.openCodexMode",
+        "title": "開啟 Codex",
         "category": "GitLab Workspace"
       },
       {

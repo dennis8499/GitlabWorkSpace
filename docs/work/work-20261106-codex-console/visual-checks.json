@@ -1,0 +1,133 @@
+{
+  "errors": [],
+  "keyboard": {
+    "pauseReached": true,
+    "checkboxReached": true,
+    "autoAcceptReached": true,
+    "sent": true
+  },
+  "measurements": [
+    {
+      "theme": "dark",
+      "width": 1440,
+      "rootOverflow": false,
+      "consoleOverflow": false,
+      "outputHeight": 536,
+      "pageHeight": 803,
+      "screenshot": "dark-1440.png",
+      "pause": [
+        {
+          "text": "暫停",
+          "disabled": false,
+          "background": "rgb(0, 120, 212)",
+          "color": "rgb(255, 255, 255)"
+        },
+        {
+          "text": "讀取對話",
+          "disabled": false,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "刪除紀錄",
+          "disabled": true,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(204, 204, 204)"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "rootOverflow": false,
+      "consoleOverflow": false,
+      "outputHeight": 324,
+      "pageHeight": 806,
+      "screenshot": "dark-320.png",
+      "pause": [
+        {
+          "text": "暫停",
+          "disabled": false,
+          "background": "rgb(0, 120, 212)",
+          "color": "rgb(255, 255, 255)"
+        },
+        {
+          "text": "讀取對話",
+          "disabled": false,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(204, 204, 204)"
+        },
+        {
+          "text": "刪除紀錄",
+          "disabled": true,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(204, 204, 204)"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "rootOverflow": false,
+      "consoleOverflow": false,
+      "outputHeight": 536,
+      "pageHeight": 803,
+      "screenshot": "light-1440.png",
+      "pause": [
+        {
+          "text": "暫停",
+          "disabled": false,
+          "background": "rgb(0, 95, 184)",
+          "color": "rgb(255, 255, 255)"
+        },
+        {
+          "text": "讀取對話",
+          "disabled": false,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(51, 51, 51)"
+        },
+        {
+          "text": "刪除紀錄",
+          "disabled": true,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(51, 51, 51)"
+        }
+      ]
+    },
+    {
+      "theme": "contrast",
+      "width": 1440,
+      "rootOverflow": false,
+      "consoleOverflow": false,
+      "outputHeight": 536,
+      "pageHeight": 803,
+      "screenshot": "contrast-1440.png",
+      "pause": [
+        {
+          "text": "暫停",
+          "disabled": false,
+          "background": "rgb(15, 74, 133)",
+          "color": "rgb(255, 255, 255)"
+        },
+        {
+          "text": "讀取對話",
+          "disabled": false,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(255, 255, 255)"
+        },
+        {
+          "text": "刪除紀錄",
+          "disabled": true,
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(255, 255, 255)"
+        }
+      ]
+    },
+    {
+      "theme": "contrast-200",
+      "rootOverflow": false,
+      "consoleOverflow": false,
+      "outputHeight": 400
+    }
+  ]
+}

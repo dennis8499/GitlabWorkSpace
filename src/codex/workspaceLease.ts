@@ -21,6 +21,9 @@ export class CodexWorkspaceLease {
     await this.lease.release();
     if (this.receipt) await unlink(this.receipt.path).catch(error => { if (error.code !== 'ENOENT') throw error; });
   }
+  async quarantine(): Promise<void> {
+    await this.lease.update({ state: 'quarantined' });
+  }
   private static async recover(directory: string): Promise<void> {
     const guard = directory + '.recovery';
     try { await writeFile(guard, '', { flag: 'wx', mode: 0o600 }); }
@@ -30,7 +33,7 @@ export class CodexWorkspaceLease {
       if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Codex 工作區鎖路徑無效。');
       const ownerFile = path.join(directory, 'owner.json');
       const owner = JSON.parse(await readFile(ownerFile, 'utf8'));
-      if (owner.schema !== LEASE_SCHEMA || owner.kind !== 'codex' || !Number.isSafeInteger(owner.pid) || owner.pid < 1 || !/^[a-z0-9-]{16,128}$/i.test(owner.nonce)) return;
+      if (owner.schema !== LEASE_SCHEMA || owner.kind !== 'codex' || owner.state === 'quarantined' || !Number.isSafeInteger(owner.pid) || owner.pid < 1 || !/^[a-z0-9-]{16,128}$/i.test(owner.nonce)) return;
       try { process.kill(owner.pid, 0); return; }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') return; }
       const receipt = { path: directory + `.stopped-${owner.nonce}.json`, nonce: owner.nonce };

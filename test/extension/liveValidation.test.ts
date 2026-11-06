@@ -892,8 +892,8 @@ class WebviewCdp {
     await this.waitUntil(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !e || e.getClientRects().length === 0; })()`, timeoutMs, `Webview element ${selector} did not become hidden.`);
   }
 
-  async waitForProperty(selector: string, property: 'disabled', value: boolean, timeoutMs = 10_000): Promise<void> {
-    await this.waitUntil(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !!e && e.disabled === ${value}; })()`, timeoutMs, `Webview control ${selector} did not reach disabled=${value}.`);
+  async waitForProperty(selector: string, property: 'disabled' | 'checked', value: boolean, timeoutMs = 10_000): Promise<void> {
+    await this.waitUntil(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !!e && e[${JSON.stringify(property)}] === ${value}; })()`, timeoutMs, `Webview control ${selector} did not reach ${property}=${value}.`);
   }
 
   async click(selector: string, index = 0): Promise<void> {

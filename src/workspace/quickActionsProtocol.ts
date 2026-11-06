@@ -6,7 +6,7 @@ import type { WorkspaceCapabilities } from './workspaceCapabilities';
 import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 import type { NotificationRequest } from '../notifications/notificationProtocol';
 
-export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'openAnalysis' | 'openBmad' | 'openReviewer' | 'openGit' | 'openAdmin' | 'openRepository' | 'openNotifications' | 'openSettings'
+export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'openAnalysis' | 'openBmad' | 'openReviewer' | 'openGit' | 'openCodex' | 'openAdmin' | 'openRepository' | 'openNotifications' | 'openSettings'
   | 'addAccount' | 'switchAccount' | 'logoutAccount' | 'removeAccount' | 'manageAccounts';
 
 export interface QuickActionsOperationContext {
@@ -84,6 +84,6 @@ export function isQuickActionsRequest(value: unknown): value is QuickActionsRequ
   }
   return keys.length === 2 && keys.includes('type') && keys.includes('action') &&
     (message.action === 'openWorkspace' || message.action === 'openMyWork' || message.action === 'openProjects' ||
-      message.action === 'openAnalysis' || message.action === 'openBmad' || message.action === 'openReviewer' || message.action === 'openGit' || message.action === 'openAdmin' ||
+      message.action === 'openAnalysis' || message.action === 'openBmad' || message.action === 'openReviewer' || message.action === 'openGit' || message.action === 'openCodex' || message.action === 'openAdmin' ||
       message.action === 'addAccount' || message.action === 'switchAccount' || message.action === 'logoutAccount' || message.action === 'removeAccount' || message.action === 'manageAccounts' || message.action === 'openNotifications' || message.action === 'openSettings');
 }

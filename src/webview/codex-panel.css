@@ -1,26 +1,64 @@
-.codex-panel { border-top: 1px solid var(--vscode-panel-border, #555); background: var(--vscode-editor-background); flex-shrink: 0; }
-.codex-announcement { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 4px 12px; font-size: .95rem; }
-.codex-announcement:empty { display: none; }
-.codex-item:focus-visible, .codex-interaction:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
-.codex-panel > summary { padding: 10px 18px; cursor: pointer; font-weight: 600; }
-.codex-panel button, .codex-settings button { border: 1px solid var(--vscode-button-border, transparent); border-radius: 4px; padding: 6px 10px; background: var(--vscode-button-secondaryBackground, #313135); color: var(--vscode-button-secondaryForeground, #eee); }
-.codex-panel button:not(:disabled):hover, .codex-settings button:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground, #414145); }
-.codex-layout { display: grid; grid-template-columns: minmax(170px, 24%) 1fr; max-height: 68vh; min-height: 180px; overflow: auto; }
-.codex-layout > nav { overflow-y: auto; border-right: 1px solid var(--vscode-panel-border, #555); padding: 8px; }
-.codex-layout > nav button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; width: 100%; gap: 5px; padding: 10px; margin-bottom: 6px; }
-.codex-layout > nav button.active { outline: 1px solid var(--vscode-focusBorder); background: var(--vscode-list-activeSelectionBackground, #173a55); color: var(--vscode-list-activeSelectionForeground, #fff); }
-.codex-conversation { padding: 10px 16px; min-width: 0; overflow: auto; }
-.codex-conversation header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.codex-conversation header > div { flex: 1; min-width: 140px; }
-.codex-root { overflow-wrap: anywhere; font-size: 1rem; opacity: .8; }
-.codex-output { max-height: 35vh; overflow: auto; margin: 10px 0; }
-.codex-item { padding: 8px 10px; border-left: 2px solid var(--vscode-panel-border, #555); margin-bottom: 8px; }
-.codex-item.agent { border-color: var(--vscode-focusBorder); }
-.codex-item pre, .codex-interaction pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 5px 0; }
-.codex-item small { opacity: .7; }
-.codex-message, .codex-interaction { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
-.codex-interaction { padding: 12px; border: 1px solid var(--vscode-focusBorder); }
+.page[data-mode="codex"] { padding: 0; overflow: hidden; }
+.page[data-mode="codex"] .workspace-tasks { display: flex; flex: 1 1 0; min-height: 0; }
+.codex-workspace { display: grid; grid-template-columns: minmax(170px, 23%) minmax(0, 1fr); flex: 1 1 0; min-height: 0; min-width: 0; background: var(--vscode-editor-background); }
+.codex-workspace[hidden] { display: none; }
+.page .codex-conversation button:not(.quiet), .codex-settings button { border: 1px solid var(--vscode-button-border, transparent); border-radius: 3px; padding: 5px 9px; background: var(--vscode-button-secondaryBackground, var(--vscode-editor-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
+.page .codex-conversation button:not(.quiet):not(:disabled):hover, .codex-settings button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
+.page .codex-conversation button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.page .codex-conversation button.primary:not(:disabled):hover { background: var(--vscode-button-hoverBackground, var(--vscode-button-background)); }
+.codex-tasks { min-height: 0; overflow: auto; padding: 12px 8px; border-right: 1px solid var(--vscode-panel-border); background: var(--vscode-sideBar-background); }
+.codex-tasks > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 0 8px 10px; }
+.codex-tasks h1 { margin: 0; font-size: 1.15rem; }
+.codex-tasks header > span { color: var(--vscode-descriptionForeground); }
+.codex-tasks > button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; width: 100%; gap: 4px; margin: 0 0 2px; padding: 9px 8px; border: 1px solid transparent; border-radius: 0; background: transparent; color: var(--vscode-foreground); }
+.codex-tasks > button:hover { background: var(--vscode-list-hoverBackground); }
+.codex-tasks > button.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-focusBorder); }
+.codex-tasks small { max-width: 100%; color: inherit; opacity: .8; }
+.codex-conversation { display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; }
+.codex-task-heading { display: flex; flex: 0 0 auto; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; padding: 14px 18px 0; }
+.codex-task-heading > div { flex: 1; min-width: 0; }
+.codex-task-heading h2 { font-size: 1.15rem; margin: 0 0 5px; overflow-wrap: anywhere; }
+.codex-task-heading p { margin: 0; }
+.codex-root { overflow-wrap: anywhere; }
+.codex-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 18px; border-bottom: 1px solid var(--vscode-panel-border); }
+.codex-auto-accept { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.codex-auto-accept input { margin: 0; accent-color: var(--vscode-checkbox-selectBackground); }
+.codex-conversation > .warning, .codex-conversation > .subtle { margin: 6px 18px; }
+.codex-reading-actions { display: flex; flex: 0 0 auto; gap: 6px; padding: 4px 14px; }
+.codex-output { flex: 1 1 0; min-height: 80px; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; padding: 12px 18px 20px; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 13px); line-height: 1.55; color: var(--vscode-terminal-foreground, var(--vscode-foreground)); background: var(--vscode-terminal-background, var(--vscode-editor-background)); }
+.codex-item { display: flex; gap: 10px; min-width: 0; margin: 0 0 14px; padding: 0; }
+.codex-marker { flex: 0 0 1ch; color: var(--vscode-descriptionForeground); }
+.codex-item.agent > .codex-marker { color: var(--vscode-terminal-ansiGreen, var(--vscode-textLink-foreground)); }
+.codex-item.user > .codex-marker { color: var(--vscode-terminal-ansiCyan, var(--vscode-textLink-foreground)); }
+.codex-entry-content { flex: 1; min-width: 0; }
+.codex-item pre, .codex-interaction pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0; }
+.page .codex-item pre, .page .codex-interaction pre { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; overflow: visible; }
+.codex-command { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.codex-command span, .codex-item.notice, .codex-working { color: var(--vscode-descriptionForeground); }
+.codex-copy { margin-top: 4px; }
+.codex-item:focus-visible, .codex-output:focus-visible, .codex-interaction:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
+.codex-message { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; flex: 0 0 auto; margin: 0; padding: 12px 18px 6px; border-top: 1px solid var(--vscode-panel-border); }
+.codex-message label { grid-column: 1 / -1; }
+.codex-message textarea { width: 100%; box-sizing: border-box; min-width: 0; max-height: 160px; resize: vertical; font-family: var(--vscode-editor-font-family, monospace); }
+.codex-message button { align-self: end; }
+.codex-footnote { flex: 0 0 auto; font-size: .9rem; padding-bottom: 6px; }
+.codex-interaction { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 10px 14px; margin: 12px 0; border-left: 2px solid var(--vscode-focusBorder); font-family: var(--vscode-font-family); }
+.codex-interaction h4, .codex-interaction p { margin: 0; }
 .codex-interaction label { display: flex; flex-direction: column; gap: 6px; }
-.codex-message textarea { width: 100%; box-sizing: border-box; }
-.codex-message button { align-self: flex-end; }
-@media (max-width: 650px) { .codex-layout { grid-template-columns: 1fr; } .codex-layout > nav { max-height: 130px; border-right: 0; } }
+.codex-interaction input, .codex-interaction select { width: 100%; min-width: 0; }
+.codex-routing { margin: 6px 18px; max-height: 100px; overflow: auto; flex: 0 0 auto; }
+.codex-empty { overflow: auto; padding: 24px; }
+.codex-settings { margin-top: 18px; }
+.codex-announcement { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 20px; font-size: .9rem; color: var(--vscode-descriptionForeground); }
+.codex-announcement:empty { display: none; }
+.codex-nav-count { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 10px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: .85rem; }
+@media (max-width: 650px) {
+  .codex-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(66px, 22%) minmax(0, 1fr); }
+  .codex-tasks { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); padding: 6px; }
+  .codex-tasks > button { padding: 5px 8px; }
+  .codex-tasks > button small { display: none; }
+  .codex-task-heading, .codex-controls, .codex-output, .codex-message { padding-left: 10px; padding-right: 10px; }
+  .codex-message { grid-template-columns: minmax(0, 1fr); }
+  .codex-message button { justify-self: end; }
+  .codex-footnote { display: none; }
+}

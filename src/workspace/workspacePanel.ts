@@ -84,7 +84,7 @@ const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const _MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
-const ALLOWED_MODES = new Set<WorkspaceMode>(['dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git']);
+const ALLOWED_MODES = new Set<WorkspaceMode>(['dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'codex']);
 
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
 type ActionMetadata = Pick<WorkspaceRequest, 'operationId' | 'operationScope' | 'hostSessionId' | 'scopeEpoch'>;
@@ -1011,7 +1011,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   async runCommandAction<T>(action: string, task: () => Promise<T>, metadata: ActionMetadata & { repositoryId?: string } = {}): Promise<T | undefined> {
     let result: T | undefined;
-    const navigation = ['openWorkspace', 'openProjects', 'openAnalysis', 'openBmad', 'openMyWork', 'openReviewer', 'openGit', 'openAdmin', 'openRepository', 'openNotifications', 'openSettings', 'manageAccounts', 'logoutAccount'].includes(action);
+    const navigation = ['openWorkspace', 'openProjects', 'openAnalysis', 'openBmad', 'openMyWork', 'openReviewer', 'openGit', 'openCodex', 'openAdmin', 'openRepository', 'openNotifications', 'openSettings', 'manageAccounts', 'logoutAccount'].includes(action);
     await this.runAction({ type: navigation ? 'perform' : action, ...(navigation ? { action } : {}), ...metadata }, async () => { result = await task(); });
     return result;
   }
@@ -1208,12 +1208,26 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'listCodexTasks': await this.getCodexBridge().publish(); break;
       case 'startCodexTask': {
         const prepared = await this.prepareCodexTask(request.source);
-        await this.getCodexBridge().enqueue(prepared, this.operationContext.getStore() ?? request.operationId);
+        const taskId = await this.getCodexBridge().enqueue(prepared, this.operationContext.getStore() ?? request.operationId);
+        this.activeMode = 'codex';
+        await this.context.globalState.update(SELECTED_MODE_KEY, 'codex');
+        this.post({ type: 'codexTaskStarted', taskId });
+        this.sendSnapshot();
         this.noteOutcome({ effect: 'applied' }); break;
       }
       case 'sendCodexMessage': await this.getCodexBridge().message(request.taskId, request.text); this.noteOutcome({ effect: 'applied' }); break;
       case 'resumeCodexTask': await this.getCodexBridge().resume(request.taskId); break;
       case 'cancelCodexTask': await this.getCodexBridge().cancel(request.taskId); break;
+      case 'pauseCodexTask': await this.getCodexBridge().pause(request.taskId); this.noteOutcome({ effect: 'applied' }); break;
+      case 'setCodexAutoAccept': await this.getCodexBridge().setAutoAccept(request.taskId, request.enabled); this.noteOutcome({ effect: 'applied' }); break;
+      case 'deleteCodexTask': {
+        const task = this.getCodexBridge().list().find(value => value.id === request.taskId);
+        if (!task?.controls?.canDelete) throw new Error('請先暫停任務並確認清理完成，再刪除紀錄。');
+        const decision = await vscode.window.showWarningMessage(`刪除「${task.title}」的任務紀錄？`,
+          { modal: true, detail: '只刪除管理介面的紀錄與草稿。Codex 對話、產生的檔案及報告會保留。' }, '刪除紀錄');
+        if (decision !== '刪除紀錄') { this.noteOutcome({ status: 'cancelled', effect: 'none' }); break; }
+        await this.getCodexBridge().delete(request.taskId); this.noteOutcome({ effect: 'applied' }); break;
+      }
       case 'answerCodex': await this.getCodexBridge().answer(request.taskId, request.interactionId, request.answer); break;
       case 'codexHistory': await this.getCodexBridge().history(request.taskId, request.cursor); break;
       case 'checkCodex': {
@@ -1862,6 +1876,8 @@ export class WorkspacePanel implements vscode.Disposable {
           if (current()) await this.refreshInventory();
         } else if (mode === 'bmad') {
           await this.refreshBmadWorkflow(true);
+        } else if (mode === 'codex') {
+          await this.getCodexBridge().publish();
         } else if (mode === 'git') {
           await this.gitRepositories?.refresh();
           if (current()) {
@@ -2259,12 +2275,17 @@ export class WorkspacePanel implements vscode.Disposable {
         this.post({ type: 'codexEvent', event });
       },
       openUrl: async url => { const parsed = new URL(url); if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('Codex 登入網址無效。'); await vscode.env.openExternal(vscode.Uri.parse(url)); },
+      approved: event => this.session.log?.record({ feature: 'codex', action: 'autoApproval', commandId: event.taskId,
+        result: 'success', requestReason: JSON.stringify(event), message: '已送出單次自動核准；執行結果以任務狀態為準。' }),
       cancelReview: async spec => {
         if (!spec.review) return;
         const skills = this.getSkillsContext(), runtime = spec.review.tool === 'merge-reviewer' ? skills.reviewRuntimeRoot : skills.releaseReviewRuntimeRoot;
-        if (!runtime || !skills.root) return;
+        if (!runtime || !skills.root || !sameLocalPath(skills.root, spec.root)) throw new Error('原審查環境已變更，helper 停止狀態待核對。');
         const paths = (skills.reviewerRepositories ?? []).map(repo => repo.path), workspace = skills.workspaceRoot ?? skills.root;
-        const sessions = (await Promise.all(reviewRuntimeCandidates(runtime, workspace, spec.review.tool).map(candidate =>
+        const candidates = reviewRuntimeCandidates(runtime, workspace, spec.review.tool);
+        const pinnedRuntime = spec.routing?.runtimeRoot ?? spec.writableRoots[1];
+        if (!pinnedRuntime || !candidates.some(candidate => sameLocalPath(candidate, pinnedRuntime))) throw new Error('原審查 runtime 已變更，helper 停止狀態待核對。');
+        const sessions = (await Promise.all(candidates.map(candidate =>
           readReviewSessions(candidate, workspace, paths, spec.review!.tool)))).flat();
         if (sessions.some(session => session.requestId === spec.review!.requestId)) await this.controlReviewSession({ ...spec.review, revision: skills.revision }, 'cancel');
       },

@@ -129,6 +129,25 @@ test('cancelling a routing turn stops the helper and never starts review', async
   assert.equal(f.requests.filter(item => item.method === 'turn/start').length, 1);
   assert.equal(f.cancelled(), 1); assert.equal(f.completed(), 0);
 });
+test('pausing a reviewer resumes its conversation at the same effort and fixed request', async t => {
+  const f = await setup(t, { effort: 'high', mode: 'routing-hold-review' });
+  await f.bridge.enqueue(f.spec, 'paused-reviewer');
+  await until(() => !!f.bridge.list()[0]?.turnId);
+  const running = f.bridge.list()[0];
+  await f.bridge.pause(running.id);
+  assert.equal(f.bridge.list()[0].status, 'paused');
+  assert.equal(f.cancelled(), 1);
+  const before = f.requests.length;
+  await f.bridge.resume(running.id);
+  await until(() => ['completed', 'failed'].includes(f.bridge.list()[0]?.status));
+  assert.equal(f.bridge.list()[0].status, 'completed', f.bridge.list()[0].error ?? 'Reviewer should complete');
+  assert.equal(f.bridge.list()[0].threadId, running.threadId);
+  assert.deepEqual(f.bridge.list()[0].review, running.review);
+  const resumed = f.requests.slice(before);
+  assert.equal(resumed.some(item => item.method === 'thread/start'), false);
+  assert.equal(resumed.find(item => item.method === 'turn/start')?.params.effort, 'high');
+  assert.match(resumed.find(item => item.method === 'turn/start')?.params.input[0].text, new RegExp(f.spec.review!.requestId));
+});
 test('saved manual routing survives binding recovery and rejects native identity drift', async t => {
   const f = await setup(t, { effort: 'xhigh' });
   await f.bridge.enqueue(f.spec, 'persist');

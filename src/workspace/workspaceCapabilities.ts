@@ -26,12 +26,12 @@ const localProjectActions = new Set([
   'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask',
-  'resumeCodexTask', 'answerCodex', 'checkCodex', 'configureCodex'
+  'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex'
 ]);
 
 export function requiresLocalProject(request: { type: string; [key: string]: unknown }): boolean {
   if (request.type === 'perform') return request.action === 'openRepository';
-  if (request.type === 'refresh') return ['sa', 'bmad', 'git'].includes(String(request.mode)) ||
+  if (request.type === 'refresh') return ['sa', 'bmad', 'git', 'codex'].includes(String(request.mode)) ||
     request.mode === 'clone' && request.projectSource === 'local';
   return localProjectActions.has(request.type);
 }

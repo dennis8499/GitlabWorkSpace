@@ -18,7 +18,16 @@ export interface CodexTaskSpec {
   review?: { tool: ReviewerToolId; requestId: string; revision: string };
   routing?: ModelRoutingBinding;
 }
-export type CodexTaskStatus = 'queued' | 'starting' | 'running' | 'waiting' | 'completed' | 'failed' | 'interrupted' | 'uncertain';
+export type CodexTaskStatus = 'queued' | 'starting' | 'running' | 'waiting' | 'pausing' | 'paused' | 'completed' | 'failed' | 'interrupted' | 'uncertain';
+export interface CodexTaskControls {
+  external: boolean;
+  canPause: boolean;
+  canResume: boolean;
+  canDelete: boolean;
+  canAutoAccept: boolean;
+  autoAccept: boolean;
+  autoAcceptError?: string;
+}
 export interface CodexTaskState {
   id: string;
   title: string;
@@ -31,8 +40,9 @@ export interface CodexTaskState {
   error?: string;
   review?: CodexTaskSpec['review'];
   modelRouting?: ModelRoutingSummary;
+  controls?: CodexTaskControls;
 }
-export interface CodexTaskRecord extends CodexTaskState {
+export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
   schema: 'GitLabWorkspaceCodexTask/v1';
   spec: CodexTaskSpec;
   ownerPid: number;
@@ -57,7 +67,17 @@ export interface CodexInteractionAnswer {
   answers?: Record<string, string>;
   content?: Record<string, unknown>;
 }
-export interface CodexOutputItem { id: string; kind: 'agent' | 'command' | 'file' | 'tool' | 'user'; text: string; }
+export interface CodexOutputItem {
+  id: string;
+  threadId?: string;
+  turnId?: string;
+  kind: 'agent' | 'command' | 'file' | 'tool' | 'user' | 'notice';
+  text: string;
+  command?: string;
+  status?: string;
+  exitCode?: number;
+  final?: boolean;
+}
 export interface CodexEnvironment {
   state: 'unchecked' | 'ready' | 'blocked';
   version?: string;
@@ -69,10 +89,11 @@ export interface CodexEnvironment {
 export type CodexEvent =
   | { kind: 'tasks'; tasks: CodexTaskState[] }
   | { kind: 'output'; taskId: string; items: CodexOutputItem[]; replace?: boolean }
-  | { kind: 'history'; taskId: string; items: CodexOutputItem[]; nextCursor?: string }
+  | { kind: 'history'; taskId: string; items: CodexOutputItem[]; nextCursor?: string; cursor?: string }
   | { kind: 'interactions'; taskId: string; interactions: CodexInteraction[] }
   | { kind: 'environment'; environment: CodexEnvironment };
-export const codexTaskActive = (state: CodexTaskStatus): boolean => ['starting', 'running', 'waiting'].includes(state);
+export const codexTaskActive = (state: CodexTaskStatus): boolean => ['starting', 'running', 'waiting', 'pausing'].includes(state);
+export const codexOutputKey = (item: CodexOutputItem): string => JSON.stringify([item.threadId ?? '', item.turnId ?? '', item.id]);
 /** Reviewer helpers canonicalize UUID inputs to uuid.hex in their persisted jobs. */
 export function canonicalReviewRequestId(value: string): string {
   const result = value.replace(/-/g, '').toLowerCase();

@@ -9,6 +9,7 @@ export class CodexAppServer {
   private decoder = new StringDecoder('utf8');
   private pending = new Map<number | string, { resolve(value: any): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
   private closed = false;
+  private closing?: Promise<void>;
   private closePromise: Promise<void>;
   onNotification: (message: RpcMessage) => void = () => {};
   onRequest: (message: RpcMessage) => void = () => {};
@@ -71,7 +72,10 @@ export class CodexAppServer {
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
     this.pending.clear(); this.onExit(error);
   }
-  async close(gracefulTimeoutMs = 5000): Promise<void> {
+  close(gracefulTimeoutMs = 5000): Promise<void> {
+    return this.closing ??= this.closeNow(gracefulTimeoutMs);
+  }
+  private async closeNow(gracefulTimeoutMs: number): Promise<void> {
     this.fail(new Error('Codex 通訊已關閉。'));
     this.child.stdin.end();
     const timer = setTimeout(() => { this.child.kill(); }, gracefulTimeoutMs);
