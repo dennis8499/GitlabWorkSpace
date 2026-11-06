@@ -1,0 +1,2280 @@
+{
+  "schema": "GitLabWorkspaceUiVerification/v1",
+  "status": "PASS",
+  "checkedAt": "2026-11-06T13:39:06.333Z",
+  "browser": "156.0.8078.80",
+  "bundleSha256": "1324458bed61fb52684faf6bc843bd97ac377ce77dd41c78feb89747a1c9e2fc",
+  "scope": "Production Webview, synthetic Host and theme fixtures; excludes native input, VS Code bridge, actual zoom, external service latency and NVDA.",
+  "cases": 32,
+  "failures": [],
+  "metrics": [
+    {
+      "kind": "warmNavigation",
+      "samples": 30,
+      "p95Ms": 31.299999997019768
+    },
+    {
+      "kind": "localSearch",
+      "samples": 30,
+      "p95Ms": 48.400000005960464
+    }
+  ],
+  "timings": [
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 30.200000002980232
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 30.200000002980232
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 29.700000002980232
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 29.600000008940697
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.899999991059303
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 31
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 30.700000002980232
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 31.600000008940697
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.5
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 30.80000001192093
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 31.100000008940697
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 31.299999997019768
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 30
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 30.799999997019768
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.099999994039536
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 30.30000001192093
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.299999997019768
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 30.69999998807907
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 31.200000002980232
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 31.099999994039536
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.899999991059303
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 30.900000005960464
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.599999994039536
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 31
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.5
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 30.5
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 30.599999994039536
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "developer",
+      "ms": 31.099999994039536
+    },
+    {
+      "kind": "warmNavigation",
+      "mode": "clone",
+      "ms": 29.299999997019768
+    },
+    {
+      "kind": "localSearch",
+      "ms": 29.799999997019768
+    },
+    {
+      "kind": "localSearch",
+      "ms": 46.900000005960464
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.900000005960464
+    },
+    {
+      "kind": "localSearch",
+      "ms": 46.79999999701977
+    },
+    {
+      "kind": "localSearch",
+      "ms": 46.5
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.79999999701977
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.80000001192093
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.80000001192093
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.70000000298023
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.30000001192093
+    },
+    {
+      "kind": "localSearch",
+      "ms": 46.5
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.400000005960464
+    },
+    {
+      "kind": "localSearch",
+      "ms": 48.400000005960464
+    },
+    {
+      "kind": "localSearch",
+      "ms": 45.29999999701977
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.79999999701977
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.900000005960464
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.5
+    },
+    {
+      "kind": "localSearch",
+      "ms": 46.400000005960464
+    },
+    {
+      "kind": "localSearch",
+      "ms": 48.400000005960464
+    },
+    {
+      "kind": "localSearch",
+      "ms": 48.099999994039536
+    },
+    {
+      "kind": "localSearch",
+      "ms": 48.20000000298023
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.70000000298023
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.6000000089407
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.70000000298023
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.80000001192093
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.70000000298023
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.6000000089407
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.79999999701977
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.80000001192093
+    },
+    {
+      "kind": "localSearch",
+      "ms": 47.70000000298023
+    }
+  ],
+  "results": [
+    {
+      "name": "wiki-loading-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-loading-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-loading-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-loading-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-loading-hc-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-hc-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-hc-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-hc-dark-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-loading-hc-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-hc-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-hc-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-hc-dark-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-loading-hc-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 561,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-hc-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-hc-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-hc-light-320",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 125,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 262,
+          "width": 320,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 320,
+          "height": 32,
+          "clientWidth": 320,
+          "scrollWidth": 320
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 262,
+          "width": 305,
+          "height": 606,
+          "clientWidth": 305,
+          "scrollWidth": 305
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-loading-hc-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 698,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-partial-hc-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-cancelled-hc-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    },
+    {
+      "name": "wiki-ready-hc-light-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentWidth": 1280,
+      "sizes": [
+        {
+          "selector": ".topbar",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 58,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".workbench",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".page",
+          "x": 0,
+          "y": 125,
+          "width": 1280,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        },
+        {
+          "selector": ".statusbar",
+          "x": 0,
+          "y": 868,
+          "width": 1280,
+          "height": 32,
+          "clientWidth": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "selector": ".codex-panel",
+          "x": 0,
+          "y": 125,
+          "width": 1265,
+          "height": 743,
+          "clientWidth": 1265,
+          "scrollWidth": 1265
+        }
+      ],
+      "clippedControls": [],
+      "unnamedTabPanels": 0,
+      "tabsWithoutControlledPanel": [],
+      "csp": [],
+      "errors": [],
+      "externalRequests": [],
+      "composerFocusVisible": true
+    }
+  ]
+}

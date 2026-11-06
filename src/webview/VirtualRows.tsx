@@ -13,10 +13,14 @@ interface VirtualRowsProps<T> {
   resetKey?: string | number;
   active?: boolean;
   empty?: ComponentChildren;
+  /** Use an existing scroll region, including its header and interactive footer. */
+  scrollRoot?: { readonly current: HTMLDivElement | null };
+  semanticList?: boolean;
+  initialAnchor?: { key: string | number; offset: number };
 }
 
 /** Variable-height list windowing with ten-row overscan and full-data keyboard navigation. */
-export function VirtualRows<T>({ items, itemKey, estimateHeight, className, renderItem, resetKey, active = true, empty }: VirtualRowsProps<T>) {
+export function VirtualRows<T>({ items, itemKey, estimateHeight, className, renderItem, resetKey, active = true, empty, scrollRoot, semanticList, initialAnchor }: VirtualRowsProps<T>) {
   const windowed = items.length > 200;
   const container = useRef<HTMLDivElement>(null);
   const observer = useRef<ResizeObserver>();
@@ -35,6 +39,17 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [focusRevision, setFocusRevision] = useState(0);
   const [focusedKey, setFocusedKey] = useState<string | number>();
+  const restoredInitialAnchor = useRef(false);
+
+  const scroller = () => scrollRoot?.current ?? container.current;
+  const listOffset = (): number => {
+    const root = scrollRoot?.current, list = container.current;
+    if (!root || !list) return 0;
+    const scale = root.offsetHeight ? root.getBoundingClientRect().height / root.offsetHeight || 1 : 1;
+    return (list.getBoundingClientRect().top - root.getBoundingClientRect().top) / scale + root.scrollTop - root.clientTop;
+  };
+  const readTop = () => Math.max(0, (scroller()?.scrollTop ?? 0) - listOffset());
+  const writeTop = (top: number) => { const root = scroller(); if (root) root.scrollTop = listOffset() + top; };
 
   const keys = useMemo(() => items.map(itemKey), [items, itemKey]);
   const previousLayout = useRef<{ keys: (string | number)[]; geometry: number[]; resetKey?: string | number; windowed: boolean }>({ keys: [], geometry: [], resetKey, windowed });
@@ -66,11 +81,11 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
   }, [keys, estimateHeight, measureRevision, windowed]);
   useLayoutEffect(() => {
     const previous = previousLayout.current;
-    const element = container.current;
+    const element = scroller();
     const reset = previous.resetKey !== resetKey;
     const nextGeometry = !windowed && previous.windowed ? naturalGeometry(keys) : geometry;
     const canAnchor = previous.geometry.length === previous.keys.length + 1 && nextGeometry.length === keys.length + 1;
-    let nextTop = reset ? 0 : canAnchor ? restoreScrollAnchor(previous.keys, previous.geometry, keys, nextGeometry, element?.scrollTop ?? scrollTop) : element?.scrollTop ?? scrollTop;
+    let nextTop = reset ? 0 : canAnchor ? restoreScrollAnchor(previous.keys, previous.geometry, keys, nextGeometry, readTop()) : readTop();
     const removedFocus = active && focusInside.current && focusedKeyRef.current !== undefined && !keys.includes(focusedKeyRef.current);
     if (removedFocus) {
       const formerIndex = previous.keys.indexOf(focusedKeyRef.current!);
@@ -99,18 +114,28 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     previousLayout.current = { keys, geometry, resetKey, windowed };
     if (!windowed) measured.current.clear();
     else if (reset) { measured.current.clear(); setMeasureRevision(revision => revision + 1); }
-    if (element && Math.abs(element.scrollTop - nextTop) > 0.5) element.scrollTop = nextTop;
+    if (element && Math.abs(readTop() - nextTop) > 0.5) writeTop(nextTop);
     setScrollTop(nextTop);
     const retained = new Set(keys);
     for (const key of measured.current.keys()) if (!retained.has(key)) measured.current.delete(key);
     for (const key of rowRefs.current.keys()) if (!retained.has(key)) rowRefs.current.delete(key);
-  }, [keys, geometry, resetKey, windowed]);
+  }, [keys, geometry, resetKey, windowed, scrollRoot]);
 
   useEffect(() => {
-    const element = container.current;
+    if (!active || !initialAnchor || restoredInitialAnchor.current || !windowed) return;
+    const index = keys.indexOf(initialAnchor.key);
+    if (index < 0) return; // Previously loaded history can arrive after the live window.
+    restoredInitialAnchor.current = true;
+    const top = Math.max(0, geometry[index] + initialAnchor.offset);
+    writeTop(top); setScrollTop(top);
+  }, [active, initialAnchor, keys, geometry, windowed]);
+
+  useEffect(() => {
+    const element = scroller();
     if (!element || !active || !windowed) return;
     const updateViewport = (): void => {
       setViewportHeight(element.clientHeight || 400);
+      setScrollTop(readTop());
       const width = element.clientWidth;
       if (width > 0 && lastWidth.current !== undefined && width !== lastWidth.current) {
         measured.current.clear();
@@ -134,7 +159,15 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     });
     resize.observe(element);
     return () => { resize.disconnect(); if (frame !== undefined) window.cancelAnimationFrame(frame); };
-  }, [active, windowed]);
+  }, [active, windowed, scrollRoot]);
+
+  useEffect(() => {
+    const root = scrollRoot?.current;
+    if (!active || !windowed || !root) return;
+    const update = () => setScrollTop(readTop());
+    update(); root.addEventListener('scroll', update, { passive: true });
+    return () => root.removeEventListener('scroll', update);
+  }, [active, windowed, scrollRoot]);
 
   useEffect(() => () => {
     observer.current?.disconnect();
@@ -212,14 +245,15 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     if (!windowed) return; // Native focus scrolls fully mounted rows into view.
     const top = geometry[next] ?? 0;
     const bottom = geometry[next + 1] ?? top;
-    const element = container.current;
-    if (element && (top < element.scrollTop || bottom > element.scrollTop + element.clientHeight)) {
-      element.scrollTop = Math.max(0, top - Math.max(0, (element.clientHeight - (bottom - top)) / 2));
+    const element = scroller(), currentTop = readTop();
+    if (element && (top < currentTop || bottom > currentTop + element.clientHeight)) {
+      writeTop(Math.max(0, top - Math.max(0, (element.clientHeight - (bottom - top)) / 2)));
     }
-    setScrollTop(element?.scrollTop ?? 0);
+    setScrollTop(readTop());
   }
 
-  return <div ref={container} class={className} onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)} onKeyDownCapture={moveFocus}
+  return <div ref={container} class={className} role={semanticList ? 'list' : undefined}
+    onScroll={() => { if (!scrollRoot) setScrollTop(readTop()); }} onKeyDownCapture={moveFocus}
     onFocusCapture={(event) => {
       const row = (event.target as HTMLElement).closest<HTMLElement>('[data-virtual-index]');
       const index = Number(row?.dataset.virtualIndex);
@@ -244,7 +278,8 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
       {visible.map(({ item, index }) => {
         const key = keys[index];
         if (!rowRefs.current.has(key)) rowRefs.current.set(key, element => setRowRef(key, element));
-        return <div class="virtual-list-row" key={String(key)} ref={rowRefs.current.get(key)} data-virtual-index={index} data-virtual-key={String(key)} data-virtual-key-number={typeof key === 'number' ? 'true' : 'false'} style={windowed ? { position: 'absolute', insetInline: 0, top: `${geometry[index]}px` } : undefined}>
+        return <div class="virtual-list-row" role={semanticList ? 'listitem' : undefined} aria-posinset={semanticList ? index + 1 : undefined} aria-setsize={semanticList ? items.length : undefined}
+          key={String(key)} ref={rowRefs.current.get(key)} data-virtual-index={index} data-virtual-key={String(key)} data-virtual-key-number={typeof key === 'number' ? 'true' : 'false'} style={windowed ? { position: 'absolute', insetInline: 0, top: `${geometry[index]}px` } : undefined}>
           {renderItem(item, index)}
         </div>;
       })}

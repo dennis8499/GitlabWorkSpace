@@ -23,9 +23,11 @@ async function fixture(t: test.TestContext) {
   const mr = { iid: 8, title: 'Change', source_branch: 'feature', target_branch: 'main', web_url: project.web_url + '/-/merge_requests/8', diff_refs: { head_sha: 'b'.repeat(40) } };
   const calls: string[] = [];
   const client = { async getProject() { calls.push('project'); return project; },
+    withReadSignal() { return this; }, withRequestBudget() { return this; },
     async getIssue() { calls.push('issue'); return { iid: 8, title: 'Fix calculation', description: 'Return the correct sum.', labels: ['bug'], updated_at: 'revision-1', web_url: project.web_url + '/-/issues/8' }; },
     async getMergeRequest() { calls.push('mr'); return mr; }, async getRepositoryBranch() { calls.push('branch'); return { commit: { id: 'a'.repeat(40) } }; } };
   const panel = Object.create(WorkspacePanel.prototype);
+  panel.panel = { visible: true };
   panel.context = { globalStorageUri: { fsPath: path.join(root, 'storage') } }; panel.projectContext = { root };
   panel.session = { baseUrl: 'https://gitlab.test', activeAccountId: 'account-one', getClient: async () => client };
   panel.currentUser = { id: 9 }; panel.captureProjectAccess = () => () => {};
@@ -90,7 +92,8 @@ test('Host reconciliation unlocks a Wiki draft after an unknown write has been c
   f.panel.linkedCodexSpec = async () => spec;
   f.panel.wikiStore = () => ({ preview: async () => ({ id: spec.workflow.id, revision: 'reconciled', sourceBranch: 'main', sourceSha: spec.origin.sourceSha,
     projectPath: spec.origin.projectPath, uncertain: false, pages: [{ slug: 'codebase/index', published: false }] }) });
-  f.panel.getCodexBridge = () => ({ resultAction: async (_id: string, action: any) => { result = await action(spec); }, list: () => [{ id: 'wiki', result }] });
+  f.panel.getCodexBridge = () => ({ specification: async () => spec,
+    resultAction: async (_id: string, action: any) => { result = await action(spec); }, list: () => [{ id: 'wiki', result }] });
   f.panel.post = () => {};
   await f.panel.previewLinkedWiki({ type: 'previewProjectWiki', taskId: 'wiki', refresh: true });
   assert.equal(result.state, 'draft'); assert.equal(result.revision, 'reconciled');

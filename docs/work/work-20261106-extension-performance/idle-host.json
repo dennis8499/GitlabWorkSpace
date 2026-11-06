@@ -1,0 +1,185 @@
+{
+  "schema": "GitLabWorkspaceIdleHost/v1",
+  "version": "1.145.1",
+  "scope": "Visible Git page, selected local repository with a local bare remote, mock GitLab account; extension counters only. No real service or model.",
+  "before": {
+    "apiReads": 2,
+    "commands": 7,
+    "auxiliaryCommands": 1,
+    "nativeApiCalls": 5,
+    "nativeStatusEvents": 3
+  },
+  "samples": [
+    {
+      "minute": 1,
+      "elapsedMs": 60011,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 2,
+      "elapsedMs": 120022,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 3,
+      "elapsedMs": 180025,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 4,
+      "elapsedMs": 240031,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 5,
+      "elapsedMs": 300084,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 6,
+      "elapsedMs": 360095,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 7,
+      "elapsedMs": 420098,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 8,
+      "elapsedMs": 480110,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 9,
+      "elapsedMs": 540126,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "minute": 10,
+      "elapsedMs": 600136,
+      "after": {
+        "apiReads": 2,
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 3
+      },
+      "delta": {
+        "apiReads": 0,
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    }
+  ],
+  "status": "PASS"
+}

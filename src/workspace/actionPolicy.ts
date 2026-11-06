@@ -18,7 +18,7 @@ export interface ActionPolicy {
 export const workspaceActionKinds = {
   startCodexTask: 'write', listCodexTasks: 'control', codexHistory: 'read', sendCodexMessage: 'write',
   showCodexTask: 'read', readCodexResult: 'read', openCodexOrigin: 'read', openCodexChanges: 'read',
-  previewProjectWiki: 'read', publishProjectWiki: 'write', publishCodexReview: 'write',
+  previewProjectWiki: 'read', cancelProjectWikiPreview: 'control', publishProjectWiki: 'write', publishCodexReview: 'write',
   cancelCodexTask: 'control', resumeCodexTask: 'write', answerCodex: 'write', checkCodex: 'read', configureCodex: 'write',
   pauseCodexTask: 'control', deleteCodexTask: 'write', setCodexAutoAccept: 'control',
   ready: 'control',
@@ -252,7 +252,7 @@ const connectionActions = new Set(['connect', 'addAccount', 'disconnect', 'switc
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
 const localWorkspaceActions = new Set([
-  'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'publishProjectWiki', 'publishCodexReview',
+  'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex',
   'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',

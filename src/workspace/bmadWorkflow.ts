@@ -2,8 +2,6 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { TextDecoder } from 'node:util';
-import { parse as parseToml } from '@iarna/toml';
-import { parseDocument } from 'yaml';
 import { setImmediate as yieldToHost } from 'node:timers/promises';
 import type {
   BmadArtifact, BmadCatalogNode, BmadDiagnostic,
@@ -27,6 +25,17 @@ const object = (value: unknown): Record<string, unknown> => value && typeof valu
 const inside = (root: string, target: string): boolean => { const relative = path.relative(root, target); return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`); };
 const missing = (error: unknown): boolean => ['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException)?.code ?? '');
 const splitRefs = (value: string): string[] => value.split(/[,;|]/).map(part => part.trim()).filter(Boolean);
+// The native navigation and Git views do not need these parsers. Keep their
+// dependency graphs out of activation; load when workflow observation starts.
+let yamlParser: typeof import('yaml') | undefined;
+let tomlParser: typeof import('@iarna/toml') | undefined;
+let parsers: Promise<void> | undefined;
+function loadParsers(): Promise<void> {
+  return parsers ??= Promise.all([import('yaml'), import('@iarna/toml')]).then(([yaml, toml]) => {
+    yamlParser = yaml; tomlParser = toml;
+  }).catch(error => { parsers = undefined; throw error; });
+}
+const parseToml = (text: string) => tomlParser!.parse(text);
 
 /** RFC 4180 quoting, including embedded commas, quotes, and newlines. */
 export function parseBmadCatalog(csv: string): BmadCatalogNode[] {
@@ -69,6 +78,7 @@ export function parseBmadCatalog(csv: string): BmadCatalogNode[] {
 }
 
 function yamlValue(text: string): unknown {
+  const { parseDocument } = yamlParser!;
   const document = parseDocument(text, { uniqueKeys: true });
   if (document.errors.length) throw new Error(document.errors[0].message);
   return document.toJS({ maxAliasCount: 20 });
@@ -288,6 +298,7 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
     catch (error) { readableRoot = false; diagnostics.push({ code: 'root-unavailable', message: (error as Error).message, path: snapshot.root }); snapshot.installation = { state: 'error', reason: '專案根目錄無法讀取。' }; snapshot.codex.reason = '專案根目錄無法讀取，尚無法核對 Codex 整合。'; }
   }
   if (snapshot.root && readableRoot) {
+    await loadParsers();
     options.signal?.throwIfAborted();
     const root = snapshot.root; const reader = makeReader(root, diagnostics, options.maxArtifactBytes ?? 1024 * 1024, options.signal, options.cache);
     snapshot.watchDirectories = [root, path.join(root, '_bmad'), path.join(root, '_bmad', '_config'), path.join(root, '_bmad', 'custom'),

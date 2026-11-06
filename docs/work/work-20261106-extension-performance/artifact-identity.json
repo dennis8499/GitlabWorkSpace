@@ -1,0 +1,6 @@
+{
+  "status": "PASS",
+  "files": 131,
+  "artifactSha256": "6f7a21f5cdfcef52313f4c8f850bb7dff93dd774e9cad7bb4d5393e5e455fdd7",
+  "scope": "Every packaged Host module and dashboard asset matches the final prepared runtime byte for byte."
+}

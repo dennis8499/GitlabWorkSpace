@@ -3,11 +3,12 @@ import type { WorkspaceOperationState } from '../workspace/operations';
 
 export interface CodexDraft { text: string; revision: number; }
 export interface CodexPendingDraft extends RestorableOperation { taskId: string; text: string; draftRevision: number; }
+export interface CodexReadingPosition { top: number; follow: boolean; anchorKey?: string; anchorOffset?: number; }
 export interface CodexUiState {
   selectedTaskId?: string;
   drafts: Record<string, CodexDraft>;
   pending: Record<string, CodexPendingDraft>;
-  reading?: Record<string, { top: number; follow: boolean }>;
+  reading?: Record<string, CodexReadingPosition>;
 }
 export function restoreCodexUi(value?: Partial<CodexUiState>): CodexUiState {
   const drafts = Object.fromEntries(Object.entries(value?.drafts ?? {}).filter(([id, draft]) =>
@@ -17,7 +18,10 @@ export function restoreCodexUi(value?: Partial<CodexUiState>): CodexUiState {
     item.resourceKey === `codex:${item.taskId}` && item.action === 'sendCodexMessage' &&
     typeof item.text === 'string' && item.text.length <= 32000 && Number.isSafeInteger(item.draftRevision)));
   const reading = Object.fromEntries(Object.entries(value?.reading ?? {}).filter(([id, position]) =>
-    id.length <= 160 && position && Number.isFinite(position.top) && position.top >= 0 && typeof position.follow === 'boolean'));
+    id.length <= 160 && position && Number.isFinite(position.top) && position.top >= 0 && typeof position.follow === 'boolean')
+    .map(([id, position]) => [id, { top: position.top, follow: position.follow,
+      ...(typeof position.anchorKey === 'string' && position.anchorKey.length <= 8192 && Number.isFinite(position.anchorOffset)
+        && Math.abs(position.anchorOffset!) <= 1_000_000 ? { anchorKey: position.anchorKey, anchorOffset: position.anchorOffset } : {}) }]));
   return { selectedTaskId: typeof value?.selectedTaskId === 'string' ? value.selectedTaskId : undefined, drafts, pending, reading };
 }
 export function retainCodexTasks(state: CodexUiState, ids: readonly string[]): CodexUiState {

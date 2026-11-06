@@ -15,6 +15,7 @@ export { validateForm } from './forms';
 import { codexTaskActive, codexOutputKey, projectCodexTask, type CodexEnvironment, type CodexEvent, type CodexInteraction,
   type CodexInteractionAnswer, type CodexOutputItem, type CodexTaskRecord, type CodexTaskSpec, type CodexTaskState, type CodexTaskResult } from './protocol';
 import { workflowOriginKey } from './workflowProtocol';
+import { GitLabReadCache as ReadCache, abortedReadError } from '../api/gitLabReadCache';
 
 interface PendingInteraction { projection: CodexInteraction; request: RpcMessage; client: CodexAppServer; responding?: boolean; }
 interface ActiveExecution {
@@ -37,6 +38,7 @@ export interface CodexBridgeOptions {
   completed?(spec: CodexTaskSpec, taskId: string, output: readonly CodexOutputItem[]): Promise<CodexTaskResult | void>;
   approved?(event: { taskId: string; threadId?: string; turnId?: string; requestId: number | string; kind: string; scope: 'once' | 'turn' }): void;
   client?(root: string): Promise<{ client: CodexAppServer; version: string; executable: string }>;
+  now?(): number;
 }
 const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; } };
 const safeText = (value: unknown, limit = 20_000): string => typeof value === 'string' ? value.slice(0, limit) : '';
@@ -53,6 +55,9 @@ export class CodexBridge {
   private reloadSequence = 0;
   private outputs = new Map<string, CodexOutputItem[]>();
   private histories = new Map<string, { items: CodexOutputItem[]; cursor?: string; nextCursor?: string }>();
+  private readonly historyPages: ReadCache;
+  private historySequence = 0;
+  private historyApplied = new Map<string, number>();
   private interactions = new Map<string, PendingInteraction>();
   private queue: string[] = [];
   private active?: ActiveExecution;
@@ -67,7 +72,10 @@ export class CodexBridge {
   private outputTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private shutdownTask?: Promise<void>;
   private processingTask?: Promise<void>;
-  constructor(private readonly options: CodexBridgeOptions) { this.store = new CodexTaskStore(path.join(options.storage, 'codex-tasks')); }
+  constructor(private readonly options: CodexBridgeOptions) {
+    this.store = new CodexTaskStore(path.join(options.storage, 'codex-tasks'));
+    this.historyPages = new ReadCache(60_000, 256, options.now ?? Date.now, 32 * 1024 * 1024);
+  }
   initialize(): Promise<void> {
     return this.initialized ??= this.store.load().then(async records => {
       for (const record of records) {
@@ -166,7 +174,12 @@ export class CodexBridge {
       await this.reload(); const record = this.record(id);
       if (codexTaskActive(record.status) || record.status === 'queued' || this.active?.record.id === id) throw new Error('請等待任務停止後再發布成果。');
       this.controlling.add(id);
-      try { record.result = await action(structuredClone(record.spec)); await this.save(record); }
+      try {
+        const result = await action(structuredClone(record.spec));
+        // A warm Wiki preview must not rewrite the task timestamp and evict its
+        // history page merely by returning the same persisted result again.
+        if (JSON.stringify(record.result) !== JSON.stringify(result)) { record.result = result; await this.save(record); }
+      }
       finally { this.controlling.delete(id); this.emit({ kind: 'tasks', tasks: this.list() }); }
     });
   }
@@ -594,31 +607,55 @@ export class CodexBridge {
       this.outputTimers.delete(taskId); this.emit({ kind: 'output', taskId, items: this.outputs.get(taskId) ?? [], replace: true });
     }, 75));
   }
-  private async loadHistory(record: CodexTaskRecord, client: CodexAppServer, cursor?: string): Promise<boolean> {
-    const turns = await client.request('thread/turns/list', { threadId: record.threadId, limit: 10, sortDirection: 'desc', itemsView: 'full', ...(cursor ? { cursor } : {}) });
-    const items: CodexOutputItem[] = [];
-    for (const turn of [...turns.data ?? []].reverse()) for (const item of turn.items ?? []) {
-      const output = projectCodexItem(record.threadId, turn.id, item, ['completed', 'interrupted', 'failed'].includes(turn.status));
-      if (output) items.push(output);
-    }
-    if (this.records.has(record.id)) {
+  private historyKey(record: CodexTaskRecord, cursor?: string): string {
+    return record.id + '\0' + JSON.stringify([record.root, record.threadId, record.turnId, record.updatedAt, record.status, cursor ?? '']);
+  }
+  private loadHistory(record: CodexTaskRecord, client: CodexAppServer, cursor?: string): Promise<boolean> {
+    // Execution reads follow a turn/steer and intentionally bypass older pages.
+    return this.readHistory(record, cursor, true, client);
+  }
+  private async readHistory(record: CodexTaskRecord, cursor?: string, force = false, borrowed?: CodexAppServer, signal?: AbortSignal): Promise<boolean> {
+    const key = this.historyKey(record, cursor), threadId = record.threadId, root = record.root;
+    const page = await this.historyPages.get(key, async readSignal => {
+      const readVersion = ++this.historySequence;
+      if (this.disposed || readSignal.aborted || !this.records.has(record.id)) throw abortedReadError();
+      const shared = borrowed ?? (this.active?.record.id === record.id ? this.active.client : undefined);
+      const client = shared ?? (await this.makeClient(root)).client;
+      const abort = () => { if (!shared) void client.close(); };
+      readSignal.addEventListener('abort', abort, { once: true });
+      try {
+        if (readSignal.aborted) throw abortedReadError();
+        const turns = await client.request('thread/turns/list', { threadId, limit: 10, sortDirection: 'desc', itemsView: 'full', ...(cursor ? { cursor } : {}) });
+        const items: CodexOutputItem[] = [];
+        for (const turn of [...turns.data ?? []].reverse()) for (const item of turn.items ?? []) {
+          const output = projectCodexItem(threadId, turn.id, item, ['completed', 'interrupted', 'failed'].includes(turn.status));
+          if (output) items.push(output);
+        }
+        return { items, nextCursor: turns.nextCursor as string | undefined, hasTurns: (turns.data ?? []).length > 0, readVersion };
+      } finally {
+        readSignal.removeEventListener('abort', abort);
+        if (!shared) await client.close();
+      }
+    }, { force, signal });
+    const current = this.records.get(record.id);
+    if (!this.disposed && current && this.historyKey(current, cursor) === key && page.readVersion >= (this.historyApplied.get(key) ?? 0)) {
+      this.historyApplied.delete(key); this.historyApplied.set(key, page.readVersion);
+      while (this.historyApplied.size > 256) this.historyApplied.delete(this.historyApplied.keys().next().value!);
       const previous = this.histories.get(record.id);
       this.histories.set(record.id, {
-        items: mergeCodexTranscript(previous?.items ?? [], items, true),
+        items: mergeCodexTranscript(previous?.items ?? [], page.items, true),
         cursor: cursor ?? previous?.cursor,
-        nextCursor: !cursor && previous?.cursor ? previous.nextCursor : turns.nextCursor ?? undefined
+        nextCursor: !cursor && previous?.cursor ? previous.nextCursor : page.nextCursor ?? undefined
       });
-      this.emit({ kind: 'history', taskId: record.id, items, nextCursor: turns.nextCursor ?? undefined, cursor });
+      this.emit({ kind: 'history', taskId: record.id, items: page.items, nextCursor: page.nextCursor ?? undefined, cursor });
     }
-    return (turns.data ?? []).length > 0;
+    return page.hasTurns;
   }
-  async history(id: string, cursor?: string): Promise<void> {
+  async history(id: string, cursor?: string, force = false, signal?: AbortSignal): Promise<void> {
     await this.initialize(); const record = this.record(id);
     if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 8192)) throw new Error('Codex 對話游標無效。');
-    if (this.active?.record.id === id && this.active.client) { await this.loadHistory(record, this.active.client, cursor); return; }
     if (!record.threadId) return;
-    const { client } = await this.makeClient(record.root);
-    try { await this.loadHistory(record, client, cursor); } finally { await client.close(); }
+    await this.readHistory(record, cursor, force, undefined, signal);
   }
   async message(id: string, text: string): Promise<void> {
     this.requireTrusted(); await this.initialize(); const record = this.record(id);
@@ -710,6 +747,8 @@ export class CodexBridge {
   private forget(id: string): void {
     this.deleted.add(id);
     this.records.delete(id); this.persisted.delete(id); this.owned.delete(id); this.outputs.delete(id); this.histories.delete(id);
+    this.historyPages.invalidateWhere(key => key.startsWith(id + '\0'));
+    for (const key of this.historyApplied.keys()) if (key.startsWith(id + '\0')) this.historyApplied.delete(key);
     this.autoAccept.delete(id); this.autoAcceptErrors.delete(id);
     this.queue = this.queue.filter(value => value !== id);
     const timer = this.outputTimers.get(id); if (timer) clearTimeout(timer); this.outputTimers.delete(id);
@@ -751,6 +790,8 @@ export class CodexBridge {
   shutdown(): Promise<void> {
     return this.shutdownTask ??= (async () => {
       this.disposed = true;
+      this.historyPages.clear();
+      this.historyApplied.clear();
       this.watcher?.close(); if (this.reloadTimer) clearTimeout(this.reloadTimer);
       for (const timer of this.outputTimers.values()) clearTimeout(timer);
       if (this.active && (codexTaskActive(this.active.record.status) || this.active.record.status === 'queued')) await this.cancel(this.active.record.id).catch(() => {});

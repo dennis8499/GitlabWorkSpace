@@ -5,7 +5,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import * as vscode from 'vscode';
 import { BmadWorkflowController } from '../../src/workspace/bmadWorkflowController';
-import { parseBmadCatalog } from '../../src/workspace/bmadWorkflow';
+import { parseBmadCatalog, readBmadWorkflow } from '../../src/workspace/bmadWorkflow';
 import type { BmadArtifact, BmadStep, BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
 const pause = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds));
@@ -21,14 +21,17 @@ const buildStep = (snapshot: BmadWorkflowSnapshot | undefined): BmadStep | undef
 suite('BMAD dynamic artifact progress', () => {
   test('real filesystem events track root/custom artifacts, native Build stages, visibility and root switches', async function () {
     this.timeout(30_000);
-    const temporaryParent = await realpath(os.tmpdir());
+    const temporaryParent = await realpath(process.env.GITLAB_WORKSPACE_BMAD_TEST_ROOT ?? os.tmpdir());
     const temporary = await mkdtemp(path.join(temporaryParent, 'gw-bmad-flow-'));
+    console.info('[BMAD native fixture parent]', temporaryParent);
     const extensionRoot = path.resolve(__dirname, '../../..');
     const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
     const activeWatchers = new Map<vscode.FileSystemWatcher, string>();
     const rawEvents: Array<{ path: string; time: number }> = [];
     const errors: string[] = [];
     const latencies: Record<string, number> = {};
+    const phases: Record<string, { mutationMs: number; firstEventMs?: number; afterMutationMs: number; readsMs: number[] }> = {};
+    const reads: Array<{ started: number; duration: number }> = [];
     let publications = 0, createdWatchers = 0, disposedWatchers = 0;
     let controller: BmadWorkflowController | undefined;
     async function fixture(name: string, outputFolder = '_bmad-output'): Promise<string> {
@@ -63,9 +66,13 @@ suite('BMAD dynamic artifact progress', () => {
     async function observedTransition(label: string, mutate: () => Promise<void>, check: () => boolean): Promise<void> {
       const started = performance.now();
       await mutate();
+      const mutated = performance.now();
       await waitFor(check, label);
       latencies[label] = Math.round(performance.now() - started);
-      assert.ok(latencies[label] < 1000, `${label} must update within one second; observed ${latencies[label]} ms`);
+      const firstEvent = rawEvents.find(event => event.time >= started);
+      phases[label] = { mutationMs: Math.round(mutated - started), firstEventMs: firstEvent ? Math.round(firstEvent.time - started) : undefined,
+        afterMutationMs: Math.round(performance.now() - mutated), readsMs: reads.filter(read => read.started >= started).map(read => Math.round(read.duration)) };
+      assert.ok(latencies[label] < 1000, `${label} must update within one second; observed ${latencies[label]} ms; phases=${JSON.stringify(phases[label])}`);
     }
     async function transition(label: string, mutate: () => Promise<void>, status: string): Promise<void> {
       await observedTransition(label, mutate, () => prdStatus(controller?.snapshot) === status);
@@ -74,6 +81,11 @@ suite('BMAD dynamic artifact progress', () => {
       const first = await fixture('第一個專案'), second = await fixture('第二個專案');
       controller = new BmadWorkflowController({
         bundledCatalog: async () => catalog,
+        read: async options => {
+          const started = performance.now();
+          try { return await readBmadWorkflow(options); }
+          finally { reads.push({ started, duration: performance.now() - started }); }
+        },
         watch: (directory, changed) => {
           const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(directory), '*'));
           createdWatchers++; activeWatchers.set(watcher, directory);
@@ -205,6 +217,7 @@ suite('BMAD dynamic artifact progress', () => {
       assert.equal(publications, finalPublications, 'Disposal must prevent subsequent refresh publications');
       assert.deepEqual(errors, []);
       console.log(`[BMAD native watcher latency ms] ${JSON.stringify(latencies)}`);
+      console.log(`[BMAD native watcher phases] ${JSON.stringify(phases)}`);
     } finally {
       controller?.dispose();
       for (const watcher of activeWatchers.keys()) watcher.dispose();

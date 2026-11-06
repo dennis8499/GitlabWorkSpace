@@ -27,3 +27,28 @@ test('deleted task drafts, pending operations and reading positions are removed 
   assert.equal(next.selectedTaskId, 'retained'); assert.deepEqual(next.drafts, {});
   assert.deepEqual(next.reading, { retained: { top: 40, follow: false } });
 });
+
+test('history interleaves new items at shared anchors, deduplicates incoming identities and preserves untouched items', () => {
+  const a = entry('turn', 'a', 'A'), c = entry('turn', 'c', 'C'), e = entry('turn', 'e', 'E');
+  const current = [a, c, e];
+  const result = mergeCodexTranscript(current, [entry('turn', 'b', 'B'), { ...c, text: 'stale C' },
+    entry('turn', 'd', 'D'), { ...e, text: 'Final E', final: true }, entry('turn', 'f', 'F'), entry('turn', 'f', 'Final F', true)], true);
+  assert.deepEqual(result.map(item => item.text), ['A', 'B', 'C', 'D', 'Final E', 'Final F']);
+  assert.equal(result[0], a); assert.equal(result[2], c);
+  assert.deepEqual(current.map(item => item.text), ['A', 'C', 'E']);
+});
+
+test('ten thousand transcript items retain their identity while the latest batch changes', () => {
+  const current = Array.from({ length: 10_000 }, (_, index) => entry('turn', String(index), String(index)));
+  const result = mergeCodexTranscript(current, current.slice(-100).map(item => ({ ...item, text: item.text + ' updated' })));
+  assert.equal(result.length, 10_000); assert.equal(result[0], current[0]); assert.equal(result[9899], current[9899]);
+  assert.notEqual(result[9900], current[9900]); assert.equal(result[9999].text, '9999 updated');
+});
+
+test('reading anchors survive restoration while malformed anchors retain their safe pixel fallback', () => {
+  const ui = restoreCodexUi({ reading: { anchored: { top: 1200, follow: false, anchorKey: 'thread/turn/item', anchorOffset: 12 },
+    legacy: { top: 400, follow: false }, malformed: { top: 300, follow: false, anchorKey: 'a'.repeat(8193), anchorOffset: 5 } } });
+  assert.deepEqual(ui.reading!.anchored, { top: 1200, follow: false, anchorKey: 'thread/turn/item', anchorOffset: 12 });
+  assert.deepEqual(ui.reading!.legacy, { top: 400, follow: false });
+  assert.deepEqual(ui.reading!.malformed, { top: 300, follow: false });
+});

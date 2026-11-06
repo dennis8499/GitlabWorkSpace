@@ -27,6 +27,8 @@
 .codex-reading-actions { display: flex; flex: 0 0 auto; gap: 6px; padding: 4px 14px; }
 .codex-output { flex: 1 1 0; min-height: 80px; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; padding: 12px 18px 20px; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 13px); line-height: 1.55; color: var(--vscode-terminal-foreground, var(--vscode-foreground)); background: var(--vscode-terminal-background, var(--vscode-editor-background)); }
 .codex-item { display: flex; gap: 10px; min-width: 0; margin: 0 0 14px; padding: 0; }
+.codex-transcript { min-width: 0; }
+.codex-transcript .virtual-list-row { display: flow-root; }
 .codex-marker { flex: 0 0 1ch; color: var(--vscode-descriptionForeground); }
 .codex-item.agent > .codex-marker { color: var(--vscode-terminal-ansiGreen, var(--vscode-textLink-foreground)); }
 .codex-item.user > .codex-marker { color: var(--vscode-terminal-ansiCyan, var(--vscode-textLink-foreground)); }
@@ -53,6 +55,10 @@
 .codex-workflow-launch.compact { margin: 0; }
 .codex-workflow-launch p { margin: 6px 0; }
 .codex-workflow-result { flex: 0 1 auto; min-height: 0; max-height: 45vh; overflow: auto; padding: 8px 18px; border-bottom: 1px solid var(--vscode-panel-border); overflow-wrap: anywhere; }
+/* Keep Wiki progress and continuation controls readable in a short pane. The
+   conversation can scroll to its composer instead of shrinking the preview. */
+.codex-conversation:has(.codex-wiki-preview) { overflow-y: auto; }
+.codex-workflow-result:has(.codex-wiki-preview) { flex-shrink: 0; }
 .codex-workflow-result p { margin: 6px 0; }
 .codex-workflow-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; font-family: var(--vscode-editor-font-family, monospace); }
 .codex-workflow-result select { width: 100%; min-width: 0; }

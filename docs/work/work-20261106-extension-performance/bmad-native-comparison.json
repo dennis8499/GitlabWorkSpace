@@ -1,0 +1,869 @@
+{
+  "schema": "GitLabWorkspaceBmadNativeComparison/v1",
+  "limitMs": 1000,
+  "fixtureProfiles": "Separate clean profile for every run; only artifact parent and editor version vary. Extension source remains in OneDrive.",
+  "runs": [
+    {
+      "file": "bmad-1.145.1-local.log",
+      "passed": true,
+      "latencies": {
+        "external-cli-install": 735,
+        "external-codex-skill-delete": 467,
+        "external-codex-skill-restore": 500,
+        "external-runtime-delete": 420,
+        "external-runtime-restore": 452,
+        "mkdir-and-draft": 523,
+        "final-write": 390,
+        "artifact-delete": 453,
+        "draft-recreate": 437,
+        "new-root-draft": 504,
+        "hidden-write-show-catch-up": 121,
+        "custom-output-first-create": 520,
+        "build-draft": 484,
+        "build-ready-for-dev": 251,
+        "build-in-progress": 529,
+        "build-in-review": 361,
+        "build-blocked": 359,
+        "build-done": 327,
+        "parallel-classic-stories": 454,
+        "root-output-first-create": 593,
+        "root-output-modify": 328,
+        "root-output-yaml-create": 423,
+        "root-output-delete": 419
+      },
+      "maximumMs": 735,
+      "phases": {
+        "external-cli-install": {
+          "mutationMs": 63,
+          "firstEventMs": 96,
+          "afterMutationMs": 672,
+          "readsMs": [
+            234
+          ]
+        },
+        "external-codex-skill-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 188,
+          "afterMutationMs": 466,
+          "readsMs": [
+            36,
+            95
+          ]
+        },
+        "external-codex-skill-restore": {
+          "mutationMs": 2,
+          "firstEventMs": 94,
+          "afterMutationMs": 498,
+          "readsMs": [
+            121
+          ]
+        },
+        "external-runtime-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 189,
+          "afterMutationMs": 419,
+          "readsMs": [
+            52
+          ]
+        },
+        "external-runtime-restore": {
+          "mutationMs": 2,
+          "firstEventMs": 95,
+          "afterMutationMs": 450,
+          "readsMs": [
+            58
+          ]
+        },
+        "mkdir-and-draft": {
+          "mutationMs": 4,
+          "firstEventMs": 84,
+          "afterMutationMs": 519,
+          "readsMs": [
+            136
+          ]
+        },
+        "final-write": {
+          "mutationMs": 4,
+          "firstEventMs": 96,
+          "afterMutationMs": 386,
+          "readsMs": [
+            120
+          ]
+        },
+        "artifact-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 191,
+          "afterMutationMs": 452,
+          "readsMs": [
+            63
+          ]
+        },
+        "draft-recreate": {
+          "mutationMs": 2,
+          "firstEventMs": 113,
+          "afterMutationMs": 436,
+          "readsMs": [
+            73
+          ]
+        },
+        "new-root-draft": {
+          "mutationMs": 5,
+          "firstEventMs": 190,
+          "afterMutationMs": 499,
+          "readsMs": [
+            126
+          ]
+        },
+        "hidden-write-show-catch-up": {
+          "mutationMs": 121,
+          "afterMutationMs": 0,
+          "readsMs": [
+            98
+          ]
+        },
+        "custom-output-first-create": {
+          "mutationMs": 6,
+          "firstEventMs": 86,
+          "afterMutationMs": 514,
+          "readsMs": [
+            137
+          ]
+        },
+        "build-draft": {
+          "mutationMs": 2,
+          "firstEventMs": 95,
+          "afterMutationMs": 482,
+          "readsMs": [
+            110
+          ]
+        },
+        "build-ready-for-dev": {
+          "mutationMs": 2,
+          "afterMutationMs": 249,
+          "readsMs": [
+            120
+          ]
+        },
+        "build-in-progress": {
+          "mutationMs": 2,
+          "firstEventMs": 80,
+          "afterMutationMs": 527,
+          "readsMs": [
+            117
+          ]
+        },
+        "build-in-review": {
+          "mutationMs": 4,
+          "firstEventMs": 97,
+          "afterMutationMs": 357,
+          "readsMs": [
+            85
+          ]
+        },
+        "build-blocked": {
+          "mutationMs": 2,
+          "firstEventMs": 96,
+          "afterMutationMs": 357,
+          "readsMs": [
+            77
+          ]
+        },
+        "build-done": {
+          "mutationMs": 2,
+          "firstEventMs": 81,
+          "afterMutationMs": 325,
+          "readsMs": [
+            76
+          ]
+        },
+        "parallel-classic-stories": {
+          "mutationMs": 1,
+          "firstEventMs": 96,
+          "afterMutationMs": 453,
+          "readsMs": [
+            84
+          ]
+        },
+        "root-output-first-create": {
+          "mutationMs": 2,
+          "firstEventMs": 97,
+          "afterMutationMs": 591,
+          "readsMs": [
+            99
+          ]
+        },
+        "root-output-modify": {
+          "mutationMs": 1,
+          "firstEventMs": 81,
+          "afterMutationMs": 327,
+          "readsMs": [
+            62
+          ]
+        },
+        "root-output-yaml-create": {
+          "mutationMs": 3,
+          "firstEventMs": 95,
+          "afterMutationMs": 420,
+          "readsMs": [
+            66
+          ]
+        },
+        "root-output-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 188,
+          "afterMutationMs": 419,
+          "readsMs": [
+            65
+          ]
+        }
+      },
+      "watcherErrors": 0
+    },
+    {
+      "file": "bmad-1.145.1-onedrive.log",
+      "passed": true,
+      "latencies": {
+        "external-cli-install": 641,
+        "external-codex-skill-delete": 419,
+        "external-codex-skill-restore": 497,
+        "external-runtime-delete": 441,
+        "external-runtime-restore": 437,
+        "mkdir-and-draft": 493,
+        "final-write": 375,
+        "artifact-delete": 454,
+        "draft-recreate": 426,
+        "new-root-draft": 483,
+        "hidden-write-show-catch-up": 130,
+        "custom-output-first-create": 501,
+        "build-draft": 471,
+        "build-ready-for-dev": 310,
+        "build-in-progress": 498,
+        "build-in-review": 362,
+        "build-blocked": 360,
+        "build-done": 360,
+        "parallel-classic-stories": 488,
+        "root-output-first-create": 610,
+        "root-output-modify": 341,
+        "root-output-yaml-create": 421,
+        "root-output-delete": 421
+      },
+      "maximumMs": 641,
+      "phases": {
+        "external-cli-install": {
+          "mutationMs": 104,
+          "firstEventMs": 102,
+          "afterMutationMs": 538,
+          "readsMs": [
+            147
+          ]
+        },
+        "external-codex-skill-delete": {
+          "mutationMs": 2,
+          "firstEventMs": 125,
+          "afterMutationMs": 417,
+          "readsMs": [
+            112
+          ]
+        },
+        "external-codex-skill-restore": {
+          "mutationMs": 1,
+          "firstEventMs": 96,
+          "afterMutationMs": 496,
+          "readsMs": [
+            136
+          ]
+        },
+        "external-runtime-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 206,
+          "afterMutationMs": 440,
+          "readsMs": [
+            51
+          ]
+        },
+        "external-runtime-restore": {
+          "mutationMs": 3,
+          "firstEventMs": 94,
+          "afterMutationMs": 433,
+          "readsMs": [
+            69
+          ]
+        },
+        "mkdir-and-draft": {
+          "mutationMs": 4,
+          "firstEventMs": 198,
+          "afterMutationMs": 489,
+          "readsMs": [
+            113
+          ]
+        },
+        "final-write": {
+          "mutationMs": 2,
+          "firstEventMs": 97,
+          "afterMutationMs": 373,
+          "readsMs": [
+            114
+          ]
+        },
+        "artifact-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 203,
+          "afterMutationMs": 453,
+          "readsMs": [
+            74
+          ]
+        },
+        "draft-recreate": {
+          "mutationMs": 2,
+          "firstEventMs": 99,
+          "afterMutationMs": 424,
+          "readsMs": [
+            59
+          ]
+        },
+        "new-root-draft": {
+          "mutationMs": 6,
+          "firstEventMs": 95,
+          "afterMutationMs": 477,
+          "readsMs": [
+            106
+          ]
+        },
+        "hidden-write-show-catch-up": {
+          "mutationMs": 130,
+          "afterMutationMs": 0,
+          "readsMs": [
+            110
+          ]
+        },
+        "custom-output-first-create": {
+          "mutationMs": 7,
+          "firstEventMs": 92,
+          "afterMutationMs": 493,
+          "readsMs": [
+            127
+          ]
+        },
+        "build-draft": {
+          "mutationMs": 4,
+          "firstEventMs": 98,
+          "afterMutationMs": 467,
+          "readsMs": [
+            112
+          ]
+        },
+        "build-ready-for-dev": {
+          "mutationMs": 3,
+          "afterMutationMs": 307,
+          "readsMs": [
+            131
+          ]
+        },
+        "build-in-progress": {
+          "mutationMs": 3,
+          "firstEventMs": 96,
+          "afterMutationMs": 495,
+          "readsMs": [
+            134
+          ]
+        },
+        "build-in-review": {
+          "mutationMs": 3,
+          "firstEventMs": 96,
+          "afterMutationMs": 360,
+          "readsMs": [
+            76
+          ]
+        },
+        "build-blocked": {
+          "mutationMs": 5,
+          "firstEventMs": 95,
+          "afterMutationMs": 355,
+          "readsMs": [
+            78
+          ]
+        },
+        "build-done": {
+          "mutationMs": 3,
+          "firstEventMs": 95,
+          "afterMutationMs": 357,
+          "readsMs": [
+            72
+          ]
+        },
+        "parallel-classic-stories": {
+          "mutationMs": 2,
+          "firstEventMs": 98,
+          "afterMutationMs": 486,
+          "readsMs": [
+            85
+          ]
+        },
+        "root-output-first-create": {
+          "mutationMs": 1,
+          "firstEventMs": 95,
+          "afterMutationMs": 609,
+          "readsMs": [
+            109
+          ]
+        },
+        "root-output-modify": {
+          "mutationMs": 2,
+          "firstEventMs": 92,
+          "afterMutationMs": 339,
+          "readsMs": [
+            63
+          ]
+        },
+        "root-output-yaml-create": {
+          "mutationMs": 3,
+          "firstEventMs": 95,
+          "afterMutationMs": 418,
+          "readsMs": [
+            57
+          ]
+        },
+        "root-output-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 190,
+          "afterMutationMs": 420,
+          "readsMs": [
+            57
+          ]
+        }
+      },
+      "watcherErrors": 0
+    },
+    {
+      "file": "bmad-1.90.0-local.log",
+      "passed": true,
+      "latencies": {
+        "external-cli-install": 656,
+        "external-codex-skill-delete": 284,
+        "external-codex-skill-restore": 531,
+        "external-runtime-delete": 457,
+        "external-runtime-restore": 446,
+        "mkdir-and-draft": 536,
+        "final-write": 426,
+        "artifact-delete": 457,
+        "draft-recreate": 483,
+        "new-root-draft": 537,
+        "hidden-write-show-catch-up": 176,
+        "custom-output-first-create": 431,
+        "build-draft": 533,
+        "build-ready-for-dev": 434,
+        "build-in-progress": 437,
+        "build-in-review": 361,
+        "build-blocked": 362,
+        "build-done": 358,
+        "parallel-classic-stories": 488,
+        "root-output-first-create": 619,
+        "root-output-modify": 361,
+        "root-output-yaml-create": 452,
+        "root-output-delete": 454
+      },
+      "maximumMs": 656,
+      "phases": {
+        "external-cli-install": {
+          "mutationMs": 86,
+          "firstEventMs": 96,
+          "afterMutationMs": 570,
+          "readsMs": [
+            159
+          ]
+        },
+        "external-codex-skill-delete": {
+          "mutationMs": 1,
+          "afterMutationMs": 283,
+          "readsMs": [
+            128
+          ]
+        },
+        "external-codex-skill-restore": {
+          "mutationMs": 2,
+          "firstEventMs": 95,
+          "afterMutationMs": 530,
+          "readsMs": [
+            146
+          ]
+        },
+        "external-runtime-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 192,
+          "afterMutationMs": 456,
+          "readsMs": [
+            73
+          ]
+        },
+        "external-runtime-restore": {
+          "mutationMs": 1,
+          "firstEventMs": 97,
+          "afterMutationMs": 445,
+          "readsMs": [
+            70
+          ]
+        },
+        "mkdir-and-draft": {
+          "mutationMs": 3,
+          "firstEventMs": 193,
+          "afterMutationMs": 533,
+          "readsMs": [
+            161
+          ]
+        },
+        "final-write": {
+          "mutationMs": 2,
+          "firstEventMs": 81,
+          "afterMutationMs": 425,
+          "readsMs": [
+            173
+          ]
+        },
+        "artifact-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 191,
+          "afterMutationMs": 456,
+          "readsMs": [
+            87
+          ]
+        },
+        "draft-recreate": {
+          "mutationMs": 2,
+          "firstEventMs": 93,
+          "afterMutationMs": 482,
+          "readsMs": [
+            85
+          ]
+        },
+        "new-root-draft": {
+          "mutationMs": 3,
+          "firstEventMs": 81,
+          "afterMutationMs": 533,
+          "readsMs": [
+            167
+          ]
+        },
+        "hidden-write-show-catch-up": {
+          "mutationMs": 176,
+          "afterMutationMs": 0,
+          "readsMs": [
+            147
+          ]
+        },
+        "custom-output-first-create": {
+          "mutationMs": 8,
+          "firstEventMs": 138,
+          "afterMutationMs": 424,
+          "readsMs": [
+            128
+          ]
+        },
+        "build-draft": {
+          "mutationMs": 3,
+          "firstEventMs": 98,
+          "afterMutationMs": 531,
+          "readsMs": [
+            152
+          ]
+        },
+        "build-ready-for-dev": {
+          "mutationMs": 2,
+          "firstEventMs": 92,
+          "afterMutationMs": 432,
+          "readsMs": [
+            148
+          ]
+        },
+        "build-in-progress": {
+          "mutationMs": 3,
+          "firstEventMs": 96,
+          "afterMutationMs": 434,
+          "readsMs": [
+            154
+          ]
+        },
+        "build-in-review": {
+          "mutationMs": 3,
+          "firstEventMs": 96,
+          "afterMutationMs": 358,
+          "readsMs": [
+            74
+          ]
+        },
+        "build-blocked": {
+          "mutationMs": 2,
+          "firstEventMs": 81,
+          "afterMutationMs": 360,
+          "readsMs": [
+            81
+          ]
+        },
+        "build-done": {
+          "mutationMs": 4,
+          "firstEventMs": 95,
+          "afterMutationMs": 354,
+          "readsMs": [
+            72
+          ]
+        },
+        "parallel-classic-stories": {
+          "mutationMs": 3,
+          "firstEventMs": 96,
+          "afterMutationMs": 485,
+          "readsMs": [
+            99
+          ]
+        },
+        "root-output-first-create": {
+          "mutationMs": 2,
+          "firstEventMs": 117,
+          "afterMutationMs": 617,
+          "readsMs": [
+            140
+          ]
+        },
+        "root-output-modify": {
+          "mutationMs": 1,
+          "firstEventMs": 94,
+          "afterMutationMs": 360,
+          "readsMs": [
+            82
+          ]
+        },
+        "root-output-yaml-create": {
+          "mutationMs": 4,
+          "firstEventMs": 96,
+          "afterMutationMs": 448,
+          "readsMs": [
+            90
+          ]
+        },
+        "root-output-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 188,
+          "afterMutationMs": 453,
+          "readsMs": [
+            77
+          ]
+        }
+      },
+      "watcherErrors": 2
+    },
+    {
+      "file": "bmad-1.90.0-onedrive.log",
+      "passed": true,
+      "latencies": {
+        "external-cli-install": 669,
+        "external-codex-skill-delete": 345,
+        "external-codex-skill-restore": 503,
+        "external-runtime-delete": 454,
+        "external-runtime-restore": 457,
+        "mkdir-and-draft": 521,
+        "final-write": 374,
+        "artifact-delete": 453,
+        "draft-recreate": 469,
+        "new-root-draft": 485,
+        "hidden-write-show-catch-up": 151,
+        "custom-output-first-create": 646,
+        "build-draft": 817,
+        "build-ready-for-dev": 453,
+        "build-in-progress": 422,
+        "build-in-review": 360,
+        "build-blocked": 377,
+        "build-done": 330,
+        "parallel-classic-stories": 451,
+        "root-output-first-create": 612,
+        "root-output-modify": 361,
+        "root-output-yaml-create": 452,
+        "root-output-delete": 448
+      },
+      "maximumMs": 817,
+      "phases": {
+        "external-cli-install": {
+          "mutationMs": 67,
+          "firstEventMs": 99,
+          "afterMutationMs": 602,
+          "readsMs": [
+            197
+          ]
+        },
+        "external-codex-skill-delete": {
+          "mutationMs": 14,
+          "afterMutationMs": 331,
+          "readsMs": [
+            171
+          ]
+        },
+        "external-codex-skill-restore": {
+          "mutationMs": 2,
+          "firstEventMs": 82,
+          "afterMutationMs": 500,
+          "readsMs": [
+            138
+          ]
+        },
+        "external-runtime-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 191,
+          "afterMutationMs": 453,
+          "readsMs": [
+            75
+          ]
+        },
+        "external-runtime-restore": {
+          "mutationMs": 2,
+          "firstEventMs": 96,
+          "afterMutationMs": 454,
+          "readsMs": [
+            89
+          ]
+        },
+        "mkdir-and-draft": {
+          "mutationMs": 5,
+          "firstEventMs": 83,
+          "afterMutationMs": 516,
+          "readsMs": [
+            148
+          ]
+        },
+        "final-write": {
+          "mutationMs": 2,
+          "firstEventMs": 81,
+          "afterMutationMs": 373,
+          "readsMs": [
+            125
+          ]
+        },
+        "artifact-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 204,
+          "afterMutationMs": 452,
+          "readsMs": [
+            66
+          ]
+        },
+        "draft-recreate": {
+          "mutationMs": 2,
+          "firstEventMs": 97,
+          "afterMutationMs": 467,
+          "readsMs": [
+            87
+          ]
+        },
+        "new-root-draft": {
+          "mutationMs": 6,
+          "firstEventMs": 188,
+          "afterMutationMs": 479,
+          "readsMs": [
+            116
+          ]
+        },
+        "hidden-write-show-catch-up": {
+          "mutationMs": 151,
+          "afterMutationMs": 0,
+          "readsMs": [
+            132
+          ]
+        },
+        "custom-output-first-create": {
+          "mutationMs": 11,
+          "firstEventMs": 86,
+          "afterMutationMs": 635,
+          "readsMs": [
+            163
+          ]
+        },
+        "build-draft": {
+          "mutationMs": 2,
+          "firstEventMs": 95,
+          "afterMutationMs": 815,
+          "readsMs": [
+            142,
+            143
+          ]
+        },
+        "build-ready-for-dev": {
+          "mutationMs": 3,
+          "firstEventMs": 104,
+          "afterMutationMs": 451,
+          "readsMs": [
+            150
+          ]
+        },
+        "build-in-progress": {
+          "mutationMs": 2,
+          "firstEventMs": 79,
+          "afterMutationMs": 420,
+          "readsMs": [
+            171
+          ]
+        },
+        "build-in-review": {
+          "mutationMs": 2,
+          "firstEventMs": 81,
+          "afterMutationMs": 358,
+          "readsMs": [
+            99
+          ]
+        },
+        "build-blocked": {
+          "mutationMs": 7,
+          "firstEventMs": 98,
+          "afterMutationMs": 370,
+          "readsMs": [
+            91
+          ]
+        },
+        "build-done": {
+          "mutationMs": 5,
+          "firstEventMs": 96,
+          "afterMutationMs": 325,
+          "readsMs": [
+            63
+          ]
+        },
+        "parallel-classic-stories": {
+          "mutationMs": 2,
+          "firstEventMs": 95,
+          "afterMutationMs": 449,
+          "readsMs": [
+            102
+          ]
+        },
+        "root-output-first-create": {
+          "mutationMs": 2,
+          "firstEventMs": 82,
+          "afterMutationMs": 610,
+          "readsMs": [
+            119
+          ]
+        },
+        "root-output-modify": {
+          "mutationMs": 3,
+          "firstEventMs": 95,
+          "afterMutationMs": 359,
+          "readsMs": [
+            94
+          ]
+        },
+        "root-output-yaml-create": {
+          "mutationMs": 3,
+          "firstEventMs": 95,
+          "afterMutationMs": 449,
+          "readsMs": [
+            83
+          ]
+        },
+        "root-output-delete": {
+          "mutationMs": 1,
+          "firstEventMs": 187,
+          "afterMutationMs": 447,
+          "readsMs": [
+            73
+          ]
+        }
+      },
+      "watcherErrors": 2
+    }
+  ]
+}

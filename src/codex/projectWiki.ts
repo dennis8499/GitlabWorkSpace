@@ -1,7 +1,9 @@
 import { lstat, mkdir, readdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { atomicNetworkJson, LocalNetworkLease } from '../api/localNetworkLease';
 import { GitLabApiError, gitLabWriteFailureEffect, type GitLabClient } from '../api/gitLabClient';
+import { GitLabBudgetExceededError } from '../api/gitLabRequestBudget';
 import type { GitLabWikiPage } from '../api/types';
 import type { CodexTaskOrigin, CodexTaskResult, ProjectWikiPreview } from './workflowProtocol';
 import { sameWorkflowPath, workflowHash } from './projectWorkflows';
@@ -16,6 +18,17 @@ interface WikiDraftPage {
 interface WikiDraft {
   schema: 'GitLabWorkspaceProjectWiki/v1'; id: string; origin: CodexTaskOrigin;
   revision: string; pages: WikiDraftPage[]; error?: string;
+  preview?: { generation: string; remaining: string[] };
+}
+
+export interface WikiPreviewOptions {
+  refresh?: boolean;
+  allowRetry?: boolean;
+  cursor?: string;
+  signal?: AbortSignal;
+  onProgress?(preview: ProjectWikiPreview): void;
+  /** The HTTP client also accounts for retries, response bytes and deadlines. */
+  maxPages?: number;
 }
 type WikiClient = Pick<GitLabClient, 'getProjectWikiPage' | 'createProjectWikiPage' | 'updateProjectWikiPage'>;
 const wikiUrl = (origin: CodexTaskOrigin, slug: string): string =>
@@ -101,10 +114,13 @@ export class ProjectWikiStore {
     if (draft.schema !== 'GitLabWorkspaceProjectWiki/v1' || draft.id !== id || !Array.isArray(draft.pages) ||
       draft.origin.accountKey !== origin.accountKey || draft.origin.projectId !== origin.projectId || draft.origin.baseUrl !== origin.baseUrl ||
       draft.origin.sourceSha !== origin.sourceSha || !sameWorkflowPath(draft.origin.repositoryRoot, origin.repositoryRoot)) throw new Error('Wiki 草稿不屬於目前任務或帳號。');
+    if (draft.preview && (typeof draft.preview.generation !== 'string' || !/^[a-f0-9-]{36}$/i.test(draft.preview.generation) ||
+      !Array.isArray(draft.preview.remaining) || new Set(draft.preview.remaining).size !== draft.preview.remaining.length ||
+      draft.preview.remaining.some(slug => !draft.pages.some(page => page.slug === slug)))) throw new Error('Wiki 預覽進度格式無效。');
     return draft;
   }
   private async save(draft: WikiDraft): Promise<void> {
-    draft.revision = workflowHash(JSON.stringify([draft.pages, draft.error ?? '']));
+    draft.revision = workflowHash(JSON.stringify([draft.pages, draft.error ?? '', draft.preview ?? null]));
     if (Buffer.byteLength(JSON.stringify(draft), 'utf8') > 8 * 1024 * 1024) throw new Error('Wiki 草稿超過容量限制，請縮小產出範圍。');
     await mkdir(this.directory, { recursive: true });
     await atomicNetworkJson(this.file(draft.id), draft);
@@ -169,41 +185,84 @@ export class ProjectWikiStore {
       return page;
     } catch (error) { if (error instanceof GitLabApiError && error.status === 404) return undefined; throw error; }
   }
-  private projection(draft: WikiDraft): ProjectWikiPreview {
+  private projection(draft: WikiDraft, status?: NonNullable<ProjectWikiPreview['progress']>['status'], reason?: string): ProjectWikiPreview {
+    const remaining = draft.preview?.remaining ?? draft.pages.filter(page => page.baseline === undefined || page.sending).map(page => page.slug);
     return { id: draft.id, revision: draft.revision, sourceBranch: draft.origin.sourceBranch, sourceSha: draft.origin.sourceSha,
       projectPath: draft.origin.projectPath, error: draft.error, uncertain: draft.pages.some(page => page.sending),
+      progress: { status: status ?? (remaining.length ? 'partial' : 'ready'), completed: draft.pages.length - remaining.length,
+        total: draft.pages.length, nextCursor: remaining.length ? draft.preview?.generation : undefined, reason },
       pages: draft.pages.map(page => ({ slug: page.slug, title: page.title, content: page.content, previousContent: page.previousContent,
-        action: page.baseline === desiredHash(page) ? 'unchanged' : page.baseline ? 'update' : 'create', published: !!page.published })) };
+        action: page.baseline === undefined || remaining.includes(page.slug) ? 'unchecked' : page.baseline === desiredHash(page) ? 'unchanged' : page.baseline ? 'update' : 'create', published: !!page.published })) };
   }
-  async preview(id: string, origin: CodexTaskOrigin, client: WikiClient, assertCurrent: () => void, refresh = false,
+  async preview(id: string, origin: CodexTaskOrigin, client: WikiClient, assertCurrent: () => void, refresh: boolean | WikiPreviewOptions = false,
     allowRetry = false): Promise<ProjectWikiPreview> {
+    const options: WikiPreviewOptions = typeof refresh === 'boolean' ? { refresh, allowRetry } : refresh;
+    const limit = options.maxPages ?? 20;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) throw new RangeError('Wiki preview batches contain one to twenty pages.');
+    options.signal?.throwIfAborted();
     await mkdir(this.directory, { recursive: true });
-    const lease = await LocalNetworkLease.acquire(this.file(id) + '.publish', 'wiki-publish');
+    const lease = await LocalNetworkLease.acquire(this.file(id) + '.publish', 'wiki-publish', { signal: options.signal });
     try {
       const draft = await this.load(id, origin);
-      if (refresh || draft.pages.some(page => page.baseline === undefined || page.sending)) {
-        for (const page of draft.pages) {
-          assertCurrent();
-          const current = await this.remote(client, origin.projectId, page.slug);
-          const hash = current ? remoteHash(current) : null;
-          assertCurrent();
-          if (page.sending && hash !== desiredHash(page) && !allowRetry) {
-            draft.error = '先前發布結果仍待核對。請先在 GitLab 確認，再使用「確認後允許重試」。';
-            continue;
+      assertCurrent();
+      if (options.cursor && (options.refresh || options.cursor !== draft.preview?.generation)) throw new Error('Wiki 預覽已變更，請重新開啟核對。');
+      if (options.refresh || !draft.preview) {
+        draft.preview = { generation: randomUUID(), remaining: draft.pages.filter(page => options.refresh || page.baseline === undefined || page.sending).map(page => page.slug) };
+      }
+      if (!draft.preview.remaining.length) {
+        if (draft.error && !draft.pages.some(page => page.sending)) { draft.error = undefined; await this.save(draft); }
+        return this.projection(draft);
+      }
+      if (!draft.pages.some(page => page.sending)) draft.error = undefined;
+      await this.save(draft);
+      const publish = (status: NonNullable<ProjectWikiPreview['progress']>['status'], reason?: string) => {
+        const value = this.projection(draft, status, reason); options.onProgress?.(value); return value;
+      };
+      publish('loading');
+      let status: NonNullable<ProjectWikiPreview['progress']>['status'] = 'partial', reason: string | undefined;
+      for (const slug of draft.preview.remaining.slice(0, limit)) {
+        if (options.signal?.aborted) { status = 'cancelled'; reason = '已停止核對，已取得的內容保留。'; break; }
+        assertCurrent();
+        const page = draft.pages.find(page => page.slug === slug)!;
+        let current: GitLabWikiPage | undefined;
+        try { current = await this.remote(client, origin.projectId, slug); }
+        catch (error) {
+          if (options.signal?.aborted) { status = 'cancelled'; reason = '已停止核對，已取得的內容保留。'; }
+          else if (error instanceof GitLabBudgetExceededError) reason = error.message;
+          else {
+            status = 'error';
+            reason = error instanceof GitLabApiError && error.status === 429 ? 'GitLab 要求暫停；已核對內容保留，稍後可繼續載入。'
+              : '部分 Wiki 頁面尚未核對，請確認連線及權限後繼續載入。';
+            draft.error = reason;
           }
+          break;
+        }
+        assertCurrent();
+        const hash = current ? remoteHash(current) : null;
+        if (page.sending && hash !== desiredHash(page) && !options.allowRetry) {
+          draft.error = '先前發布結果仍待核對。請先在 GitLab 確認，再使用「確認後允許重試」。';
+        } else {
           page.baseline = hash; page.previousContent = current?.content; page.published = hash === desiredHash(page); page.sending = false;
         }
-        if (!draft.pages.some(page => page.sending)) draft.error = undefined;
+        draft.preview.remaining = draft.preview.remaining.filter(value => value !== slug);
+        // Save before publishing progress: cancellation, reload and a later page
+        // failure must never throw away a successfully checked remote version.
         await this.save(draft);
+        publish('loading');
       }
-      return this.projection(draft);
+      if (!draft.preview.remaining.length) {
+        status = 'ready';
+        if (!draft.pages.some(page => page.sending)) draft.error = undefined;
+      } else if (!reason) reason = '本批已完成，可繼續核對其餘頁面。';
+      await this.save(draft);
+      return publish(status, reason);
     } finally { await lease.release(); }
   }
   async publish(id: string, origin: CodexTaskOrigin, revision: string, client: WikiClient, assertCurrent: () => void): Promise<CodexTaskResult> {
     const lease = await LocalNetworkLease.acquire(this.file(id) + '.publish', 'wiki-publish');
     try {
       const draft = await this.load(id, origin);
-      if (draft.revision !== revision || draft.pages.some(page => page.baseline === undefined)) throw new Error('Wiki 草稿已更新或尚未預覽，請重新預覽。');
+      if (draft.revision !== revision || draft.preview?.remaining.length || draft.pages.some(page => page.baseline === undefined)) throw new Error('Wiki 草稿已更新或尚未完成預覽，請重新預覽。');
       draft.error = undefined;
       for (const page of draft.pages) {
         assertCurrent();

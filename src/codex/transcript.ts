@@ -19,24 +19,37 @@ export function projectCodexItem(threadId: string | undefined, turnId: string | 
 
 /** Merge ordered pages around shared anchors; history never overwrites a newer in-flight delta. */
 export function mergeCodexTranscript(current: readonly CodexOutputItem[], incoming: readonly CodexOutputItem[], history = false): CodexOutputItem[] {
-  const result = current.map(item => ({ ...item }));
-  let insertion = history ? 0 : result.length;
-  for (let index = 0; index < incoming.length; index++) {
-    const item = incoming[index], key = codexOutputKey(item);
-    const existing = result.findIndex(value => codexOutputKey(value) === key);
-    if (existing >= 0) {
-      if (!history || item.final) result[existing] = { ...result[existing], ...item };
-      insertion = existing + 1;
-    } else {
-      // Find the next common item to place new historical entries immediately before it.
-      let anchor = -1;
-      if (history) for (let next = index + 1; next < incoming.length; next++) {
-        anchor = result.findIndex(value => codexOutputKey(value) === codexOutputKey(incoming[next]));
-        if (anchor >= 0) break;
-      }
-      const position = anchor >= 0 ? anchor : insertion;
-      result.splice(position, 0, { ...item }); insertion = position + 1;
-    }
+  // Index each identity once. Linked insertions preserve page ordering without
+  // shifting the whole array or rescanning it for every streamed item.
+  interface Entry { item?: CodexOutputItem; previous?: Entry; next?: Entry; }
+  const head: Entry = {}, byKey = new Map<string, Entry>();
+  let tail = head;
+  for (const item of current) {
+    const entry: Entry = { item, previous: tail }; tail.next = entry; tail = entry;
+    if (!byKey.has(codexOutputKey(item))) byKey.set(codexOutputKey(item), entry);
   }
+  const keys = incoming.map(codexOutputKey), anchors: Array<Entry | undefined> = new Array(incoming.length);
+  let anchor: Entry | undefined;
+  if (history) for (let index = incoming.length - 1; index >= 0; index--) {
+    anchors[index] = anchor;
+    anchor = byKey.get(keys[index]) ?? anchor;
+  }
+  let insertion = history ? head : tail;
+  for (let index = 0; index < incoming.length; index++) {
+    const item = incoming[index], existing = byKey.get(keys[index]);
+    if (existing) {
+      if ((!history || item.final) && Object.entries(item).some(([key, value]) => existing.item![key as keyof CodexOutputItem] !== value)) {
+        existing.item = { ...existing.item!, ...item };
+      }
+      insertion = existing;
+      continue;
+    }
+    const before = anchors[index], previous = before?.previous ?? insertion;
+    const entry: Entry = { item: { ...item }, previous, next: before ?? previous.next };
+    if (entry.next) entry.next.previous = entry;
+    previous.next = entry; byKey.set(keys[index], entry); insertion = entry;
+  }
+  const result: CodexOutputItem[] = [];
+  for (let entry = head.next; entry; entry = entry.next) result.push(entry.item!);
   return result;
 }

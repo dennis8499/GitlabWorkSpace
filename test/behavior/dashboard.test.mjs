@@ -70,6 +70,45 @@ test('Project Wiki shows a safe preview and sends publication only after the exp
   assert.equal(document.querySelector('.codex-wiki-preview'), null, 'another account cannot see the previous draft');
 });
 
+test('Wiki preview progress stops, resumes by cursor and never auto-loads another batch on a revision update', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'initial', summary: 'Ready' } });
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  const preview = { id: task.result.draftId, revision: 'partial', sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha',
+    pages: [{ slug: 'codebase/index', title: 'Overview', content: '# Overview', action: 'unchecked', published: false }],
+    progress: { status: 'loading', completed: 0, total: 1, nextCursor: 'batch-1' } };
+  view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: preview }); await view.tick();
+  const document = view.dom.window.document;
+  const buttons = () => [...document.querySelectorAll('.codex-wiki-preview button')];
+  const publish = () => buttons().find(button => button.textContent === '發布至 GitLab Wiki');
+  assert.equal(publish().disabled, true);
+  buttons().find(button => button.textContent === '停止核對').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'cancelProjectWikiPreview').taskId, task.id);
+  view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: { ...preview, progress: { ...preview.progress, status: 'cancelled' } } });
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, result: { ...task.result, revision: 'partial' } }] } }); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'previewProjectWiki').length, 1);
+  buttons().find(button => button.textContent === '繼續核對其餘頁面').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'previewProjectWiki').cursor, 'batch-1');
+  assert.equal(view.requests.filter(request => request.type === 'publishProjectWiki').length, 0);
+  view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: { ...preview, revision: 'ready',
+    pages: [{ ...preview.pages[0], action: 'create' }], progress: { status: 'ready', completed: 1, total: 1 } } }); await view.tick();
+  assert.equal(publish().disabled, false);
+});
+
+test('ten thousand Codex messages mount only the visible rows and keep the focused reply during streamed updates', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const task = linkedWorkflowTask('issue', { id: 'long-transcript', status: 'running', threadId: 'thread', turnId: 'turn', result: undefined });
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  const entries = Array.from({ length: 10_000 }, (_, index) => ({ id: String(index), threadId: 'thread', turnId: 'turn', kind: 'agent', text: 'Reply ' + index }));
+  view.send({ type: 'codexEvent', event: { kind: 'history', taskId: task.id, items: entries } }); await view.tick();
+  const document = view.dom.window.document, rows = () => document.querySelectorAll('.codex-transcript .virtual-list-row');
+  assert.ok(rows().length < 80); assert.equal(rows()[0].getAttribute('aria-setsize'), '10000');
+  const focused = document.querySelector('.codex-transcript button'); focused.focus();
+  view.send({ type: 'codexEvent', event: { kind: 'output', taskId: task.id, replace: true,
+    items: entries.slice(-100).map(item => ({ ...item, text: item.text + ' updated' })) } }); await view.tick();
+  assert.equal(document.activeElement, focused); assert.ok(rows().length < 80);
+});
+
 test('One-click MR review fills its report draft and preserves the task binding through edits and publication', async t => {
   const data = snapshot('reviewer');
   const mr = { id: 4, iid: 4, project_id: 1, title: 'Review change', state: 'opened', source_branch: 'feature', target_branch: 'main',

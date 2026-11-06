@@ -130,6 +130,7 @@ test('Codex and clipboard share the verified BMAD task, and background continuat
   const f = await fixture(t);
   f.setKitState({ status: 'installed', version: '1.3.5', integrity: 'verified', workspaceContract: 2,
     installerApi: 1, capabilities: ['bmad-workflow'] } as any);
+  await f.refresh(); await waitForBmadRegistration(f.host);
   const snapshot = await f.refresh();
   const request = { revision: snapshot.revision, command: 'task', requirement: '建立付款流程規格' };
   const spec = await f.host.prepareCodexTask({ kind: 'bmad', request });

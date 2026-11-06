@@ -11,6 +11,7 @@ const requests = {
   showCodexTask: { type: 'showCodexTask', taskId: 'task-1' }, readCodexResult: { type: 'readCodexResult', taskId: 'task-1' },
   openCodexOrigin: { type: 'openCodexOrigin', taskId: 'task-1' }, openCodexChanges: { type: 'openCodexChanges', taskId: 'task-1' },
   previewProjectWiki: { type: 'previewProjectWiki', taskId: 'task-1' }, publishProjectWiki: { type: 'publishProjectWiki', taskId: 'task-1', revision: 'revision-1' },
+  cancelProjectWikiPreview: { type: 'cancelProjectWikiPreview', taskId: 'task-1' },
   publishCodexReview: { type: 'publishCodexReview', taskId: 'task-1', body: 'Review summary' },
   startCodexTask: { type: 'startCodexTask', source: { kind: 'skill', featureId: 'query', inputs: { question: 'Explain' }, revision: 'root:1' } },
   listCodexTasks: { type: 'listCodexTasks' }, codexHistory: { type: 'codexHistory', taskId: 'task-1' },
@@ -73,6 +74,7 @@ test('malformed identities, bodies, nested actions and prototype keys fail close
   const invalid = [null, [], 'copy', {}, { type: 'arbitrary' }, { type: 'submitAccountLogin', token: 'forbidden-webview-secret' }, { type: 'openConfiguration', setting: 'arbitrary.setting' }, { type: 'copy', text: {} }, { type: 'selectProject', projectId: {} },
     { type: 'selectProject', projectId: Number.MAX_SAFE_INTEGER + 1 }, { type: 'selectProject', projectId: -1 },
     { type: 'sendCodexMessage', taskId: 'task-1', text: 'a'.repeat(32001) }, { type: 'clone', projectIds: new Array(10001).fill(1) },
+    { type: 'codexHistory', taskId: 'task-1', force: 'true' }, { type: 'previewProjectWiki', taskId: 'task-1', cursor: 'x'.repeat(161) },
     { type: 'issueRequest', request: { type: 'invoke', issueId: 1, action: 'delete', payload: { shell: 'rm' } } },
     { type: 'issueRequest', request: { type: 'create', projectId: 1, input: { title: 'Title', admin: true } } },
     { type: 'gitAction', requestId: 'g', repoId: repo, action: { type: 'discard', path: '../outside' } },
@@ -84,6 +86,7 @@ test('malformed identities, bodies, nested actions and prototype keys fail close
 
 test('nested legitimate Issue actions, Git rebase and MCP forms retain their contract', () => {
   for (const request of [
+    { type: 'codexHistory', taskId: 'task-1', force: true }, { type: 'previewProjectWiki', taskId: 'task-1', cursor: 'batch-1' },
     { type: 'issueRequest', request: { type: 'invoke', issueId: 1, action: 'note', payload: { body: 'Hello', internal: false } } },
     { type: 'issueRequest', request: { type: 'update', issueId: 1, input: { assigneeId: null, milestoneId: null, dueDate: null } } },
     { type: 'gitAction', requestId: 'g', repoId: repo, action: { type: 'rebase', ref: 'main', interactive: true, expectedTargetHash: sha, todo: [{ hash: sha, action: 'pick' }] } },

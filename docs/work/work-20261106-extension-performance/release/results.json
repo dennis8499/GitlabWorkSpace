@@ -1,0 +1,27 @@
+[
+  {
+    "id": "release-tooling",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--test",
+      "scripts/extension-test-environment.test.mjs",
+      "scripts/live-benchmark-comparison.test.mjs",
+      "scripts/live-environments.test.mjs",
+      "scripts/live-fixture-plan.test.mjs",
+      "scripts/live-test-paths.test.mjs",
+      "scripts/live-validation-state.test.mjs",
+      "scripts/python-runtime.test.mjs",
+      "scripts/release-policy.test.mjs",
+      "scripts/release-workflow.test.mjs",
+      "scripts/validation-orchestration.test.mjs",
+      "scripts/validation-runtime.test.mjs",
+      "scripts/verify-ui-artifact-identity.test.mjs"
+    ],
+    "startedAt": "2026-11-06T13:16:45.826Z",
+    "finishedAt": "2026-11-06T13:16:55.670Z",
+    "seconds": 9.844,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261106-extension-performance\\release\\release-tooling.log"
+  }
+]

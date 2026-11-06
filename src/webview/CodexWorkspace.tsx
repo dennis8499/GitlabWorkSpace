@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { codexOutputKey, codexTaskActive, type CodexEnvironment, type CodexInteraction, type CodexOutputItem, type CodexTaskState } from '../codex/protocol';
 import { mergeCodexTranscript } from '../codex/transcript';
 import type { ActionController, DispatchResult } from '../workspace/actionController';
@@ -9,6 +9,7 @@ import { useActionSelector } from './useActions';
 import { CodexSettings, Interaction } from './CodexPanel';
 import './codex-panel.css';
 import { CodexWorkflowResult, type WorkflowPayload } from './CodexWorkflow';
+import { VirtualRows } from './VirtualRows';
 
 type Post = (request: WorkspaceRequest) => DispatchResult;
 export const codexStatusLabels: Record<CodexTaskState['status'], string> = {
@@ -115,7 +116,9 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
   };
   return { tasks, ui, items, interactions, history, environment, announcement, select, submit, post, results,
     edit: (id: string, text: string) => setUi(current => editCodexDraft(current, id, text)),
-    read: (id: string, top: number, follow: boolean) => setUi(current => ({ ...current, reading: { ...current.reading, [id]: { top, follow } } })),
+    read: (id: string, top: number, follow: boolean, anchor?: { key: string; offset: number }) => setUi(current => ({ ...current, reading: {
+      ...current.reading, [id]: { top, follow, ...(anchor ? { anchorKey: anchor.key, anchorOffset: anchor.offset } : {}) }
+    } })),
     activeCount: tasks.filter(task => codexTaskActive(task.status) || task.status === 'queued').length,
     waitingCount: Object.values(interactions).reduce((sum, values) => sum + values.length, 0)
   };
@@ -128,8 +131,18 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
   const task = c.tasks.find(value => value.id === c.ui.selectedTaskId), selected = task?.id;
   const entries = selected ? c.items[selected] ?? emptyEntries : emptyEntries, waiting = selected ? c.interactions[selected] ?? emptyInteractions : emptyInteractions;
   const output = useRef<HTMLDivElement>(null), shown = useRef<string>();
+  // Capture the saved anchor once per selection, rather than restoring it on
+  // every scroll update or streamed token.
+  const initialAnchor = useMemo(() => {
+    const saved = selected ? c.ui.reading?.[selected] : undefined;
+    return saved?.follow === false && saved.anchorKey !== undefined && saved.anchorOffset !== undefined
+      ? { key: saved.anchorKey, offset: saved.anchorOffset } : undefined;
+  }, [selected]);
   const follow = useRef(true), older = useRef<{ id: string; height: number; top: number }>();
   const [following, setFollowing] = useState(true);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const focusFrame = useRef<number>();
+  useEffect(() => () => { if (focusFrame.current !== undefined) cancelAnimationFrame(focusFrame.current); }, []);
   const post = c.post;
   const historyReady = !!task?.threadId && ((!codexTaskActive(task.status) && task.status !== 'queued') || !!task.controls?.external && !!task.turnId);
   useEffect(() => { if (active && task && historyReady) post({ type: 'codexHistory', taskId: task.id }); }, [active, selected, task?.threadId, historyReady]);
@@ -149,7 +162,15 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
   const toLatest = () => {
     if (!output.current || !task) return;
     follow.current = true; setFollowing(true); output.current.scrollTop = output.current.scrollHeight;
-    const replies = output.current.querySelectorAll<HTMLElement>('.codex-item.agent'); replies[replies.length - 1]?.focus({ preventScroll: true });
+    if (focusFrame.current !== undefined) cancelAnimationFrame(focusFrame.current);
+    const id = task.id;
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = requestAnimationFrame(() => {
+        focusFrame.current = undefined;
+        if (shown.current !== id) return;
+        const replies = output.current?.querySelectorAll<HTMLElement>('.codex-item.agent'); replies?.[replies.length - 1]?.focus({ preventScroll: true });
+      });
+    });
     c.read(task.id, output.current.scrollTop, true);
   };
   const focusInteraction = () => {
@@ -174,7 +195,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
         <label class="codex-auto-accept"><input type="checkbox" checked={task.controls?.autoAccept ?? false} disabled={!task.controls?.canAutoAccept}
           onChange={event => post({ type: 'setCodexAutoAccept', taskId: task.id, enabled: event.currentTarget.checked })} />Auto-Accept: {task.controls?.external ? '由原視窗管理' : task.controls?.autoAccept ? 'ON' : 'OFF'}</label>
         {task.origin && <button type="button" class="quiet" onClick={() => post({ type: 'openCodexOrigin', taskId: task.id })}>返回{task.origin.kind === 'issue' ? ' Issue' : task.origin.kind === 'merge-request' ? ' MR' : '專案'}</button>}
-        <button type="button" class="quiet" disabled={!task.threadId || !historyReady && !task.turnId} onClick={() => post({ type: 'codexHistory', taskId: task.id })}>讀取對話</button>
+        <button type="button" class="quiet" disabled={!task.threadId || !historyReady && !task.turnId} onClick={() => post({ type: 'codexHistory', taskId: task.id, force: true })}>讀取對話</button>
         <button type="button" class="quiet" disabled={!task.controls?.canDelete} title={task.controls?.canDelete ? '保留 Codex 對話、檔案及報告' : '請先暫停並確認清理完成'} onClick={() => post({ type: 'deleteCodexTask', taskId: task.id })}>刪除紀錄</button>
       </div>
       {task.controls?.external && <p class="subtle">任務正在另一個 VS Code 視窗執行，請至原視窗控制。</p>}
@@ -187,13 +208,24 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
         {!!waiting.length && <button type="button" onClick={focusInteraction}>前往待回覆要求（{waiting.length}）</button>}</div>
       <div ref={output} class="codex-output" tabIndex={0} role="region" aria-label="Codex 執行訊息" aria-live="off" onScroll={event => {
         const node = event.currentTarget; follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
-        setFollowing(follow.current); c.read(task.id, node.scrollTop, follow.current);
+        const bounds = node.getBoundingClientRect(), scale = node.offsetHeight ? bounds.height / node.offsetHeight || 1 : 1;
+        const row = [...node.querySelectorAll<HTMLElement>('[data-virtual-key]')].find(element => {
+          const rect = element.getBoundingClientRect(); return rect.bottom > bounds.top && rect.top < bounds.bottom;
+        });
+        const anchor = !follow.current && row?.dataset.virtualKey ? { key: row.dataset.virtualKey, offset: (bounds.top - row.getBoundingClientRect().top) / scale } : undefined;
+        setFollowing(follow.current); c.read(task.id, node.scrollTop, follow.current, anchor);
       }}>
         {c.history[task.id]?.nextCursor && <button type="button" class="quiet" onClick={() => {
           if (output.current) older.current = { id: task.id, height: output.current.scrollHeight, top: output.current.scrollTop };
           post({ type: 'codexHistory', taskId: task.id, cursor: c.history[task.id].nextCursor });
         }}>讀取更早的對話</button>}
-        {entries.map(item => <TranscriptLine key={codexOutputKey(item)} item={item} post={post} />)}
+        <VirtualRows key={selected} items={entries} itemKey={codexOutputKey} estimateHeight={72} className="codex-transcript"
+          active={active} scrollRoot={output} semanticList initialAnchor={initialAnchor} renderItem={item => {
+            const key = codexOutputKey(item);
+            return <TranscriptLine item={item} post={post} expanded={expanded.has(key)} toggle={() => setExpanded(current => {
+              const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next;
+            })} />;
+          }} />
         {!entries.length && <p class="subtle">{historyReady && !c.history[task.id]?.loaded ? '正在讀取對話…' : task.status === 'queued' ? '等待執行…' : codexTaskActive(task.status) ? '等待 Codex 執行訊息…' : '尚無執行訊息。'}</p>}
         {waiting.map(interaction => <Interaction key={interaction.id} interaction={interaction} root={task.root} post={post} />)}
         {task.status === 'running' && <p class="codex-working" role="presentation">· Codex 執行中…</p>}
@@ -209,8 +241,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
   </section>;
 }
 
-function TranscriptLine({ item, post }: { item: CodexOutputItem; post: Post }) {
-  const [expanded, setExpanded] = useState(false);
+function TranscriptLine({ item, post, expanded, toggle }: { item: CodexOutputItem; post: Post; expanded: boolean; toggle(): void }) {
   const lines = item.text.split('\n'), long = item.kind !== 'agent' && item.kind !== 'user' && lines.length > 12;
   const content = long && !expanded ? lines.slice(0, 8).join('\n') : item.text;
   const marker = { agent: '●', user: '›', command: '•', file: '↳', tool: '•', notice: '·' }[item.kind];
@@ -219,7 +250,7 @@ function TranscriptLine({ item, post }: { item: CodexOutputItem; post: Post }) {
       {item.kind === 'command' && <p class="codex-command"><strong>$ {item.command ?? '命令輸出'}</strong>{item.status && <span> · {item.status}</span>}{item.exitCode !== undefined && <span> · exit {item.exitCode}</span>}</p>}
       {item.kind === 'file' && <strong class="codex-entry-label">檔案變更</strong>}
       {item.text && <pre>{content}</pre>}
-      {long && <button class="quiet small" type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? '收合輸出' : `展開完整輸出（${lines.length} 行）`}</button>}
+      {long && <button class="quiet small" type="button" aria-expanded={expanded} onClick={toggle}>{expanded ? '收合輸出' : `展開完整輸出（${lines.length} 行）`}</button>}
       {item.kind === 'agent' && <button class="quiet small codex-copy" type="button" aria-label="複製 Codex 回覆" onClick={() => post({ type: 'copy', text: item.text })}>複製</button>}
     </div>
   </div>;

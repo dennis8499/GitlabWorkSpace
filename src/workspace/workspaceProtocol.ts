@@ -285,11 +285,12 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'readCodexResult'; taskId: string }
   | { type: 'openCodexOrigin'; taskId: string }
   | { type: 'openCodexChanges'; taskId: string }
-  | { type: 'previewProjectWiki'; taskId: string; refresh?: boolean; confirmRetry?: boolean }
+  | { type: 'previewProjectWiki'; taskId: string; refresh?: boolean; confirmRetry?: boolean; cursor?: string }
+  | { type: 'cancelProjectWikiPreview'; taskId: string }
   | { type: 'publishProjectWiki'; taskId: string; revision: string }
   | { type: 'publishCodexReview'; taskId: string; body: string }
   | { type: 'listCodexTasks' }
-  | { type: 'codexHistory'; taskId: string; cursor?: string }
+  | { type: 'codexHistory'; taskId: string; cursor?: string; force?: boolean }
   | { type: 'sendCodexMessage'; taskId: string; text: string }
   | { type: 'cancelCodexTask'; taskId: string }
   | { type: 'pauseCodexTask'; taskId: string }

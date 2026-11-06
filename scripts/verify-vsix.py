@@ -35,8 +35,19 @@ for (const name of ['yaml', '@iarna/toml']) {
   const resolved = local.resolve(name);
   if (!resolved.startsWith(root + path.sep)) throw new Error('Parser resolved outside delivered VSIX: ' + name);
 }
-local(filename).readBmadWorkflow({bundledCatalog: fs.readFileSync(path.join(root, 'resources/bmad/bmad-help.csv'), 'utf8')})
-  .then(snapshot => { if (snapshot.nodes.length < 20) throw new Error('Packaged BMAD catalog is incomplete'); })
+const fixture = path.join(process.argv[1], 'parser-fixture');
+fs.mkdirSync(path.join(fixture, '_bmad', '_config'), {recursive:true});
+fs.writeFileSync(path.join(fixture, '_bmad', '_config', 'manifest.yaml'), 'installation:\\n  version: 6.12.4\\n');
+fs.writeFileSync(path.join(fixture, '_bmad', 'config.toml'), '[core]\\noutput_folder = "_bmad-output"\\n');
+const bundledCatalog = fs.readFileSync(path.join(root, 'resources/bmad/bmad-help.csv'), 'utf8');
+Promise.all([local(filename).readBmadWorkflow({bundledCatalog}),
+  local(filename).readBmadWorkflow({root:fixture, bundledCatalog})])
+  .then(([catalog, parsed]) => {
+    if (catalog.nodes.length < 20) throw new Error('Packaged BMAD catalog is incomplete');
+    if (parsed.version !== '6.12.4' || parsed.diagnostics.some(item => /config.*(?:invalid|error)|manifest.*(?:invalid|error)/i.test(item.code))) {
+      throw new Error('Packaged lazy YAML/TOML parsers did not read the fixture');
+    }
+  })
   .catch(error => { console.error(error); process.exitCode = 1; });
 """
         result = subprocess.run(['node', '-e', script, str(root)], cwd=root,

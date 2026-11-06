@@ -1,0 +1,17 @@
+{
+  "status": "FAILED_AND_STOPPED",
+  "checkedAt": "2026-11-06T13:28:20Z",
+  "tooling": { "passed": 42, "failed": 0 },
+  "integration": {
+    "complete": false,
+    "observedPassedMethods": [
+      "WorkflowKit134IntegrationTests.test_both_pinned_reviewers_start_inspect_and_cancel_local_sessions",
+      "WorkflowKit134IntegrationTests.test_external_bmad_is_preserved_in_both_profiles_and_rollback"
+    ],
+    "observedErrors": [
+      "WorkflowKit134IntegrationTests.test_fresh_group_and_repository_publish_bundled_capabilities (profile=repository)",
+      "WorkflowKit134IntegrationTests.test_fresh_group_and_repository_publish_bundled_capabilities cleanup"
+    ],
+    "reason": "Stopped this already-failing owned process tree after repeated installer failures. The full Python traceback and remaining integration methods were not completed. Native host runs independently reproduced 240-second WorkflowKit installation timeouts."
+  }
+}

@@ -26,7 +26,7 @@ const localProjectActions = new Set([
   'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask',
-  'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'publishProjectWiki', 'publishCodexReview',
+  'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
   'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex'
 ]);
 

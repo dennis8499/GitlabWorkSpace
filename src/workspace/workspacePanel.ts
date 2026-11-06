@@ -25,16 +25,17 @@ import { resolveLocalRepositoryLayout } from './localRepositoryLayout';
 import { groupRepositoryPath, inspectWorkflowKitInstallRoot, localRepositoryStateAsync, resolveWorkflowKitInstallRoot, sameLocalPath, sameRealLocalPathAsync, scanLocalGroupRepositories, type LocalGroupRepository, type WorkspaceRootResolution } from './workspacePaths';
 import { resolvePythonRuntime } from './pythonRuntime';
 import { workflowKitFailure } from './workflowKitResult';
-import { BmadWorkflowController } from './bmadWorkflowController';
+import type { BmadWorkflowController } from './bmadWorkflowController';
 import { buildBmadCommand } from './bmadCommand';
 import { bmadKitTaskIssue } from './bmadKit';
 import { inspectBmadEnvironment } from './bmadEnvironment';
-import { readBmadWorkflow } from './bmadWorkflow';
 import { CodexBridge } from '../codex/bridge';
 import type { CodexTaskSpec, CodexTaskSource, CodexTaskOrigin, CodexTaskResult, CodexOutputItem } from '../codex/protocol';
 import { collectIssueResult, issueBranchName, readWorkflowReport, startIssueWorkflow, startWikiWorkflow,
   withWorkflowExecution, workflowBranchSha, workflowGit, workflowHash, workflowRemote } from '../codex/projectWorkflows';
 import { ProjectWikiStore } from '../codex/projectWiki';
+import { CodexWorkflowService } from '../codex/workflowService';
+import { isAbortedRead } from '../api/gitLabReadCache';
 import { buildWikiGuideContext, buildWikiGuidePrompt } from '../webview/codebaseWikiGuideData';
 import { modelRoutingBinding, readModelRouting, reviewerRunnerRuntime, type ModelRoutingBinding } from '../codex/modelRouting';
 import { canonicalReviewRequestId } from '../codex/protocol';
@@ -113,6 +114,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private codex?: CodexBridge;
   private codexLogStates = new Map<string, string>();
   private projectWiki?: ProjectWikiStore;
+  private codexWorkflows?: CodexWorkflowService;
+  private codexReadAbort = new AbortController();
   private projectEnvironmentSnapshots?: ProjectEnvironmentSnapshotCache;
   private bmad?: BmadWorkflowController;
   private bmadEnvironment?: BmadEnvironmentCheck;
@@ -303,6 +306,8 @@ export class WorkspacePanel implements vscode.Disposable {
     this.timer = new IssueTimeTracker(context.globalState);
     session.setBeforeTransition(async () => {
       this.assertAccountTransitionAllowed();
+      this.codexWorkflows?.suspendReads();
+      this.codexReadAbort?.abort();
       this.reviewAuthHostNonce = randomUUID();
       this.reviewAuthTransition = true;
       this.skillsContextCache = undefined;
@@ -371,6 +376,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.codexWorkflows?.dispose();
+    this.codexReadAbort?.abort();
     this.codex?.dispose();
     this.reviewWatcher?.dispose();
     if (this.reviewRefreshTimer) clearTimeout(this.reviewRefreshTimer);
@@ -1230,8 +1237,8 @@ export class WorkspacePanel implements vscode.Disposable {
         this.sendSnapshot();
         this.noteOutcome({ effect: 'applied' }); break;
       }
-      case 'sendCodexMessage': await this.getCodexBridge().message(request.taskId, request.text); this.noteOutcome({ effect: 'applied' }); break;
-      case 'resumeCodexTask': await this.getCodexBridge().resume(request.taskId); break;
+      case 'sendCodexMessage': this.codexWorkflows?.cancelPreview(request.taskId); await this.getCodexBridge().message(request.taskId, request.text); this.noteOutcome({ effect: 'applied' }); break;
+      case 'resumeCodexTask': this.codexWorkflows?.cancelPreview(request.taskId); await this.getCodexBridge().resume(request.taskId); break;
       case 'cancelCodexTask': await this.getCodexBridge().cancel(request.taskId); break;
       case 'pauseCodexTask': await this.getCodexBridge().pause(request.taskId); this.noteOutcome({ effect: 'applied' }); break;
       case 'setCodexAutoAccept': await this.getCodexBridge().setAutoAccept(request.taskId, request.enabled); this.noteOutcome({ effect: 'applied' }); break;
@@ -1241,10 +1248,17 @@ export class WorkspacePanel implements vscode.Disposable {
         const decision = await vscode.window.showWarningMessage(`刪除「${task.title}」的任務紀錄？`,
           { modal: true, detail: '只刪除管理介面的紀錄與草稿。Codex 對話、產生的檔案及報告會保留。' }, '刪除紀錄');
         if (decision !== '刪除紀錄') { this.noteOutcome({ status: 'cancelled', effect: 'none' }); break; }
+        this.codexWorkflows?.cancelPreview(request.taskId);
         await this.getCodexBridge().delete(request.taskId); this.noteOutcome({ effect: 'applied' }); break;
       }
       case 'answerCodex': await this.getCodexBridge().answer(request.taskId, request.interactionId, request.answer); break;
-      case 'codexHistory': await this.getCodexBridge().history(request.taskId, request.cursor); break;
+      case 'codexHistory': {
+        if (!this.codexReadAbort || this.codexReadAbort.signal.aborted) this.codexReadAbort = new AbortController();
+        const signal = this.viewReadAbort ? AbortSignal.any([this.viewReadAbort.signal, this.codexReadAbort.signal]) : this.codexReadAbort.signal;
+        try { await this.getCodexBridge().history(request.taskId, request.cursor, request.force === true, signal); }
+        catch (error) { if (isAbortedRead(error, signal)) this.noteOutcome({ status: 'cancelled', effect: 'none' }); else throw error; }
+        break;
+      }
       case 'checkCodex': {
         const context = await this.resolveProjectContext(); if (!context.root) throw new Error('請先選擇專案根目錄。');
         await this.getCodexBridge().check(context.root); break;
@@ -1376,14 +1390,8 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       case 'readCodexResult': await this.readLinkedCodexResult(request.taskId); break;
       case 'previewProjectWiki': await this.previewLinkedWiki(request); break;
-      case 'publishProjectWiki': {
-        await this.getCodexBridge().resultAction(request.taskId, async spec => {
-          const check = this.checkLinkedCodexAccess(spec), client = await this.session.getClient(); check();
-          if (spec.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
-          return this.wikiStore().publish(spec.workflow.id, spec.origin, request.revision, client, check);
-        });
-        await this.previewLinkedWiki({ type: 'previewProjectWiki', taskId: request.taskId }); break;
-      }
+      case 'cancelProjectWikiPreview': this.getCodexWorkflowService().cancelPreview(request.taskId); break;
+      case 'publishProjectWiki': await this.getCodexWorkflowService().publishWiki(request.taskId, request.revision); break;
       case 'openCodexChanges': {
         const spec = await this.linkedCodexSpec(request.taskId);
         if (!spec.origin) throw new Error('此任務沒有綁定 Repo。');
@@ -1398,16 +1406,7 @@ export class WorkspacePanel implements vscode.Disposable {
         else { await this.navigateTo('clone'); }
         break;
       }
-      case 'publishCodexReview': {
-        const spec = await this.linkedCodexSpec(request.taskId), check = this.checkLinkedCodexAccess(spec);
-        const result = this.getCodexBridge().list().find(task => task.id === request.taskId)?.result;
-        if (result?.state !== 'ready' || !result.reportPath) throw new Error('這份審查尚未取得完整報告，請先完成審查。');
-        await readWorkflowReport(spec, result.reportPath); check();
-        await this.assertLinkedReviewCurrent(spec);
-        await this.publishMergeRequestText(spec.origin!.projectId, spec.origin!.iid!, request.body, undefined,
-          async () => { check(); await this.assertLinkedReviewCurrent(spec); check(); });
-        break;
-      }
+      case 'publishCodexReview': await this.getCodexWorkflowService().publishReview(request.taskId, request.body); break;
       case 'retryWorkspaceSection':
         if (request.connectedScope === this.connectedScopeKey()) {
           if (this.activeMode === 'dashboard' && request.mode !== 'cancel') {
@@ -1604,6 +1603,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private cancelPageReads(): void {
+    this.codexWorkflows?.suspendReads();
+    this.codexReadAbort?.abort();
     this.graphReadCancellation = (this.graphReadCancellation ?? 0) + 1;
     this.gitRepositories?.setActivePanelRepository(undefined);
     this.bmad?.setContext(this.projectContext?.root, this.projectContext?.revision, false);
@@ -1635,6 +1636,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private suspendViewReads(): void {
+    this.codexWorkflows?.suspendReads();
+    this.codexReadAbort?.abort();
     this.session.cancelReadHandoffs?.();
     this.bmad?.setContext(this.projectContext?.root, this.projectContext?.revision, false);
     this.viewGeneration++;
@@ -2442,6 +2445,19 @@ export class WorkspacePanel implements vscode.Disposable {
     return this.projectWiki ??= new ProjectWikiStore(path.join(this.context.globalStorageUri.fsPath, 'project-wiki-drafts'));
   }
 
+  private getCodexWorkflowService(): CodexWorkflowService {
+    return this.codexWorkflows ??= new CodexWorkflowService({
+      bridge: () => this.getCodexBridge(), wiki: () => this.wikiStore(), client: () => this.session.getClient(),
+      check: spec => this.checkLinkedCodexAccess(spec), visible: () => !this.disposed && !!this.panel?.visible,
+      confirmRetry: async () => await vscode.window.showWarningMessage('請先到 GitLab 核對先前發布結果，確認待發布內容尚未套用後才允許重試。',
+        { modal: true }, '我已核對，允許重試') === '我已核對，允許重試',
+      post: message => this.post(message),
+      publishReview: (projectId, iid, body, beforeSend) => this.publishMergeRequestText(projectId, iid, body, undefined, beforeSend),
+      cancelled: () => this.noteOutcome({ status: 'cancelled', effect: 'none' }),
+      failed: error => this.noteOutcome({ status: 'failed', effect: 'none', error })
+    });
+  }
+
   private async linkedRepository(project: GitLabProject, previous?: CodexTaskSpec): Promise<string> {
     await this.refreshInventory();
     const inspected = await this.inspectEnvironment([project]);
@@ -2578,42 +2594,15 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async readLinkedCodexResult(taskId: string): Promise<void> {
-    const spec = await this.linkedCodexSpec(taskId), check = this.checkLinkedCodexAccess(spec);
-    const result = this.getCodexBridge().list().find(task => task.id === taskId)?.result;
-    const report = result?.reportPath ? await readWorkflowReport(spec, result.reportPath) : undefined; check();
-    this.post({ type: 'codexWorkflowResult', taskId, result, report });
+    await this.getCodexWorkflowService().readResult(taskId);
   }
 
   private async previewLinkedWiki(request: Extract<WorkspaceRequest, { type: 'previewProjectWiki' }>): Promise<void> {
-    const spec = await this.linkedCodexSpec(request.taskId), check = this.checkLinkedCodexAccess(spec);
-    if (spec.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
-    let allowRetry = false;
-    if (request.confirmRetry) {
-      allowRetry = await vscode.window.showWarningMessage('請先到 GitLab 核對先前發布結果，確認待發布內容尚未套用後才允許重試。',
-        { modal: true }, '我已核對，允許重試') === '我已核對，允許重試';
-      if (!allowRetry) return;
-    }
-    const client = await this.session.getClient(); check();
-    const wiki = await this.wikiStore().preview(spec.workflow.id, spec.origin, client, check, request.refresh || allowRetry, allowRetry); check();
-    const published = wiki.pages.filter(page => page.published).length;
-    await this.getCodexBridge().resultAction(request.taskId, async () => ({
-      state: wiki.uncertain ? 'uncertain' : published === wiki.pages.length ? 'published' : published ? 'partial' : 'draft',
-      draftId: wiki.id, revision: wiki.revision,
-      summary: wiki.error ?? (published === wiki.pages.length ? `已核對 ${published} 頁均已發布至 GitLab Wiki。` : `已預覽 ${wiki.pages.length} 頁，${published} 頁已發布；請檢閱後發布其餘草稿。`),
-      url: published ? `${spec.origin!.webUrl}/-/wikis/${(wiki.pages.find(page => page.published && page.slug === 'codebase/index') ?? wiki.pages.find(page => page.published)!).slug.split('/').map(encodeURIComponent).join('/')}` : undefined
-    }));
-    this.post({ type: 'codexWorkflowResult', taskId: request.taskId, result: this.getCodexBridge().list().find(task => task.id === request.taskId)?.result, wiki });
+    await this.getCodexWorkflowService().previewWiki(request);
   }
 
   private async assertLinkedReviewCurrent(spec: CodexTaskSpec): Promise<void> {
-    const check = this.checkLinkedCodexAccess(spec), origin = spec.origin!;
-    if (origin.kind !== 'merge-request') throw new Error('此任務不是 MR 審查。');
-    const client = await this.session.getClient();
-    const mr = await client.getMergeRequest(origin.projectId, origin.iid!);
-    const target = await client.getRepositoryBranch(origin.projectId, origin.targetBranch!); check();
-    if ((mr.diff_refs?.head_sha ?? mr.sha) !== origin.sourceSha || target.commit.id !== origin.targetSha || mr.target_branch !== origin.targetBranch) {
-      throw new Error('MR 來源或目標版本已變更，請重新審查後再發布。');
-    }
+    await this.getCodexWorkflowService().assertReviewCurrent(spec);
   }
 
   private async prepareCodexTask(source: CodexTaskSource, previous?: CodexTaskSpec): Promise<CodexTaskSpec> {
@@ -2749,6 +2738,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private onWorkspaceFoldersChanged(): void {
+    this.codexWorkflows?.suspendReads();
+    this.codexReadAbort?.abort();
     this.reviewWatcher?.dispose(); this.reviewWatcherRoot = undefined;
     if (this.reviewRefreshTimer) clearTimeout(this.reviewRefreshTimer);
     this.projectEnvironmentSnapshots?.clear();
@@ -3859,6 +3850,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const signature = this.projectContextSignature();
     await this.refreshWorkflowKitInstallState();
     const context = await this.resolveProjectContext();
+    const { BmadWorkflowController } = await import('./bmadWorkflowController.js');
     if (this.disposed || signature !== this.projectContextSignature() || this.activeMode !== 'bmad' || !this.webviewReady) return;
     this.projectContext = context;
     if (!this.bmad) this.bmad = new BmadWorkflowController({
@@ -3916,7 +3908,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async prepareBmadCommand(request: BmadCommandRequest, background = false) {
-    const snapshot = background ? await readBmadWorkflow({ root: this.projectContext?.root,
+    const snapshot = background ? await (await import('./bmadWorkflow.js')).readBmadWorkflow({ root: this.projectContext?.root,
       bundledCatalog: await readFile(vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'bmad', 'bmad-help.csv').fsPath, 'utf8') })
       : await this.requireBmadSnapshot(request.revision, request.command !== 'task' && !request.artifactId && !request.storyId);
     if (request.command === 'task') {

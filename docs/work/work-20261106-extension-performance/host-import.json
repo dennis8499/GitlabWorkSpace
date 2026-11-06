@@ -1,0 +1,78 @@
+{
+  "schema": "GitLabWorkspaceHostImportBenchmark/v1",
+  "node": "v24.21.0",
+  "platform": "win32",
+  "method": "Five fresh Node processes per build, interleaved order; no OS cache purge, activation call or native editor startup.",
+  "results": [
+    {
+      "label": "before",
+      "round": 0,
+      "wallMs": 653.5364,
+      "modules": 180,
+      "parserModules": 86
+    },
+    {
+      "label": "after",
+      "round": 0,
+      "wallMs": 214.0079,
+      "modules": 93,
+      "parserModules": 0
+    },
+    {
+      "label": "after",
+      "round": 1,
+      "wallMs": 218.74400000000003,
+      "modules": 93,
+      "parserModules": 0
+    },
+    {
+      "label": "before",
+      "round": 1,
+      "wallMs": 859.1593,
+      "modules": 180,
+      "parserModules": 86
+    },
+    {
+      "label": "before",
+      "round": 2,
+      "wallMs": 705.5888,
+      "modules": 180,
+      "parserModules": 86
+    },
+    {
+      "label": "after",
+      "round": 2,
+      "wallMs": 266.25879999999995,
+      "modules": 93,
+      "parserModules": 0
+    },
+    {
+      "label": "after",
+      "round": 3,
+      "wallMs": 325.82,
+      "modules": 93,
+      "parserModules": 0
+    },
+    {
+      "label": "before",
+      "round": 3,
+      "wallMs": 643.0261,
+      "modules": 180,
+      "parserModules": 86
+    },
+    {
+      "label": "before",
+      "round": 4,
+      "wallMs": 656.5464000000001,
+      "modules": 180,
+      "parserModules": 86
+    },
+    {
+      "label": "after",
+      "round": 4,
+      "wallMs": 233.392,
+      "modules": 93,
+      "parserModules": 0
+    }
+  ]
+}

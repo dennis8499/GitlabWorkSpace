@@ -1,0 +1,138 @@
+{
+  "head": "378554a5e48b0cd68deeb021f620dcd9479c8394",
+  "version": "0.41.0",
+  "files": [
+    {
+      "path": "scripts/benchmark-host-import.mjs",
+      "sha256": "5bfab39d895df4767f54419c94689087a9efa31371782c7e34283e8ca6721f95"
+    },
+    {
+      "path": "scripts/verify-vsix.py",
+      "sha256": "8e938c8fae9d56d2c47fc17f598779ab3dbefb181edf19810f632571b4fee85d"
+    },
+    {
+      "path": "src/codex/bridge.ts",
+      "sha256": "778d25c94135b31adaf90d4e7e12be4b7e944b829c876004482f2036371e4780"
+    },
+    {
+      "path": "src/codex/projectWiki.ts",
+      "sha256": "22a2e9b533e59e1e2ade4848b6817a3e7760bd1144b428079ba28ab7745142be"
+    },
+    {
+      "path": "src/codex/transcript.ts",
+      "sha256": "ed2c6e83dd61ec517d67598698ea4edbd64ad69d9bde8d88107b86eadce15eed"
+    },
+    {
+      "path": "src/codex/workflowProtocol.ts",
+      "sha256": "2b62146292ed51f939d286b80cba0fed603d2a9b6a3c1a0237cfc5de2078e019"
+    },
+    {
+      "path": "src/codex/workflowService.ts",
+      "sha256": "975061bbc5e3673593ae6513877cb991c1c482bdfed6b96cb81591ac8522f9fe"
+    },
+    {
+      "path": "src/webview/CodexWorkflow.tsx",
+      "sha256": "7aab79631feccc00847091be7b938fdc1374c59057548c71eebefff12f21344f"
+    },
+    {
+      "path": "src/webview/CodexWorkspace.tsx",
+      "sha256": "3ca369b97ae9eeac394c1a3fd8350dc37c99bebab3fac4ed940351e0825a90c3"
+    },
+    {
+      "path": "src/webview/VirtualRows.tsx",
+      "sha256": "bd73aa3bb46b765c650e73c0656595207c2ca93efb76fa2e77e194a8810be38d"
+    },
+    {
+      "path": "src/webview/codex-panel.css",
+      "sha256": "4ffe5a4b17c2160e66a840f7101e793d48a344519627589759b7ca9615814dfc"
+    },
+    {
+      "path": "src/webview/codexUiState.ts",
+      "sha256": "8821f5ee05c4540837d1f3be57c94d1bf4b67de8e86dfe1e2733b058a68bdf29"
+    },
+    {
+      "path": "src/workspace/actionPolicy.ts",
+      "sha256": "cc906aa4e612aea51de0dce409f9244de0c38c7ab8155c21f4c50d0963c88b88"
+    },
+    {
+      "path": "src/workspace/bmadWorkflow.ts",
+      "sha256": "0ad9ae7b0b7d2dc1415f79b8b338ca3b61071738c77cad4d7162dcbb532e9f51"
+    },
+    {
+      "path": "src/workspace/workspaceCapabilities.ts",
+      "sha256": "2a0df8f0be61af9f0c298ff8b73809c313a0a2f11b956a785f820b33f5e3ee22"
+    },
+    {
+      "path": "src/workspace/workspacePanel.ts",
+      "sha256": "25762097dd35bf9f8f88fac9a3a36c5e120d871e48718b09db55e9736b895cd3"
+    },
+    {
+      "path": "src/workspace/workspaceProtocol.ts",
+      "sha256": "bb0aafa6197c6155d29cd86dcecb40f3314c66b9cce2ca63d56a354b8606e03b"
+    },
+    {
+      "path": "src/workspace/workspaceRequestValidation.ts",
+      "sha256": "6c774f785d9aa4153e1e53cda925bb07a90ad2adb77e79497275307bf24c9520"
+    },
+    {
+      "path": "test/behavior/codex-renderer-benchmark.mjs",
+      "sha256": "aa67c8f27c7c7f47c2fda7882c48bd8f92b534302ae2e21a52689cadb905b294"
+    },
+    {
+      "path": "test/behavior/dashboard.test.mjs",
+      "sha256": "bc15ee777354c9b4146d852723bc2d0e94bee6d22fae717b3978174f2e74f4b4"
+    },
+    {
+      "path": "test/extension/bmadFlow.test.ts",
+      "sha256": "b3c64f9925fbb7a80e3e3a297708a3fa69f527ae2cb75eec7a3f46f0d8c46169"
+    },
+    {
+      "path": "test/unit/bmadWorkspace.test.ts",
+      "sha256": "af6014cda929924a56e1fe9004cffde0af87c225ecb2f74fbc41124955de20d2"
+    },
+    {
+      "path": "test/unit/codexHistoryCache.test.ts",
+      "sha256": "b3616479999038a2c7284330fc01833755197084106700f48f31c4da2c18ed07"
+    },
+    {
+      "path": "test/unit/codexTranscript.test.ts",
+      "sha256": "72c22110c7b381ba48bc480b2b7e1f11bfc225361ace9b122b5855234f8b78f7"
+    },
+    {
+      "path": "test/unit/codexWorkflowHost.test.ts",
+      "sha256": "80f927d4ef10edc4701d0a0e97a6f35d370ec95a0831ba5be996eca6d0ff37be"
+    },
+    {
+      "path": "test/unit/codexWorkflowService.test.ts",
+      "sha256": "a1b9951f80f310b25d03b8bf77573a1ca2d4b3aac45febd6b9aefdc11ccb3c9b"
+    },
+    {
+      "path": "test/unit/projectWiki.test.ts",
+      "sha256": "1c535609632df0a2431b18c6e90b5db08625c8040c39f2b79e988751e94ea271"
+    },
+    {
+      "path": "test/unit/workspaceRequestValidation.test.ts",
+      "sha256": "7a5f3fedb0ab29ed8e16984fdc8c0a90c10dc17998a7325d7249828f06d9b74c"
+    }
+  ],
+  "prepared": {
+    "schema": "gitlab-workspace-prepared/v1",
+    "stages": [
+      "lint",
+      "compile",
+      "webview",
+      "issue"
+    ],
+    "outputs": [
+      "out",
+      "out/src/extension.js",
+      "resources/issue-webview",
+      "resources/sidebar-webview",
+      "resources/issue-webview/dashboard.js",
+      "resources/sidebar-webview/sidebar.js",
+      "resources/issue-webview/issue-test.js"
+    ],
+    "inputs": "976c5e0ebea600558b14ddcc9c052b5853983047bd640ab9d1ff69959744dc5f",
+    "outputSha256": "20e2f89871e8829de45f0a21fd4e8fbddf5970dce33e15cd63472a7be756d436"
+  }
+}

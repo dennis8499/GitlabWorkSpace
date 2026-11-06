@@ -119,9 +119,10 @@ const taskSource: Check = value => record(value) && (
             : value.kind === 'review' && object({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
 
 export const workspaceRequestSchemas = {
-  startCodexTask: { source: taskSource }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key) },
+  startCodexTask: { source: taskSource }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key), force: optional(boolean) },
   showCodexTask: { taskId: identity }, readCodexResult: { taskId: identity }, openCodexOrigin: { taskId: identity }, openCodexChanges: { taskId: identity },
-  previewProjectWiki: { taskId: identity, refresh: optional(boolean), confirmRetry: optional(boolean) },
+  previewProjectWiki: { taskId: identity, refresh: optional(boolean), confirmRetry: optional(boolean), cursor: optional(identity) },
+  cancelProjectWikiPreview: { taskId: identity },
   publishProjectWiki: { taskId: identity, revision: identity }, publishCodexReview: { taskId: identity, body: string(50000, 1) },
   sendCodexMessage: { taskId: identity, text }, cancelCodexTask: { taskId: identity }, resumeCodexTask: { taskId: identity },
   pauseCodexTask: { taskId: identity }, deleteCodexTask: { taskId: identity }, setCodexAutoAccept: { taskId: identity, enabled: boolean },

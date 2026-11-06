@@ -156,3 +156,62 @@ test('CE Wiki REST contract uses encoded nested slugs, Markdown payloads and the
   assert.equal(new Headers(seen[3].init?.headers).get('PRIVATE-TOKEN'), 'test-token');
   assert.throws(() => client.getProjectWikiPage(4, '../unsafe'), /invalid/);
 });
+
+test('Wiki preview saves each checked page and resumes a failed batch without reading completed pages again', async t => {
+  const f = await fixture(t);
+  for (const name of ['n-1', 'n-2', 'n-3']) await writeFile(path.join(f.source, 'wiki', name + '.md'), '# ' + name);
+  await f.store.create(f.id, f.origin, f.source);
+  const reads: string[] = [], progress: number[] = [];
+  let failing = true;
+  const client = { ...f.client, getProjectWikiPage: async (project: number, slug: string) => {
+    reads.push(slug);
+    if (failing && slug === 'codebase/n-1') throw new GitLabApiError('Unavailable', 503);
+    return f.client.getProjectWikiPage(project, slug);
+  } };
+  const partial = await f.store.preview(f.id, f.origin, client, () => {}, { onProgress: value => progress.push(value.progress!.completed) });
+  assert.equal(progress[0], 0, 'the local preview appears before any remote page is checked');
+  assert.equal(partial.progress!.status, 'error'); assert.equal(partial.progress!.completed, 2);
+  assert.equal(partial.pages.filter(page => page.action === 'unchecked').length, 3);
+  await assert.rejects(f.store.publish(f.id, f.origin, partial.revision, client, () => {}), /尚未完成預覽/);
+  assert.equal(reads.length, 3); assert.deepEqual(f.writes, []);
+  failing = false; reads.length = 0;
+  const complete = await new ProjectWikiStore(path.join(f.root, 'drafts')).preview(f.id, f.origin, client, () => {}, { cursor: partial.progress!.nextCursor });
+  assert.equal(complete.progress!.status, 'ready'); assert.equal(complete.progress!.completed, 5);
+  assert.deepEqual(reads, ['codebase/n-1', 'codebase/n-2', 'codebase/n-3']);
+  reads.length = 0; await f.store.preview(f.id, f.origin, client, () => {});
+  assert.deepEqual(reads, [], 'a warm preview has no HTTP reads');
+});
+
+test('Wiki batches stop after twenty pages, reject stale cursors and keep refresh checks separate from old baselines', async t => {
+  const f = await fixture(t);
+  for (let index = 0; index < 19; index++) await writeFile(path.join(f.source, 'wiki', `page-${index}.md`), '# Page');
+  await f.store.create(f.id, f.origin, f.source);
+  const reads: string[] = [];
+  const client = { ...f.client, getProjectWikiPage: async (project: number, slug: string) => { reads.push(slug); return f.client.getProjectWikiPage(project, slug); } };
+  const first = await f.store.preview(f.id, f.origin, client, () => {});
+  assert.equal(reads.length, 20); assert.equal(first.progress!.status, 'partial'); assert.equal(first.progress!.completed, 20);
+  const last = await f.store.preview(f.id, f.origin, client, () => {}, { cursor: first.progress!.nextCursor });
+  assert.equal(reads.length, 21); assert.equal(last.progress!.status, 'ready');
+  const refreshed = await f.store.preview(f.id, f.origin, client, () => {}, { refresh: true, maxPages: 1 });
+  assert.equal(refreshed.progress!.completed, 1); assert.equal(refreshed.pages.filter(page => page.action === 'unchecked').length, 20);
+  await assert.rejects(f.store.preview(f.id, f.origin, client, () => {}, { cursor: first.progress!.nextCursor }), /預覽已變更/);
+  await assert.rejects(f.store.publish(f.id, f.origin, refreshed.revision, client, () => {}), /尚未完成預覽/);
+  assert.equal(reads.length, 22, 'stale continuation and incomplete publication do not send HTTP');
+});
+
+test('Wiki cancellation preserves checked pages and a 429 response never starts another page automatically', async t => {
+  const f = await fixture(t); await f.store.create(f.id, f.origin, f.source);
+  const controller = new AbortController(), reads: string[] = [];
+  const client = { ...f.client, getProjectWikiPage: async (project: number, slug: string) => { reads.push(slug); return f.client.getProjectWikiPage(project, slug); } };
+  const cancelled = await f.store.preview(f.id, f.origin, client, () => {}, { signal: controller.signal,
+    onProgress: value => { if (value.progress!.completed === 1) controller.abort(); } });
+  assert.equal(cancelled.progress!.status, 'cancelled'); assert.equal(reads.length, 1);
+  const limited = { ...client, getProjectWikiPage: async (_project: number, slug: string): Promise<GitLabWikiPage> => {
+    reads.push(slug); throw new GitLabApiError('Too many requests', 429);
+  } };
+  const paused = await f.store.preview(f.id, f.origin, limited, () => {}, { cursor: cancelled.progress!.nextCursor });
+  assert.equal(paused.progress!.completed, 1); assert.equal(paused.progress!.status, 'error'); assert.match(paused.error!, /要求暫停/);
+  assert.deepEqual(reads, ['codebase/index', 'codebase/module']);
+  const complete = await f.store.preview(f.id, f.origin, client, () => {}, { cursor: paused.progress!.nextCursor });
+  assert.equal(complete.progress!.status, 'ready'); assert.equal(reads.length, 3); assert.deepEqual(f.writes, []);
+});

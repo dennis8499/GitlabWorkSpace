@@ -41,7 +41,14 @@ export interface ProjectWikiPreview {
   sourceBranch: string;
   sourceSha: string;
   projectPath: string;
-  pages: Array<{ slug: string; title: string; content: string; previousContent?: string; action: 'create' | 'update' | 'unchanged'; published: boolean }>;
+  pages: Array<{ slug: string; title: string; content: string; previousContent?: string; action: 'unchecked' | 'create' | 'update' | 'unchanged'; published: boolean }>;
+  progress?: {
+    status: 'loading' | 'partial' | 'ready' | 'cancelled' | 'error';
+    completed: number;
+    total: number;
+    nextCursor?: string;
+    reason?: string;
+  };
   error?: string;
   uncertain?: boolean;
 }
