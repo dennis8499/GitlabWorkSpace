@@ -1,5 +1,7 @@
 # GitLab Workspace：VS Code UI/UX 全面審查
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 本文件保留 `ddab4c2` 的原始審查與修改前證據，原始結論為 **Needs changes**。後續修復、測試、前後畫面與尚待人工驗收項目見 [實作與驗收紀錄](implementation-results.md)。下列 F01–F11 與檢核表描述基準版本，不代表修復後狀態。
 
 審查日期：2026-11-05（Asia/Taipei）。基準：`main`／`ddab4c2`，Extension `0.39.0`，宣告最低 VS Code `1.90.0`。本次交付包括本報告、[實作方案](implementation-plan.md)、重現程式及證據；產品功能的修改列於實作方案。
@@ -72,7 +74,7 @@ P1：應優先修復的使用者資料、主要操作、可讀性或訊息邊界
 
 在 640×700 的 viewport 開啟「遠端與進階操作」。工具列換行後，觸發點移到左側；選單仍固定 `right: 0`、`min-width: 185px`。5 個操作的左緣為 **−142px**，右緣只有 31px。父層的 overflow 使使用者只能看到選單邊緣。
 
-![Git 進階選單在窄編輯區被裁切](evidence/git-menu-narrow-640.png)
+[Git 進階選單在窄編輯區被裁切（歷史摘要）](#f02git-選單在窄編輯區裁切)
 
 修正：依可用空間選擇左／右對齊，將選單限制在工作台範圍；必要時使用工作台根層的 overlay。補 Escape、關閉後還原焦點、方向鍵與 viewport 邊界檢查。帳號選單本次 640px 開啟時未見同一裁切問題，勿一併改壞。
 
@@ -82,7 +84,7 @@ P1：應優先修復的使用者資料、主要操作、可讀性或訊息邊界
 
 跟隨 VS Code 主題時，Diff hunk 仍使用固定 `#86b6fa`。Light Modern fixture 的計算後背景是 `#f8f8f8`，對比 **1.961:1**；這是約 11px 的實際資訊文字。新增／刪除背景也使用固定色彩混合。一般文字的 AA 對比基準為 4.5:1。[VS Code Webviews 主題要求](https://code.visualstudio.com/api/ux-guidelines/webviews)、[W3C 對比說明](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
 
-![Light 主題的 Diff 區段標題](evidence/git-diff-light.png)
+[Light 主題的 Diff 區段標題（歷史摘要）](#f03diff-的語意色彩未完整跟隨主題)
 
 修正：hunk 前景使用可讀的主題 foreground／textLink token；新增、刪除改用 `diffEditor.inserted*`／`removed*` token，並保留 `+`／`-` 與文字。High Contrast 增加可辨識邊界與 focus，驗證 HC Light。品牌識別與圖譜分類色可保留用途，但不應承擔唯一語意。
 
@@ -141,7 +143,7 @@ Issue 與 MR 的 tabs 有 `role="tab"`、`aria-selected`、roving tabindex 與�
 
 240／320px 渲染無水平溢出；但登入卡、Dashboard、訊息中心、6 個工作入口及設定，使 Repo 區分別從約 **504／487px** 才開始。每列與展開鈕都是獨立 Tab 落點，資料導覽與原生 Explorer／SCM 的操作模型不同。
 
-![240px 側欄](evidence/sidebar-240.png)
+[240px 側欄（歷史摘要）](#f09側欄應優先展示工作資料)
 
 修正：在既有 Container 內逐步換成原生 Repo／工作項目 View，動作放 view title／context menu／Command Palette，空白時用 `viewsWelcome`。Tree item 應代表 Repo、Issue、MR 等資料；不要把「分析」「設定」等動作改成假 Tree Item 按鈕。此 Container 現有 Repo 資料，並非 Activity Bar 點擊即直接開 Panel；本報告不把它判成官方禁止的直接 launcher 行為。[VS Code Views](https://code.visualstudio.com/api/ux-guidelines/views)、[Activity Bar](https://code.visualstudio.com/api/ux-guidelines/activity-bar)
 
@@ -196,9 +198,9 @@ Issue 與 MR 的 tabs 有 `role="tab"`、`aria-selected`、roving tabindex 與�
 
 `npm.cmd run prepare:validation` 完成 ESLint 零警告、Host TypeScript、Webview 型別及 Dashboard／Sidebar／Issue test bundle 建置。
 
-`npm.cmd run test:behavior:prepared` 的 Node 與 Issue 情境通過；原執行的登入情境因 sandbox 暫存目錄 atomic rename `EPERM` 失敗，原失敗仍保留在 [behavior-timings.json](evidence/behavior-timings.json)。將程序的 `TEMP`／`TMP` 導向工作區內隔離目錄後，單獨重跑登入情境 **10／10 通過**，見 [connect-tests.log](evidence/connect-tests.log)。[Node 行為結果](evidence/behavior-node.log)、[Issue 情境結果](evidence/behavior-issues.log) 可逐項查閱。
+`npm.cmd run test:behavior:prepared` 的 Node 與 Issue 情境通過；原執行的登入情境因 sandbox 暫存目錄 atomic rename `EPERM` 失敗，原失敗仍保留在 [behavior-timings.json](evidence/behavior-timings.json)。將程序的 `TEMP`／`TMP` 導向工作區內隔離目錄後，單獨重跑登入情境 **10／10 通過**，見 [connect-tests.log（歷史摘要）](#測試紀錄與限制)。[Node 行為結果（歷史摘要）](#測試紀錄與限制)、[Issue 情境結果（歷史摘要）](#測試紀錄與限制) 可逐項查閱。
 
-16 個指定單元檔案共 **107 項，106 通過，1 失敗**。將 Temp 放入 Git checkout 後，需額外設定 `GIT_CEILING_DIRECTORIES` 避免 fixture 誤認父 Repo；最後剩下目錄別名測試的 Windows `symlink EPERM`。[完整結果](evidence/unit-tests-isolated.log)。該項不能標成通過，也不據此認定產品有目錄別名回歸。未執行完整 `npm test`、Release 打包、真實 GitLab／Codex、F5／NVDA／跨視窗及實際 zoom。
+16 個指定單元檔案共 **107 項，106 通過，1 失敗**。將 Temp 放入 Git checkout 後，需額外設定 `GIT_CEILING_DIRECTORIES` 避免 fixture 誤認父 Repo；最後剩下目錄別名測試的 Windows `symlink EPERM`。[完整結果（歷史摘要）](#測試紀錄與限制)。該項不能標成通過，也不據此認定產品有目錄別名回歸。未執行完整 `npm test`、Release 打包、真實 GitLab／Codex、F5／NVDA／跨視窗及實際 zoom。
 
 瀏覽器與 Host 探測的重跑方式：
 

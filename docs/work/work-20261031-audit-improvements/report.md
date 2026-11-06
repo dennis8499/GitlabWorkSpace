@@ -1,12 +1,14 @@
 # GitLab Workspace 0.37.3 改善與風險驗證
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 > 檢視完成：五項修正已在最終 VSIX 的自動回歸與隔離測試中通過；原生讀屏、原生捲軸拖曳及真實 GitLab 登入仍未驗證。額外回歸發現並修正列高更新與 200／201 切換精度問題；長路徑、過期讀取與圖譜效能風險保留後續處理。原始稽核資料保留於 [原報告](../work-20261031-project-audit/report.md)。
 
 ## 版本與驗證邊界
 
-- 基準來源 commit：`164e0f9a5a8beb7581814532f8b84af7a6d495fd`。原版 VSIX SHA-256：`259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142`；[原版附件](evidence/baseline/gitlab-workspace-0.37.3.vsix)。
-- 最終 VSIX SHA-256：`62a21520e3ae9ffb1f80a20e28a6854fb8acf2fdfde1aedf167257dea32cb017`；[最終附件](evidence/final/gitlab-workspace-0.37.3.vsix)。版本仍為 0.37.3。第一版中間修正及候選版分別保存於 [revision](evidence/revision/gitlab-workspace-0.37.3.vsix)、[revision3](evidence/revision3/gitlab-workspace-0.37.3.vsix)。
-- 因工作樹同時出現本輪以外的 Reviewer 變更且當下編譯失敗，本輪後續建置使用記錄的 base commit 加本輪修改的隔離快照；[快照清單](evidence/isolated-source-manifest.json)、[原工作樹編譯失敗](evidence/concurrent-build-failure/compile.log)。並行變更完整保留，與本輪變更整合後仍需另行驗證。
+- 基準來源 commit：`164e0f9a5a8beb7581814532f8b84af7a6d495fd`。原版 VSIX SHA-256：`259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142`；[原版附件（歷史摘要）](#版本與驗證邊界)。
+- 最終 VSIX SHA-256：`62a21520e3ae9ffb1f80a20e28a6854fb8acf2fdfde1aedf167257dea32cb017`；[最終附件（歷史摘要）](#版本與驗證邊界)。版本仍為 0.37.3。第一版中間修正及候選版分別保存於 [revision（歷史摘要）](#版本與驗證邊界)、[revision3（歷史摘要）](#版本與驗證邊界)。
+- 因工作樹同時出現本輪以外的 Reviewer 變更且當下編譯失敗，本輪後續建置使用記錄的 base commit 加本輪修改的隔離快照；[快照清單](evidence/isolated-source-manifest.json)、[原工作樹編譯失敗（歷史摘要）](#版本與驗證邊界)。並行變更完整保留，與本輪變更整合後仍需另行驗證。
 - Windows 10.0.26300 x64、Intel Core Ultra 7 258V、8 個邏輯處理器、32 GiB RAM；VS Code 1.144.0、Node.js 24.21.0、Git 2.55.0.windows.5、Python 3.14.7。封裝 UI 使用 Chromium 156、固定合成資料及模擬 Host。依使用者選擇未登入真實 GitLab，亦未執行真實 GitLab 寫入。
 - 未新增產品依賴、公開 API、使用者設定或資料遷移。此輪 Git、圖譜切換門檻及收據保留政策僅調查，沒有修改。
 
@@ -17,21 +19,21 @@
 | Repo checkbox 名稱 | Chromium 無障礙樹中的 Repo checkbox 沒有可辨識名稱。 | 完整路徑與 checkbox 以 label 關聯；無障礙樹確認名稱與勾選狀態，點擊文字及 Space 可各切換一次。 |
 | SVG 圖譜鍵盤操作 | 節點的有效 `tabIndex` 為 -1，無法以 Tab 聚焦，亦無焦點外圈。 | 使用小寫 `tabindex`，增加焦點外圈；Tab、Shift+Tab、Enter、Space、更新保留焦點及節點刪除後返回工具列通過。 |
 | 搜尋焦點 | Repo、Issue、MR 搜尋框缺少清楚的聚焦外框。 | 三種搜尋框加入主題色焦點外框，指定測試未見焦點前後幾何變化。 |
-| 窄版 Repo 名稱 | 430 px 下尾碼不同的長路徑被截斷成相同文字。 | 長路徑可換行，尾碼不同的 Repo 可辨識；[畫面](evidence/final/matrix/430-dark-1-clone.png)。 |
+| 窄版 Repo 名稱 | 430 px 下尾碼不同的長路徑被截斷成相同文字。 | 長路徑可換行，尾碼不同的 Repo 可辨識；[畫面（歷史摘要）](#修正與驗證)。 |
 | 大型清單 | 2,000 Repo 與 10,000 Issue 在固定測試畫面中分別掛載全部 2,000 與 10,000 列。 | 修正清單高度與捲動容器後分別掛載 18、17 列，鍵盤可到達末筆。200／201 筆雙向切換與捲動錨點、聚焦列保留、刪除與空清單焦點回復通過。 |
 
-[功能與 Chrome 無障礙樹原始結果](evidence/final/functional/functional.json)；[最終封裝 smoke 結果](evidence/final/packaged-ui/revision.json)。原版同一 smoke 工具的 checkbox 名稱、搜尋外框、SVG 聚焦及兩種大列表檢查共五項失敗，修正版全部通過；[原版結果](evidence/baseline/packaged-ui/baseline.json)。窄版長名稱另有[原版畫面](evidence/baseline/repo/remote-repos-430.png)與[量測](evidence/baseline/repo/remote-repos.json)。受影響頁面於 430／639／640／641／800／959／960／961／1440 px、三種模擬主題及 CSS 100%／200% 共 162 個情境通過指定檢查，見[畫面矩陣](evidence/final/matrix/matrix.json)。這些檢查不等於真實讀屏或原生 VS Code 主題驗收。
+[功能與 Chrome 無障礙樹原始結果](evidence/final/functional/functional.json)；[最終封裝 smoke 結果](evidence/final/packaged-ui/revision.json)。原版同一 smoke 工具的 checkbox 名稱、搜尋外框、SVG 聚焦及兩種大列表檢查共五項失敗，修正版全部通過；[原版結果](evidence/baseline/packaged-ui/baseline.json)。窄版長名稱另有[原版畫面（歷史摘要）](#修正與驗證)與[量測](evidence/baseline/repo/remote-repos.json)。受影響頁面於 430／639／640／641／800／959／960／961／1440 px、三種模擬主題及 CSS 100%／200% 共 162 個情境通過指定檢查，見[畫面矩陣](evidence/final/matrix/matrix.json)。這些檢查不等於真實讀屏或原生 VS Code 主題驗收。
 
 補充回歸在最終封裝通過 MR 200／201 筆切換、滾輪到末筆、Home／End／方向鍵與末筆操作、刪除末筆後焦點移到前一列、430 px／200% 長名稱與標籤列高、隱藏恢復，以及 MR Diff 展開狀態及操作結果位置保留：[結果](evidence/final/virtual-consumers/consumers.json)。中間版測到列高快取失效時序造成重疊及四捨五入造成錨點偏移，兩次失敗均保留於 [第一版](evidence/revision/virtual-consumers/consumers.json)、[候選版](evidence/revision2/virtual-consumers/consumers.json)。原生捲軸滑鼠拖曳受阻：同一無頭 Chromium 在[獨立標準捲動元件](evidence/revision2/scrollbar-diagnostic/scrollbar.json)也無法拖動，滾輪、鍵盤與程式捲動有測試，不能據此宣稱實際拖曳已驗收。
 
 ## 完整回歸
 
-最終來源以實際安裝的 VS Code 1.144.0 在隔離快照執行 `npm.cmd test` 成功，耗時 883.422 秒：[完整日誌與階段結果](evidence/full-regression-final/timings.json)。第一次隔離執行使用下載版 VS Code，出現內建 Worker 載入錯誤後主動中斷；[中斷記錄](evidence/interrupted-archive-host/extension.log)。
+最終來源以實際安裝的 VS Code 1.144.0 在隔離快照執行 `npm.cmd test` 成功，耗時 883.422 秒：[完整日誌與階段結果](evidence/full-regression-final/timings.json)。第一次隔離執行使用下載版 VS Code，出現內建 Worker 載入錯誤後主動中斷；[中斷記錄（歷史摘要）](#完整回歸)。
 
 - Extension Host：13 通過、3 pending；其中真實 GitLab 登入未測。
 - 單元：908 通過、3 項平台條件跳過、0 失敗。
 - Webview 行為：219 通過；Issue／連線情境及 WorkflowKit 1.3.1 安裝、升級、回復 5／5 通過。
-- VSIX 封裝及驗證通過。首次在 Windows 沙箱內的封裝驗證曾因暫存目錄存取被拒，失敗日誌保留於 [sandbox-package-failure](evidence/sandbox-package-failure/verify-package.log)；宿主環境重跑已通過。
+- VSIX 封裝及驗證通過。首次在 Windows 沙箱內的封裝驗證曾因暫存目錄存取被拒，失敗日誌保留於 [sandbox-package-failure（歷史摘要）](#完整回歸)；宿主環境重跑已通過。
 
 最終 VSIX 的隔離本機 Git GUI 測試以實際 VS Code 1.144.0 和獨立本機 bare remote 驗證 commit、push、rebase、stash、merge、衝突等流程，整體通過；包含實際 2,000 節點 Worker 測試。確認視窗由 Extension Host 測試轉接器回覆，並非人工操作原生對話框。五個各 60 秒的閒置測試未觀察到套件或內建 Git 的背景命令。[最終本機 Git GUI 結果](evidence/final/git-gui/git-gui-local.json)。最終 VSIX 第一次在較深的隔離快照路徑重跑時，互動式 rebase 的 Git 備份 ref 無法建立，Git 回報 `Filename too long`；[失敗結果](evidence/final/git-gui-long-path/git-gui-local.json)。將測試 Repo 移至較短的隔離暫存路徑後重跑通過，只有[測試驅動程式](evidence/final/git-gui-runner-isolation.patch)調整路徑，產品 Git 程式未變動。
 
@@ -76,13 +78,13 @@
 | 501／Canvas | 35.4／36.2 | 35.4／36.1 | 18.2 | 10／68 ms |
 | 2,000／Canvas | 35.3／36.1 | 35.5／36.2 | 18.2 | 10／63 ms |
 
-500／501 的差異在此合成瀏覽器測試的十輪均可觀察：500 節點每輪選取 p95 為 128.3–158.5 ms，501 節點為 36.0–36.3 ms；原因尚需原生效能追蹤確認，不能據此直接更動切換門檻。[最終來源逐輪資料](evidence/final/graph/graph-10rounds.json)及[彙整](evidence/final/graph/summary.json)；前一次工作樹圖譜量測保留於[原始記錄](evidence/graph/graph-10rounds.json)，兩次執行時機與負載可能不同，未計算回歸百分比。來源測試亦涵蓋隱藏／恢復與 Worker 結束，[結果](evidence/graph/worker-smoke.json)。最終封裝畫面的抽屜開關、快速切換、以程式開啟中斷退出、切頁與 reduced-motion 動態變更共 5／5 通過；[事件](evidence/final/motion/motion.json)、[trace](evidence/final/motion/motion-trace.zip)、[依原時間戳保存的短片](evidence/final/motion/motion.gif)。退出遮罩期間的中斷測試採程式觸發，不代表此時滑鼠可穿透遮罩；因原生 UI 控制受阻，尚未完成人工正常速度連續觀看。
+500／501 的差異在此合成瀏覽器測試的十輪均可觀察：500 節點每輪選取 p95 為 128.3–158.5 ms，501 節點為 36.0–36.3 ms；原因尚需原生效能追蹤確認，不能據此直接更動切換門檻。[最終來源逐輪資料](evidence/final/graph/graph-10rounds.json)及[彙整](evidence/final/graph/summary.json)；前一次工作樹圖譜量測保留於[原始記錄](evidence/graph/graph-10rounds.json)，兩次執行時機與負載可能不同，未計算回歸百分比。來源測試亦涵蓋隱藏／恢復與 Worker 結束，[結果](evidence/graph/worker-smoke.json)。最終封裝畫面的抽屜開關、快速切換、以程式開啟中斷退出、切頁與 reduced-motion 動態變更共 5／5 通過；[事件](evidence/final/motion/motion.json)、[trace（歷史摘要）](#圖譜及動態效果)、[依原時間戳保存的短片（歷史摘要）](#圖譜及動態效果)。退出遮罩期間的中斷測試採程式觸發，不代表此時滑鼠可穿透遮罩；因原生 UI 控制受阻，尚未完成人工正常速度連續觀看。
 
 ## 資源使用量
 
 ### 原生 VS Code 離線閒置
 
-以最終 VSIX、實際安裝的 VS Code、隔離空工作區開關工作台 30 次後，觀察 600.5 秒；取得 592 筆、取樣間隔中位數 1.012 秒，0 筆採樣錯誤。這個原生情境沒有登入 GitLab、執行計時器或顯示圖譜；測試擴充本身的 CPU／I/O 包含在 Extension Host 中，不能完全歸因於產品。[統計與限制](evidence/performance-native/analysis.json)、[逐秒原始資料](evidence/performance-native/samples-01.jsonl)。
+以最終 VSIX、實際安裝的 VS Code、隔離空工作區開關工作台 30 次後，觀察 600.5 秒；取得 592 筆、取樣間隔中位數 1.012 秒，0 筆採樣錯誤。這個原生情境沒有登入 GitLab、執行計時器或顯示圖譜；測試擴充本身的 CPU／I/O 包含在 Extension Host 中，不能完全歸因於產品。[統計與限制](evidence/performance-native/analysis.json)、[逐秒原始資料（歷史摘要）](#原生-vs-code-離線閒置)。
 
 | 程序類型 | 單核心 CPU p95 | Working set 首分鐘／末分鐘中位數／峰值 | Handles／threads 峰值 | 程序讀取／寫入 bytes 首尾計數差 |
 |---|---:|---:|---:|---:|
@@ -104,7 +106,7 @@ CPU 0% 表示在此取樣解析度下 p95 為零，不代表絕無活動。多�
 
 四組 Renderer 的 CPU 首、末分鐘中位數均為 0%，受程序計時器解析度影響；表格是多個 Renderer 的加總，可能重複計入共用記憶體。I/O 差值只統計開始與結束都存在的程序，仍是程序計數器而非實體磁碟流量。Worker CPU 不能從 Renderer 程序獨立拆分；測試樹的 Node／Python 與其他程序分組詳見[完整彙整](evidence/resources-final/separated-summary.json)及[第三組彙整](evidence/resources-final-retry/separated-summary.json)。取樣器本身另記錄：單核心 CPU p95 約 1.58%，working set 峰值約 33.8–36.2 MiB；首末趨勢及 handles／threads 在上述彙整中。四組均為各一次受控觀察，不能單獨證明長期無洩漏或將差異歸因於特定功能。
 
-動畫開啟／計時器關閉的第一輪有一筆程序分類檔解析錯誤，發生在取樣器與分類檔寫入同時更新的時序，其他 599 筆程序樣本與 600 筆瀏覽器樣本保留於 [原始資料](evidence/resources-final/timer-0-animation-1/process-samples.jsonl)。修正取樣器後補跑取得 600／600 筆、0 錯誤，分類回退 0 次；第一版中間修正的資料另保留於 [resources](evidence/resources/summary.json)，不當作最終封裝的數據。
+動畫開啟／計時器關閉的第一輪有一筆程序分類檔解析錯誤，發生在取樣器與分類檔寫入同時更新的時序，其他 599 筆程序樣本與 600 筆瀏覽器樣本保留於 [原始資料（歷史摘要）](#計時器與圖譜動畫)。修正取樣器後補跑取得 600／600 筆、0 錯誤，分類回退 0 次；第一版中間修正的資料另保留於 [resources](evidence/resources/summary.json)，不當作最終封裝的數據。
 
 ## 已完成的風險調查
 

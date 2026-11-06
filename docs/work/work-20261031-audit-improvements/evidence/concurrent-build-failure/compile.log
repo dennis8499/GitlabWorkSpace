@@ -1,5 +1,0 @@
-Command: ["C:\\Program Files\\nodejs\\node.exe","node_modules/typescript/bin/tsc","-p","."]
-src/workspace/reviewerCapabilities.ts(11,10): error TS2393: Duplicate function implementation.
-src/workspace/reviewerCapabilities.ts(21,10): error TS2393: Duplicate function implementation.
-src/workspace/reviewerCapabilities.ts(31,10): error TS2393: Duplicate function implementation.
-src/workspace/workspacePanel.ts(2009,7): error TS1117: An object literal cannot have multiple properties with the same name.

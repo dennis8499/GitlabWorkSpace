@@ -1,8 +1,10 @@
 # Git GUI 驗收
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 ## 修正版 VSIX 的隔離本機流程
 
-VS Code 1.140.0 Extension Host 載入最終 `dist/gitlab-workspace-0.13.2.vsix`，SHA-256 `449fe8650e11fea663f033825d77c49ba3da033b3e13fecfc2059c423ff6fc35`。runner 在本次 run 目錄建立最小 Git seed、bare remote 和工作樹，不連 GitLab。完整狀態與 Git SHA 在 [git-gui-local.json](git-gui-local.json)，截圖在 [local-git-gui.png](screenshots/local-git-gui.png)。
+VS Code 1.140.0 Extension Host 載入最終 `dist/gitlab-workspace-0.13.2.vsix`，SHA-256 `449fe8650e11fea663f033825d77c49ba3da033b3e13fecfc2059c423ff6fc35`。runner 在本次 run 目錄建立最小 Git seed、bare remote 和工作樹，不連 GitLab。完整狀態與 Git SHA 在 [git-gui-local.json](git-gui-local.json)，截圖在 [local-git-gui.png（歷史摘要）](#修正版-vsix-的隔離本機流程)。
 
 本機 GUI 操作 PASS：分支、逐行／整檔暫存、取消暫存、Commit、Push、upstream、歷史、Fetch／Pull、Merge parent Diff、六種互動式 Rebase、Amend、Force-with-lease 遠端 SHA 漂移拒絕、Stash、Cherry-pick 和 Revert。測試以 Git index、commit SHA 和 bare remote 狀態核對。單次 Repo 探索為 1,973.88 ms、冷啟動至 CDP 為 280.89 ms；這不是 10 輪 p95 資料。
 

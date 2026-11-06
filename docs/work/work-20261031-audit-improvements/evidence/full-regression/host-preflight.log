@@ -1,8 +1,0 @@
-Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-extension-tests.mjs","--preflight","C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T15-05-27.971Z-33784\\extension-host.json"]
-- Resolving version...
-√ Validated version: 1.144.0
-- Found at https://update.code.visualstudio.com/1.144.0/win32-x64-archive/stable?released=true
-√ Found at https://update.code.visualstudio.com/1.144.0/win32-x64-archive/stable?released=true
-- Downloading (347.14 MB)
-√ Downloaded VS Code (b224f6bf5a4fcad5fa4c640ed10f179c3b613e48) into C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.vscode-test\vscode-win32-x64-archive-1.144.0
-{"schema":"gitlab-workspace-extension-host/v1","executable":"C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.vscode-test\\vscode-win32-x64-archive-1.144.0\\Code.exe","version":"1.144.0","requested":"stable","removedEnvironmentKeys":["ELECTRON_RUN_AS_NODE","VSCODE_CODE_CACHE_PATH","VSCODE_CRASH_REPORTER_PROCESS_TYPE","VSCODE_CWD","VSCODE_ESM_ENTRYPOINT","VSCODE_HANDLES_UNCAUGHT_ERRORS","VSCODE_IPC_HOOK","VSCODE_NLS_CONFIG","VSCODE_NODE_COMPILE_CACHE_KIND","VSCODE_NODE_COMPILE_CACHE_ROOT","VSCODE_PID"]}

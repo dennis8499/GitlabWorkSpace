@@ -1,5 +1,7 @@
 # GitLab Workspace 0.37.3 全面檢視報告
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 > 檢視完成：已確認 5 項介面／效能問題。完整自動回歸與本機 Git GUI 通過；真實 GitLab 登入、真實讀屏及原生視窗連續視覺驗收不在本輪已驗證範圍。
 
 ## 範圍與環境
@@ -49,7 +51,7 @@ Git GUI 的開啟、選檔、暫存、提交及隱藏後，各閒置約 60 秒�
 2. **高：一般大小的 Issue SVG 圖譜節點無法以 Tab 聚焦。** 封裝畫面輸出大小寫敏感的 `tabIndex` SVG 屬性，Chromium 讀取節點 `tabIndex` 為 -1，鍵盤與程式化聚焦均未進入節點；在隔離測試 DOM 臨時設置小寫 `tabindex` 後可聚焦，證實原因。節點的無障礙名稱存在，但尚無可見焦點樣式。建議修正 SVG 聚焦屬性並增加明確的焦點視覺狀態。[因果測試](evidence/ui/graph-packaged/graph-focus.json)；涉及 `src/webview/IssueGraph.tsx`。
 3. **高：專案 Repo 勾選框缺少無障礙名稱。** 測試中的 20 個 Repo checkbox 在 Chromium 無障礙樹均沒有名稱，讀屏使用者無法由控制項本身知道將選取哪個 Repo。建議以關聯 label 或可翻譯的 `aria-label` 綁定完整 Repo 名稱，並增加無障礙樹回歸測試。此處為瀏覽器無障礙樹檢查，真實讀屏軟體尚未測試。[畫面與資料](evidence/ui/matrix/matrix.json)；涉及 `src/webview/dashboard.tsx`。
 4. **中：搜尋框鍵盤焦點缺少邊框狀態。** Repo／Issue／MR 搜尋框聚焦前後的 outline、border、box-shadow 與背景未變，影響鍵盤使用者定位。建議為欄位或外層提供高對比且不依賴文字游標的焦點樣式。[資料](evidence/ui/matrix/matrix.json)；涉及 `src/webview/dashboard.css`。
-5. **中：窄版遠端 Repo 名稱可能無法區分。** 430 px 畫面中，三個只有尾碼不同、尚未 Clone 的 Repo 名稱顯示成同一段截斷文字，無 title 或其他完整名稱入口，可能選錯專案。建議保留有辨識度的尾碼，並提供可用鍵盤取得的完整名稱。[430 px 畫面](evidence/ui/remote-repos/remote-repos-430.png)與[檢查資料](evidence/ui/remote-repos/remote-repos.json)。
+5. **中：窄版遠端 Repo 名稱可能無法區分。** 430 px 畫面中，三個只有尾碼不同、尚未 Clone 的 Repo 名稱顯示成同一段截斷文字，無 title 或其他完整名稱入口，可能選錯專案。建議保留有辨識度的尾碼，並提供可用鍵盤取得的完整名稱。[430 px 畫面（歷史摘要）](#已重現的問題)與[檢查資料](evidence/ui/remote-repos/remote-repos.json)。
 
 ## 已完成的響應時間量測
 
@@ -109,7 +111,7 @@ Extension Host 的作業系統 I/O 計數在該段前後增加 176 次讀取與 
 
 - **快速切換 Repo 可能產生不必要的錯誤通知。** 本機 Git GUI 測試執行四輪快速切換並最後顯示正確 Repo，但訊息中心在相近時間出現 6 筆「版控畫面已離開。」錯誤。來源碼顯示畫面 generation 改變時舊讀取會丟出此訊息，並可能被視為一般失敗；時間與事件順序支持兩者相關，但 action trace 沒有時間戳、僅觀察一次，尚不能證明每筆通知的根因或穩定重現。建議補測將過期讀取歸類為取消，避免打擾使用者。[本機 Git GUI 證據](evidence/git-gui/git-gui-local.json)。
 - **500 節點 SVG／501 節點 Canvas 切換邊界值得重測。** 合成圖譜的單輪觀察中，500 節點 frame-gap p95 為 50.1 ms、最長 long task 為 71 ms；501 節點為 16.8 ms、該輪無 long task。單輪資料不足以證明穩定差異或實際使用者卡頓，建議重複量測並加入原生 VS Code 情境。[邊界數據](evidence/ui/graph-boundary.json)。
-- **VS Code Git API 棄用提示。** 本機 GUI runner 在 VS Code 1.144.0 記錄 `getBranches()` 已棄用的提示；本輪功能測試仍通過。建議盤點替代 API 的相容性並保留最低支援版本測試，不將此提示視為現有功能失敗。[執行紀錄](evidence/git-gui/runner.log)
+- **VS Code Git API 棄用提示。** 本機 GUI runner 在 VS Code 1.144.0 記錄 `getBranches()` 已棄用的提示；本輪功能測試仍通過。建議盤點替代 API 的相容性並保留最低支援版本測試，不將此提示視為現有功能失敗。[執行紀錄（歷史摘要）](#待單獨確認的風險)
 
 ## 改善順序
 

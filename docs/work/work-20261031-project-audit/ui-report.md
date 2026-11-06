@@ -1,5 +1,7 @@
 # UI／UX、無障礙與動畫檢視紀錄
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 ## 測試邊界與版本
 
 - 實測為 **封裝 Webview + 隔離模擬 Host + headless Chromium**，不含真實 VS Code Extension Host、GitLab 或實際讀屏程式。測試使用假資料及 `https://packaged-ui.test` 的攔截路由，不連接遠端服務。
@@ -13,14 +15,14 @@
 - **重現**：開啟「我的工作 → 圖譜」，以 3 個 Issue 的模擬資料渲染後，嘗試對第一個節點 `.focus()` 或使用 Tab 移入節點。Chrome 中節點的 `element.tabIndex` 為 `-1`，DOM 有大寫 `tabIndex="0"`、沒有 SVG 需要的小寫 `tabindex`；焦點停留在原有控制項。將小寫 `tabindex="0"` **只加入隔離測試頁面的 DOM** 後，同一節點可立即聚焦，驗證屬性大小寫為直接原因。
 - **影響**：小型圖譜的 SVG Issue 節點雖暴露為有名稱的 accessibility tree `button`，但鍵盤使用者無法透過節點的 Enter／Space 選取流程操作。大於 500 節點的 Canvas 路徑另需獨立測試，不能由此結果推斷。
 - **後續**：修正實際產生的 SVG 屬性並以真實 Chromium 測試 Tab、Enter、Space；同時補明確焦點樣式。隔離測試中，即使補上小寫屬性後焦點確實進入節點，outline 仍為 `none`，節點描邊也未因焦點改變。
-- **證據**：[實際 VSIX 圖譜焦點診斷](evidence/ui/graph-packaged/graph-focus.json)、[診斷截圖](evidence/ui/graph-packaged/node-lowercase-tabindex-diagnostic.png)；相關來源為 `src/webview/IssueGraph.tsx` 與 `src/webview/dashboard.css`。
+- **證據**：[實際 VSIX 圖譜焦點診斷](evidence/ui/graph-packaged/graph-focus.json)、[診斷截圖（歷史摘要）](#p1圖譜-svg-節點無法取得鍵盤焦點)；相關來源為 `src/webview/IssueGraph.tsx` 與 `src/webview/dashboard.css`。
 
 ### P1：大型 Repo／Issue 清單未有效視窗化
 
 - **重現**：在 1440×900 的 dashboard 建立 200、201、2,000 筆假 Repo 與 Issue；實際檢查 DOM 列數、捲動容器、hit-test，並真正點選最後一列。200 筆以下全部掛載符合預期；201 及 2,000 筆則仍分別掛載全部 201／2,000 列。
 - **量測到的結構**：2,000 筆 Repo 清單的 clientHeight 為 118,000 px；2,000 筆 Issue 清單為 176,375 px，而 dashboard page 的可見高度為 808 px。主要捲動由上層 page 處理，清單本身隨內容撐高，造成視窗化計算看到極大高度。最後一列確實可捲至、命中並點擊；先前僅以「DOM 中存在」判斷可見的初版矩陣不作可用性結論。
 - **影響與後續**：清單超過門檻時無法享有預期的 DOM 數量上限，應修正捲動／高度約束，並以同一組資料驗證捲動、鍵盤焦點與視窗化數量。此處尚不推論卡頓程度或記憶體增加幅度，相關效能另行量測。
-- **證據**：[各情境容器尺寸與 hit-test](evidence/ui/list-boundary/list-boundaries.json)、[2,000 Repo 的最後一列實際可見](evidence/ui/list-boundary/clone-2000-actual-last.png)、[2,000 Issue 的最後一列](evidence/ui/list-boundary/developer-2000-actual-last.png)；相關來源為 `src/webview/VirtualRows.tsx` 與 `src/webview/dashboard.css`。
+- **證據**：[各情境容器尺寸與 hit-test](evidence/ui/list-boundary/list-boundaries.json)、[2,000 Repo 的最後一列實際可見（歷史摘要）](#p1大型-repoissue-清單未有效視窗化)、[2,000 Issue 的最後一列（歷史摘要）](#p1大型-repoissue-清單未有效視窗化)；相關來源為 `src/webview/VirtualRows.tsx` 與 `src/webview/dashboard.css`。
 
 ### P1：Repo 列勾選框缺少可辨識名稱
 
@@ -32,13 +34,13 @@
 
 - **重現**：在「我的工作」、「專案」及「待審查」分別聚焦搜尋框。三者均已取得焦點並符合 `:focus-visible`，但輸入框與其父層的 outline、border、box-shadow、background 在聚焦前後沒有變化；CSS 將 `.search input:focus-visible` 的 outline 設為 `none`。
 - **影響與後續**：鍵盤操作時可能難以辨識目前焦點，尤其搜尋框為透明且沒有外框。應替輸入框或其容器加入清楚的焦點指示，並檢查明亮、深色與高對比主題。
-- **證據**：[三個頁面的 `searchFocus` 計算樣式](evidence/ui/matrix/matrix.json)、[專案搜尋框焦點畫面](evidence/ui/matrix/clone-1440-dark-zoom1-search-focused.png)。
+- **證據**：[三個頁面的 `searchFocus` 計算樣式](evidence/ui/matrix/matrix.json)、[專案搜尋框焦點畫面（歷史摘要）](#p2搜尋輸入框缺乏明顯焦點指示)。
 
 ### P2：窄面板相似 Repo 路徑無法區分
 
 - **重現**：430 px 下放入三個僅尾碼不同、尚未 clone 的長路徑 Repo。三列均呈現相同的 `organisation/very-long-group-name/pl…`，完整路徑未以 `title` 或其他顯示入口提供；文字寬度 406 px，欄位只有 259 px。800／1440 px 的同一資料可完整呈現。
 - **影響與後續**：使用者難以確定要下載哪個 Repo。可優先顯示 Repo 名稱、允許換行，或提供可鍵盤操作的完整路徑；修復時應一併補齊 checkbox 名稱。
-- **證據**：[430 px 截圖](evidence/ui/remote-repos/remote-repos-430.png)、[寬度及路徑資料](evidence/ui/remote-repos/remote-repos.json)。
+- **證據**：[430 px 截圖（歷史摘要）](#p2窄面板相似-repo-路徑無法區分)、[寬度及路徑資料](evidence/ui/remote-repos/remote-repos.json)。
 
 ## 已執行的畫面矩陣
 
@@ -87,9 +89,9 @@
 | 200（SVG） | 53.8 ms | 40.0 ms | 16.8–33.4 ms | 4 次，最長 60 ms |
 | 2,000（Canvas + Worker） | 33.7 ms | 33.7 ms | 約 16.8 ms | 1 次，56 ms |
 
-[十輪原始樣本](evidence/ui/graph-renderer-10rounds.json)可供檢查；此次結果不外推到原生 Webview 或真實 GitLab。原始首次沙箱執行因本機 `127.0.0.1` 網路存取被拒而失敗，之後在已核准的主機執行環境重跑；[失敗紀錄](evidence/ui-graph-renderer-console.log)與[成功紀錄](evidence/ui-graph-renderer-unsandboxed-console.log)均保留。
+[十輪原始樣本](evidence/ui/graph-renderer-10rounds.json)可供檢查；此次結果不外推到原生 Webview 或真實 GitLab。原始首次沙箱執行因本機 `127.0.0.1` 網路存取被拒而失敗，之後在已核准的主機執行環境重跑；[失敗紀錄（歷史摘要）](#圖譜與動畫)與[成功紀錄（歷史摘要）](#圖譜與動畫)均保留。
 
 - **500／501 節點邊界**：500 節點為 SVG、500 個 DOM 節點且無 Worker；501 為 Canvas、1 個 Worker。單輪觀察 500 節點 frame-gap p95 50.1 ms、long task 最長 71 ms；501 節點 16.8 ms 且沒有 long task。這只是一次邊界樣本，須重複才能判斷是否為穩定差異。[原始資料](evidence/ui/graph-boundary.json)
 - **Worker**：Blob Worker 啟動、實際回覆、inactive／hidden 暫停、恢復，以及卸載後終止均通過隔離 Chromium 測試。[smoke 證據](evidence/ui/graph-worker-smoke.json)
 - **圖譜資源取樣**：2,000 節點動畫啟用／停用各在預熱後取 60 個每秒樣本；兩組均維持一個 Worker。Chrome 主要執行緒 59 秒間 TaskDuration 增量分別約 0.149／0.023 秒，JS heap 由約 4.64／4.58 MB 降至約 3.63／3.55 MB。CDP 的 TaskDuration 不包含 Worker CPU，JS heap 非完整程序記憶體；60 秒也不能證明長期無洩漏。[原始每秒資料](evidence/ui/graph-resources.json)
-- **畫面動畫**：在模擬 Host 錄下正常動畫的設定開關、三次快速重開／關閉、頁面與項目切換；執行期間切換 reduced-motion 後，overlay 的計算 `animation-name` 變為 `none`。四項自動動作 PASS，無未處理 page error；保留 [Playwright trace](evidence/ui/motion/motion-trace.zip)、[17 張附時間戳的 screencast 影格與動作結果](evidence/ui/motion/motion.json)。已查看部分影格，但 native pipe 不可用，未完成原生視窗連續觀看或主觀流暢度驗收。
+- **畫面動畫**：在模擬 Host 錄下正常動畫的設定開關、三次快速重開／關閉、頁面與項目切換；執行期間切換 reduced-motion 後，overlay 的計算 `animation-name` 變為 `none`。四項自動動作 PASS，無未處理 page error；保留 [Playwright trace（歷史摘要）](#圖譜與動畫)、[17 張附時間戳的 screencast 影格與動作結果](evidence/ui/motion/motion.json)。已查看部分影格，但 native pipe 不可用，未完成原生視窗連續觀看或主觀流暢度驗收。

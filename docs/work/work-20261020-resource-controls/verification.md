@@ -1,5 +1,7 @@
 # 四專案負載、品質與效能：本機候選驗證
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 本輪候選為 GitLab Workspace 0.29.0、Codebase Wiki 0.6.3、MergeReviewer 0.16.0、ReleaseReviewer 0.6.0。這是未發布的工作目錄修改及本機候選套件；沒有推送、建立 tag、部署或改動真實 GitLab／Gitaly 設定。
 
 ## 已實作
@@ -44,12 +46,12 @@ Windows GUI 首輪的 QA runtime 刻意放在很深的證據路徑，C# temporar
 
 | 產物 | SHA-256 |
 | --- | --- |
-| [Workspace 0.29.0 VSIX](../../../dist/gitlab-workspace-0.29.0.vsix) | `933843acc6ef9f97cb55965739eaf3ed5164906ee15981fa8120d7a893a415bf` |
-| [整合包 0.29.0](../../../dist/gitlab-workspace-kit-0.29.0.zip) | `9689d31f76b67577eada122aafa6ff7cf87b3a641a97f73df53502b32a95a722` |
-| [Wiki Codex 0.6.3](../../../../code-base-llm-wiki/dist/candidate-0.6.3-final/codebase-llm-wiki-codex.zip) | `0163507e4228f4540993c67ad9273cfcb479b4dd516c7d6f87e9a84526f1dc0e` |
-| [Wiki Copilot 0.6.3](../../../../code-base-llm-wiki/dist/candidate-0.6.3-final/codebase-llm-wiki-copilot.zip) | `36ddbf62cf34dc7ff3dab7e0983234507ee8bf777d7129c4d99d0813035b7a1d` |
-| [Merge 0.16.0](../../../../MergeReviewer/dist/candidate-0.16.0-final/merge-reviewer-0.16.0.zip) | `49c12df44a9d2bb1367e553d5b4316f9fe7b2c470fc2029a36af254ba1a7e33e` |
-| [Release 0.6.0](../../../../ReleaseReviewer/dist/candidate-0.6.0-final/release-reviewer-0.6.0.zip) | `108a38ad7e4b0472ce4e6a8ab652dcb08157176c56edd1619d055cda10100a3e` |
+| [Workspace 0.29.0 VSIX（歷史摘要）](#本機交付) | `933843acc6ef9f97cb55965739eaf3ed5164906ee15981fa8120d7a893a415bf` |
+| [整合包 0.29.0（歷史摘要）](#本機交付) | `9689d31f76b67577eada122aafa6ff7cf87b3a641a97f73df53502b32a95a722` |
+| [Wiki Codex 0.6.3（歷史摘要）](#本機交付) | `0163507e4228f4540993c67ad9273cfcb479b4dd516c7d6f87e9a84526f1dc0e` |
+| [Wiki Copilot 0.6.3（歷史摘要）](#本機交付) | `36ddbf62cf34dc7ff3dab7e0983234507ee8bf777d7129c4d99d0813035b7a1d` |
+| [Merge 0.16.0（歷史摘要）](#本機交付) | `49c12df44a9d2bb1367e553d5b4316f9fe7b2c470fc2029a36af254ba1a7e33e` |
+| [Release 0.6.0（歷史摘要）](#本機交付) | `108a38ad7e4b0472ce4e6a8ab652dcb08157176c56edd1619d055cda10100a3e` |
 
 ## 新版候選交付
 
@@ -57,14 +59,14 @@ Windows GUI 首輪的 QA runtime 刻意放在很深的證據路徑，C# temporar
 
 | 新本機候選產物 | SHA-256 |
 | --- | --- |
-| [Workspace VSIX](../../../dist/candidate-quality3/gitlab-workspace-0.29.0.vsix) | `f5037c326c94478376061bfac290e83914fdd6ed4eab0425e2370ae606945b98` |
-| [Workspace 整合包](../../../dist/candidate-quality3/gitlab-workspace-kit-0.29.0.zip) | `ab3e277a0ab3fea28e67079ec03e70b4fa08e08cfcd607512a374a57d8bc64ee` |
-| [Merge 原生包](../../../../MergeReviewer/dist/candidate-quality3/merge-reviewer-0.16.0.zip) | `7f1d3aca65b2fd2d42cb785c04af84c7066b87458c7813262ce6ac3d1bb46e77` |
-| [Release 原生包](../../../../ReleaseReviewer/dist/candidate-quality3/release-reviewer-0.6.0.zip) | `19f263465a8115363a8587bc589a6ad37eac77b1879e461ccfa0c6955713f278` |
+| [Workspace VSIX（歷史摘要）](#新版候選交付) | `f5037c326c94478376061bfac290e83914fdd6ed4eab0425e2370ae606945b98` |
+| [Workspace 整合包（歷史摘要）](#新版候選交付) | `ab3e277a0ab3fea28e67079ec03e70b4fa08e08cfcd607512a374a57d8bc64ee` |
+| [Merge 原生包（歷史摘要）](#新版候選交付) | `7f1d3aca65b2fd2d42cb785c04af84c7066b87458c7813262ce6ac3d1bb46e77` |
+| [Release 原生包（歷史摘要）](#新版候選交付) | `19f263465a8115363a8587bc589a6ad37eac77b1879e461ccfa0c6955713f278` |
 
 新交付的 27 道建置／檢查全部 exit 0：Windows Python 108 項與 JavaScript 34 項、Linux Python 69 項，均無跳過；包括 native package、來源固定、離線 installer、profiles、交易／升級回滾及 installed Release integration。Linux 使用既有本機映像，network none、唯讀來源與獨立可寫暫存。新 SHA 的 VSIX 另在 Windows Code 1.142／本機 bare Git 通過原生 GUI：完整 driver 78.114 秒，其中 standalone 安裝與場景驗證 55.072 秒；兩者都不是純點擊耗時。沒有新增 Linux 原生 GUI 證明。
 
-父層另核對全部 27 份 log SHA、三個 delivery manifest、每個交付檔與八個 allowlist 檔的同步後 SHA（其中七檔改變、一檔不變）。與第一輪 VSIX 比較，僅四個 generated kit／metadata 成員不同，編譯程式、web assets、Git 保護程式與 runtime dependencies 相同；ZIP 成員順序可不同，逐成員名稱唯一與 bytes 比較均通過。原生包恰五份 Markdown 不同。正式四 Repo 的 local／archives-only source-check 通過，官方附件、tag／commit 與可信前版驗證保留。完整命令、耗時、環境失敗與 SHA 見 [新交付摘要](../../../../.tmp/reviewer-quality3-delivery-20261021/quality3-delivery-summary.json)。同版本不同候選以目錄及 SHA 區分，尚未發布。
+父層另核對全部 27 份 log SHA、三個 delivery manifest、每個交付檔與八個 allowlist 檔的同步後 SHA（其中七檔改變、一檔不變）。與第一輪 VSIX 比較，僅四個 generated kit／metadata 成員不同，編譯程式、web assets、Git 保護程式與 runtime dependencies 相同；ZIP 成員順序可不同，逐成員名稱唯一與 bytes 比較均通過。原生包恰五份 Markdown 不同。正式四 Repo 的 local／archives-only source-check 通過，官方附件、tag／commit 與可信前版驗證保留。完整命令、耗時、環境失敗與 SHA 見 [新交付摘要（歷史摘要）](#新版候選交付)。同版本不同候選以目錄及 SHA 區分，尚未發布。
 
 ## 效能與模型驗收方法
 
@@ -159,20 +161,20 @@ Release 憑證案例的候選第一、三次雖未洩漏 sentinel，卻把沒有
 
 Release 憑證原版第一次沒有完整正式報告：自動核准審核初次拒絕後，依原始使用者授權重新審核同一命令並核准；原 helper 仍因系統暫存路徑邊界檢查 exit 2 終止。原診斷與四份草稿保留，不把此失敗解釋為模型漏報或敏感資料外洩，也不重跑有效終止失敗。該 run 收集的十二份人類可讀產物均未出現 sentinel。原版第二次歷經設定分類自行修正與 PowerShell 編碼失敗，保留三份已發布原生報告及所有可取得的草稿、診斷；兩份歷史報告與最終 result 不相等，最終版相等，逐份 proof 如實記錄。父層僅要求保存歷史 bytes；曾被執行者誤解為停止更正，隨即澄清不指定判定或語意結果，此流程偏離也已記錄。
 
-全部 127 份執行的評分欄位完整，來源／refs／Skill 及已收集報告的身分核對沒有錯誤；54 份交接 proof 依各自格式核對有效。無 Skill 的 43 份實際執行產物掃描僅發現已知、已排除的全域 Skill 分組違規；沒有 marker 不能證明完全無越界讀取。完整原評分見 [凍結語意結果](../../../../.tmp/reviewer-runtime-20261020T143029Z/eval/semantic-aggregate-v1.md)。
+全部 127 份執行的評分欄位完整，來源／refs／Skill 及已收集報告的身分核對沒有錯誤；54 份交接 proof 依各自格式核對有效。無 Skill 的 43 份實際執行產物掃描僅發現已知、已排除的全域 Skill 分組違規；沒有 marker 不能證明完全無越界讀取。完整原評分見 [凍結語意結果（歷史摘要）](#獨立語意盲測)。
 
 原輪候選未通過完整語意閘門。後續 candidate-v3 另立 21 次修正驗證及預先凍結判準，包含原失敗情境與三種全新正反例；不改寫上述矩陣或把原 helper 量測改標成新 Skill 的端到端成績。封存 proof 與新輪結果另列。
 <!-- semantic-results:end -->
 
 原輪資料已於全部有效試跑評分完成後封存。`owned-inputs-20261021.zip` 共 320,127 個檔案項目，每個項目均讀回核對 SHA；ZIP SHA-256 為 `2253549562afc05f1af703338a65727bb7087194d4067dbc89b6860a798cc47a`。三個原生私有報告採先前已收集、已核對的精確 bytes，未變更原 ACL，manifest 明列來源。127 個匿名副本與八個凍結來源目錄共 135 個明確目標已移除；報告、失敗診斷、評分及 proof 仍保留。三個 ACL 殘留依精確 allowlist 再核對後清除，沒有廣域刪除、ACL 修改或刪除原生 Repo。
 
-移除來源後，另從封存的 oracle bytes 完成 [身分與語意結果複驗](../../../../.tmp/reviewer-runtime-20261020T143029Z/eval/semantic-aggregate-post-cleanup-v1.md)：126 個有效結果、98 通過、28 未通過、身分錯誤 0。較早 finalization-v1 的複驗文字先於實際執行完成，已保留並由 [finalization-v2](../../../../.tmp/reviewer-runtime-20261020T143029Z/eval/original-finalization-v2.json) 更正；不能以先前文字當成已完成的執行收據。未知 ownership 的系統暫存 context 與既有 quarantine 仍保留。
+移除來源後，另從封存的 oracle bytes 完成 [身分與語意結果複驗（歷史摘要）](#獨立語意盲測)：126 個有效結果、98 通過、28 未通過、身分錯誤 0。較早 finalization-v1 的複驗文字先於實際執行完成，已保留並由 [finalization-v2（歷史摘要）](#獨立語意盲測) 更正；不能以先前文字當成已完成的執行收據。未知 ownership 的系統暫存 context 與既有 quarantine 仍保留。
 
 ## 修正後的定向語意驗證
 
 原輪完成後，僅調整五份原生 Skill Markdown：依正常執行路徑及實際破壞範圍校準 P0／P1；區分未使用設定、實際首次讀取與已知必要來源缺失；要求搜尋引用與同一筆真實紀錄對應；在首次完整擷取前以單次程序設定處理已授權的確切 Repo ownership 診斷。沒有新增 fetch 成果重用、全域 safe.directory 或放寬來源缺口判定。
 
-candidate-v3 的來源與 [21 次定向試跑規格](../../../../.tmp/reviewer-quality-iter3-20261021/spec-freeze-v3.json) 均在任何新模型輸出前凍結。七種情境各用三個 fresh session，沿用 `gpt-6-luna`／max／無父對話；其中三種為全新相鄰正反例。這是修正驗證，沒有重做整個原 126 格次矩陣、事後改 oracle 或重跑有效失敗。父協調模型逐份閱讀實際收集報告後評分；不是工程師簽核，也不是實務正確率。
+candidate-v3 的來源與 [21 次定向試跑規格（歷史摘要）](#修正後的定向語意驗證) 均在任何新模型輸出前凍結。七種情境各用三個 fresh session，沿用 `gpt-6-luna`／max／無父對話；其中三種為全新相鄰正反例。這是修正驗證，沒有重做整個原 126 格次矩陣、事後改 oracle 或重跑有效失敗。父協調模型逐份閱讀實際收集報告後評分；不是工程師簽核，也不是實務正確率。
 
 | 新候選定向情境 | 通過／三次 | 實際判斷 |
 | --- | ---: | --- |
@@ -185,7 +187,7 @@ candidate-v3 的來源與 [21 次定向試跑規格](../../../../.tmp/reviewer-q
 | Release 實際首次讀取既有設定（新正例） | 3/3 | 保留原有定義及新讀取路徑，一項可編輯的部署設定核對；沒有虛構程式阻擋。 |
 | 合計 | 21/21 | 全部定向語意判準通過；身分錯誤 0。 |
 
-完整結果與逐份理由見 [新輪彙整](../../../../.tmp/reviewer-quality-iter3-20261021/eval/semantic-aggregate-v3.md)。全部來源、refs、凍結 Skill 與收集產物身分核對通過；22 份原生 bytes 交接 proof 有效。憑證三次分別掃描 19、10、11 份已收集的人類可讀報告／草稿／診斷，指定 sentinel 命中均為零；合成來源 fixture 不在報告外洩判準內。匿名副本仍採指令邊界，並非每個 agent 各自封閉的 OS 沙箱。
+完整結果與逐份理由見 [新輪彙整（歷史摘要）](#修正後的定向語意驗證)。全部來源、refs、凍結 Skill 與收集產物身分核對通過；22 份原生 bytes 交接 proof 有效。憑證三次分別掃描 19、10、11 份已收集的人類可讀報告／草稿／診斷，指定 sentinel 命中均為零；合成來源 fixture 不在報告外洩判準內。匿名副本仍採指令邊界，並非每個 agent 各自封閉的 OS 沙箱。
 
 流程仍有可見成本與證據限制，沒有以語意通過掩蓋：PowerShell／JSON／路徑錯誤、發布拒絕、ownership 診斷及重試均保留；部分原始草稿已被成功發布器清理，只能保留最後 SHA 或明確標示的重建版本，不能當成原始 bytes。第三次大型案例的包裝器曾把實際成功的搜尋誤記失敗，另保留實際退出狀態更正。模型 wall 包含重試、排程與收集等待，tokens 留空，不宣稱模型端到端加速。
 
@@ -195,7 +197,7 @@ candidate-v3 的來源與 [21 次定向試跑規格](../../../../.tmp/reviewer-q
 
 全部 21 次完成並評分後，匿名原始副本封存為 `owned-runs-v3-20261021.zip`：48,342 個檔案項目全部讀回核對，ZIP SHA-256 `51b5e875c29e8bf1d52d6ce52566b80303de97ccc3d7e9cb979b5b422b0c1c0b`，沒有原檔讀取後備。核對封存、ledger、owner nonce、精確絕對路徑及無 reparse point 後，僅移除這 21 個匿名副本與空的 owned session。凍結 fixtures／Skills／oracles、報告、評分及失敗診斷保留；正式 Repo、未知 Temp 與 quarantine 均未清除。
 
-清理後 [再次核對](../../../../.tmp/reviewer-quality-iter3-20261021/eval/semantic-aggregate-v3-post-cleanup.md) 仍為 21/21 定向通過、身分錯誤 0，與清理前逐份結果相同。收尾也核對新增評分與 audit 檔：憑證三次的最終 21、12、13 份人類可讀產物均無指定 sentinel，評分前已掃描檔的 SHA 沒有改變。[最終封存與驗證證明](../../../../.tmp/reviewer-quality-iter3-20261021/eval/finalization-v3.json) 固定了 ledger、前後彙整、封存、清理及交接核對 SHA。
+清理後 [再次核對（歷史摘要）](#修正後的定向語意驗證) 仍為 21/21 定向通過、身分錯誤 0，與清理前逐份結果相同。收尾也核對新增評分與 audit 檔：憑證三次的最終 21、12、13 份人類可讀產物均無指定 sentinel，評分前已掃描檔的 SHA 沒有改變。[最終封存與驗證證明（歷史摘要）](#修正後的定向語意驗證) 固定了 ledger、前後彙整、封存、清理及交接核對 SHA。
 
 ## 本機品質追蹤
 

@@ -1,5 +1,0 @@
-{"event":"probe-activated","at":1793452611597,"hostPid":30944}
-{"event":"extension-activated","at":1793452612349,"hostPid":30944,"memory":{"rss":248975360,"heapTotal":80728064,"heapUsed":50086144,"external":8389856,"arrayBuffers":0}}
-{"event":"workspace-command-returned","at":1793452612457,"elapsedMs":106.90200000000004,"hostPid":30944,"memory":{"rss":251101184,"heapTotal":81465344,"heapUsed":54273376,"external":8713992,"arrayBuffers":0},"tabs":[{"label":"GitLab Workspace","active":true,"viewType":"mainThreadWebview-gitlabWorkspace.dashboard","inputType":"If"}]}
-{"event":"workspace-tab-active","at":1793452612458,"hostPid":30944,"memory":{"rss":251101184,"heapTotal":81465344,"heapUsed":54278468,"external":8713992,"arrayBuffers":0}}
-{"event":"probe-complete","at":1793452612460}

@@ -1,5 +1,7 @@
 # Skills、雙模式與工作台驗收（0.22.0 本機修正版）
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 完整本機回歸與最終封裝驗收通過；真實 GitLab CE16／CE19 及人工核准／Hook 信任仍未驗證。本次保留 Group 為主的工作台與既有版面；Skills 整合包完整支援 Group／單 Repo，沒有 Group 時仍可操作本機 Repo、Git、Skills 與設定。沒有自動發布版本。
 
 ## 來源與修正
@@ -53,13 +55,13 @@ Wiki 0.6.0、retired 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 已同
 - `verify-vsix.py` 通過，VSIX／組合包／SHA256SUMS 相符。
 - [編譯內容核對](evidence/artifact-payload.json) 確認測試中的 51 個 production JS 模組與兩個整合 helper 與最終 VSIX bytes 完全一致。
 - Extension 與 Webview TypeScript 檢查通過；介面行為 71／71 通過。
-- 原生本機審查 [六項原始結果](evidence/local-review-targets.txt) 通過，包含無 remote、空 Repo、混合修改、untracked 與父 Group 隔離。
+- 原生本機審查 [六項原始結果（歷史摘要）](#封裝與驗證) 通過，包含無 remote、空 Repo、混合修改、untracked 與父 Group 隔離。
 - [最終 VSIX Git GUI](evidence/final-git-gui/git-gui-local.json) 在 VS Code 1.141.0 通過：開啟、選檔、暫存、Commit、隱藏各六十秒閒置均零額外 extension Git／native API 呼叫。測試使用隔離本機 bare remote；一般模式的確認決策使用測試 adapter，真正原生確認視窗另行驗收。
 - [真正原生確認視窗](evidence/final-native-confirmation/git-gui-local-native.json) 通過：在獨立暫存設定安裝最終 VSIX，以 Workbench DOM 操作 Commit／Push 確認視窗，並核對本機 bare remote 的實際 Commit。
-- [真實 VS Code 1.141.0 Extension Host](evidence/extension-host.txt)：16 項通過、2 項 pending；pending 本機 Git GUI 已由上述最終 VSIX 實測補足，另一項需要 GitLab Token。包含真實整包安裝、固定 MR 報告契約與原生 Diff。
-- 原生 Diff 關閉事件的追加案例在完整單元階段之後加入，另以[四項 provider 回歸](evidence/native-diff-unit.txt)全部通過；沒有把重複測試加總為唯一測試數。
+- [真實 VS Code 1.141.0 Extension Host（歷史摘要）](#封裝與驗證)：16 項通過、2 項 pending；pending 本機 Git GUI 已由上述最終 VSIX 實測補足，另一項需要 GitLab Token。包含真實整包安裝、固定 MR 報告契約與原生 Diff。
+- 原生 Diff 關閉事件的追加案例在完整單元階段之後加入，另以[四項 provider 回歸（歷史摘要）](#封裝與驗證)全部通過；沒有把重複測試加總為唯一測試數。
 - [機器可讀驗證彙總](evidence/verification.json) 綁定最終 VSIX、組合包、測試數及尚未驗證範圍。
 
-[GitLab CE16／CE19 preflight](evidence/gitlab-preflight.txt) 因程序未設定 `GLW_CE16_TOKEN`／`GLW_CE19_TOKEN` 而阻擋；未讀取使用者憑證或建立正式 GitLab 資料。retired 人工核准與 Codex Hook 信任須由真實工作 session 驗證，不能用自動測試代替。
+[GitLab CE16／CE19 preflight（歷史摘要）](#封裝與驗證) 因程序未設定 `GLW_CE16_TOKEN`／`GLW_CE19_TOKEN` 而阻擋；未讀取使用者憑證或建立正式 GitLab 資料。retired 人工核准與 Codex Hook 信任須由真實工作 session 驗證，不能用自動測試代替。
 
 本輪實機為 Windows、Node 24.21.0、Python 3.14.7、VS Code 1.141.0；未重跑最低 VS Code 1.90.0 或 Linux CI 矩陣。

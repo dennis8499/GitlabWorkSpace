@@ -1,5 +1,7 @@
 # 功能、封裝與本機 Git 驗證紀錄
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 本紀錄對應 commit `164e0f9a5a8beb7581814532f8b84af7a6d495fd`、GitLab Workspace 0.37.3、Windows、VS Code 1.144.0。最終 VSIX SHA-256 為 `259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142`。測試使用隔離工作區及本機 bare remote；沒有執行遠端 GitLab 寫入。
 
 ## 本輪回歸
@@ -7,18 +9,18 @@
 | 項目 | 結果與限制 | 證據 |
 |---|---|---|
 | 編譯、Webview 型別與建置 | 通過 | [timings.json](validation-unsandboxed/timings.json) |
-| Extension Host | 13 通過、3 pending；預設 pending 的 Git GUI 與大型圖譜另以封裝測試執行，真實 GitLab pending | [extension.log](validation-unsandboxed/extension.log) |
-| 單元 | 911 項中 908 通過、3 跳過，0 失敗；跳過的是僅適用 POSIX 的 Git transport helper 測試 | [unit.log](validation-unsandboxed/unit.log) |
-| Webview 行為 | 217 項通過，0 失敗 | [behavior-node.log](validation-unsandboxed/behavior-node.log) |
-| Issue／連線行為 | 分別 29／29 與 10／10 個 Cucumber 情境通過 | [Issue](validation-unsandboxed/behavior-issues.log)、[連線](validation-unsandboxed/behavior-connect.log) |
-| 發行工具與 WorkflowKit | tooling 41 通過；固定 WorkflowKit 1.3.1 安裝、升級、外部 BMAD 保留與回復等 5 項整合測試通過 | [tooling](validation-unsandboxed/release-tooling.log)、[integration](validation-unsandboxed/release-workflowkit_131_integration.log) |
-| 打包 | package 與 VSIX 驗證通過；完整 `npm.cmd test` 耗時 845.762 秒 | [package.log](validation-unsandboxed/package.log)、[verify-package.log](validation-unsandboxed/verify-package.log) |
-| 本機 Git GUI | PASS：分段／整檔暫存、Commit、Push、amend、互動式 rebase、merge、stash、revert／cherry-pick、租約競爭及不確定結果恢復；另包含空 Repo、Detached HEAD、Worktree、Submodule、快速切換、隱藏恢復草稿。Commit／Push 的確認決策採測試 adapter，不能視為原生確認視窗通過。 | [git-gui-local.json](git-gui/git-gui-local.json)、[runner.log](git-gui/runner.log) |
+| Extension Host | 13 通過、3 pending；預設 pending 的 Git GUI 與大型圖譜另以封裝測試執行，真實 GitLab pending | [extension.log（歷史摘要）](#本輪回歸) |
+| 單元 | 911 項中 908 通過、3 跳過，0 失敗；跳過的是僅適用 POSIX 的 Git transport helper 測試 | [unit.log（歷史摘要）](#本輪回歸) |
+| Webview 行為 | 217 項通過，0 失敗 | [behavior-node.log（歷史摘要）](#本輪回歸) |
+| Issue／連線行為 | 分別 29／29 與 10／10 個 Cucumber 情境通過 | [Issue（歷史摘要）](#本輪回歸)、[連線（歷史摘要）](#本輪回歸) |
+| 發行工具與 WorkflowKit | tooling 41 通過；固定 WorkflowKit 1.3.1 安裝、升級、外部 BMAD 保留與回復等 5 項整合測試通過 | [tooling（歷史摘要）](#本輪回歸)、[integration（歷史摘要）](#本輪回歸) |
+| 打包 | package 與 VSIX 驗證通過；完整 `npm.cmd test` 耗時 845.762 秒 | [package.log（歷史摘要）](#本輪回歸)、[verify-package.log（歷史摘要）](#本輪回歸) |
+| 本機 Git GUI | PASS：分段／整檔暫存、Commit、Push、amend、互動式 rebase、merge、stash、revert／cherry-pick、租約競爭及不確定結果恢復；另包含空 Repo、Detached HEAD、Worktree、Submodule、快速切換、隱藏恢復草稿。Commit／Push 的確認決策採測試 adapter，不能視為原生確認視窗通過。 | [git-gui-local.json](git-gui/git-gui-local.json)、[runner.log（歷史摘要）](#本輪回歸) |
 | 原生圖譜 Worker | 在真實 VS Code Webview 執行封裝後的 2,000 節點 Canvas／Blob Worker 案例通過；不是全部圖譜情境的效能結果。 | [local-graph-worker-report.json](git-gui/local-graph-worker-report.json) |
-| 原生自訂確認視窗，第一次 | BLOCKED：Commit 確認可見並完成；Push 前的遠端查詢後出現 Git process-tree／network lease 未確認，測試未找到 Push 確認視窗。Windows 系統原生對話框不在此 `window.dialogStyle=custom` 測試範圍。 | [結果](git-gui-native/git-gui-local-native.json)、[Commit 截圖](git-gui-native/screenshots/native-commit-confirmation.png)、[Push 時截圖](git-gui-native/screenshots/native-push-confirmation.png)、[Trace2](git-gui-native/native-vscode-git-trace2.jsonl) |
-| 原生自訂確認視窗，短 runtime 對照 | PASS：同 VSIX／VS Code，使用獨立短 runtime，Commit、Push、Force Push 確認視窗與不確定結果手動確認流程通過；持續使用隔離本機 bare remote。 | [結果](git-gui-native-short/git-gui-local-native.json)、[Push 截圖](git-gui-native-short/screenshots/native-push-confirmation.png)、[Trace2](git-gui-native-short/native-vscode-git-trace2.jsonl) |
+| 原生自訂確認視窗，第一次 | BLOCKED：Commit 確認可見並完成；Push 前的遠端查詢後出現 Git process-tree／network lease 未確認，測試未找到 Push 確認視窗。Windows 系統原生對話框不在此 `window.dialogStyle=custom` 測試範圍。 | [結果](git-gui-native/git-gui-local-native.json)、[Commit 截圖（歷史摘要）](#本輪回歸)、[Push 時截圖（歷史摘要）](#本輪回歸)、[Trace2（歷史摘要）](#本輪回歸) |
+| 原生自訂確認視窗，短 runtime 對照 | PASS：同 VSIX／VS Code，使用獨立短 runtime，Commit、Push、Force Push 確認視窗與不確定結果手動確認流程通過；持續使用隔離本機 bare remote。 | [結果](git-gui-native-short/git-gui-local-native.json)、[Push 截圖（歷史摘要）](#本輪回歸)、[Trace2（歷史摘要）](#本輪回歸) |
 
-第一次在 sandbox 內執行 `npm.cmd test` 時，Extension Host 因 VS Code 安裝目錄的 AppContainer／chdir 權限而未能啟動；其前的編譯和型別建置通過。原始失敗保留於 [validation/extension.log](validation/extension.log)。後續以宿主權限重新執行完整測試並成功，不能把第一次環境阻擋當成產品測試斷言失敗。
+第一次在 sandbox 內執行 `npm.cmd test` 時，Extension Host 因 VS Code 安裝目錄的 AppContainer／chdir 權限而未能啟動；其前的編譯和型別建置通過。原始失敗保留於 [validation/extension.log（歷史摘要）](#本輪回歸)。後續以宿主權限重新執行完整測試並成功，不能把第一次環境阻擋當成產品測試斷言失敗。
 
 ## Push 確認受阻的已知事實
 

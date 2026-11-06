@@ -15,3 +15,24 @@ __pycache__/
 *.pyc
 .verification/
 /debug.log
+
+# Historical raw evidence; keep reports, source manifests and summary JSON visible.
+/docs/work/**/*.gif
+/docs/work/**/*.jpeg
+/docs/work/**/*.jpg
+/docs/work/**/*.jsonl
+/docs/work/**/*.log
+/docs/work/**/*.mp4
+/docs/work/**/*.png
+/docs/work/**/*.vsix
+/docs/work/**/*.webm
+/docs/work/**/*.webp
+/docs/work/**/*.zip
+/docs/work/**/trace.json
+/docs/work/**/*-trace.json
+/docs/work/**/process-samples*.json
+/docs/work/**/*.stderr.txt
+/docs/work/**/*.stdout.txt
+
+# Captured terminal logs; Markdown and JSON summaries remain visible.
+/docs/work/**/evidence/**/*.txt

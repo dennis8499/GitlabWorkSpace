@@ -1,5 +1,7 @@
 # UI／UX 與按需連線改善驗證
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 本次修改依核定計畫完成分頁、固定版本快取、資料來源與傳輸階段、鍵盤焦點、過場及本機 Git 失效範圍調整。依使用者後續指示，驗收目標改為 CE 16.11.10，與正式最低版本一致。未發布正式版本，未變更 GitLab Server 設定。
 
 ## 基準
@@ -67,8 +69,8 @@ CE16 實機測試預設使用 16.11.10；驗收設定為 `GLW_CE16_EXPECTED_VERS
 
 2026-10-23 將新增合約 fixture 的版號、來源 tag／URL、合約斷言及 Metadata fallback 範例統一為 16.11.10。實機 runner 原有預設就是 16.11.10，本輪將設定測試與使用說明對齊此目標；任意精確版本 override 仍供 runner 重用，驗收時必須明確使用 16.11.10。
 
-- 編譯通過；版本相關 74／74 測試通過，包含合約、既有正向 GraphQL fixture、Session、MR 固定版本、快取及取消競態，見 [ce-16.11.10-regressions.log](evidence/ce-16.11.10-regressions.log)。
-- 實機測試設定 3／3 通過，見 [ce-16.11.10-live-profile-tests.log](evidence/ce-16.11.10-live-profile-tests.log)。
+- 編譯通過；版本相關 74／74 測試通過，包含合約、既有正向 GraphQL fixture、Session、MR 固定版本、快取及取消競態，見 [ce-16.11.10-regressions.log（歷史摘要）](#ce-161110-本輪重測與目前交付)。
+- 實機測試設定 3／3 通過，見 [ce-16.11.10-live-profile-tests.log（歷史摘要）](#ce-161110-本輪重測與目前交付)。
 - `npm.cmd run package` exit 0，包含編譯、Webview typecheck／build、封裝及 VSIX 驗證，見 [ce-16.11.10-package-validation.json](evidence/ce-16.11.10-package-validation.json)。正式程式與 UI 未因目標切換而修改，未重跑先前已通過的全套行為與原生 GUI 測試。
 - [ce-16.11.10-ui-identity.json](evidence/ce-16.11.10-ui-identity.json) 證明六個 Webview 資產與瀏覽器實測版本 bytes 完全相同；先前瀏覽器與原生 GUI 報告仍保留原 SHA。
 

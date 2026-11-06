@@ -1,5 +1,7 @@
 # Git GUI 更新修正與 GitKraken 風格改版
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 實作日期：2026-10-08。改動保留 Preact、繁體中文與既有 Git 操作確認，主題及版面樣式限定於版控區域。
 
 ## 更新與指令量
@@ -44,9 +46,9 @@ Repo 摘要的選用 `headCommit` 支援 Detached HEAD 與 WIP 連線；分支�
 
 [版面驗證紀錄](evidence/visual-validation.json)使用實際建置的 Webview 與隔離訊息橋接，檢查深色、跟隨 VS Code 的淺色、高對比及 600px 窄版。截圖已人工檢視，未發現外層水平溢出或瀏覽器錯誤。
 
-![Git GUI 深色提交圖](evidence/screenshots/git-graph-dark.png)
+[Git GUI 深色提交圖（歷史摘要）](#驗證證據)
 
-其他畫面：[Diff](evidence/screenshots/git-diff-dark.png)、[淺色](evidence/screenshots/git-graph-light.png)、[高對比](evidence/screenshots/git-graph-high-contrast.png)、[窄版圖](evidence/screenshots/git-narrow-graph.png)、[窄版變更面板](evidence/screenshots/git-narrow-changes.png)。
+其他畫面：[Diff（歷史摘要）](#驗證證據)、[淺色（歷史摘要）](#驗證證據)、[高對比（歷史摘要）](#驗證證據)、[窄版圖（歷史摘要）](#驗證證據)、[窄版變更面板（歷史摘要）](#驗證證據)。
 
 本機整合驗證使用產生的 seed、獨立 bare remote 與 VS Code 設定檔，操作打包後的真實 Webview。Commit／Push 等原生確認由 Extension Host 測試處理器回答；不將原生確認視窗的版面或真實 GitLab 遠端連線計入此驗收。
 
@@ -67,7 +69,7 @@ Repo 摘要的選用 `headCommit` 支援 Detached HEAD 與 WIP 連線；分支�
 
 真實 GUI 操作驗證涵蓋部分行／整檔暫存與取消暫存、Commit、建立分支、Push／設定 upstream、Stash Apply／Pop／Drop、捨棄與復原、Fetch／Pull、互動式 Rebase 六種 todo 操作及暫停／繼續、Amend、Force-with-lease 競態拒絕、Merge Parent Diff、Revert／Cherry-pick，以及註解／輕量標籤、Tagged Detached HEAD、空 Repo 和快速 Repo 切換。原生確認由測試處理器回答，版面不計入驗收。
 
-[真實 VS Code 截圖](evidence/screenshots/local-git-gui.png)。
+[真實 VS Code 截圖（歷史摘要）](#本機-gui-與交付結果)。
 
 交付：`dist/gitlab-workspace-0.13.2.vsix`，5,060,388 bytes。SHA-256：
 

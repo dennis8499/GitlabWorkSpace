@@ -1,5 +1,7 @@
 # 審查快照、訊息中心與 Output Style 驗證
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 日期：2026-10-16（Asia/Taipei）。候選版本：GitlabWorkSpace 0.25.0、MergeReviewer 0.14.0、Wiki 0.6.2、retired 0.8.2、ReleaseReviewer 0.4.1。
 
 本次產物是本機候選包；四個來源的 commit、dirty 狀態、逐檔摘要與 ZIP SHA-256 保存在 `resources/offline-tools/source-snapshots.json`，沒有推送、標籤或發布。Group／Repository 同樣安裝 17 個 Skills；既有工作流程功能與四工具入口保留。
@@ -26,7 +28,7 @@
 | Workspace browser behavior | 76 項首輪通過；剩餘 1 項舊 toast 斷言改為訊息中心後定向通過 |
 | Workspace BDD | Issue 30 scenarios／140 steps、Connect 10 scenarios／35 steps 通過 |
 | 真實 VS Code 1.90.0 Extension Host | 13 passing、2 個需實際環境的 live 情境 pending；沙箱外使用隔離設定檔執行 |
-| 訊息中心版面 | [1440px](evidence/notification-center-wide.png)／[480px](evidence/notification-center-narrow.png) 已人工檢視，無水平溢出 |
+| 訊息中心版面 | [1440px（歷史摘要）](#自動檢查)／[480px（歷史摘要）](#自動檢查) 已人工檢視，無水平溢出 |
 | 來源與封包一致性 | 四個本機來源、固定 ZIP 與 workspace profile hashes 通過 |
 
 Windows symlink 測試沒有提升權限執行。最初桌面宿主在沙箱內未啟動；沙箱外重跑已成功。未使用真實 GitLab 帳號，也未執行遠端發布。

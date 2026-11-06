@@ -1,5 +1,7 @@
 # UI/UX 實作與驗收紀錄
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 基準：`ddab4c2`。原始 [審查](review.md) 與 `evidence/` 保留作為修改前證據；下列結果區分自動檢查與人工驗收。
 
 | 批次 | 實作 | 回歸證據 |
@@ -42,7 +44,7 @@
 
 - [原始證據](evidence/probe-results.json) 保留不變；[第二批](after-batch2/probe-results.json)、[第三批](after-batch3/probe-results.json)、[第四批](after-batch4/probe-results.json) 記錄各次 bundle SHA-256、主題來源與限制。
 - [33 筆布局／縮放等效探測](layout-matrix/probe-results.json) 加上 [8 筆已載入 BMAD／MR 窄版](layout-rich/probe-results.json)：480／640／960／1280px 均無水平裁切、腳本錯誤或 CSP 違規。縮放使用等效 CSS viewport／device scale，**不是實際 VS Code zoom**。
-- [選單修改前](evidence/git-menu-narrow-640.png)／[480px 修改後](menu-keyboard/matrix-git-480.png)；[Diff 修改前](evidence/git-diff-light.png)／[四類主題修改後](diff-contrast/probe-results.json)；[Codex 最終保存與重建](after-final/probe-results.json)。
+- [選單修改前（歷史摘要）](#布局與前後畫面)／[480px 修改後（歷史摘要）](#布局與前後畫面)；[Diff 修改前（歷史摘要）](#布局與前後畫面)／[四類主題修改後](diff-contrast/probe-results.json)；[Codex 最終保存與重建](after-final/probe-results.json)。
 - 原生側欄的 240／320px 截圖、NVDA、實際 125%／200% 工作台縮放未取得，不將舊 Webview 側欄的截圖當作原生 View 證據。
 
 ## 整合驗收
@@ -52,14 +54,14 @@
 | 驗證 | 結果 | 證據 |
 | --- | --- | --- |
 | lint／編譯／Webview typecheck／建置 | PASS | [完整階段與指紋](verification.json) |
-| VS Code 1.90.0 Extension Host | 17 PASS、4 pending | [Host 紀錄](validation/vscode190-extension.log)；pending 為既有 opt-in Git GUI、2000-node native Worker、live GitLab CDP、live Codex 情境 |
-| Workspace Trust | PASS | [真實 Host 紀錄](validation/vscode190-workspace-trust.log) |
-| 單元測試 | 1,084 PASS、0 FAIL、3 POSIX 專用 SKIP | [完整紀錄](validation/vscode190-unit.log)；Windows junction／symlink 實際執行通過 |
-| Webview 行為測試 | 235 PASS | [完整紀錄](validation/vscode190-behavior-node.log) |
-| Cucumber Issue／帳號流程 | 29 scenarios／136 steps、10 scenarios／35 steps 全 PASS | [Issue](validation/vscode190-behavior-issues.log)、[帳號](validation/vscode190-behavior-connect.log) |
-| 驗證／發行工具 | 42 PASS | [Node 紀錄](validation/vscode190-release-tooling.log) |
-| Python 安裝／升級／rollback | 16 PASS | [完整紀錄](validation/vscode190-release-workflowkit_131_integration.log) |
-| 封裝補驗／verify-vsix | PASS | [封裝](validation/vscode190-package-recovery-package.log)、[驗證](validation/vscode190-package-recovery-verify-package.log) |
+| VS Code 1.90.0 Extension Host | 17 PASS、4 pending | [Host 紀錄（歷史摘要）](#整合驗收)；pending 為既有 opt-in Git GUI、2000-node native Worker、live GitLab CDP、live Codex 情境 |
+| Workspace Trust | PASS | [真實 Host 紀錄（歷史摘要）](#整合驗收) |
+| 單元測試 | 1,084 PASS、0 FAIL、3 POSIX 專用 SKIP | [完整紀錄（歷史摘要）](#整合驗收)；Windows junction／symlink 實際執行通過 |
+| Webview 行為測試 | 235 PASS | [完整紀錄（歷史摘要）](#整合驗收) |
+| Cucumber Issue／帳號流程 | 29 scenarios／136 steps、10 scenarios／35 steps 全 PASS | [Issue（歷史摘要）](#整合驗收)、[帳號（歷史摘要）](#整合驗收) |
+| 驗證／發行工具 | 42 PASS | [Node 紀錄（歷史摘要）](#整合驗收) |
+| Python 安裝／升級／rollback | 16 PASS | [完整紀錄（歷史摘要）](#整合驗收) |
+| 封裝補驗／verify-vsix | PASS | [封裝（歷史摘要）](#整合驗收)、[驗證（歷史摘要）](#整合驗收) |
 
 測試包 418 個檔案、1,067,329 bytes；SHA-256 `2daf1a6830ddcd86cc96fc506cca34e389c698ca3cd92b2e8857925d9a5128ac`。Dashboard HTML／JS／CSS／Codicons 字型均與測試建置逐一比對相同，JS 亦符合最終 Chromium 探測的 SHA-256。包內無舊 Webview 側欄、`.agents`、`.codex` 或 `.aws`；未發布或部署。
 
@@ -74,7 +76,7 @@
 - 最後鍵入立即重建的新增測試先重現失敗，改為事件內同步保存後通過；測試不等待 render／effect。
 - 原生命令在工作台關閉時也會顯示經清理的錯誤／警告通知，只有選擇「開啟訊息中心」才導覽；工作台可見時維持原訊息中心，不重複彈出通知。登入驗證提供原生進度。
 - 最終 `npm test` 的首次封裝因隔離副本共用 `node_modules` junction，導致 VSCE 的 `npm list --production` 將依賴列為 extraneous／missing。移除連結本身並建立獨立依賴副本後，僅重跑失敗的封裝與驗證即通過；沒有修改來源、lockfile、測試門檻或共用工作區依賴。
-- VS Code 1.145.0 曾在完整串行流程出現 Native Diff 45 秒逾時，以及 BMAD 監看 1,020ms 超過 1 秒門檻。[原始失敗紀錄](validation/vscode145-extension-failed.log) 保留。改用固定 UX 來源與獨立 profile 後，[針對性補驗](validation/vscode145-isolated-recheck.log) 4 項通過：Diff 7,569ms，BMAD 最高觀察延遲 610ms，原生 View／命令 2 項通過；門檻仍為 45 秒及 1 秒。這是針對性補驗，不宣稱完整 1.145 流程通過；完整流程另於 1.90 執行。
+- VS Code 1.145.0 曾在完整串行流程出現 Native Diff 45 秒逾時，以及 BMAD 監看 1,020ms 超過 1 秒門檻。[原始失敗紀錄（歷史摘要）](#整合驗收) 保留。改用固定 UX 來源與獨立 profile 後，[針對性補驗（歷史摘要）](#整合驗收) 4 項通過：Diff 7,569ms，BMAD 最高觀察延遲 610ms，原生 View／命令 2 項通過；門檻仍為 45 秒及 1 秒。這是針對性補驗，不宣稱完整 1.145 流程通過；完整流程另於 1.90 執行。
 - Windows Computer Use 原生管道回覆 `os error 2`，重試與重設 runtime 仍失敗；未找到 NVDA，因此人工 F5／全鍵盤／讀屏／原生窄版／實際 zoom 標示 NOT TESTED。
 - 舊 `validate-packaged-ui.mjs` 僅保留供含 Webview 側欄的歷史 VSIX 比較；遇到新版原生 View 會明確拒絕，不偽造 Tree benchmark。新版資產逐位元比對包含 Dashboard 與 Codicons 字型。
 

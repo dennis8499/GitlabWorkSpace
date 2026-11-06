@@ -1,5 +1,7 @@
 # WorkflowKit 1.3.1 對齊驗證
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 ## 測試依據
 
 - GitLab Workspace 0.37.2 的本次工作樹；WorkflowKit 1.3.1 使用 `test/fixtures/workflowkit-release-1.3.1/` 固定附件，不依賴相鄰的 WorkflowKit 目錄。
@@ -19,11 +21,11 @@
 
 已使用 Chromium 載入建置後的 Webview，並以隔離的模擬主機檢查互動、橫向溢出及執行錯誤。截圖為模擬主機畫面，不是原生 VS Code 截圖：
 
-- [BMAD 正常狀態，1440px](evidence/ui/bmad-ready-1440.png)
-- [外部 BMAD，800px](evidence/ui/bmad-external-missing-uv-800.png)
-- [套件驗證失敗，800px](evidence/ui/bmad-kit-error-800.png)
-- [Wiki 圖表，1440px](evidence/ui/wiki-visualize-1440.png)／[800px](evidence/ui/wiki-visualize-800.png)
-- [WorkflowKit 設定與安裝提醒](evidence/ui/workflowkit-settings-1440.png)
+- [BMAD 正常狀態，1440px（歷史摘要）](#畫面與交付)
+- [外部 BMAD，800px（歷史摘要）](#畫面與交付)
+- [套件驗證失敗，800px（歷史摘要）](#畫面與交付)
+- [Wiki 圖表，1440px（歷史摘要）](#畫面與交付)／[800px（歷史摘要）](#畫面與交付)
+- [WorkflowKit 設定與安裝提醒（歷史摘要）](#畫面與交付)
 
 候選 VSIX 位於 `.verification/gitlab-workspace-0.37.2-workflowkit131-candidate.vsix`，SHA-256 為 `6434bd47bbe69ed3064f6e89f5ab9ec5bda6ba16728671731b8fef88c7714a19`。已核對 ZIP 完整性、套件身分、主要建置資產與 BMAD 解析器；版本 bump 後已重新建置，套件驗證器確認安裝橋接與未內嵌整合包。
 

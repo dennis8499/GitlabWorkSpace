@@ -1,5 +1,7 @@
 # SOP 與 GitLab CE 16.11.10 實機驗證
 
+> 歷史證據保存（2026-11-06）：原始畫面、日誌、追蹤與封裝產物已清理；本文保留需求、結論、關鍵數據及限制。原先已失效的暫存引用亦改指本文摘要。
+
 2026-10-28 使用本機 GitLab CE **16.11.10**（revision `47403677d65`）驗證。站台版本、CE 版別與測試帳號的 Group 權限均已確認。
 
 SOP 檢查使用工作台的主機控制器和 GitLab client，連線真實 GitLab API；VS Code API 在這組檢查中使用測試替身。每輪在既有驗證 Group 下建立帶唯一標記的隔離子 Group 與兩個專案，結束後核對身分及內容再刪除。兩輪的隔離 Group 均已確認移除。
@@ -15,7 +17,7 @@ SOP 檢查使用工作台的主機控制器和 GitLab client，連線真實 GitL
 7. MR 合併後執行牌卡結案，以及 User Story 待上版與結案檢查。
 8. Issue 更新時間已變更時，阻擋過期狀態轉換。
 
-已封裝的 `gitlab-workspace-0.35.0.vsix` 在 VS Code **1.143.1** 的真實 Extension Host 通過登入、CE 能力偵測、demo Repo 清單、Webview 導覽和原生 Git Diff 驗證；結果見 [實機驗收報告](evidence/live-smoke-sop-ce16-ui-fixed.json)。另以唯讀方式開啟實際 SOP 頁面，確認它向 CE 請求 Group Issue、將未標記的既有 Issue 顯示為「尚未套用 SOP」，且在 446px 窄視窗選取牌卡後實際顯示詳情；結果見 [SOP 頁面驗證](evidence/ce16-sop-ui-fixed.json)與[畫面](evidence/screenshots/ce16-sop-ui-fixed.png)。未辨識類型也不會顯示執行牌卡流程。SOP 的狀態寫入與阻擋則由上述主機控制器搭配真實 GitLab API 驗證。
+已封裝的 `gitlab-workspace-0.35.0.vsix` 在 VS Code **1.143.1** 的真實 Extension Host 通過登入、CE 能力偵測、demo Repo 清單、Webview 導覽和原生 Git Diff 驗證；結果見 [實機驗收報告](evidence/live-smoke-sop-ce16-ui-fixed.json)。另以唯讀方式開啟實際 SOP 頁面，確認它向 CE 請求 Group Issue、將未標記的既有 Issue 顯示為「尚未套用 SOP」，且在 446px 窄視窗選取牌卡後實際顯示詳情；結果見 [SOP 頁面驗證](evidence/ce16-sop-ui-fixed.json)與[畫面（歷史摘要）](#sop-與-gitlab-ce-161110-實機驗證)。未辨識類型也不會顯示執行牌卡流程。SOP 的狀態寫入與阻擋則由上述主機控制器搭配真實 GitLab API 驗證。
 
 首次 MR 測試的 Commit 使用了 `Implement #iid`，GitLab 將其辨識為自動結案關鍵字。後續分別以一般引用及自動結案關鍵字重測，確認工作台可從 GitLab 得知將結案的 Issue 並執行阻擋。
 
