@@ -5,7 +5,10 @@ import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink, lstat } from 'node:fs/promises';
 import { startIssueWorkflow, verifyManagedWorktree, removeManagedWorktree, implementationDigest, collectIssueResult } from '../../src/codex/projectWorkflows';
-import { codexResourcePaths, codexResourcesOverlap } from '../../src/codex/scheduler';
+import { CodexTaskScheduler, codexResourcePaths, codexResourcesOverlap } from '../../src/codex/scheduler';
+import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
+import { codexRootKey } from '../../src/codex/taskStore';
+import { networkRuntimeRoot } from '../../src/api/localNetworkLease';
 import type { CodexTaskSpec } from '../../src/codex/protocol';
 
 const git = (root: string, ...args: string[]) => execFileSync('git', ['-C', root, '-c', 'core.hooksPath=', '-c', 'user.name=Worktree Test', '-c', 'user.email=worktree@test.invalid', ...args], { encoding: 'utf8', windowsHide: true });
@@ -51,4 +54,23 @@ test('worktrees share their Git common-directory resource and redirected output 
   assert.equal(codexResourcesOverlap(original, isolated), true);
   await removeManagedWorktree(f.spec); await symlink(f.repo, f.target, process.platform === 'win32' ? 'junction' : 'dir');
   await assert.rejects(verifyManagedWorktree(f.spec), /重新導向/);
+});
+
+test('directory aliases use the physical legacy workspace lock as well as the shared scheduler resource', async t => {
+  const f = await fixture(t), alias = path.join(f.directory, 'alias');
+  await symlink(f.repo, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const scheduler = new CodexTaskScheduler('alias-test', path.join(f.directory, 'machine'));
+  const spec: CodexTaskSpec = { source: { kind: 'free', repository: alias, prompt: 'test' }, root: alias, title: 'Test',
+    prompt: 'test', workspaceKey: alias, environmentKey: 'test', writableRoots: [alias] };
+  const admission = await scheduler.tryAcquire('alias-owner', spec, 2); assert.ok(admission.reservation);
+  const reservation = admission.reservation;
+  try {
+    const expected = path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(await realpath(f.repo)) + '.lock');
+    assert.equal(reservation.directory, expected);
+    await assert.rejects(CodexWorkspaceLease.acquire(expected, { timeoutMs: 20 }));
+    assert.equal((await scheduler.tryAcquire('physical-contender', { ...spec, root: await realpath(f.repo), writableRoots: [f.repo] }, 2)).reason, 'resource');
+  } finally {
+    await reservation.primary.release(); for (const extra of reservation.extras) await extra.release();
+    await reservation.release(false);
+  }
 });

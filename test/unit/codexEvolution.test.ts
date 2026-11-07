@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -145,7 +145,8 @@ test('context capture rejects escaping paths and mutated snapshots; cache evicti
   assert.deepEqual(result.evicted, ['old']); assert.equal(result.cache.selected[0].id, 'one');
   assert.equal(codexResourcesOverlap([f.repositories[0]], [path.join(f.repositories[0], 'nested')]), true);
   assert.equal(codexResourcesOverlap([f.repositories[0]], [f.repositories[1]]), false);
-  assert.ok((await codexResourcePaths(await f.spec(f.repositories[0]))).some(resource => resource.toLowerCase() === f.repositories[0].toLowerCase()));
+  const physical = (await realpath(f.repositories[0])).toLowerCase();
+  assert.ok((await codexResourcePaths(await f.spec(f.repositories[0]))).some(resource => resource.toLowerCase() === physical));
 });
 test('Wiki incremental selection falls back for incomplete evidence and seeds only verified published pages', async t => {
   const f = await fixture(t), id = randomUUID(), drafts = path.join(f.root, 'wiki-drafts'); await mkdir(drafts);

@@ -100,7 +100,8 @@ export class CodexTaskScheduler {
       // An unconfirmed process may still be alive. Keep its machine slot until
       // reconciliation proves it stopped, including when its owner has exited.
       if (entries.filter(entry => !entry.processStopped).length >= Math.max(1, Math.min(2, limit))) { await this.write(entries); return { reason: 'capacity' }; }
-      const roots = [...new Set([spec.root, ...(spec.origin ? [spec.origin.repositoryRoot] : [])].map(key))].sort();
+      const physicalRoots = await Promise.all([spec.root, ...(spec.origin ? [spec.origin.repositoryRoot] : [])].map(canonical));
+      const roots = [...new Set(physicalRoots.map(key))].sort();
       const directories = roots.map(root => path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(root) + '.lock'));
       for (const directory of directories) {
         try { leases.push(await CodexWorkspaceLease.acquire(directory, { signal, timeoutMs: 1 })); }
@@ -110,7 +111,7 @@ export class CodexTaskScheduler {
           return { reason: 'resource' };
         }
       }
-      const primaryIndex = roots.indexOf(key(spec.root)), primary = leases[primaryIndex];
+      const primaryIndex = roots.indexOf(key(physicalRoots[0])), primary = leases[primaryIndex];
       const record: ReservationRecord = { taskId, nonce: randomUUID(), pid: process.pid, instance: this.instance, paths,
         locks: await Promise.all(directories.map(async (directory, index) => ({ directory, nonce: await leases[index].ownerNonce(), primary: index === primaryIndex }))) };
       entries.push(record); await this.write(entries);
