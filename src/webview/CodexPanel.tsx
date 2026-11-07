@@ -21,6 +21,8 @@ export function CodexSettings({ post }: { post: Post }) {
   return <section class="workspace-settings codex-settings"><h3>Codex 執行環境</h3>
     <p role="status">{environment.message ?? '按下檢查確認 Codex CLI、登入與執行權限。'}{environment.version && ` · CLI ${environment.version}`}</p>
     {environment.executable && <p class="subtle codex-root">{environment.executable}</p>}
+    {environment.checkedAt && <p class="subtle">最後檢查：{new Date(environment.checkedAt).toLocaleString()}</p>}
+    {environment.mcp?.length ? <details><summary>MCP 狀態</summary>{environment.mcp.map(server => <p key={server.name}>{server.name}：{server.status}</p>)}</details> : null}
     <div class="button-row"><button type="button" onClick={() => post({ type: 'checkCodex' })}>檢查 Codex</button>
       <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.codex.executablePath' })}>設定執行檔</button>
       {environment.authenticated === false && <button type="button" onClick={() => post({ type: 'configureCodex', action: 'login' })}>登入 Codex</button>}

@@ -1,0 +1,55 @@
+[
+  {
+    "id": "release-tooling",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--test",
+      "scripts/extension-test-environment.test.mjs",
+      "scripts/live-benchmark-comparison.test.mjs",
+      "scripts/live-environments.test.mjs",
+      "scripts/live-fixture-plan.test.mjs",
+      "scripts/live-test-paths.test.mjs",
+      "scripts/live-validation-state.test.mjs",
+      "scripts/python-runtime.test.mjs",
+      "scripts/release-policy.test.mjs",
+      "scripts/release-workflow.test.mjs",
+      "scripts/validation-orchestration.test.mjs",
+      "scripts/validation-runtime.test.mjs",
+      "scripts/verify-ui-artifact-identity.test.mjs"
+    ],
+    "startedAt": "2026-11-07T05:11:05.983Z",
+    "finishedAt": "2026-11-07T05:11:12.270Z",
+    "seconds": 6.286,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\release\\release-tooling.log"
+  },
+  {
+    "id": "release-commit_reviewer_integration_test.py",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/run-python.mjs",
+      "test/release/commit_reviewer_integration_test.py"
+    ],
+    "startedAt": "2026-11-07T05:11:12.271Z",
+    "finishedAt": "2026-11-07T05:12:56.514Z",
+    "seconds": 104.243,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\release\\release-commit_reviewer_integration_test.py.log"
+  },
+  {
+    "id": "release-workflowkit_131_integration_test.py",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/run-python.mjs",
+      "test/release/workflowkit_131_integration_test.py"
+    ],
+    "startedAt": "2026-11-07T05:12:56.515Z",
+    "finishedAt": "2026-11-07T05:36:45.356Z",
+    "seconds": 1428.841,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\release\\release-workflowkit_131_integration_test.py.log"
+  }
+]

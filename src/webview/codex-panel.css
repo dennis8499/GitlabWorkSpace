@@ -78,3 +78,15 @@
   .codex-message button { justify-self: end; }
   .codex-footnote { display: none; }
 }
+.codex-task-filter { display: grid; gap: 3px; margin: 6px 0; }
+.codex-task-filter input, .codex-task-filter select { width: 100%; min-width: 0; box-sizing: border-box; }
+.codex-task-details { min-width: 0; max-height: 35vh; overflow: auto; padding: 0 10px; border-bottom: 1px solid var(--vscode-panel-border); }
+.codex-task-details details { margin: 5px 0; }
+.codex-task-details p { margin: 5px 0; overflow-wrap: anywhere; }
+.codex-task-details ol { padding-inline-start: 22px; }
+.codex-extra-controls, .codex-approval-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 5px 10px; }
+.codex-approval-options label { display: inline-flex; align-items: center; gap: 3px; }
+.codex-conversation { overflow-y: auto; }
+.codex-task-details { flex: 0 0 auto; }
+.codex-extra-controls { flex: 0 0 auto; }
+.codex-tasks > button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }

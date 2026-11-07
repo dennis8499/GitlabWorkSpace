@@ -13,6 +13,7 @@ export interface CodexTaskOrigin {
   targetBranch?: string;
   targetSha?: string;
   branch?: string;
+  intent?: 'review' | 'fix-comments';
 }
 
 /** Host-only execution binding. Install, execution and repository roots have distinct roles. */
@@ -22,6 +23,9 @@ export interface CodexWorkflowBinding {
   remote: string;
   reviewWorkspace?: string;
   sourceRoot?: string;
+  worktree?: { path: string; branch: string; sourceSha: string; repository: string };
+  discussions?: Array<{ id: string; noteIds: number[]; text: string }>;
+  wikiIncremental?: { previousDraftId: string; pages: string[]; changedFiles: string[]; baseSha: string };
 }
 
 export interface CodexTaskResult {
@@ -33,6 +37,9 @@ export interface CodexTaskResult {
   draftId?: string;
   revision?: string;
   url?: string;
+  replyDrafts?: Array<{ discussionId: string; body: string }>;
+  handoffPath?: string;
+  evidence?: { sourceSha: string; branch: string; digest: string; verifiedAt: string };
 }
 
 export interface ProjectWikiPreview {
@@ -54,4 +61,4 @@ export interface ProjectWikiPreview {
 }
 
 export const workflowOriginKey = (origin: CodexTaskOrigin): string =>
-  JSON.stringify([origin.accountKey, origin.kind, origin.projectId, origin.iid ?? '', origin.repositoryRoot]);
+  JSON.stringify([origin.accountKey, origin.kind, origin.projectId, origin.iid ?? '', origin.repositoryRoot, origin.intent ?? 'review']);

@@ -1,0 +1,49 @@
+[
+  {
+    "id": "native-stable",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/run-extension-tests.mjs",
+      "--forbid-only",
+      "--fail-zero",
+      "--grep",
+      "installs WorkflowKit",
+      "--invert"
+    ],
+    "startedAt": "2026-11-07T05:13:30.876Z",
+    "finishedAt": "2026-11-07T05:14:21.694Z",
+    "seconds": 50.817,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\native\\native-stable.log",
+    "version": "1.145.2"
+  },
+  {
+    "id": "trust-1.90.0",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/test-workspace-trust.mjs"
+    ],
+    "startedAt": "2026-11-07T05:14:21.695Z",
+    "finishedAt": "2026-11-07T05:14:30.978Z",
+    "seconds": 9.284,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\native\\trust-1.90.0.log",
+    "version": "1.90.0"
+  },
+  {
+    "id": "trust-1.145.2",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/test-workspace-trust.mjs"
+    ],
+    "startedAt": "2026-11-07T05:14:30.979Z",
+    "finishedAt": "2026-11-07T05:14:49.048Z",
+    "seconds": 18.068,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\native\\trust-1.145.2.log",
+    "version": "1.145.2"
+  }
+]

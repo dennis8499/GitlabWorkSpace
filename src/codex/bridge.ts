@@ -1,11 +1,18 @@
 import path from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { CodexTaskScheduler, codexResourcePaths, codexResourcesOverlap, type CodexReservation } from './scheduler';
 import { randomUUID } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 import { watch, type FSWatcher } from 'node:fs';
 import { CodexAppServer, type RpcMessage } from './appServer';
+import { CodexProtocolAdapter, codexCapabilities } from './adapter';
+import { projectCodexProgress } from './progress';
+import { boundTranscriptCache, codexItemBytes } from './historyBudget';
+import type { CodexApprovalSettings, CodexGoal, CodexTaskSource } from './protocol';
+import type { CodexRpcDiagnostic } from './appServer';
+import { CodexRpcError } from './rpcError';
 import { resolveCodexExecutable, spawnCodex } from './process';
 import { CodexTaskDeletedError, CodexTaskStore, codexRootKey, validTaskId } from './taskStore';
-import { networkRuntimeRoot } from '../api/localNetworkLease';
 import { CodexWorkspaceLease } from './workspaceLease';
 import { validateForm } from './forms';
 import { mergeCodexTranscript, projectCodexItem } from './transcript';
@@ -24,6 +31,9 @@ interface ActiveExecution {
   stopAs?: 'paused' | 'interrupted'; settled: Promise<void>; settle(): void;
   cleanupFailed?: boolean;
   unmaterializedThreadId?: string;
+  version?: string;
+  goalTimer?: ReturnType<typeof setTimeout>;
+  goalStartedAt?: number;
 }
 export interface CodexBridgeOptions {
   storage: string;
@@ -39,10 +49,16 @@ export interface CodexBridgeOptions {
   approved?(event: { taskId: string; threadId?: string; turnId?: string; requestId: number | string; kind: string; scope: 'once' | 'turn' }): void;
   client?(root: string): Promise<{ client: CodexAppServer; version: string; executable: string }>;
   now?(): number;
+  maxConcurrent?(): number;
+  scheduler?: CodexTaskScheduler;
+  reconcilePublication?(spec: CodexTaskSpec, publication: NonNullable<CodexTaskRecord['publication']>): Promise<'pending' | 'confirmed'>;
 }
+const implementationTask = (spec: CodexTaskSpec): boolean => spec.origin?.kind === 'issue' || spec.source.kind === 'merge-request' && spec.source.intent === 'fix-comments';
 const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; } };
 const safeText = (value: unknown, limit = 20_000): string => typeof value === 'string' ? value.slice(0, limit) : '';
 export class CodexBridge {
+  private readonly instanceId = randomUUID();
+  get storagePath(): string { return this.store.directory; }
   private readonly store: CodexTaskStore;
   private records = new Map<string, CodexTaskRecord>();
   private readonly persisted = new Map<string, CodexTaskState>();
@@ -60,8 +76,16 @@ export class CodexBridge {
   private historyApplied = new Map<string, number>();
   private interactions = new Map<string, PendingInteraction>();
   private queue: string[] = [];
-  private active?: ActiveExecution;
+  private readonly executions = new Map<string, ActiveExecution>();
+  private readonly executionContext = new AsyncLocalStorage<ActiveExecution>();
+  private readonly scheduler: CodexTaskScheduler;
+  private readonly executionTasks = new Set<Promise<void>>();
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private get active(): ActiveExecution | undefined { return this.executionContext.getStore() ?? this.executions.values().next().value; }
   private autoAccept = new Set<string>();
+  private approvals = new Map<string, CodexApprovalSettings>();
+  private diagnostics = new Map<string, CodexRpcDiagnostic[]>();
+  private progressTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private autoAcceptErrors = new Map<string, string>();
   private seenRequests = new WeakMap<CodexAppServer, Set<string>>();
   private initialized?: Promise<void>;
@@ -73,6 +97,7 @@ export class CodexBridge {
   private shutdownTask?: Promise<void>;
   private processingTask?: Promise<void>;
   constructor(private readonly options: CodexBridgeOptions) {
+    this.scheduler = options.scheduler ?? new CodexTaskScheduler(this.instanceId);
     this.store = new CodexTaskStore(path.join(options.storage, 'codex-tasks'));
     this.historyPages = new ReadCache(60_000, 256, options.now ?? Date.now, 32 * 1024 * 1024);
   }
@@ -92,19 +117,19 @@ export class CodexBridge {
           if (this.reloadTimer) clearTimeout(this.reloadTimer);
           this.reloadTimer = setTimeout(() => { void this.reload().catch(() => { this.emit({ kind: 'environment', environment: { state: 'blocked', message: 'Codex 任務紀錄無法讀取，請重新檢查儲存區。' } }); }); }, 100);
         });
-        this.watcher.on('error', () => { this.watcher?.close(); });
+        this.watcher.on('error', () => { this.watcher?.close(); this.emit({ kind: 'environment', environment: { state: 'blocked', message: '任務監聽已中斷，請手動重新讀取任務。' } }); });
       }
-    });
+    }).catch(error => { this.initialized = undefined; throw error; });
   }
   private async reload(): Promise<void> {
     if (this.disposed) return;
     const sequence = ++this.reloadSequence, knownIds = new Set(this.records.keys());
     const records = await this.store.load(), ids = new Set(records.map(record => record.id));
     if (this.disposed || sequence !== this.reloadSequence) return;
-    for (const id of knownIds) if (!ids.has(id) && this.active?.record.id !== id && !this.queue.includes(id) && !this.controlling.has(id)) this.forget(id);
-    for (const record of records) if (!this.deleted.has(record.id) && this.active?.record.id !== record.id && !this.queue.includes(record.id) && !this.controlling.has(record.id)) {
+    for (const id of knownIds) if (!ids.has(id) && !this.store.problems.some(problem => problem.id === id) && !this.executions.has(id) && !this.queue.includes(id) && !this.controlling.has(id)) this.forget(id);
+    for (const record of records) if (!this.deleted.has(record.id) && !this.executions.has(record.id) && !this.queue.includes(record.id) && !this.controlling.has(record.id)) {
       const current = this.persisted.get(record.id);
-      if (current && (record.updatedAt < current.updatedAt || record.updatedAt === current.updatedAt && record.ownerPid === process.pid && this.owned.has(record.id))) continue;
+      if (current && (record.revision !== undefined && current.revision !== undefined && record.revision < current.revision || record.updatedAt < current.updatedAt || record.updatedAt === current.updatedAt && record.ownerPid === process.pid && this.owned.has(record.id))) continue;
       if (codexTaskActive(record.status) || record.status === 'queued') { this.owned.delete(record.id); this.autoAccept.delete(record.id); }
       this.records.set(record.id, record);
       this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
@@ -115,24 +140,183 @@ export class CodexBridge {
     return [...this.persisted.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(value => {
       const busy = codexTaskActive(value.status) || value.status === 'queued';
       const external = busy && !this.owned.has(value.id);
-      const settling = this.active?.record.id === value.id || this.controlling.has(value.id);
-      return { ...structuredClone(value), controls: {
+      const settling = this.executions.has(value.id) || this.controlling.has(value.id);
+      return { ...structuredClone(value), queuePosition: this.queue.includes(value.id) ? this.queue.indexOf(value.id) + 1 : undefined, controls: {
         external, canPause: busy && !external && value.status !== 'pausing',
-        canResume: !busy && !settling && value.result?.state !== 'uncertain', canDelete: !busy && !settling && value.status !== 'uncertain' && value.result?.state !== 'uncertain',
+        canResume: !busy && !settling && value.result?.state !== 'uncertain' && value.publication?.state !== 'pending', canDelete: !busy && !settling && value.status !== 'uncertain' && value.result?.state !== 'uncertain' && value.publication?.state !== 'pending',
         canAutoAccept: !external && value.status !== 'pausing', autoAccept: this.autoAccept.has(value.id),
-        autoAcceptError: this.autoAcceptErrors.get(value.id)
+        autoAcceptError: this.autoAcceptErrors.get(value.id), approvals: this.approvals.get(value.id) ?? this.records.get(value.id)?.approvalSettings ?? { command: true, file: true, permissions: true }
       } };
     });
   }
   async publish(): Promise<void> {
-    await this.initialize(); await this.reload(); this.emit({ kind: 'environment', environment: this.environment });
+    await this.initialize(); await this.reload(); this.emit({ kind: 'environment', environment: { ...this.environment, storageProblems: this.store.problems } });
     for (const [taskId, history] of this.histories) this.emit({ kind: 'history', taskId, ...history });
     for (const [taskId, items] of this.outputs) this.emit({ kind: 'output', taskId, items, replace: true });
     for (const taskId of new Set([...this.interactions.values()].map(value => value.projection.taskId))) this.publishInteractions(taskId);
   }
   private emit(event: CodexEvent): void { if (!this.disposed) this.options.event(event); }
+  private async requireHealthyStorage(): Promise<void> {
+    const records = await this.store.load();
+    if (records.some(record => record.schema === 'GitLabWorkspaceCodexTask/v1' && !record.ownerInstance && record.ownerPid !== process.pid && alive(record.ownerPid) && (codexTaskActive(record.status) || record.status === 'queued'))) throw new Error('偵測到舊版 Host 正在管理任務，請先重載所有 VS Code 視窗。');
+    if (this.store.problems.length) throw new Error('任務儲存區包含無法驗證的紀錄，已暫停新派發；請檢查儲存區後重新讀取。');
+  }
+  private scheduleProgress(record: CodexTaskRecord): void {
+    if (this.progressTimers.has(record.id)) return;
+    this.progressTimers.set(record.id, setTimeout(() => {
+      this.progressTimers.delete(record.id);
+      if (this.records.has(record.id) && !this.disposed) void this.save(record).catch(() => {});
+    }, 250));
+  }
+  async reorder(id: string, direction: 'up' | 'down'): Promise<void> {
+    this.requireTrusted(); await this.initialize();
+    if (this.record(id).status !== 'queued' || !this.queue.includes(id)) throw new Error('只有本視窗尚未執行的排隊任務可調整順序。');
+    const index = this.queue.indexOf(id), target = index + (direction === 'up' ? -1 : 1);
+    if (target >= 0 && target < this.queue.length) [this.queue[index], this.queue[target]] = [this.queue[target], this.queue[index]];
+    this.emit({ kind: 'tasks', tasks: this.list() }); this.schedule();
+  }
+  async withResources<T>(id: string, operation: () => Promise<T>): Promise<T> {
+    this.requireTrusted(); await this.initialize(); const record = this.record(id);
+    if (codexTaskActive(record.status) || record.status === 'queued' || record.status === 'uncertain') throw new Error('請先停止並核對任務後再操作成果。');
+    const admission = await this.scheduler.tryAcquire('control-' + id, record.spec, this.options.maxConcurrent?.() ?? 1);
+    if (!admission.reservation) throw new Error('其他任務正在使用共用資源，請稍後再試。');
+    const reservation = admission.reservation; let uncertain = false;
+    try { return await operation(); }
+    catch (error) {
+      uncertain = !!error && typeof error === 'object' && 'workflowCleanupUncertain' in error;
+      if (uncertain) { record.status = 'uncertain'; record.error = '成果操作的程序停止結果待核對。'; await this.save(record); }
+      throw error;
+    } finally {
+      for (const lease of [reservation.primary, ...reservation.extras]) { if (uncertain) await lease.quarantine(); else await lease.release(); }
+      await reservation.release(uncertain);
+    }
+  }
+  async turns(id: string): Promise<Array<{ id: string; status?: string }>> {
+    await this.initialize(); const record = this.record(id); if (!record.threadId) return [];
+    const { client, version } = await this.makeClient(record.root);
+    try { return (await new CodexProtocolAdapter(client, version).read<{ data: Array<{ id: string; status?: string }> }>('thread/turns/list',
+      { threadId: record.threadId, limit: 100, sortDirection: 'desc', itemsView: 'notLoaded' })).data; }
+    finally { await client.close(); }
+  }
+  async fork(id: string, turnId: string): Promise<string> {
+    this.requireTrusted(); await this.initialize(); await this.requireHealthyStorage();
+    const record = this.record(id);
+    if (!this.list().find(task => task.id === id)?.controls?.canResume || !record.threadId) throw new Error('請先停止並核對原任務。');
+    if (!(await this.turns(id)).some(turn => turn.id === turnId && ['completed', 'failed', 'interrupted'].includes(turn.status ?? ''))) throw new Error('分支起點必須是已停止的保存回合。');
+    const source: CodexTaskSource = { kind: 'free', repository: record.spec.origin?.repositoryRoot ?? record.root, prompt: `沿用分支對話，接續「${record.title}」。` };
+    const spec = await this.options.prepare(source); const { client, version } = await this.makeClient(spec.root);
+    try {
+      if (!codexCapabilities(version).fork) throw new Error('目前 CLI 尚未通過對話分支契約驗證，請使用已驗證版本。');
+      const result = await client.request('thread/fork', { threadId: record.threadId, lastTurnId: turnId, excludeTurns: true,
+        cwd: spec.root, sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user' });
+      if (typeof result.thread?.id !== 'string') throw new Error('Codex 未傳回分支對話識別。');
+      const now = new Date().toISOString(), task: CodexTaskRecord = { schema: 'GitLabWorkspaceCodexTask/v2', id: randomUUID(),
+        title: `分支：${record.title}`.slice(0, 200), spec, root: spec.root, status: 'paused', createdAt: now, updatedAt: now,
+        threadId: result.thread.id, ownerPid: process.pid, ownerInstance: this.instanceId,
+        forkedFrom: { taskId: id, threadId: record.threadId, turnId } };
+      await this.store.save(task); this.records.set(task.id, task); this.owned.add(task.id); this.persisted.set(task.id, projectCodexTask(task));
+      this.emit({ kind: 'tasks', tasks: this.list() }); return task.id;
+    } finally { await client.close(); }
+  }
+  async setGoal(id: string, goal?: CodexGoal, action?: 'pause' | 'clear'): Promise<void> {
+    this.requireTrusted(); await this.initialize(); const record = this.record(id);
+    if (record.spec.source.kind !== 'free' || !this.list().find(task => task.id === id)?.controls?.canResume) throw new Error('目標模式供已停止的自由任務使用。');
+    if (goal && (!goal.objective.trim() || goal.objective.length > 4000 || !goal.tokenBudget && !goal.timeBudgetSeconds ||
+      goal.tokenBudget !== undefined && (!Number.isSafeInteger(goal.tokenBudget) || goal.tokenBudget < 1 || goal.tokenBudget > 100_000_000) ||
+      goal.timeBudgetSeconds !== undefined && (!Number.isSafeInteger(goal.timeBudgetSeconds) || goal.timeBudgetSeconds < 1 || goal.timeBudgetSeconds > 86400))) throw new Error('請提供明確目標及有效的 Token 或時間預算。');
+    const { client, version } = await this.makeClient(record.root);
+    try {
+      const adapter = new CodexProtocolAdapter(client, version);
+      if (!codexCapabilities(version).goals) throw new Error('目前 CLI 尚未通過原生 Goal 契約驗證。');
+      if (record.threadId) {
+        await client.request('thread/resume', { threadId: record.threadId, excludeTurns: true, cwd: record.root, sandbox: 'workspace-write', approvalPolicy: 'on-request' });
+        if (action === 'clear') await client.request('thread/goal/clear', { threadId: record.threadId, origin: 'user' });
+        else await adapter.setGoal({ threadId: record.threadId, origin: 'user', objective: goal?.objective, status: 'paused', tokenBudget: goal?.tokenBudget });
+      }
+      if (action === 'clear') record.goal = undefined;
+      else if (goal) record.goal = { ...goal, status: 'paused', timeUsedSeconds: 0 };
+      else if (record.goal) record.goal.status = 'paused';
+      await this.save(record);
+    } finally { await client.close(); }
+  }
+  async metadata(id: string, changes: { title?: string; pinned?: boolean; archived?: boolean }): Promise<void> {
+    this.requireTrusted(); await this.initialize();
+    await this.store.control(id, async () => {
+      await this.reload(); const record = this.record(id);
+      if (codexTaskActive(record.status) || record.status === 'queued') throw new Error('請先停止任務再修改管理紀錄。');
+      if (changes.title !== undefined) { if (!changes.title.trim() || changes.title.length > 200) throw new Error('任務名稱須為 1 到 200 字。'); record.title = changes.title.trim(); }
+      if (changes.pinned !== undefined) record.pinned = changes.pinned;
+      if (changes.archived !== undefined) { if (record.status === 'uncertain' || record.publication?.state === 'pending') throw new Error('請先核對結果再封存。'); record.archived = changes.archived; }
+      record.schema = 'GitLabWorkspaceCodexTask/v2'; await this.save(record);
+    });
+  }
+  async setApprovals(id: string, settings: CodexApprovalSettings): Promise<void> {
+    this.requireTrusted(); await this.initialize(); this.record(id);
+    if (!this.list().find(task => task.id === id)?.controls?.canAutoAccept || !['command', 'file', 'permissions'].every(key => typeof settings[key as keyof CodexApprovalSettings] === 'boolean')) throw new Error('核准設定目前無法修改。');
+    this.approvals.set(id, { ...settings }); this.record(id).approvalSettings = { ...settings }; await this.save(this.record(id)); this.emit({ kind: 'tasks', tasks: this.list() });
+    for (const pending of this.interactions.values()) if (pending.projection.taskId === id) await this.autoAnswer(pending);
+  }
+  async models(root: string) {
+    const connection = await this.makeClient(root);
+    try { return await new CodexProtocolAdapter(connection.client, connection.version).models(); }
+    finally { await connection.client.close(); }
+  }
+  diagnosticSnapshot(id: string): Record<string, unknown> {
+    const record = this.record(id);
+    return { schema: 'GitLabWorkspaceCodexDiagnostics/v1', extensionVersion: this.options.version,
+      cliVersion: this.environment.version, capabilities: this.environment.capabilities, taskId: id,
+      status: record.status, revision: record.revision, dispatchState: record.dispatch?.state,
+      recovery: record.recovery ? { execution: record.recovery.execution, cleanup: record.recovery.cleanup, publication: record.recovery.publication, checkedAt: record.recovery.checkedAt } : undefined,
+      rpc: this.diagnostics.get(id) ?? [] };
+  }
+  progress(id: string) { return structuredClone(this.record(id).progress); }
+  async notePublication(id: string, publication: NonNullable<CodexTaskRecord['publication']>): Promise<void> {
+    this.requireTrusted(); await this.initialize();
+    await this.store.control(id, async () => { const record = this.record(id); record.publication = publication; await this.save(record); });
+  }
+  async reconcile(id: string): Promise<void> {
+    this.requireTrusted(); await this.initialize();
+    await this.store.control(id, async () => {
+      await this.reload(); const record = this.record(id);
+      if (codexTaskActive(record.status) || record.status === 'queued') throw new Error('請先至執行視窗暫停任務，再核對停止結果。');
+      let execution: NonNullable<CodexTaskRecord['recovery']>['execution'] = record.dispatchPending ? 'unknown' : !record.threadId ? 'not-started' : 'unknown';
+      if (record.threadId) {
+        const { client, version } = await this.makeClient(record.root);
+        try {
+          const page = await new CodexProtocolAdapter(client, version).read<{ data: Array<{ id: string; status?: string }> }>('thread/turns/list',
+            { threadId: record.threadId, limit: 100, sortDirection: 'desc', itemsView: 'notLoaded' });
+          const turn = page.data?.find(turn => turn.id === (record.turnId ?? record.dispatch?.turnId));
+          if (turn && ['completed', 'failed', 'interrupted'].includes(turn.status ?? '')) execution = turn.status as NonNullable<CodexTaskRecord['recovery']>['execution'];
+          else if (turn?.status === 'inProgress') execution = 'running';
+        } catch { /* Lack of durable evidence remains unknown. */ }
+        finally { await client.close().catch(() => {}); }
+      }
+      const cleanup = record.lease ? await CodexWorkspaceLease.inspect(record.lease.directory, record.lease.receipt) : 'unknown';
+      if (record.publication?.state === 'pending' && this.options.reconcilePublication) record.publication.state = await this.options.reconcilePublication(record.spec, record.publication);
+      record.recovery = { checkedAt: new Date().toISOString(), execution, cleanup,
+        publication: record.publication?.state ?? (record.result?.state === 'uncertain' ? 'pending' : record.result?.state === 'published' ? 'confirmed' : 'not-published'),
+        message: execution === 'unknown' || cleanup === 'unknown' ? '證據尚不足，請保留紀錄及執行鎖；不會自動重送。' : '已核對執行與程序停止結果，可依成果狀態接續。' };
+      if (cleanup === 'confirmed' && !['unknown', 'running'].includes(execution)) {
+        if (record.spec.review) await this.options.cancelReview?.(record.spec);
+        if (record.lease?.receipt) {
+          const proof = record.lease.receipt;
+          if (record.lease.nonce) await CodexWorkspaceLease.releaseWithProof(record.lease.directory, record.lease.nonce, proof);
+          for (const extra of record.lease.extras ?? []) await CodexWorkspaceLease.releaseWithProof(extra.directory, extra.nonce, proof);
+        } else if (record.lease) await CodexWorkspaceLease.recoverConfirmed(record.lease.directory);
+        await this.scheduler.reconcile(id);
+        record.dispatchPending = false;
+        if (record.status === 'uncertain') record.status = execution === 'not-started' ? 'interrupted' : execution as CodexTaskRecord['status'];
+        if (execution === 'completed' && record.result?.state !== 'uncertain') {
+          const result = await this.options.completed?.(record.spec, id, this.outputs.get(id) ?? []); if (result) record.result = result;
+        }
+      }
+      await this.save(record);
+    });
+  }
   private async save(record: CodexTaskRecord): Promise<void> {
     record.updatedAt = new Date().toISOString();
+    record.schema = 'GitLabWorkspaceCodexTask/v2';
+    record.revision = (record.revision ?? 0) + 1; record.ownerInstance ??= this.instanceId;
     const state = structuredClone(projectCodexTask(record));
     try { await this.store.save(record); }
     catch (error) { if (error instanceof CodexTaskDeletedError) this.forget(record.id); throw error; }
@@ -146,7 +330,7 @@ export class CodexBridge {
     try { return await task; } finally { this.enqueuing.delete(operationId); }
   }
   private async enqueueNow(spec: CodexTaskSpec, operationId: string): Promise<string> {
-    this.requireTrusted(); await this.initialize();
+    this.requireTrusted(); await this.initialize(); await this.requireHealthyStorage();
     if (spec.origin) return this.store.control('workflow-admission', async () => {
       await this.reload();
       const existing = [...this.records.values()].find(record => record.spec.origin &&
@@ -161,8 +345,8 @@ export class CodexBridge {
     if (!validTaskId(operationId)) throw new Error('Codex 任務識別無效。');
     if (this.records.has(operationId)) { await this.publish(); return operationId; }
     const now = new Date().toISOString();
-    const record: CodexTaskRecord = { schema: 'GitLabWorkspaceCodexTask/v1', id: operationId, spec, title: spec.title,
-      root: spec.root, review: spec.review, status: 'queued', ownerPid: process.pid, createdAt: now, updatedAt: now };
+    const record: CodexTaskRecord = { schema: 'GitLabWorkspaceCodexTask/v2', id: operationId, spec, title: spec.title,
+      root: spec.root, review: spec.review, status: 'queued', ownerPid: process.pid, ownerInstance: this.instanceId, revision: 1, createdAt: now, updatedAt: now };
     await this.store.save(record); this.records.set(record.id, record); this.owned.add(record.id); this.queue.push(record.id);
     this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
     this.emit({ kind: 'tasks', tasks: this.list() }); this.schedule(); return record.id;
@@ -172,7 +356,7 @@ export class CodexBridge {
     this.requireTrusted(); await this.initialize();
     await this.store.control(id, async () => {
       await this.reload(); const record = this.record(id);
-      if (codexTaskActive(record.status) || record.status === 'queued' || this.active?.record.id === id) throw new Error('請等待任務停止後再發布成果。');
+      if (codexTaskActive(record.status) || record.status === 'queued' || this.executions.has(id)) throw new Error('請等待任務停止後再發布成果。');
       this.controlling.add(id);
       try {
         const result = await action(structuredClone(record.spec));
@@ -203,9 +387,27 @@ export class CodexBridge {
     const requirements = (await client.request('configRequirements/read')).requirements;
     const permitted = (!requirements?.allowedApprovalPolicies || requirements.allowedApprovalPolicies.includes('on-request')) &&
       (!requirements?.allowedSandboxModes || requirements.allowedSandboxModes.includes('workspace-write'));
-    return { state: authenticated && sandbox === 'ready' && permitted ? 'ready' : 'blocked', authenticated, sandbox, version, executable,
+    const mcp = codexCapabilities(version).usage ? await client.request<{ data?: Array<{ name: string; authStatus?: string }> }>('mcpServerStatus/list', { limit: 100 }, { timeoutMs: 5000 }).catch(() => undefined) : undefined;
+    return { state: authenticated && sandbox === 'ready' && permitted ? 'ready' : 'blocked', authenticated, sandbox, version, executable, capabilities: codexCapabilities(version), checkedAt: new Date().toISOString(),
+      mcp: Array.isArray(mcp?.data) ? mcp.data.slice(0, 100).map(server => ({ name: safeText(server.name, 200), status: safeText(server.authStatus, 100) || '未知' })) : undefined,
       message: !authenticated ? '請先登入 Codex。' : sandbox !== 'ready' ? '請先完成 Codex Windows sandbox 設定。'
         : !permitted ? 'Codex 管理政策不允許 workspace-write／on-request，請洽管理員核對設定。' : 'Codex 已準備完成；啟用 Routing 的審查使用 GPT-6 Luna，其餘任務沿用本機模型。' };
+  }
+  private async beginGoal(record: CodexTaskRecord, active: ActiveExecution): Promise<void> {
+    if (!record.goal || record.goal.status === 'complete') return;
+    if (!active.client || !active.version || !record.threadId) throw new Error('目標模式缺少有效對話。');
+    const adapter = new CodexProtocolAdapter(active.client, active.version);
+    const response = await adapter.setGoal({ threadId: record.threadId, origin: 'user', objective: record.goal.objective,
+      status: 'active', tokenBudget: record.goal.tokenBudget });
+    record.goal.status = response.goal?.status ?? 'active'; record.goal.startedAt = new Date().toISOString();
+    active.goalStartedAt = Date.now();
+    if (record.goal.timeBudgetSeconds) {
+      const remaining = Math.max(0, record.goal.timeBudgetSeconds - (record.goal.timeUsedSeconds ?? 0));
+      active.goalTimer = setTimeout(() => {
+        void this.pause(record.id).then(async () => { if (record.goal) { record.goal.status = 'budgetLimited'; await this.save(record); } }).catch(() => {});
+      }, remaining * 1000);
+    }
+    await this.save(record);
   }
   async check(root: string): Promise<void> {
     return this.checking ??= this.checkNow(root).finally(() => { this.checking = undefined; });
@@ -217,7 +419,7 @@ export class CodexBridge {
       client.onRequest = message => { if (message.id !== undefined) client!.reject(message.id); };
       this.environment = await this.inspect(client, connection.version, connection.executable);
     } catch (error) { this.environment = { state: 'blocked', message: this.errorText(error) }; }
-    finally { await client?.close(); this.emit({ kind: 'environment', environment: this.environment }); }
+    finally { await client?.close().catch(() => { this.environment = { ...this.environment, state: 'blocked', message: 'Codex 檢查程序的停止結果待核對。' }; }); this.emit({ kind: 'environment', environment: this.environment }); }
   }
   async configure(root: string, action: 'login' | 'sandbox'): Promise<void> {
     this.requireTrusted();
@@ -247,49 +449,85 @@ export class CodexBridge {
     if (this.processing || this.disposed) return;
     this.processing = true;
     try {
-      while (this.queue.length && !this.disposed) {
-        const record = this.records.get(this.queue.shift()!);
-        if (!record || record.status !== 'queued') continue;
-        await this.execute(record);
+      await this.requireHealthyStorage();
+      const limit = Math.max(1, Math.min(2, this.options.maxConcurrent?.() ?? 1));
+      const waitingResources: string[][] = [];
+      for (const id of [...this.queue]) {
+        if (this.disposed || this.executions.size >= limit) break;
+        const record = this.records.get(id);
+        if (!record || record.status !== 'queued') { this.queue = this.queue.filter(value => value !== id); continue; }
+        const resources = await codexResourcePaths(record.spec);
+        const admission = waitingResources.some(paths => codexResourcesOverlap(paths, resources)) ? { reason: 'resource' as const } :
+          await this.scheduler.tryAcquire(id, record.spec, limit, undefined, resources);
+        if (!admission.reservation) {
+          waitingResources.push(resources);
+          if (record.progress?.waitReason !== admission.reason) { record.progress = { ...record.progress, waitReason: admission.reason }; await this.save(record); }
+          continue;
+        }
+        if (this.disposed || record.status !== 'queued') {
+          await admission.reservation.primary.release(); for (const lease of admission.reservation.extras) await lease.release();
+          await admission.reservation.release(false); continue;
+        }
+        this.queue = this.queue.filter(value => value !== id);
+        const task = this.execute(record, admission.reservation);
+        this.executionTasks.add(task);
+        void task.catch(() => {}).finally(() => { this.executionTasks.delete(task); this.schedule(); });
       }
-    } finally { this.processing = false; }
+    } catch (error) {
+      this.emit({ kind: 'environment', environment: { state: 'blocked', message: this.errorText(error), storageProblems: this.store.problems } });
+    } finally {
+      this.processing = false;
+      if (this.queue.length && !this.disposed && !this.store.problems.length && !this.retryTimer) this.retryTimer = setTimeout(() => { this.retryTimer = undefined; this.schedule(); }, 500);
+    }
   }
   private schedule(): void { if (!this.processing && !this.disposed) this.processingTask = this.pump(); }
-  private async execute(record: CodexTaskRecord): Promise<void> {
+  private async execute(record: CodexTaskRecord, reservation: CodexReservation): Promise<void> {
     let settle!: () => void;
     const active: ActiveExecution = { record, abort: new AbortController(), settled: new Promise(resolve => { settle = resolve; }), settle: () => settle() };
-    this.active = active;
-    let lease: CodexWorkspaceLease | undefined;
-    const repositoryLeases: CodexWorkspaceLease[] = [];
+    this.executions.set(record.id, active);
+    return this.executionContext.run(active, () => this.executeNow(record, active, reservation));
+  }
+  private async executeNow(record: CodexTaskRecord, active: ActiveExecution, reservation: CodexReservation): Promise<void> {
+    const lease = reservation.primary;
+    const repositoryLeases = reservation.extras;
     let sent = false;
     try {
-      const directory = path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(await realpath(record.root)) + '.lock');
-      while (!lease) {
-        try { lease = await CodexWorkspaceLease.acquire(directory, { signal: active.abort.signal, timeoutMs: 30_000 }); }
-        catch (error) { if ((error as Error).name !== 'TimeoutError') throw error; }
-      }
+      const directory = reservation.directory;
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       this.requireTrusted();
       const prepared = await this.options.prepare(record.spec.source, record.spec);
-      if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root) throw new Error('專案或 Skills 環境已變更，請重新確認表單再建立任務。');
-      if (record.spec.origin && codexRootKey(record.spec.origin.repositoryRoot) !== codexRootKey(record.root)) {
-        let repositoryLease: CodexWorkspaceLease | undefined;
-        const directory = path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(await realpath(record.spec.origin.repositoryRoot)) + '.lock');
-        while (!repositoryLease) {
-          try { repositoryLease = await CodexWorkspaceLease.acquire(directory, { signal: active.abort.signal, timeoutMs: 30_000 }); }
-          catch (error) { if ((error as Error).name !== 'TimeoutError') throw error; }
-        }
-        repositoryLeases.push(repositoryLease);
-      }
-      record.status = 'starting'; record.error = undefined; await this.save(record);
-      const connection = await this.makeClient(record.root, lease); active.client = connection.client;
+      if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root || prepared.executionRoot !== record.spec.executionRoot || JSON.stringify(prepared.writableRoots) !== JSON.stringify(record.spec.writableRoots)) throw new Error('專案或 Skills 環境已變更，請重新確認表單再建立任務。');
+      record.spec = { ...record.spec, root: prepared.root, executionRoot: prepared.executionRoot, writableRoots: prepared.writableRoots, skill: prepared.skill };
+      record.status = 'starting'; record.error = undefined; record.progress = { ...record.progress, waitReason: undefined }; await this.save(record);
+      record.lease = { directory, nonce: await lease.ownerNonce(), ...(!this.options.client ? { receipt: await lease.processReceipt() } : {}),
+        extras: await Promise.all(repositoryLeases.map(async extra => ({ directory: extra.directory, nonce: await extra.ownerNonce() }))) };
+      await this.save(record);
+      const connection = await this.makeClient(record.root, lease); active.client = connection.client; active.version = connection.version;
       const client = connection.client;
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       this.environment = await this.inspect(client, connection.version, connection.executable);
       this.emit({ kind: 'environment', environment: this.environment });
       if (this.environment.state !== 'ready') throw new Error(this.environment.message);
+      if (record.goal && record.goal.status !== 'complete' && !codexCapabilities(connection.version).goals) throw new Error('目前 CLI 不支援已設定的目標模式。');
+      if (record.spec.model) {
+        const models = await new CodexProtocolAdapter(client, connection.version).models();
+        const model = models.find(model => model.model === record.spec.model || model.id === record.spec.model);
+        if (!model || record.spec.effort && !model.supportedReasoningEfforts.some(item => item.reasoningEffort === record.spec.effort)) throw new Error('所選模型或思考強度目前不可用，已保留任務。');
+      }
+      if (codexCapabilities(connection.version).usage) {
+        const adapter = new CodexProtocolAdapter(client, connection.version);
+        const quota = await adapter.quota().catch(() => undefined);
+        if (quota) record.progress = projectCodexProgress(record.progress, 'account/rateLimits/updated', quota);
+        const mcp = await adapter.read<{ data?: Array<{ name: string; authStatus?: string; startupState?: string }> }>('mcpServerStatus/list', { limit: 100 }).catch(() => undefined);
+        if (Array.isArray(mcp?.data)) this.environment.mcp = mcp.data.slice(0, 100).map(item => ({ name: safeText(item.name, 200), status: safeText(item.startupState ?? item.authStatus, 100) || '未知' }));
+        this.emit({ kind: 'environment', environment: this.environment });
+      }
+      client.onDiagnostic = event => {
+        const entries = this.diagnostics.get(record.id) ?? []; entries.push(event); if (entries.length > 100) entries.shift(); this.diagnostics.set(record.id, entries);
+      };
+      record.progress = { ...record.progress, model: record.spec.model ?? (record.spec.routing ? routingModel : undefined), effort: record.spec.effort, updatedAt: new Date().toISOString() };
       if (record.spec.workflow) {
-        try { await client.request('skills/extraRoots/set', { extraRoots: [path.dirname(path.dirname(record.spec.skill.path))] }); }
+        try { await client.request('skills/extraRoots/set', { extraRoots: [path.dirname(path.dirname(record.spec.skill!.path))] }); }
         catch { throw new Error('此流程需要支援共用 Skills 的 Codex CLI，請升級至 0.166.0 或更新版本。'); }
       }
       await this.options.started?.(record.spec, active.abort.signal);
@@ -313,14 +551,16 @@ export class CodexBridge {
         if (typeof started.thread?.id !== 'string') throw new Error('Codex 未傳回有效的 thread 識別。');
         record.threadId = started.thread.id; active.unmaterializedThreadId = record.threadId; await this.save(record);
       }
+      if (record.spec.skill) {
       const skills = await client.request('skills/list', { cwds: [cwd], forceReload: true });
       const found = skills.data?.flatMap((entry: any) => entry.skills ?? []).some((skill: any) =>
-        skill.name === record.spec.skill.name && skill.enabled !== false && typeof skill.path === 'string' && path.resolve(skill.path).toLowerCase() === path.resolve(record.spec.skill.path).toLowerCase());
+        skill.name === record.spec.skill!.name && skill.enabled !== false && typeof skill.path === 'string' && path.resolve(skill.path).toLowerCase() === path.resolve(record.spec.skill!.path).toLowerCase());
       if (!found) throw new Error('Codex 尚未載入此專案的對應 Skill；請重新檢查 Skills 安裝。');
       if (record.spec.routing && !skills.data?.flatMap((entry: any) => entry.skills ?? []).some((skill: any) =>
         skill.name === 'model-routing' && skill.enabled !== false && typeof skill.path === 'string' &&
         path.resolve(skill.path).toLowerCase() === path.resolve(record.spec.routing!.skillPath).toLowerCase())) {
         throw new Error('Codex 尚未載入 Model Routing；請核對工作流程包安裝。');
+      }
       }
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       let message = hasPriorTurns ? record.pendingMessage ?? record.spec.prompt
@@ -329,30 +569,34 @@ export class CodexBridge {
         sent = true;
         await this.executeRoutedReview(record, client, message);
       } else {
-      for (let round = 0; round < (record.spec.origin?.kind === 'issue' ? 3 : 1); round++) {
+      for (let round = 0; round < (implementationTask(record.spec) ? 3 : 1); round++) {
       record.turnId = undefined;
       active.turnStatus = undefined;
-      record.status = 'running'; record.dispatchPending = true; await this.save(record);
+      if (record.goal && record.goal.status !== 'complete') record.goal.status = 'active';
+      record.status = 'running'; record.dispatchPending = true;
+      record.dispatch = { id: randomUUID(), state: 'prepared', createdAt: new Date().toISOString() }; await this.save(record);
       this.output(record.id, { id: 'dispatch-' + randomUUID(), kind: 'notice', text: record.pendingMessageIsUser ? '接續使用者的要求' : `執行：${record.title}` });
       const finished = new Promise<void>(resolve => { active.finish = resolve; });
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       sent = true;
       active.unmaterializedThreadId = undefined;
-      const dispatched = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: randomUUID(),
-        input: [{ type: 'text', text: message }, { type: 'skill', name: record.spec.skill.name, path: record.spec.skill.path }],
+      const dispatched = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: record.dispatch!.id,
+        input: [{ type: 'text', text: message }, ...(record.spec.skill ? [{ type: 'skill', name: record.spec.skill.name, path: record.spec.skill.path }] : [])],
+        ...(record.spec.model ? { model: record.spec.model } : {}), ...(record.spec.effort ? { effort: record.spec.effort } : {}),
         approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd,
         sandboxPolicy: { type: 'workspaceWrite', writableRoots: record.spec.writableRoots, networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false } });
       if (typeof dispatched.turn?.id !== 'string') throw new Error('Codex 未傳回有效的 turn 識別，請先核對結果。');
-      record.turnId = dispatched.turn.id; record.dispatchPending = false; record.pendingMessage = undefined;
+      record.turnId = dispatched.turn.id; if (record.dispatch) { record.dispatch.state = 'acknowledged'; record.dispatch.turnId = record.turnId; } record.dispatchPending = false; record.pendingMessage = undefined;
       record.pendingMessageIsUser = undefined;
       await this.save(record);
+      await this.beginGoal(record, active);
       await finished;
       if (active.turnStatus !== 'completed' || active.abort.signal.aborted) break;
       const result = await this.options.completed?.(record.spec, record.id,
         mergeCodexTranscript(this.histories.get(record.id)?.items ?? [], this.outputs.get(record.id) ?? []));
       if (result) record.result = result;
       if (active.abort.signal.aborted) break;
-      if (record.spec.origin?.kind !== 'issue' || result?.state !== 'needs-work' || round === 2) { record.status = 'completed'; break; }
+      if (!implementationTask(record.spec) || result?.state !== 'needs-work' || round === 2) { record.status = 'completed'; break; }
       message = `${result.summary}\n請沿用原 Issue 與工作分支，接續 BMAD 的實作及測試。已有規格時直接接續 Build；修正失敗測試並以實際命令驗證。不得自動提交、推送或建立 MR。`;
       }
       }
@@ -370,8 +614,14 @@ export class CodexBridge {
       else if ((record.status as CodexTaskState['status']) === 'completed') record.error = 'Codex 本輪已完成，但工作台資料更新失敗；請手動更新產物狀態。';
       else if (record.status !== 'uncertain') { record.status = active.abort.signal.aborted ? 'pausing' : sent || record.dispatchPending ? 'uncertain' : 'failed'; record.error = active.abort.signal.aborted ? undefined : this.errorText(error); }
     } finally {
+      if (active.goalTimer) clearTimeout(active.goalTimer);
+      if (record.goal && active.goalStartedAt) record.goal.timeUsedSeconds = (record.goal.timeUsedSeconds ?? 0) + Math.ceil((Date.now() - active.goalStartedAt) / 1000);
+      if (record.goal?.status === 'active' && active.client && record.threadId && active.version) {
+        await new CodexProtocolAdapter(active.client, active.version).setGoal({ threadId: record.threadId, origin: 'automatic', status: 'paused' })
+          .then(() => { if (record.goal) record.goal.status = 'paused'; }).catch(() => { record.status = 'uncertain'; active.cleanupFailed = true; });
+      }
       this.clearInteractions(record.id);
-      if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing || record.spec.workflow ? 30_000 : 5000).catch(() => { record.status = 'uncertain'; record.error = 'Codex 程序停止結果待核對。'; }); }
+      if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing || record.spec.workflow ? 30_000 : 5000).catch(() => { active.cleanupFailed = true; record.status = 'uncertain'; record.error = 'Codex 程序停止結果待核對。'; }); }
       await active.cancellation?.catch(() => {});
       // A new thread has no durable conversation before its first dispatch.
       // Pausing during setup must allow the original input to start once later.
@@ -386,7 +636,8 @@ export class CodexBridge {
         catch { record.status = 'uncertain'; record.error = 'Repo 執行鎖尚未釋放，請先核對程序狀態。'; }
       }
       if (active.stopAs && record.status !== 'uncertain') record.status = active.stopAs;
-      if (this.active === active) this.active = undefined;
+      this.executions.delete(record.id);
+      await reservation.release(record.status === 'uncertain' || !!active.cleanupFailed, !active.cleanupFailed).catch(() => { record.status = 'uncertain'; record.error = '排程資源停止狀態待核對。'; });
       await this.save(record).catch(() => { this.emit({ kind: 'environment', environment: { state: 'blocked', message: 'Codex 任務紀錄無法保存；請先核對結果。' } }); });
       active.settle();
     }
@@ -468,32 +719,43 @@ export class CodexBridge {
     effort: typeof routingEfforts[number], phase?: 'assess' | 'review'): Promise<void> {
     if (this.active?.abort.signal.aborted) throw new Error('任務已停止。');
     this.active!.turnStatus = undefined;
-    record.status = 'running'; record.turnId = undefined; record.dispatchPending = true; await this.save(record);
+    record.status = 'running'; record.turnId = undefined; record.dispatchPending = true;
+    record.dispatch = { id: randomUUID(), state: 'prepared', createdAt: new Date().toISOString() }; await this.save(record);
     const finished = new Promise<void>(resolve => { this.active!.finish = resolve; });
     const input: Record<string, string>[] = [{ type: 'text', text: message }];
     if (phase === 'assess') input.push({ type: 'skill', name: 'model-routing', path: record.spec.routing!.skillPath });
-    if (phase === 'review') input.push({ type: 'skill', name: record.spec.skill.name, path: record.spec.skill.path });
+    if (phase === 'review') input.push({ type: 'skill', name: record.spec.skill!.name, path: record.spec.skill!.path });
     if (this.active?.abort.signal.aborted) throw new Error('任務已停止。');
     this.active!.unmaterializedThreadId = undefined;
-    const result = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: randomUUID(), input,
+    const result = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: record.dispatch!.id, input,
       model: routingModel, effort, ...(phase === 'assess' ? { outputSchema: routingAssessmentOutputSchema } : {}),
       approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd: record.spec.executionRoot ?? record.root,
       sandboxPolicy: { type: 'workspaceWrite', writableRoots: record.spec.writableRoots, networkAccess: false,
         excludeTmpdirEnvVar: false, excludeSlashTmp: false } });
     if (typeof result.turn?.id !== 'string') throw new Error('Codex 未傳回有效的路由回合識別，請先核對結果。');
-    record.turnId = result.turn.id; record.dispatchPending = false; record.pendingMessage = undefined;
+    record.turnId = result.turn.id; if (record.dispatch) { record.dispatch.state = 'acknowledged'; record.dispatch.turnId = record.turnId; } record.dispatchPending = false; record.pendingMessage = undefined;
     record.pendingMessageIsUser = undefined; await this.save(record);
     await finished; await this.active?.steering?.catch(() => {});
     if (this.active?.turnStatus !== 'completed') throw new Error(record.error ?? 'Codex 路由回合未完成；已保留審查進度。');
   }
   private receiveNotification(record: CodexTaskRecord, message: RpcMessage): void {
+    const active = this.executions.get(record.id);
     if (!this.records.has(record.id)) return;
     const params = message.params ?? {};
     if (params.threadId && params.threadId !== record.threadId) return;
     const eventTurnId = params.turnId ?? params.turn?.id;
-    if (eventTurnId && record.turnId && eventTurnId !== record.turnId) return;
+    if (eventTurnId && record.turnId && eventTurnId !== record.turnId && !(record.goal?.status === 'active' && message.method === 'turn/started')) return;
+    if (message.method === 'thread/goal/updated' && record.goal && params.goal?.objective === record.goal.objective) {
+      const goal = params.goal;
+      if (['active', 'paused', 'blocked', 'usageLimited', 'budgetLimited', 'complete'].includes(goal.status)) record.goal.status = goal.status;
+      if (Number.isSafeInteger(goal.tokensUsed) && goal.tokensUsed >= 0) record.goal.tokensUsed = goal.tokensUsed;
+      this.scheduleProgress(record);
+      if (record.goal.status !== 'active' && active?.turnStatus) active.finish?.();
+    }
+    const progress = projectCodexProgress(record.progress, message.method ?? '', params);
+    if (progress) { record.progress = progress; this.scheduleProgress(record); }
     if (message.method === 'turn/started') {
-      record.turnId = params.turn?.id;
+      record.turnId = params.turn?.id; if (active) active.turnStatus = undefined;
       for (const item of params.turn?.items ?? []) {
         const output = projectCodexItem(record.threadId, record.turnId, item); if (output) this.output(record.id, output);
       }
@@ -518,18 +780,26 @@ export class CodexBridge {
       this.publishInteractions(record.id);
     }
     if (message.method === 'turn/completed') {
-      if (this.active) this.active.turnStatus = params.turn?.status;
-      if (!this.active?.stopAs) record.status = params.turn?.status === 'completed' ? record.spec.routing || record.spec.origin?.kind === 'issue' ? 'running' : 'completed' : params.turn?.status === 'interrupted' ? 'interrupted' : 'failed';
+      if (active) active.turnStatus = params.turn?.status;
+      if (!active?.stopAs) record.status = params.turn?.status === 'completed' ? record.spec.routing || implementationTask(record.spec) || record.goal?.status === 'active' ? 'running' : 'completed' : params.turn?.status === 'interrupted' ? 'interrupted' : 'failed';
       for (const item of params.turn?.items ?? []) {
         const output = projectCodexItem(record.threadId, params.turn?.id ?? record.turnId, item, true); if (output) this.output(record.id, output);
       }
-      if (params.turn?.error) record.error = 'Codex 本輪執行失敗；請查看任務紀錄。';
-      record.dispatchPending = false; this.clearInteractions(record.id); this.active?.finish?.();
+      if (params.turn?.error) {
+        const info = params.turn.error.codexErrorInfo;
+        const error = CodexRpcError.from('turn/start', { code: -32000, data: { type: typeof info === 'string' ? info : info?.type } });
+        record.error = error.message;
+        if (error.category === 'quota') record.progress = { ...record.progress, waitReason: 'quota' };
+      }
+      if (record.dispatch) { record.dispatch.state = 'completed'; record.dispatch.turnId = params.turn?.id; }
+      record.dispatchPending = false; this.clearInteractions(record.id);
+      if (record.goal?.status !== 'active' || params.turn?.status !== 'completed') active?.finish?.();
     }
   }
   private receiveInteraction(record: CodexTaskRecord, client: CodexAppServer, request: RpcMessage): void {
+    const active = this.executions.get(record.id);
     const params = request.params ?? {};
-    if (!this.records.has(record.id) || this.active?.abort.signal.aborted || request.id === undefined || params.threadId !== record.threadId || params.turnId && record.turnId && params.turnId !== record.turnId) {
+    if (!this.records.has(record.id) || active?.abort.signal.aborted || request.id === undefined || params.threadId !== record.threadId || params.turnId && record.turnId && params.turnId !== record.turnId) {
       if (request.id !== undefined) client.reject(request.id); return;
     }
     const seen = this.seenRequests.get(client) ?? new Set<string>(), requestKey = JSON.stringify(request.id);
@@ -539,7 +809,7 @@ export class CodexBridge {
     if (request.method === 'item/commandExecution/requestApproval') kind = 'command';
     else if (request.method === 'item/fileChange/requestApproval') kind = 'file';
     else if (request.method === 'item/permissions/requestApproval') kind = 'permissions';
-    else if (request.method === 'item/tool/requestUserInput') kind = 'questions';
+    else if (request.method === 'item/tool/requestUserInput' || request.method === 'tool/requestUserInput') kind = 'questions';
     else if (request.method === 'mcpServer/elicitation/request') kind = params.mode === 'url' ? 'url' : ['form', 'openai/form', 'openaiForm'].includes(params.mode) ? 'form' : undefined;
     if (!kind) {
       client.reject(request.id); record.error = 'Codex 要求目前未支援的互動，已停止本輪。';
@@ -552,12 +822,13 @@ export class CodexBridge {
       questions: kind === 'questions' ? (params.questions ?? []).map((question: any) => ({ id: question.id, question: question.question, isSecret: question.isSecret, options: question.options ?? undefined })) : undefined,
       schema: kind === 'form' ? params.requestedSchema : undefined, url: kind === 'url' ? params.url : undefined };
     this.interactions.set(id, { projection, request, client }); record.status = 'waiting';
+    record.progress = { ...record.progress, waitReason: 'approval' };
     void this.save(record).catch(() => {}); this.publishInteractions(record.id);
     void this.autoAnswer(this.interactions.get(id)!);
   }
   async answer(taskId: string, interactionId: string, answer: CodexInteractionAnswer, automatic = false): Promise<void> {
     this.requireTrusted();
-    const pending = this.interactions.get(interactionId), active = this.active;
+    const pending = this.interactions.get(interactionId), active = this.executions.get(taskId);
     if (!pending || pending.responding || !active || active.abort.signal.aborted || active.record.id !== taskId || pending.projection.taskId !== taskId || pending.client !== active.client) throw new Error('此 Codex 互動已失效，請重新讀取任務。');
     if (!answer || !['accept', 'decline', 'cancel'].includes(answer.decision)) throw new Error('Codex 回覆格式無效。');
     const params = pending.request.params ?? {};
@@ -601,7 +872,7 @@ export class CodexBridge {
       Object.assign(previous, item, { text: updated });
     }
     else items.push({ ...item, text: item.text.slice(-64_000) });
-    while (items.length > 100 || items.reduce((sum, value) => sum + value.text.length, 0) > 256_000) items.shift();
+    while (items.length > 100 || items.reduce((sum, value) => sum + codexItemBytes(value), 0) > 512_000) items.shift();
     this.outputs.set(taskId, items);
     if (!this.outputTimers.has(taskId)) this.outputTimers.set(taskId, setTimeout(() => {
       this.outputTimers.delete(taskId); this.emit({ kind: 'output', taskId, items: this.outputs.get(taskId) ?? [], replace: true });
@@ -619,13 +890,13 @@ export class CodexBridge {
     const page = await this.historyPages.get(key, async readSignal => {
       const readVersion = ++this.historySequence;
       if (this.disposed || readSignal.aborted || !this.records.has(record.id)) throw abortedReadError();
-      const shared = borrowed ?? (this.active?.record.id === record.id ? this.active.client : undefined);
+      const shared = borrowed ?? this.executions.get(record.id)?.client;
       const client = shared ?? (await this.makeClient(root)).client;
       const abort = () => { if (!shared) void client.close(); };
       readSignal.addEventListener('abort', abort, { once: true });
       try {
         if (readSignal.aborted) throw abortedReadError();
-        const turns = await client.request('thread/turns/list', { threadId, limit: 10, sortDirection: 'desc', itemsView: 'full', ...(cursor ? { cursor } : {}) });
+        const turns = await client.request('thread/turns/list', { threadId, limit: 10, sortDirection: 'desc', itemsView: 'full', ...(cursor ? { cursor } : {}) }, { signal: readSignal });
         const items: CodexOutputItem[] = [];
         for (const turn of [...turns.data ?? []].reverse()) for (const item of turn.items ?? []) {
           const output = projectCodexItem(threadId, turn.id, item, ['completed', 'interrupted', 'failed'].includes(turn.status));
@@ -647,6 +918,16 @@ export class CodexBridge {
         cursor: cursor ?? previous?.cursor,
         nextCursor: !cursor && previous?.cursor ? previous.nextCursor : page.nextCursor ?? undefined
       });
+      const bounded = boundTranscriptCache(Object.fromEntries([...this.histories].map(([id, value]) => [id, value.items])), record.id, undefined,
+        cursor && page.items[0] ? codexOutputKey(page.items[0]) : undefined);
+      for (const id of bounded.evicted) {
+        this.histories.delete(id); this.emit({ kind: 'history', taskId: id, items: [], evicted: true });
+      }
+      if (bounded.trimmed) this.histories.get(record.id)!.items = bounded.cache[record.id];
+      if (bounded.trimmed) {
+        this.emit({ kind: 'history', taskId: record.id, items: bounded.cache[record.id], nextCursor: page.nextCursor ?? undefined, cursor, reset: true });
+        return page.hasTurns;
+      }
       this.emit({ kind: 'history', taskId: record.id, items: page.items, nextCursor: page.nextCursor ?? undefined, cursor });
     }
     return page.hasTurns;
@@ -660,8 +941,8 @@ export class CodexBridge {
   async message(id: string, text: string): Promise<void> {
     this.requireTrusted(); await this.initialize(); const record = this.record(id);
     if (typeof text !== 'string' || !text.trim() || text.length > 32_000 || text.includes('\0')) throw new Error('請輸入 1 到 32,000 字的 Codex 訊息。');
-    if (this.active?.record.id === id && this.active.client && record.turnId && record.status === 'running') {
-      const active = this.active;
+    if (this.executions.get(id)?.client && record.turnId && record.status === 'running') {
+      const active = this.executions.get(id)!;
       if (record.spec.routing && (record.routingUserMessages ?? []).reduce((sum, item) => sum + item.length, text.length) > 128_000) {
         throw new Error('本次審查的補充內容已達保存上限，請另開工作。');
       }
@@ -690,8 +971,9 @@ export class CodexBridge {
   }
   private async resumeNow(id: string, pending?: string): Promise<void> {
     const record = this.record(id);
+    if (record.publication?.state === 'pending') throw new Error('請先核對 MR 發布結果再接續。');
     if (record.result?.state === 'uncertain') throw new Error('請先核對 Wiki 發布結果，再接續修改草稿。');
-    if (codexTaskActive(record.status) || record.status === 'queued' || this.active?.record.id === id) throw new Error('此任務已在執行、清理或排隊。');
+    if (codexTaskActive(record.status) || record.status === 'queued' || this.executions.has(id)) throw new Error('此任務已在執行、清理或排隊。');
     const prepared = await this.options.prepare(record.spec.source, record.spec);
     if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root) throw new Error('原任務的專案或 Skills 已變更，請從功能頁重新確認。');
     if (pending !== undefined) { record.pendingMessage = pending; record.pendingMessageIsUser = true; }
@@ -709,14 +991,18 @@ export class CodexBridge {
   }
   private async stop(id: string, target: 'paused' | 'interrupted'): Promise<void> {
     await this.initialize(); const record = this.record(id);
-    if (this.active?.record.id === id && (codexTaskActive(record.status) || record.status === 'queued')) {
-      const active = this.active;
+    if (this.executions.has(id) && (codexTaskActive(record.status) || record.status === 'queued')) {
+      const active = this.executions.get(id)!;
       active.stopAs ??= target;
       // Stop automatic responses synchronously, before any persistence or RPC awaits.
       active.abort.abort();
       active.cancellation ??= (async () => {
         try {
           record.status = 'pausing'; await this.save(record);
+          if (active.client && record.goal && record.threadId && active.version && codexCapabilities(active.version).goals) {
+            await new CodexProtocolAdapter(active.client, active.version).setGoal({ threadId: record.threadId, origin: 'user', status: 'paused' });
+            record.goal.status = 'paused';
+          }
           if (active.client && record.turnId) {
             try { await active.client.request('turn/interrupt', { threadId: record.threadId, turnId: record.turnId }); }
             catch { record.error = '中斷結果待核對。'; }
@@ -741,7 +1027,9 @@ export class CodexBridge {
     if (await this.store.isDeleted(id)) { this.forget(id); return; }
     const state = this.list().find(task => task.id === id);
     if (!state?.controls?.canDelete) throw new Error('請先暫停任務並確認清理完成，再刪除紀錄。');
+    const receipt = this.record(id).lease?.receipt;
     await this.store.remove(id); this.forget(id);
+    if (receipt) await CodexWorkspaceLease.clearReceipt(receipt).catch(() => {});
     this.emit({ kind: 'tasks', tasks: this.list() });
   }
   private forget(id: string): void {
@@ -749,7 +1037,8 @@ export class CodexBridge {
     this.records.delete(id); this.persisted.delete(id); this.owned.delete(id); this.outputs.delete(id); this.histories.delete(id);
     this.historyPages.invalidateWhere(key => key.startsWith(id + '\0'));
     for (const key of this.historyApplied.keys()) if (key.startsWith(id + '\0')) this.historyApplied.delete(key);
-    this.autoAccept.delete(id); this.autoAcceptErrors.delete(id);
+    this.autoAccept.delete(id); this.autoAcceptErrors.delete(id); this.approvals.delete(id); this.diagnostics.delete(id);
+    const progressTimer = this.progressTimers.get(id); if (progressTimer) clearTimeout(progressTimer); this.progressTimers.delete(id);
     this.queue = this.queue.filter(value => value !== id);
     const timer = this.outputTimers.get(id); if (timer) clearTimeout(timer); this.outputTimers.delete(id);
     this.clearInteractions(id);
@@ -763,9 +1052,11 @@ export class CodexBridge {
     if (enabled) for (const pending of this.interactions.values()) if (pending.projection.taskId === id) await this.autoAnswer(pending);
   }
   private async autoAnswer(pending: PendingInteraction): Promise<void> {
-    const id = pending.projection.taskId, active = this.active;
+    const id = pending.projection.taskId, active = this.executions.get(pending.projection.taskId);
     if (!this.autoAccept.has(id) || !active || active.record.id !== id || active.abort.signal.aborted || pending.responding ||
         !this.interactions.has(pending.projection.id) || !['command', 'file', 'permissions'].includes(pending.projection.kind)) return;
+    const settings = this.approvals.get(id) ?? active.record.approvalSettings ?? { command: true, file: true, permissions: true };
+    if (!settings[pending.projection.kind as keyof CodexApprovalSettings]) return;
     const choices = pending.request.params?.availableDecisions;
     if (pending.projection.kind !== 'permissions' && Array.isArray(choices) && !choices.includes('accept')) return;
     try {
@@ -794,7 +1085,10 @@ export class CodexBridge {
       this.historyApplied.clear();
       this.watcher?.close(); if (this.reloadTimer) clearTimeout(this.reloadTimer);
       for (const timer of this.outputTimers.values()) clearTimeout(timer);
-      if (this.active && (codexTaskActive(this.active.record.status) || this.active.record.status === 'queued')) await this.cancel(this.active.record.id).catch(() => {});
+      for (const timer of this.progressTimers.values()) clearTimeout(timer);
+      if (this.retryTimer) clearTimeout(this.retryTimer);
+      await Promise.allSettled([...this.executions.keys()].map(id => this.cancel(id)));
+      await Promise.allSettled([...this.executionTasks]);
       await this.processingTask;
       for (const id of this.queue) { const record = this.records.get(id)!; record.status = 'interrupted'; await this.save(record); }
       this.queue = []; await this.store.flush();

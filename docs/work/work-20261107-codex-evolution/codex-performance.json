@@ -1,0 +1,175 @@
+{
+  "schema": "GitLabWorkspaceCodexRendererBenchmark/v1",
+  "checkedAt": "2026-11-07T05:08:13.711Z",
+  "browser": "157.0.8103.38",
+  "method": "Production bundle, synthetic Host, live batches seed the complete transcript; updates dispatch through two animation frames. Excludes OS input, native VS Code bridge and external service latency.",
+  "summary": [
+    {
+      "label": "after",
+      "count": 2000,
+      "samples": 30,
+      "p50Ms": 31.5,
+      "p95Ms": 32.20000000298023,
+      "mountedMax": 15
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "samples": 30,
+      "p50Ms": 31.5,
+      "p95Ms": 31.900000005960464,
+      "mountedMax": 15
+    }
+  ],
+  "checks": [
+    {
+      "count": 10000,
+      "taskSwitchAnchor": true,
+      "restoredAnchor": true,
+      "historyPrependAnchor": true,
+      "streamingAnchor": true,
+      "jumpLatestFocus": true,
+      "pinnedFocus": true
+    }
+  ],
+  "measurements": [
+    {
+      "label": "after",
+      "count": 2000,
+      "round": 0,
+      "latencies": [
+        30.600000001490116,
+        31,
+        31.399999998509884,
+        32.20000000298023,
+        31.5,
+        31.200000002980232,
+        32.399999998509884,
+        31.30000000447035,
+        31.700000002980232,
+        31.5
+      ],
+      "mounted": 15,
+      "nodes": 223,
+      "bundleSha256": "7ce4bd18adeb0a13220340d188bebc628cc6d4b0ab6c20288f3c4f10b01ef722",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "round": 0,
+      "latencies": [
+        31.200000002980232,
+        29.899999998509884,
+        32,
+        31.299999997019768,
+        31.5,
+        30.600000001490116,
+        31.100000001490116,
+        31.700000002980232,
+        30.100000001490116,
+        31.799999997019768
+      ],
+      "mounted": 15,
+      "nodes": 223,
+      "bundleSha256": "7ce4bd18adeb0a13220340d188bebc628cc6d4b0ab6c20288f3c4f10b01ef722",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 2000,
+      "round": 1,
+      "latencies": [
+        30.30000000447035,
+        31,
+        31.80000000447035,
+        31.799999997019768,
+        32.100000001490116,
+        31,
+        31.899999998509884,
+        31,
+        31.299999997019768,
+        31.30000000447035
+      ],
+      "mounted": 15,
+      "nodes": 223,
+      "bundleSha256": "7ce4bd18adeb0a13220340d188bebc628cc6d4b0ab6c20288f3c4f10b01ef722",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "round": 1,
+      "latencies": [
+        31.600000001490116,
+        31.100000001490116,
+        31.299999997019768,
+        31.69999999552965,
+        31.80000000447035,
+        31.399999998509884,
+        31.899999998509884,
+        31.80000000447035,
+        31.799999997019768,
+        31.899999998509884
+      ],
+      "mounted": 15,
+      "nodes": 223,
+      "bundleSha256": "7ce4bd18adeb0a13220340d188bebc628cc6d4b0ab6c20288f3c4f10b01ef722",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 2000,
+      "round": 2,
+      "latencies": [
+        31.19999999552965,
+        31.5,
+        31.700000002980232,
+        31.299999997019768,
+        31.600000001490116,
+        31.69999999552965,
+        31.599999994039536,
+        31.700000002980232,
+        31.799999997019768,
+        31.799999997019768
+      ],
+      "mounted": 15,
+      "nodes": 223,
+      "bundleSha256": "7ce4bd18adeb0a13220340d188bebc628cc6d4b0ab6c20288f3c4f10b01ef722",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "round": 2,
+      "latencies": [
+        31.700000002980232,
+        31.900000005960464,
+        30.900000005960464,
+        31.600000001490116,
+        30.5,
+        19.700000002980232,
+        31.600000001490116,
+        31.799999997019768,
+        31.30000000447035,
+        26.100000001490116
+      ],
+      "mounted": 15,
+      "nodes": 223,
+      "bundleSha256": "7ce4bd18adeb0a13220340d188bebc628cc6d4b0ab6c20288f3c4f10b01ef722",
+      "errors": [],
+      "external": [],
+      "csp": []
+    }
+  ]
+}

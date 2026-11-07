@@ -11,7 +11,7 @@ export type WorkflowPayload = Extract<WorkspaceResponse, { type: 'codexWorkflowR
 
 export function taskForSource(tasks: readonly CodexTaskState[], source: LinkedSource): CodexTaskState | undefined {
   const matches = tasks.filter(task => task.origin?.kind === source.kind && task.origin.projectId === source.projectId &&
-    (source.kind === 'issue' ? task.origin.iid === source.issueIid : source.kind === 'merge-request' ? task.origin.iid === source.iid : true));
+    (source.kind === 'issue' ? task.origin.iid === source.issueIid : source.kind === 'merge-request' ? task.origin.iid === source.iid && (task.origin.intent ?? 'review') === (source.intent ?? 'review') : true));
   return matches.find(task => codexTaskActive(task.status) || task.status === 'queued') ?? matches[0];
 }
 
@@ -19,14 +19,17 @@ export function CodexWorkflowLaunch({ tasks, source, post, compact = false, disa
   tasks: readonly CodexTaskState[]; source: LinkedSource; post: Post; compact?: boolean; disabled?: boolean; skillsContext?: SkillsContext;
 }) {
   const task = taskForSource(tasks, source), busy = task && (codexTaskActive(task.status) || task.status === 'queued');
+  const [isolated, setIsolated] = useState(false);
   const label = { issue: '使用 Codex 開發', 'project-wiki': '建立／更新 Wiki', 'merge-request': '一鍵 Code Review' }[source.kind];
   return <section class={`codex-workflow-launch ${compact ? 'compact' : ''}`} aria-label={label}>
     <div class="button-row"><button type="button" class={compact ? 'quiet small' : 'primary'} disabled={disabled}
-      onClick={() => post(busy ? { type: 'showCodexTask', taskId: task.id } : { type: 'startCodexTask', source })}>
+      onClick={() => post(busy ? { type: 'showCodexTask', taskId: task.id } : { type: 'startCodexTask', source: source.kind === 'issue' && isolated ? { ...source, isolated: true } : source })}>
       {busy ? source.kind === 'issue' ? '查看開發任務' : '查看執行任務' : label}</button>
       {task && !busy && <button type="button" class="quiet small" onClick={() => post({ type: 'showCodexTask', taskId: task.id })}>查看上次成果</button>}
       {source.kind === 'issue' && task?.result?.files?.length ? <button type="button" class="quiet small" onClick={() => post({ type: 'openCodexChanges', taskId: task.id })}>檢視差異</button> : null}
     </div>
+    {source.kind === 'merge-request' && !busy && <button type="button" class="quiet small" disabled={disabled} onClick={() => post({ type: 'startCodexTask', source: { ...source, intent: 'fix-comments' } })}>將討論轉成修正任務</button>}
+    {source.kind === 'issue' && !busy && <label><input type="checkbox" checked={isolated} disabled={disabled} onChange={event => setIsolated(event.currentTarget.checked)} />在隔離 worktree 執行</label>}
     {source.kind === 'issue' && <CommitReviewLaunch post={post} skills={skillsContext} projectId={source.projectId} issueIid={source.issueIid} disabled={disabled} />}
     {!compact && task?.result && <p class="subtle" role="status">{task.result.summary}</p>}
     {!compact && source.kind === 'issue' && task?.result && (!!task.result.files?.length || !!task.result.tests?.length) &&
@@ -42,6 +45,8 @@ export function CodexWorkflowResult({ task, payload, post, active }: {
   task: CodexTaskState; payload?: WorkflowPayload; post: Post; active: boolean;
 }) {
   const [selectedPage, setSelectedPage] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [sentReplies, setSentReplies] = useState<ReadonlySet<string>>(() => new Set());
   const requested = useRef<string>();
   const result = task.result, wiki = payload?.wiki;
   useEffect(() => {
@@ -62,11 +67,24 @@ export function CodexWorkflowResult({ task, payload, post, active }: {
   const page = wiki?.pages.find(item => item.slug === selectedPage) ?? wiki?.pages[0];
   return <section class="codex-workflow-result" aria-label="任務來源與成果">
     <div class="button-row">
+      {task.origin.kind === 'issue' && result?.state === 'ready' && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'handoff', taskId: task.id } })}>準備 CommitReviewer 與 MR 草稿</button>}
       {task.origin.kind === 'issue' && <button type="button" class="quiet small" onClick={() => post({ type: 'openCodexChanges', taskId: task.id })}>檢視差異</button>}
       {result?.reportPath && task.review && <button type="button" class="quiet small" onClick={() => post({ type: 'openReviewReport', ...task.review! })}>在編輯器開啟報告</button>}
       {result?.url && <button type="button" class="quiet small" onClick={() => post({ type: 'openExternal', url: result.url! })}>在 GitLab 查看 Wiki</button>}</div>
     <p class="subtle codex-root">{task.origin.projectPath} · {task.origin.branch ?? task.origin.sourceBranch} · {task.origin.sourceSha.slice(0, 12)}</p>
     {result && <p role="status">{result.summary}</p>}
+    {result?.replyDrafts?.map(reply => {
+      const key = `${task.id}:${reply.discussionId}`, body = replyDrafts[key] ?? reply.body;
+      return <details key={key}><summary>討論 {reply.discussionId} 的回覆草稿</summary><label>回覆內容<textarea rows={5} maxLength={50000} value={body}
+        onInput={event => {
+          setReplyDrafts(current => ({ ...current, [key]: event.currentTarget.value }));
+          if (task.publication?.state === 'not-published') setSentReplies(current => new Set([...current].filter(value => value !== key)));
+        }} /></label>
+        <button type="button" disabled={busy || !body.trim() || sentReplies.has(key) || task.publication?.state === 'pending'} onClick={() => {
+          post({ type: 'codexCommand', command: { action: 'publish-reply', taskId: task.id, discussionId: reply.discussionId, body } });
+          setSentReplies(current => new Set([...current, key]));
+        }}>發布這則回覆</button><p class="subtle">發布前重新核對 MR 版本；送出後請回原 MR 檢查結果，逾時先核對狀態。</p></details>;
+    })}
     {!!result?.tests?.length && <details><summary>測試結果（{result.tests.length}）</summary>{result.tests.map((test, index) => <p key={index}><code>{test.command}</code> · exit {test.exitCode}</p>)}</details>}
     {result?.draftId && <details class="codex-wiki-preview" open><summary>Wiki 發布預覽</summary>
       <div class="button-row"><button type="button" class="quiet small" disabled={busy || checking} onClick={() => post({ type: 'previewProjectWiki', taskId: task.id, refresh: true })}>重新預覽／核對結果</button>

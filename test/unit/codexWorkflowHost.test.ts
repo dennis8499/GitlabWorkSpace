@@ -86,6 +86,21 @@ test('Host refuses a mismatched project response before preparing any linked tas
   assert.deepEqual(f.calls, ['project']);
 });
 
+test('MR discussion fixes pin their snapshots and worktree without inheriting review permissions', async t => {
+  const f = await fixture(t);
+  const discussion = { id: 'discussion-one', notes: [{ id: 31, body: 'Add a regression test.', author: { name: 'Reviewer' }, system: false, resolved: false }] };
+  Object.assign(f.client, { listMergeRequestDiscussions: async () => [discussion] });
+  const source: CodexTaskSpec['source'] = { kind: 'merge-request', projectId: 4, iid: 8, intent: 'fix-comments', discussionIds: [discussion.id] };
+  const spec: CodexTaskSpec = await f.panel.prepareLinkedCodexTask(source);
+  assert.equal(spec.origin?.intent, 'fix-comments'); assert.equal(spec.review, undefined);
+  assert.equal(spec.workflow?.worktree?.sourceSha, f.mr.diff_refs.head_sha);
+  assert.equal(spec.executionRoot, spec.workflow?.worktree?.path);
+  assert.ok(spec.workflow?.discussions?.[0].text.includes('Add a regression test.'));
+  assert.ok(spec.prompt.includes('提交、推送、回覆及解決討論由使用者操作'));
+  discussion.notes[0].body = 'Changed after queueing';
+  await assert.rejects(f.panel.prepareLinkedCodexTask(source, spec), /討論在排隊期間已變更/);
+});
+
 test('Host reconciliation unlocks a Wiki draft after an unknown write has been checked', async t => {
   const f = await fixture(t), spec = await f.panel.prepareLinkedCodexTask({ kind: 'project-wiki', projectId: 4 });
   let result: any = { state: 'uncertain' };

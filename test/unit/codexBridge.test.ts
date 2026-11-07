@@ -8,6 +8,7 @@ import { CodexAppServer } from '../../src/codex/appServer';
 import { CodexBridge, validateForm, type CodexBridgeOptions } from '../../src/codex/bridge';
 import { CodexTaskStore, codexRootKey } from '../../src/codex/taskStore';
 import { networkRuntimeRoot } from '../../src/api/localNetworkLease';
+import { CodexTaskScheduler } from '../../src/codex/scheduler';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
 import { resolveCodexExecutable } from '../../src/codex/process';
 import { canonicalRuntime } from '../../src/codex/taskValidation';
@@ -46,7 +47,7 @@ async function setup(t: { after(fn: () => Promise<void>): void }, prompt = 'succ
   const spec: CodexTaskSpec = { title: 'Wiki 查詢', root, workspaceKey: root, source: { kind: 'skill', featureId: 'query', inputs: {}, revision: 'r' },
     prompt, skill: { name: 'codebase-wiki', path: skill }, writableRoots: [root], environmentKey: 'environment' };
   let trusted = true, changed = false;
-  const make = (storage = root) => new CodexBridge({ storage, version: 'test', executable: () => '', trusted: () => trusted,
+  const make = (storage = root) => new CodexBridge({ scheduler: new CodexTaskScheduler('test', root), storage, version: 'test', executable: () => '', trusted: () => trusted,
     ...hooks,
     prepare: async () => ({ ...spec, environmentKey: changed ? 'changed' : 'environment' }), event: event => events.push(event), openUrl: async () => {},
     client: async () => {
@@ -200,7 +201,7 @@ test('Reopening the Bridge preserves saved threads without automatically executi
   const before = f.requests.length;
   const store = new CodexTaskStore(path.join(f.root, 'codex-tasks'));
   assert.ok((await store.load())[0].threadId);
-  const bridge = new CodexBridge({ storage: f.root, version: 'test', executable: () => '', trusted: () => true,
+  const bridge = new CodexBridge({ scheduler: new CodexTaskScheduler('test', f.root), storage: f.root, version: 'test', executable: () => '', trusted: () => true,
     prepare: async () => f.spec, event: () => {}, openUrl: async () => {} });
   t.after(() => bridge.shutdown());
   await bridge.publish(); assert.equal(bridge.list()[0].status, 'completed'); assert.equal(f.requests.length, before); await bridge.shutdown();

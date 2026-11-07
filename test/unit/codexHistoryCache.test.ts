@@ -25,7 +25,7 @@ function fixture(t: test.TestContext, read: (params: Record<string, unknown>) =>
     client: async () => { clients++; return { client, version: 'fixture', executable: 'fixture' }; } });
   const state = bridge as any;
   state.initialized = Promise.resolve(); state.records.set(record.id, record);
-  t.after(async () => { state.active = undefined; await bridge.shutdown(); });
+  t.after(async () => { state.executions.clear(); await bridge.shutdown(); });
   return { bridge, state, record, client, events, counts: () => ({ clients, requests, closed }), advance: () => { now += 60_001; } };
 }
 
@@ -71,7 +71,7 @@ test('failed history is not cached and a late read cannot overwrite a forced fre
 
 test('cancelling a history subscriber never closes the client executing an active task', async t => {
   const hold = deferred<unknown>(), f = fixture(t, async () => hold.promise), controller = new AbortController();
-  f.state.active = { record: f.record, client: f.client };
+  f.state.executions.set(f.record.id, { record: f.record, client: f.client });
   const pending = f.bridge.history('task', undefined, false, controller.signal);
   await new Promise(resolve => setImmediate(resolve)); controller.abort();
   await assert.rejects(pending, error => error instanceof Error && error.name === 'AbortError');

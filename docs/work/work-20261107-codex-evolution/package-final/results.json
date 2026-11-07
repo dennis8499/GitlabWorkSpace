@@ -1,0 +1,30 @@
+[
+  {
+    "id": "package",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/package-extension.mjs",
+      "--prepared"
+    ],
+    "startedAt": "2026-11-07T05:23:15.580Z",
+    "finishedAt": "2026-11-07T05:23:50.680Z",
+    "seconds": 35.098,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\package-final\\package.log"
+  },
+  {
+    "id": "verify-package",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/run-python.mjs",
+      "scripts/verify-vsix.py"
+    ],
+    "startedAt": "2026-11-07T05:23:50.682Z",
+    "finishedAt": "2026-11-07T05:23:53.741Z",
+    "seconds": 3.059,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\package-final\\verify-package.log"
+  }
+]

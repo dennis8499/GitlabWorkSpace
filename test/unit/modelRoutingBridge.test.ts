@@ -1,3 +1,4 @@
+import { CodexTaskScheduler } from '../../src/codex/scheduler';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
@@ -49,7 +50,7 @@ async function setup(t: { after(fn: () => Promise<void>): void }, options: {
   let completed = 0, cancelled = 0;
   const bridges: CodexBridge[] = [];
   const make = () => {
-    const bridge = new CodexBridge({ storage: root, version: 'test', executable: () => '', trusted: () => true,
+    const bridge = new CodexBridge({ scheduler: new CodexTaskScheduler('test', root), storage: root, version: 'test', executable: () => '', trusted: () => true,
       prepare: async () => spec, event: event => events.push(event), openUrl: async () => {},
       completed: async () => { completed++; }, cancelReview: async () => { cancelled++; },
       client: async () => {

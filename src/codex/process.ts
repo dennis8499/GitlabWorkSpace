@@ -50,13 +50,13 @@ export async function resolveCodexExecutable(configured = '', projectRoot?: stri
     }
     await access(file);
     const output = await run(file, ['--version'], { windowsHide: true, timeout: 10_000, maxBuffer: 32_768 });
-    const version = /codex-cli\s+(\d+)\.(\d+)\.(\d+)/.exec(output.stdout);
+    const version = /codex-cli\s+((\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?)/.exec(output.stdout);
     if (!version) throw new Error('無法辨識 Codex CLI 版本。');
-    if (+version[1] === 0 && +version[2] < 165) {
+    if (+version[2] === 0 && (+version[3] < 165 || +version[3] === 165 && version[1].includes('-'))) {
       if (configured) throw new Error('一鍵執行需要 Codex CLI 0.165.0 或更新版本，請更新 Codex。');
       incompatible = true; continue;
     }
-    return { file, version: version.slice(1).join('.') };
+    return { file, version: version[1] };
   }
   throw new Error(incompatible ? '一鍵執行需要 Codex CLI 0.165.0 或更新版本，請更新 Codex。' : '找不到 Codex CLI；請安裝 Codex，或在使用者設定指定 gitlabWorkspace.codex.executablePath。');
 }

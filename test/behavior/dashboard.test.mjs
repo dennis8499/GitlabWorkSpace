@@ -826,7 +826,7 @@ test('native account operation receipts release metadata controls after a failed
   assert.equal(document.querySelector('.accounts-heading button').disabled, true);
   view.receipt(request, { status: 'failed', effect: 'none', error: 'Account switching' }); await view.tick();
   assert.equal(document.querySelector('.accounts-heading button').disabled, false);
-  assert.equal(document.querySelector('input'), null);
+  assert.equal(document.querySelector('.accounts-panel input'), null);
 });
 
 test('Webview account actions carry identity only and delegate credential validation to the Host', async t => {
@@ -1687,6 +1687,42 @@ test('offline Dashboard keeps local Repo and tool entry points available without
   assert.equal(view.requests.at(-1).path, 'C:/workspace/service');
   document.querySelector('.home-gitlab-card .primary').click(); await view.tick();
   assert.equal(view.requests.at(-1).type, 'connect');
+});
+
+test('Codex task management filters archived records and exposes native task creation and scoped approvals', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const controls = { external: false, canPause: false, canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false, approvals: { command: true, file: true, permissions: true } };
+  const tasks = ['Alpha', 'Beta', 'Archived'].map((title, index) => ({ id: `evolution-${index}`, title, root: `C:/workspace/repo-${index}`, status: 'completed', createdAt: `2026-11-07T00:00:0${index}Z`, updatedAt: '2026-11-07T00:00:00Z', controls, archived: index === 2 }));
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  const names = () => [...document.querySelectorAll('.codex-tasks > button strong')].map(node => node.textContent);
+  assert.equal(names().length, 2); assert.ok(!names().includes('Archived'));
+  const search = document.querySelector('.codex-task-filter input[type="search"]'); search.value = 'Beta'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.deepEqual(names(), ['Beta']); search.value = ''; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const showArchived = [...document.querySelectorAll('.codex-tasks label')].find(label => label.textContent.includes('顯示已封存')).querySelector('input'); showArchived.click(); await view.tick();
+  assert.equal(names().length, 3);
+  [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes('Alpha')).click(); await view.tick();
+  const file = document.querySelectorAll('.codex-approval-options input')[1]; file.click(); await view.tick();
+  const approval = view.requests.findLast(request => request.type === 'codexCommand' && request.command.action === 'approvals');
+  assert.equal(approval.command.taskId, 'evolution-0'); assert.deepEqual(JSON.parse(JSON.stringify(approval.command.settings)), { command: true, file: false, permissions: true });
+  [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent === '建立 Codex 任務').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'codexCommand').command.action, 'create');
+});
+
+test('Codex renders structured progress and keeps recovery available when resume is blocked', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const task = { id: 'recover-task', title: 'Recover', root: 'C:/workspace/repo', status: 'uncertain', createdAt: '2026-11-07', updatedAt: '2026-11-07',
+    controls: { external: false, canPause: false, canResume: false, canDelete: false, canAutoAccept: false, autoAccept: false },
+    progress: { plan: [{ step: '<script>untrusted()</script>', status: 'inProgress' }], model: 'fixture-model', tokens: { total: 12, input: 8, output: 4 }, waitReason: 'resource' } };
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  assert.match(document.querySelector('.codex-task-details').textContent, /fixture-model/); assert.match(document.querySelector('.codex-task-details').textContent, /12/);
+  assert.equal(document.querySelector('.codex-task-details script'), null);
+  const recovery = [...document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '核對任務狀態');
+  assert.equal(recovery.disabled, false); recovery.click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'codexCommand').command.action, 'reconcile');
+  view.send({ type: 'codexEvent', event: { kind: 'environment', environment: { state: 'blocked', storageProblems: [{ id: 'broken-task', reason: 'Invalid record' }] } } }); await view.tick();
+  assert.match(document.querySelector('.codex-tasks').textContent, /broken-task/);
 });
 
 test('Codex task projections render messages, bind answers and expose stop, resume and history controls', async t => {

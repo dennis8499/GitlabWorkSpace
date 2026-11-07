@@ -281,6 +281,7 @@ export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId
 
 export type WorkspaceRequest = (NotificationRequest
   | { type: 'startCodexTask'; source: import('../codex/protocol').CodexTaskSource }
+  | { type: 'codexCommand'; command: import('../codex/protocol').CodexCommand }
   | { type: 'showCodexTask'; taskId: string }
   | { type: 'readCodexResult'; taskId: string }
   | { type: 'openCodexOrigin'; taskId: string }

@@ -1,0 +1,63 @@
+[
+  {
+    "id": "behavior-node",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--require",
+      "./test/network-test-environment.cjs",
+      "--test",
+      "test/behavior/bmad-dashboard.test.mjs",
+      "test/behavior/bmad-panel.test.mjs",
+      "test/behavior/dashboard.test.mjs",
+      "test/behavior/issue-demand.test.mjs",
+      "test/behavior/quick-actions.test.mjs",
+      "test/behavior/skills-guide.test.mjs"
+    ],
+    "startedAt": "2026-11-07T05:09:55.560Z",
+    "finishedAt": "2026-11-07T05:12:10.531Z",
+    "seconds": 134.972,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\behavior\\behavior-node.log"
+  },
+  {
+    "id": "behavior-issues",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--require",
+      "./test/network-test-environment.cjs",
+      "node_modules/@cucumber/cucumber/bin/cucumber.js",
+      "--require",
+      "test/behavior/steps.cjs",
+      "--tags",
+      "@automated",
+      "test/behavior/issues.feature"
+    ],
+    "startedAt": "2026-11-07T05:12:10.532Z",
+    "finishedAt": "2026-11-07T05:12:40.009Z",
+    "seconds": 29.477,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\behavior\\behavior-issues.log"
+  },
+  {
+    "id": "behavior-connect",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--require",
+      "./test/network-test-environment.cjs",
+      "node_modules/@cucumber/cucumber/bin/cucumber.js",
+      "--require",
+      "test/behavior/connect.steps.cjs",
+      "--tags",
+      "@automated",
+      "test/behavior/connect.feature"
+    ],
+    "startedAt": "2026-11-07T05:12:40.010Z",
+    "finishedAt": "2026-11-07T05:12:40.814Z",
+    "seconds": 0.804,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\behavior\\behavior-connect.log"
+  }
+]

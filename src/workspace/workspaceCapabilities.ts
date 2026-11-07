@@ -17,6 +17,7 @@ export function getWorkspaceCapabilities(folders: readonly { uri: { scheme: stri
 // This is a filesystem capability, independent of read/write classification and
 // operation scopes. Clipboard, logs, navigation and remote writes remain usable.
 const localProjectActions = new Set([
+  'codexCommand',
   'scanRepositories', 'repositoryDetails', 'refreshRepositories', 'clone', 'syncRepos',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'openLocalWorkspace',

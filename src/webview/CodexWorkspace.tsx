@@ -10,6 +10,8 @@ import { CodexSettings, Interaction } from './CodexPanel';
 import './codex-panel.css';
 import { CodexWorkflowResult, type WorkflowPayload } from './CodexWorkflow';
 import { VirtualRows } from './VirtualRows';
+import { CodexTaskDetails } from './CodexTaskDetails';
+import { boundTranscriptCache } from '../codex/historyBudget';
 
 type Post = (request: WorkspaceRequest) => DispatchResult;
 export const codexStatusLabels: Record<CodexTaskState['status'], string> = {
@@ -83,7 +85,16 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         }
       } else if (value.kind === 'output' || value.kind === 'history') {
         if (!knownTasks.current.has(value.taskId)) return;
-        transcriptCache.current = { ...transcriptCache.current, [value.taskId]: mergeCodexTranscript(transcriptCache.current[value.taskId] ?? [], value.items, value.kind === 'history') };
+        if (value.kind === 'history' && value.evicted) {
+          const next = { ...transcriptCache.current }; delete next[value.taskId]; transcriptCache.current = next;
+          setHistory(current => { const next = { ...current }; delete next[value.taskId]; return next; });
+          if (visibleRef.current) setItems(next); return;
+        }
+        const incoming = value.kind === 'history' && value.reset ? value.items : mergeCodexTranscript(transcriptCache.current[value.taskId] ?? [], value.items, value.kind === 'history');
+        const selected = uiRef.current.selectedTaskId, anchor = selected ? uiRef.current.reading?.[selected]?.anchorKey : undefined;
+        const bounded = boundTranscriptCache({ ...transcriptCache.current, [value.taskId]: incoming }, selected, undefined, anchor);
+        transcriptCache.current = bounded.cache;
+        if (bounded.evicted.length) setHistory(current => Object.fromEntries(Object.entries(current).filter(([id]) => !bounded.evicted.includes(id))));
         // Keep monitoring hidden pages without rendering the whole dashboard for every token batch.
         if (visibleRef.current) setItems(transcriptCache.current);
         if (value.kind === 'history') setHistory(current => ({ ...current, [value.taskId]: {
@@ -144,6 +155,13 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
   const focusFrame = useRef<number>();
   useEffect(() => () => { if (focusFrame.current !== undefined) cancelAnimationFrame(focusFrame.current); }, []);
   const post = c.post;
+  const [search, setSearch] = useState(''), [filter, setFilter] = useState('all'), [repo, setRepo] = useState('all');
+  const [archived, setArchived] = useState(false), [taskLimit, setTaskLimit] = useState(50);
+  const roots = useMemo(() => [...new Set(c.tasks.map(task => task.origin?.repositoryRoot ?? task.root))].sort(), [c.tasks]);
+  const filteredTasks = useMemo(() => c.tasks.filter(task => (archived || !task.archived) && (repo === 'all' || (task.origin?.repositoryRoot ?? task.root) === repo)
+    && (filter === 'all' || (filter === 'active' ? codexTaskActive(task.status) || task.status === 'queued' : task.status === filter))
+    && (!search.trim() || (task.title + ' ' + task.root).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())))
+    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.createdAt.localeCompare(a.createdAt)), [c.tasks, search, filter, repo, archived]);
   const historyReady = !!task?.threadId && ((!codexTaskActive(task.status) && task.status !== 'queued') || !!task.controls?.external && !!task.turnId);
   useEffect(() => { if (active && task && historyReady) post({ type: 'codexHistory', taskId: task.id }); }, [active, selected, task?.threadId, historyReady]);
   useLayoutEffect(() => {
@@ -179,12 +197,24 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
   const draft = selected ? c.ui.drafts[selected]?.text ?? '' : '';
   return <section class="codex-workspace codex-panel" hidden={!active} aria-label="Codex 任務管理">
     <nav class="codex-tasks" aria-label="Codex 任務清單"><header><h1>Codex</h1><span>{c.tasks.length} 項任務</span></header>
+      <button type="button" class="primary" onClick={() => post({ type: 'codexCommand', command: { action: 'create' } })}>建立 Codex 任務</button>
+      <label class="codex-task-filter">搜尋任務<input type="search" value={search} onInput={event => { setSearch(event.currentTarget.value); setTaskLimit(50); }} /></label>
+      <label class="codex-task-filter">狀態<select value={filter} onChange={event => { setFilter(event.currentTarget.value); setTaskLimit(50); }}>
+        <option value="all">全部狀態</option><option value="active">執行／排隊中</option><option value="waiting">等待回覆</option><option value="paused">已暫停</option><option value="completed">本輪完成</option><option value="uncertain">結果待核對</option><option value="failed">失敗</option></select></label>
+      <label class="codex-task-filter">Repo<select value={repo} onChange={event => { setRepo(event.currentTarget.value); setTaskLimit(50); }}><option value="all">全部 Repo</option>{roots.map(root => <option key={root} value={root}>{root}</option>)}</select></label>
+      <label><input type="checkbox" checked={archived} onChange={event => setArchived(event.currentTarget.checked)} />顯示已封存</label>
+      {!!c.environment.storageProblems?.length && <div class="warning" role="status"><p>{c.environment.storageProblems.length} 筆紀錄待修復；新派發已暫停。</p>
+        <details><summary>待修復紀錄</summary>{c.environment.storageProblems.map(problem => <p key={problem.id}>{problem.id}：{problem.reason}</p>)}</details>
+        <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'storage' } })}>開啟紀錄資料夾</button>
+        <button type="button" onClick={() => post({ type: 'listCodexTasks' })}>重新讀取</button></div>}
       {!c.tasks.length && <p class="subtle">從 Skills、審查或 BMAD 啟動任務。</p>}
-      {c.tasks.map(value => <button type="button" key={value.id} class={value.id === selected ? 'active' : ''}
+      {filteredTasks.slice(0, taskLimit).map(value => <button type="button" key={value.id} class={value.id === selected ? 'active' : ''}
         aria-current={value.id === selected ? 'true' : undefined} onClick={() => c.select(value.id)}>
-        <strong>{value.title}</strong><span>{codexStatusLabels[value.status]}{value.controls?.external ? ' · 其他視窗' : ''}</span>
+        <strong>{value.pinned ? "★ " : ""}{value.title}{value.archived ? "（已封存）" : ""}</strong><span>{codexStatusLabels[value.status]}{value.controls?.external ? ' · 其他視窗' : ''}</span>
         <small class="codex-root">{value.origin?.repositoryRoot ?? value.root}</small><small>{new Date(value.createdAt).toLocaleString()}</small>
       </button>)}
+      {!filteredTasks.length && !!c.tasks.length && <p class="subtle">沒有符合篩選的任務。</p>}
+      {filteredTasks.length > taskLimit && <button type="button" onClick={() => setTaskLimit(value => value + 50)}>顯示更多任務（{taskLimit}/{filteredTasks.length}）</button>}
     </nav>
     <section class="codex-conversation" aria-label="Codex 對話">{task ? <>
       <header class="codex-task-heading"><div><h2>{task.title}</h2><p class="codex-root">{task.origin?.repositoryRoot ?? task.root}</p></div><span role="status">{codexStatusLabels[task.status]}</span></header>
@@ -198,7 +228,12 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
         <button type="button" class="quiet" disabled={!task.threadId || !historyReady && !task.turnId} onClick={() => post({ type: 'codexHistory', taskId: task.id, force: true })}>讀取對話</button>
         <button type="button" class="quiet" disabled={!task.controls?.canDelete} title={task.controls?.canDelete ? '保留 Codex 對話、檔案及報告' : '請先暫停並確認清理完成'} onClick={() => post({ type: 'deleteCodexTask', taskId: task.id })}>刪除紀錄</button>
       </div>
+      <div class="codex-extra-controls"><button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'manage', taskId: task.id } })}>更多操作</button>
+        <button type="button" disabled={codexTaskActive(task.status) || task.status === 'queued' || !!task.controls?.external} onClick={() => post({ type: 'codexCommand', command: { action: 'reconcile', taskId: task.id } })}>核對任務狀態</button>
+        <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'open-diff', taskId: task.id } })}>檢視差異</button></div>
+      <CodexTaskDetails task={task} post={post} />
       {task.controls?.external && <p class="subtle">任務正在另一個 VS Code 視窗執行，請至原視窗控制。</p>}
+      {task.workingDirectory && task.workingDirectory !== (task.origin?.repositoryRoot ?? task.root) && <p class="subtle codex-root">實際執行目錄：{task.workingDirectory}</p>}
       {(task.error || task.controls?.autoAcceptError) && <p class="warning" role="status">{task.error ?? task.controls?.autoAcceptError}</p>}
       <CodexWorkflowResult task={task} payload={c.results[task.id]} post={post} active={active} />
       {task.modelRouting && <details class="codex-routing"><summary>GPT-6 Luna · {task.modelRouting.effort ?? 'auto'} · {{ assessing: '判斷風險', reviewing: '正式審查', complete: '已產生報告' }[task.modelRouting.phase]}</summary>
@@ -222,7 +257,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
         <VirtualRows key={selected} items={entries} itemKey={codexOutputKey} estimateHeight={72} className="codex-transcript"
           active={active} scrollRoot={output} semanticList initialAnchor={initialAnchor} renderItem={item => {
             const key = codexOutputKey(item);
-            return <TranscriptLine item={item} post={post} expanded={expanded.has(key)} toggle={() => setExpanded(current => {
+            return <TranscriptLine item={item} taskId={task.id} post={post} expanded={expanded.has(key)} toggle={() => setExpanded(current => {
               const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next;
             })} />;
           }} />
@@ -241,14 +276,15 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
   </section>;
 }
 
-function TranscriptLine({ item, post, expanded, toggle }: { item: CodexOutputItem; post: Post; expanded: boolean; toggle(): void }) {
+function TranscriptLine({ item, taskId, post, expanded, toggle }: { item: CodexOutputItem; taskId: string; post: Post; expanded: boolean; toggle(): void }) {
   const lines = item.text.split('\n'), long = item.kind !== 'agent' && item.kind !== 'user' && lines.length > 12;
   const content = long && !expanded ? lines.slice(0, 8).join('\n') : item.text;
   const marker = { agent: '●', user: '›', command: '•', file: '↳', tool: '•', notice: '·' }[item.kind];
   return <div class={`codex-item ${item.kind}`} tabIndex={-1}>
     <span class="codex-marker" aria-hidden="true">{marker}</span><div class="codex-entry-content">
-      {item.kind === 'command' && <p class="codex-command"><strong>$ {item.command ?? '命令輸出'}</strong>{item.status && <span> · {item.status}</span>}{item.exitCode !== undefined && <span> · exit {item.exitCode}</span>}</p>}
+      {item.kind === 'command' && <p class="codex-command"><strong>$ {item.command ?? '命令輸出'}</strong>{item.status && <span> · {item.status}</span>}{item.exitCode !== undefined && <span> · exit {item.exitCode}</span>}{item.durationMs !== undefined && <span> · {(item.durationMs / 1000).toFixed(1)}s</span>}</p>}
       {item.kind === 'file' && <strong class="codex-entry-label">檔案變更</strong>}
+      {item.files?.map(file => <button type="button" class="quiet small" key={file.path} onClick={() => post({ type: 'codexCommand', command: { action: 'open-file', taskId, path: file.path } })}>{file.path}</button>)}
       {item.text && <pre>{content}</pre>}
       {long && <button class="quiet small" type="button" aria-expanded={expanded} onClick={toggle}>{expanded ? '收合輸出' : `展開完整輸出（${lines.length} 行）`}</button>}
       {item.kind === 'agent' && <button class="quiet small codex-copy" type="button" aria-label="複製 Codex 回覆" onClick={() => post({ type: 'copy', text: item.text })}>複製</button>}

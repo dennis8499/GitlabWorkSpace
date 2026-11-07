@@ -11,8 +11,10 @@ export function projectCodexItem(threadId: string | undefined, turnId: string | 
   if (item.type === 'userMessage') return { ...base, kind: 'user', text: (item.content ?? [])
     .filter((part: any) => part.type === 'text').map((part: any) => text(part.text)).join('\n').slice(0, 64_000) };
   if (item.type === 'commandExecution') return { ...base, kind: 'command', command: text(item.command, 20_000),
-    text: text(item.aggregatedOutput), exitCode: Number.isSafeInteger(item.exitCode) ? item.exitCode : undefined };
-  if (item.type === 'fileChange') return { ...base, kind: 'file', text: (item.changes ?? []).map((change: any) => text(change.path, 4096)).join('\n').slice(0, 64_000) };
+    text: text(item.aggregatedOutput), exitCode: Number.isSafeInteger(item.exitCode) ? item.exitCode : undefined,
+    durationMs: Number.isFinite(item.durationMs) && item.durationMs >= 0 ? item.durationMs : undefined };
+  if (item.type === 'fileChange') return { ...base, kind: 'file', text: (item.changes ?? []).map((change: any) => text(change.path, 4096)).join('\n').slice(0, 64_000),
+    files: (item.changes ?? []).slice(0, 100).map((change: any) => ({ path: text(change.path, 4096), kind: text(change.kind?.type ?? change.kind, 40), diff: text(change.diff, 32_000) })) };
   if (item.type === 'mcpToolCall') return { ...base, kind: 'tool', text: `${text(item.server, 200)} / ${text(item.tool, 200)}` };
   return undefined;
 }

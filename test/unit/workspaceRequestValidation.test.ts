@@ -8,6 +8,7 @@ const issue = { projectId: 1, issueIid: 2 }, mr = { projectId: 1, iid: 2 };
 const review = { revision: 'root:1', requestId: 'review-1', tool: 'merge-reviewer' as const };
 /** Public UI contract examples, independent of validator implementation. */
 const requests = {
+  codexCommand: { type: 'codexCommand', command: { action: 'reconcile', taskId: 'task-1' } },
   showCodexTask: { type: 'showCodexTask', taskId: 'task-1' }, readCodexResult: { type: 'readCodexResult', taskId: 'task-1' },
   openCodexOrigin: { type: 'openCodexOrigin', taskId: 'task-1' }, openCodexChanges: { type: 'openCodexChanges', taskId: 'task-1' },
   previewProjectWiki: { type: 'previewProjectWiki', taskId: 'task-1' }, publishProjectWiki: { type: 'publishProjectWiki', taskId: 'task-1', revision: 'revision-1' },

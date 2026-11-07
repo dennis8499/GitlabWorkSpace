@@ -36,12 +36,16 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.openDeveloperMode',
       'gitlabWorkspace.openReviewerMode',
       'gitlabWorkspace.openGitMode',
+      'gitlabWorkspace.openCodexMode', 'gitlabWorkspace.createCodexTask', 'gitlabWorkspace.createCodexTaskFromSelection',
       'gitlabWorkspace.openRepository',
       'gitlabWorkspace.addAccount', 'gitlabWorkspace.switchAccount', 'gitlabWorkspace.removeAccount',
       'gitlabWorkspace.openAdmin', 'gitlabWorkspace.showLogs', 'gitlabWorkspace.scanRepositories'
     ]) {
       assert.ok(commands.includes(command), `${command} is registered`);
     }
+    const concurrency = vscode.workspace.getConfiguration('gitlabWorkspace').inspect<number>('codex.maxConcurrentTasks');
+    assert.equal(concurrency?.defaultValue, 1);
+    assert.equal(extension.packageJSON.contributes.configuration.properties['gitlabWorkspace.codex.maxConcurrentTasks'].maximum, 2);
     const wikiGuideCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSaMode');
     assert.equal(wikiGuideCommand?.title, 'Skills 功能指引');
     const scanCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.scanRepositories');

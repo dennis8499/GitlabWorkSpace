@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { createReadStream } from 'node:fs';
 import { captureGitProcess } from '../git/gitProcess';
 import type { GitLabProject } from '../api/types';
 import { atomicNetworkJson } from '../api/localNetworkLease';
@@ -70,6 +71,10 @@ export async function startIssueWorkflow(spec: CodexTaskSpec): Promise<void> {
     await mkdir(renderRoot, { recursive: true });
     if (!sameWorkflowPath(await realpath(renderRoot), renderRoot)) throw new Error('BMAD render 目錄不可指向其他專案。');
   }
+  if (workflow.worktree) {
+    if (await workflowBranchSha(origin.repositoryRoot, workflow.remote, origin.sourceBranch, true) !== origin.sourceSha) throw new Error('Issue 來源分支已變更，請重新建立任務。');
+    await startManagedWorktree(spec); return;
+  }
   const receiptPath = path.join(workflow.runtimeRoot, 'issue-branch.json');
   let receipt: { branch: string; sourceSha: string } | undefined;
   try { receipt = JSON.parse(await readFile(receiptPath, 'utf8')); }
@@ -98,6 +103,51 @@ export async function startIssueWorkflow(spec: CodexTaskSpec): Promise<void> {
     await workflowGit(origin.repositoryRoot, ['checkout', '-b', origin.branch!, origin.sourceSha]);
   }
   await atomicNetworkJson(receiptPath, { branch: origin.branch, sourceSha: origin.sourceSha });
+}
+
+export async function verifyManagedWorktree(spec: CodexTaskSpec): Promise<string> {
+  const workflow = spec.workflow, origin = spec.origin, binding = workflow?.worktree;
+  if (!workflow || !origin || !binding || !sameWorkflowPath(binding.path, path.join(workflow.runtimeRoot, 'worktree')) ||
+    !sameWorkflowPath(binding.repository, origin.repositoryRoot) || binding.branch !== origin.branch || binding.sourceSha !== origin.sourceSha) throw new Error('隔離 worktree 綁定無效。');
+  const info = await lstat(binding.path); if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('隔離 worktree 目錄不可重新導向。');
+  const actual = await realpath(binding.path), parent = await realpath(workflow.runtimeRoot);
+  if (!sameWorkflowPath(actual, path.join(parent, 'worktree'))) throw new Error('隔離 worktree 不在受管理目錄內。');
+  const originalCommon = (await workflowGit(origin.repositoryRoot, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).trim();
+  const worktreeCommon = (await workflowGit(actual, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).trim();
+  const root = (await workflowGit(actual, ['rev-parse', '--show-toplevel'])).trim();
+  const branch = (await workflowGit(actual, ['symbolic-ref', '--quiet', '--short', 'HEAD'])).trim();
+  if (!sameWorkflowPath(await realpath(originalCommon), await realpath(worktreeCommon)) || !sameWorkflowPath(root, actual) || branch !== binding.branch) throw new Error('隔離 worktree 的 Repo 或分支已變更。');
+  return actual;
+}
+export async function startManagedWorktree(spec: CodexTaskSpec): Promise<void> {
+  const workflow = spec.workflow!, binding = workflow.worktree!, origin = spec.origin!;
+  if (!binding || !sameWorkflowPath(binding.path, path.join(workflow.runtimeRoot, 'worktree')) || !sameWorkflowPath(binding.repository, origin.repositoryRoot) ||
+    binding.branch !== origin.branch || binding.sourceSha !== origin.sourceSha) throw new Error('隔離 worktree 綁定無效。');
+  await workflowGit(origin.repositoryRoot, ['check-ref-format', `refs/heads/${binding.branch}`]);
+  const receipt = path.join(workflow.runtimeRoot, 'worktree.json'), intent = path.join(workflow.runtimeRoot, 'worktree-intent.json');
+  try {
+    const previous = JSON.parse(await readFile(receipt, 'utf8'));
+    if (JSON.stringify(previous) !== JSON.stringify(binding)) throw new Error('隔離 worktree 收據不符。');
+    await verifyManagedWorktree(spec); return;
+  } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  let exists = false; try { await lstat(binding.path); exists = true; } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  await mkdir(workflow.runtimeRoot, { recursive: true });
+  if (exists) {
+    const previous = JSON.parse(await readFile(intent, 'utf8'));
+    if (JSON.stringify(previous) !== JSON.stringify(binding)) throw new Error('隔離目錄已被其他工作占用。');
+    await verifyManagedWorktree(spec);
+  } else {
+    await atomicNetworkJson(intent, binding);
+    await workflowGit(origin.repositoryRoot, ['worktree', 'add', '-b', binding.branch, binding.path, binding.sourceSha], 60_000);
+    await verifyManagedWorktree(spec);
+  }
+  await atomicNetworkJson(receipt, binding);
+}
+export async function removeManagedWorktree(spec: CodexTaskSpec): Promise<void> {
+  const root = await verifyManagedWorktree(spec);
+  if ((await workflowGit(root, ['status', '--porcelain', '-z', '--untracked-files=all', '--ignored=matching'])).length) throw new Error('worktree 還有未保存變更或忽略的檔案，請先保存並清理；不會強制刪除。');
+  // The exact absolute path and Git ownership have been verified above. Branch commits remain.
+  await workflowGit(spec.origin!.repositoryRoot, ['worktree', 'remove', '--', root], 60_000);
 }
 
 export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRuntime): Promise<void> {
@@ -144,20 +194,42 @@ function testCommand(command: string): boolean {
 
 export async function collectIssueResult(spec: CodexTaskSpec, outputs: readonly CodexOutputItem[]): Promise<CodexTaskResult> {
   const origin = spec.origin!;
-  const branch = (await workflowGit(origin.repositoryRoot, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => '')).trim();
+  const root = spec.workflow?.worktree ? await verifyManagedWorktree(spec) : origin.repositoryRoot;
+  const branch = (await workflowGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => '')).trim();
   if (branch !== origin.branch) return { state: 'needs-work', summary: `工作分支已變更；請核對 ${origin.branch} 的修改。` };
-  const tracked = await workflowGit(origin.repositoryRoot, ['diff', '--name-only', '-z', origin.sourceSha]);
-  const untracked = await workflowGit(origin.repositoryRoot, ['ls-files', '--others', '--exclude-standard', '-z']);
+  const tracked = await workflowGit(root, ['diff', '--name-only', '-z', origin.sourceSha]);
+  const untracked = await workflowGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
   const files = [...new Set((tracked + untracked).split('\0').filter(Boolean))].slice(0, 500);
   const implementation = files.some(file => !/^(?:_bmad(?:-output)?|\.agents|\.codex)\//.test(file));
   const tests = [...new Map(outputs.filter(item => item.kind === 'command' && item.exitCode !== undefined && testCommand(item.command ?? ''))
     .map(item => ({ command: item.command!.slice(0, 2000), exitCode: item.exitCode! })).map(item => [item.command, item])).values()].slice(-30);
   const passed = tests.length > 0 && tests.every(test => test.exitCode === 0);
+  const evidence = implementation && passed ? { sourceSha: origin.sourceSha, branch: origin.branch!, digest: await implementationDigest(spec, files), verifiedAt: new Date().toISOString() } : undefined;
   return { state: implementation && passed ? 'ready' : 'needs-work', files, tests,
+    evidence,
     summary: !implementation ? '目前只有規格或流程文件；尚需接續實作與測試。'
       : !tests.length ? `已修改 ${files.length} 個檔案；尚無可核對的測試執行結果。`
         : !passed ? '已保留修改，但測試未全部通過；請查看執行紀錄並接續修正。'
           : `已完成修改與測試，共 ${files.length} 個檔案，等待你檢閱及提交。` };
+}
+
+export async function implementationDigest(spec: CodexTaskSpec, files: readonly string[]): Promise<string> {
+  const root = spec.workflow?.worktree ? await verifyManagedWorktree(spec) : spec.origin!.repositoryRoot;
+  const hash = createHash('sha256'); hash.update(spec.origin!.sourceSha);
+  hash.update(await workflowGit(root, ['diff', '--binary', '--no-ext-diff', '--no-textconv', spec.origin!.sourceSha]));
+  let total = 0;
+  for (const file of [...files].sort()) {
+    const relative = path.normalize(file);
+    if (path.isAbsolute(relative) || relative === '..' || relative.startsWith('..' + path.sep)) throw new Error('成果檔案不在本次 Repo。');
+    const target = path.join(root, relative); hash.update(file);
+    let info; try { info = await lstat(target); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') { hash.update('deleted'); continue; } throw error; }
+    if (!info.isFile() || info.isSymbolicLink()) throw new Error('成果包含子模組或符號連結，請先從對應 Repo 核對。');
+    total += info.size; if (total > 128 * 1024 * 1024) throw new Error('成果超過 128 MiB 核對範圍，請縮小本次變更。');
+    const actual = await realpath(target), parent = path.relative(await realpath(root), actual);
+    if (path.isAbsolute(parent) || parent === '..' || parent.startsWith('..' + path.sep)) throw new Error('成果檔案目錄不可重新導向。');
+    for await (const chunk of createReadStream(actual)) hash.update(chunk);
+  }
+  return hash.digest('hex');
 }
 
 export async function readWorkflowReport(spec: CodexTaskSpec, reportPath: string): Promise<string> {

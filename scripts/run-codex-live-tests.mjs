@@ -20,7 +20,7 @@ const proof = await inspectHostExecutable(executable);
 const extracted = path.join(evidence, 'vsix'); await mkdir(extracted);
 execFileSync('python', ['-c', 'import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])', vsix, extracted], { windowsHide: true });
 console.log(JSON.stringify({ workspace, evidence, vscode: proof.version }));
-const fixtureRoot = path.join(project, 'test/fixtures/workflowkit-release-1.3.5');
+const fixtureRoot = path.join(project, 'test/fixtures/workflowkit-release-1.5.0');
 const descriptor = JSON.parse(await readFile(path.join(fixtureRoot, 'release.json'), 'utf8'));
 const installer = path.join(fixtureRoot, descriptor.assets.installer.name);
 try { await readFile(path.join(workspace, '.gitlab-workspace/tool-manifests/workflow-kit.json')); }
@@ -28,11 +28,11 @@ catch (error) {
   if (error.code !== 'ENOENT') throw error;
   console.log('Installing pinned WorkflowKit fixture into the disposable workspace.');
   const installed = execFileSync('python', ['-X', 'utf8', '-B', installer, 'install', path.join(fixtureRoot, descriptor.assets.package.name), workspace,
-    '1.3.5', 'github', '--format', 'zip', '--entry-root', 'workflow-kit', '--archive-sha256', descriptor.assets.package.sha256, '--profile', 'group'],
+    '1.5.0', 'github', '--format', 'zip', '--entry-root', 'workflow-kit', '--archive-sha256', descriptor.assets.package.sha256, '--profile', 'group'],
     { windowsHide: true, timeout: 180_000, encoding: 'utf8', maxBuffer: 1024 * 1024 });
   await writeFile(path.join(evidence, 'installation.json'), installed);
 }
-const state = JSON.parse(execFileSync('python', ['-X', 'utf8', '-B', installer, 'status', workspace, '--expected-version', '1.3.5'],
+const state = JSON.parse(execFileSync('python', ['-X', 'utf8', '-B', installer, 'status', workspace, '--expected-version', '1.5.0'],
   { windowsHide: true, encoding: 'utf8', maxBuffer: 1024 * 1024 }).trim().split(/\r?\n/).at(-1));
 if (!['installed', 'update-available'].includes(state.status)) throw new Error(`The disposable WorkflowKit installation is not ready: ${state.message ?? state.status}`);
 // Match an installation performed through the extension: a verified same-source status helper is cached.
@@ -67,7 +67,7 @@ await writeFile(path.join(evidence, 'host.json'), JSON.stringify(proof, null, 2)
 await runTests({ vscodeExecutablePath: proof.executable, extensionDevelopmentPath: path.join(extracted, 'extension'),
   extensionTestsPath: path.join(project, 'out/test/codex-live/index.js'),
   extensionTestsEnv: { ...env, GLW_CODEX_LIVE: '1', GLW_CODEX_LIVE_ROOT: workspace, GLW_CODEX_LIVE_EVIDENCE: evidence,
-    GLW_CODEX_LIVE_PORT: String(port), GLW_CODEX_LIVE_TOOLS: option('--tools') ?? 'wiki,merge-reviewer,release-reviewer,bmad', GITLAB_WORKSPACE_RUNTIME_DIR: runtime },
+    GLW_CODEX_LIVE_PORT: String(port), GLW_CODEX_LIVE_TOOLS: option('--tools') ?? 'wiki,merge-reviewer,release-reviewer,bmad,commit-reviewer', GITLAB_WORKSPACE_RUNTIME_DIR: runtime },
   launchArgs: [workspace, '--disable-workspace-trust', '--skip-welcome', '--skip-release-notes', '--disable-gpu',
     `--user-data-dir=${path.join(evidence, 'user')}`, `--extensions-dir=${path.join(evidence, 'extensions')}`, `--remote-debugging-port=${port}`] });
 console.log(`Codex live evidence: ${evidence}`);

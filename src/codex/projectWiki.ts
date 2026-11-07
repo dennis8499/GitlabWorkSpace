@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, realpath } from 'node:fs/promises';
+import { lstat, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { atomicNetworkJson, LocalNetworkLease } from '../api/localNetworkLease';
@@ -7,6 +7,7 @@ import { GitLabBudgetExceededError } from '../api/gitLabRequestBudget';
 import type { GitLabWikiPage } from '../api/types';
 import type { CodexTaskOrigin, CodexTaskResult, ProjectWikiPreview } from './workflowProtocol';
 import { sameWorkflowPath, workflowHash } from './projectWorkflows';
+import { wikiSourceReferences, wikiIncrementalSelection, wikiPageFile } from './wikiIncremental';
 
 interface WikiDraftPage {
   slug: string; title: string; content: string;
@@ -14,11 +15,14 @@ interface WikiDraftPage {
   published?: boolean;
   sending?: boolean;
   previousContent?: string;
+  file?: string;
+  sources?: string[];
 }
 interface WikiDraft {
   schema: 'GitLabWorkspaceProjectWiki/v1'; id: string; origin: CodexTaskOrigin;
   revision: string; pages: WikiDraftPage[]; error?: string;
   preview?: { generation: string; remaining: string[] };
+  mappingComplete?: boolean;
 }
 
 export interface WikiPreviewOptions {
@@ -170,13 +174,38 @@ export class ProjectWikiStore {
       const slug = slugFor(file), content = projectWikiMarkdown(await readFile(path.join(root, file), 'utf8'), file, files, origin, executionRoot, sourceFiles);
       if (Buffer.byteLength(content, 'utf8') > 128_000) throw new Error(`Wiki 頁面 ${slug} 轉換後超過容量限制，請拆分頁面。`);
       const previous = existing?.pages.find(page => page.slug === slug);
-      pages.push({ slug, title: slug, content, baseline: previous?.baseline, previousContent: previous?.previousContent,
+      pages.push({ slug, title: slug, file, sources: wikiSourceReferences(content, origin, sourceFiles), content, baseline: previous?.baseline, previousContent: previous?.previousContent,
         published: previous?.content === content && previous?.published });
     }
-    const draft: WikiDraft = { schema: 'GitLabWorkspaceProjectWiki/v1', id, origin, revision: '', pages };
+    const mapped = new Set(pages.flatMap(page => page.sources ?? []));
+    const mappingComplete = [...sourceFiles].filter(file => !file.startsWith('wiki/')).every(file => mapped.has(file));
+    const draft: WikiDraft = { schema: 'GitLabWorkspaceProjectWiki/v1', id, origin, revision: '', pages, mappingComplete };
     await this.save(draft);
     return { state: pages.every(page => page.published) ? 'published' : 'draft', draftId: id, revision: draft.revision,
       summary: `已產生 ${pages.length} 頁 Wiki 草稿，請預覽後發布。` };
+  }
+  async seedIncremental(previousId: string, previousOrigin: CodexTaskOrigin, executionRoot: string, changed: string[], ancestor: boolean): Promise<{
+    mode: 'full' | 'incremental'; pages: string[]; reason: string; unchanged: Array<{ file: string; hash: string }>
+  }> {
+    const previous = await this.load(previousId, previousOrigin);
+    if (previous.pages.some(page => page.sending)) throw new Error('原 Wiki 發布結果仍待核對。');
+    const plan = wikiIncrementalSelection(previous.pages, changed, previous.mappingComplete === true, ancestor);
+    const unchanged: Array<{ file: string; hash: string }> = [];
+    if (plan.mode === 'incremental') {
+      const root = await realpath(path.join(executionRoot, 'wiki'));
+      for (const page of previous.pages) {
+        const file = wikiPageFile(page), destination = path.join(root, ...file.split('/'));
+        await mkdir(path.dirname(destination), { recursive: true });
+        const actualParent = await realpath(path.dirname(destination));
+        const relative = path.relative(root, actualParent);
+        if (path.isAbsolute(relative) || relative === '..' || relative.startsWith('..' + path.sep)) throw new Error('Wiki 頁面目錄不可重新導向。');
+        try { if ((await lstat(destination)).isSymbolicLink()) throw new Error('Wiki 頁面不可為符號連結。'); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+        await writeFile(destination, page.content, 'utf8');
+        if (!plan.pages.includes(page.slug)) unchanged.push({ file, hash: workflowHash(page.content) });
+      }
+    }
+    return { ...plan, unchanged };
   }
   private async remote(client: WikiClient, projectId: number, slug: string): Promise<GitLabWikiPage | undefined> {
     try {

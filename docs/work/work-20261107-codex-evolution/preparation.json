@@ -1,0 +1,20 @@
+{
+  "schema": "gitlab-workspace-prepared/v1",
+  "stages": [
+    "lint",
+    "compile",
+    "webview",
+    "issue"
+  ],
+  "outputs": [
+    "out",
+    "out/src/extension.js",
+    "resources/issue-webview",
+    "resources/sidebar-webview",
+    "resources/issue-webview/dashboard.js",
+    "resources/sidebar-webview/sidebar.js",
+    "resources/issue-webview/issue-test.js"
+  ],
+  "inputs": "24a5ce4ea4391acde24c8a281af38023f0967436438d7bb3c5d4a4403706b6b1",
+  "outputSha256": "5760735753c10c0058c01866ac99013d6a1dd13abd59782d645fba3293c2c5ff"
+}

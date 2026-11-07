@@ -1,0 +1,38 @@
+[
+  {
+    "id": "bmad-1.90.0",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/run-extension-tests.mjs",
+      "--forbid-only",
+      "--fail-zero",
+      "--grep",
+      "BMAD dynamic artifact progress"
+    ],
+    "startedAt": "2026-11-07T05:39:24.863Z",
+    "finishedAt": "2026-11-07T05:39:38.603Z",
+    "seconds": 13.74,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\native-timing\\bmad-1.90.0.log",
+    "version": "1.90.0"
+  },
+  {
+    "id": "bmad-1.145.2",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/run-extension-tests.mjs",
+      "--forbid-only",
+      "--fail-zero",
+      "--grep",
+      "BMAD dynamic artifact progress"
+    ],
+    "startedAt": "2026-11-07T05:39:38.610Z",
+    "finishedAt": "2026-11-07T05:39:52.778Z",
+    "seconds": 14.168,
+    "exitCode": 0,
+    "signal": null,
+    "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261107-codex-evolution\\native-timing\\bmad-1.145.2.log",
+    "version": "1.145.2"
+  }
+]

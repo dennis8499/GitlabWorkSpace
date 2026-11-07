@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as vscode from 'vscode';
@@ -10,10 +11,10 @@ import { readReviewSessions } from '../../src/workspace/reviewSessions';
 
 suite('Codex one-click packaged extension', function () {
   this.timeout(1_500_000);
-  test('runs Wiki, both reviewers and BMAD through the real app-server and webview', async function () {
+  test('runs Wiki, all three reviewers and BMAD through the real app-server and webview', async function () {
     if (process.env.GLW_CODEX_LIVE !== '1') this.skip();
     const root = process.env.GLW_CODEX_LIVE_ROOT!, evidence = process.env.GLW_CODEX_LIVE_EVIDENCE!, port = Number(process.env.GLW_CODEX_LIVE_PORT);
-    const enabled = new Set((process.env.GLW_CODEX_LIVE_TOOLS ?? 'wiki,merge-reviewer,release-reviewer,bmad').split(','));
+    const enabled = new Set((process.env.GLW_CODEX_LIVE_TOOLS ?? 'wiki,merge-reviewer,release-reviewer,bmad,commit-reviewer').split(','));
     assert.match(path.basename(root), /^gitlab-codex-real-[a-z0-9]+$/i);
     await mkdir(evidence, { recursive: true });
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace')!;
@@ -150,6 +151,20 @@ suite('Codex one-click packaged extension', function () {
         files = await readdir(path.join(root, '_bmad-output'), { recursive: true }).catch(() => []);
       }
       assert.ok(files.some(file => /\.md$/i.test(String(file))), 'BMAD produces a real saved document');
+      }
+      if (enabled.has('commit-reviewer')) {
+        const repository = path.join(root, 'service');
+        const head = execFileSync('git', ['-C', repository, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim();
+        await writeFile(path.join(repository, 'commit-review-fixture.md'), '# Local fixture\n\nPrepared for CommitReviewer; no commit or remote write is authorized.\n');
+        await vscode.commands.executeCommand('gitlabWorkspace.openSaMode');
+        await ui.waitForVisible('#skill-tool-commit-reviewer', 30_000); await ui.click('#skill-tool-commit-reviewer');
+        await ui.waitForVisible('[id="wiki-input-commit-draft.repo"]', 30_000);
+        await ui.evaluate(`(() => { for (const [field, value] of [['repo', ${JSON.stringify(repository)}], ['issues', '#1']]) { const input = document.getElementById('wiki-input-commit-draft.' + field); input.value = value; input.dispatchEvent(new Event(input.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); } })()`);
+        const commit = await clickRun('.skills-action-bar > button:first-child', 'commit-reviewer');
+        const spec = await bridge.specification(commit.id);
+        assert.ok(spec.commitReview?.runtimeRoot, 'CommitReviewer binds its native runtime');
+        assert.ok((await readdir(spec.commitReview!.runtimeRoot, { recursive: true })).length, 'CommitReviewer produces native runtime evidence');
+        assert.equal(execFileSync('git', ['-C', repository, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim(), head, 'CommitReviewer never commits automatically');
       }
       await vscode.commands.executeCommand('gitlabWorkspace.openWorkspace');
       await vscode.commands.executeCommand('gitlabWorkspace.openCodexMode');

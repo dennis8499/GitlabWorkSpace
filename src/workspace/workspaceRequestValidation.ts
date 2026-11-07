@@ -3,6 +3,7 @@ import { workspaceSettingIds } from './workspaceProtocol';
 import type { IssueAction, IssuePanelRequest } from '../issues/protocol';
 import type { GitAction } from '../git/gitProtocol';
 import { isGitPanelRequest } from '../git/gitProtocol';
+import { isCodexCommand } from '../codex/commands';
 
 type Check = (value: unknown) => boolean;
 type Shape = Record<string, Check>;
@@ -113,12 +114,14 @@ const json: Check = value => {
 const taskSource: Check = value => record(value) && (
   value.kind === 'skill' ? object({ kind: one('skill'), featureId: identity, inputs: dictionary(text, 100), revision: key })(value)
     : value.kind === 'bmad' ? object({ kind: one('bmad'), request: object(bmad) })(value)
-      : value.kind === 'issue' ? object({ kind: one('issue'), projectId: id, issueIid: id })(value)
+      : value.kind === 'issue' ? object({ kind: one('issue'), projectId: id, issueIid: id, isolated: optional(boolean) })(value)
         : value.kind === 'project-wiki' ? object({ kind: one('project-wiki'), projectId: id })(value)
-          : value.kind === 'merge-request' ? object({ kind: one('merge-request'), projectId: id, iid: id })(value)
+          : value.kind === 'merge-request' ? object({ kind: one('merge-request'), projectId: id, iid: id,
+            intent: optional(one('review', 'fix-comments')), discussionIds: optional(array(identity, 30)) })(value)
             : value.kind === 'review' && object({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
 
 export const workspaceRequestSchemas = {
+  codexCommand: { command: isCodexCommand },
   startCodexTask: { source: taskSource }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key), force: optional(boolean) },
   showCodexTask: { taskId: identity }, readCodexResult: { taskId: identity }, openCodexOrigin: { taskId: identity }, openCodexChanges: { taskId: identity },
   previewProjectWiki: { taskId: identity, refresh: optional(boolean), confirmRetry: optional(boolean), cursor: optional(identity) },

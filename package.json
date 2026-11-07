@@ -10,6 +10,8 @@
     "onCommand:gitlabWorkspace.openReviewerMode",
     "onCommand:gitlabWorkspace.openGitMode",
     "onCommand:gitlabWorkspace.openCodexMode",
+    "onCommand:gitlabWorkspace.createCodexTask",
+    "onCommand:gitlabWorkspace.createCodexTaskFromSelection",
     "onCommand:gitlabWorkspace.openRepository",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
@@ -39,6 +41,17 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "gitlabWorkspace.createCodexTask",
+        "title": "建立 Codex 任務",
+        "category": "GitLab Workspace",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gitlabWorkspace.createCodexTaskFromSelection",
+        "title": "將選取文字帶入 Codex 任務",
+        "category": "GitLab Workspace"
+      },
       {
         "command": "gitlabWorkspace.openNotifications",
         "title": "訊息中心",
@@ -238,6 +251,14 @@
     ],
     "configuration": {
       "properties": {
+        "gitlabWorkspace.codex.maxConcurrentTasks": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 2,
+          "scope": "machine",
+          "description": "本機所有視窗共用的 Codex 任務上限。預設 1；設為 2 時，只有沒有共用寫入資源的任務才會同時執行。"
+        },
         "gitlabWorkspace.codex.executablePath": {
           "type": "string",
           "default": "",
@@ -520,5 +541,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.42.0"
+  "version": "0.43.0"
 }

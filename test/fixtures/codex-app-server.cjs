@@ -5,9 +5,11 @@ const fs = require('node:fs');
 const root = process.argv[2];
 const mode = process.argv[3];
 let initialized = false, sequence = 0, active, pending = [];
+let goal;
 const send = message => process.stdout.write(JSON.stringify(message) + '\n');
 const notify = (method, params) => send({ method, params });
 function complete(status = 'completed') {
+  if (active && mode.startsWith('evolution')) fs.writeFileSync(path.join(root, 'fixture-turn.json'), JSON.stringify({ id: active.turnId, status, items: [] }));
   if (active) notify('turn/completed', { threadId: active.threadId, turn: { id: active.turnId, status, items: [], error: null } });
 }
 function next() {
@@ -41,6 +43,21 @@ rl.on('line', line => {
   if (method === 'account/read') { send({ id, result: { account: mode === 'logged-out' ? null : { type: 'chatgpt' }, requiresOpenaiAuth: true } }); return; }
   if (method === 'windowsSandbox/readiness') { send({ id, result: { status: mode === 'sandbox-missing' ? 'notConfigured' : 'ready' } }); return; }
   if (method === 'configRequirements/read') { send({ id, result: { requirements: mode === 'managed' ? { allowedSandboxModes: ['read-only'] } : null } }); return; }
+  if (mode.startsWith('evolution') && method === 'account/rateLimits/read') { send({ id, result: { ordinaryUsageAllowed: true, rateLimits: { primary: { usedPercent: 12, resetsAt: 1794000000 } } } }); return; }
+  if (mode.startsWith('evolution') && method === 'mcpServerStatus/list') { send({ id, result: { data: [{ name: 'fixture', authStatus: 'ready' }] } }); return; }
+  if (mode.startsWith('evolution') && method === 'thread/fork') { send({ id, result: { thread: { id: 'fork-' + params.threadId } } }); return; }
+  if (mode.startsWith('evolution') && method === 'thread/goal/get') { send({ id, result: { goal } }); return; }
+  if (mode.startsWith('evolution') && method === 'thread/goal/clear') { goal = undefined; send({ id, result: {} }); return; }
+  if (mode.startsWith('evolution') && method === 'thread/goal/set') {
+    goal = { ...goal, ...params, tokensUsed: 12 }; send({ id, result: { goal } }); notify('thread/goal/updated', { threadId: params.threadId, goal });
+    if (mode === 'evolution-goal' && params.status === 'active') setTimeout(() => {
+      active.turnId = 'goal-continuation'; notify('turn/started', { threadId: active.threadId, turn: { id: active.turnId } });
+      notify('item/agentMessage/delta', { ...active, itemId: 'continuation', delta: 'Native goal continuation' });
+      goal.status = 'complete'; notify('thread/goal/updated', { threadId: params.threadId, goal });
+      setTimeout(() => complete(), 30);
+    }, 60);
+    return;
+  }
   if (method === 'skills/list') {
     const result = { data: [{ cwd: root, skills: ['codebase-wiki', 'merge-reviewer', 'release-reviewer', 'model-routing'].map(name => ({ name, path: path.join(root, '.agents/skills', name, 'SKILL.md'), enabled: true })) }] };
     const held = path.join(root, 'fixture-held-setup');
@@ -52,12 +69,13 @@ rl.on('line', line => {
   if (method === 'model/list') {
     const efforts = mode === 'routing-max-missing' ? ['low', 'medium', 'high', 'xhigh'] : ['low', 'medium', 'high', 'xhigh', 'max'];
     send({ id, result: { data: mode === 'routing-model-missing' || mode === 'routing-page' && !params.cursor ? [] : [
-      { id: 'gpt-6-luna', model: 'gpt-6-luna', supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort })) }
+      { id: 'gpt-6-luna', model: 'gpt-6-luna', displayName: 'GPT-6 Luna', supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) }
     ], nextCursor: mode === 'routing-page' && !params.cursor ? 'second' : null } }); return;
   }
   if (method === 'thread/start') { send({ id, result: { thread: { id: 'thread-' + ++sequence } } }); return; }
   if (method === 'thread/resume') { send({ id, result: { thread: { id: params.threadId } } }); return; }
   if (method === 'thread/turns/list') {
+    if (mode.startsWith('evolution') && fs.existsSync(path.join(root, 'fixture-turn.json'))) { send({ id, result: { data: [JSON.parse(fs.readFileSync(path.join(root, 'fixture-turn.json'), 'utf8'))], nextCursor: null } }); return; }
     const page = params.cursor ? 'earlier' : 'latest';
     send({ id, result: { data: mode === 'empty-thread' ? [] : mode === 'paged-history'
       ? [{ id: page, status: 'completed', items: [{ id: page, type: 'agentMessage', text: page }] }]
@@ -69,6 +87,11 @@ rl.on('line', line => {
     send({ id, result: { turn: { id: active.turnId, status: 'inProgress', items: [] } } });
     notify('turn/started', { threadId: active.threadId, turn: { id: active.turnId } });
     const prompt = params.input[0].text;
+    if (mode.startsWith('evolution')) {
+      notify('turn/plan/updated', { ...active, plan: [{ step: 'Inspect', status: 'inProgress' }] });
+      notify('turn/diff/updated', { ...active, diff: '--- a/main.ts\n+++ b/main.ts\n@@ -1 +1 @@\n-old\n+new' });
+      notify('thread/tokenUsage/updated', { ...active, tokenUsage: { total: { totalTokens: 10, inputTokens: 6, outputTokens: 4 } } });
+    }
     if (prompt.includes('drop-response')) { process.exit(4); }
     notify('item/agentMessage/delta', { ...active, itemId: 'agent-1', delta: '處理中' });
     if (prompt.includes('routing_adapter=workbench')) {

@@ -16,6 +16,7 @@ export interface ActionPolicy {
 // These exhaustive tables also classify control traffic, which must never
 // produce further lifecycle messages or notifications.
 export const workspaceActionKinds = {
+  codexCommand: 'write',
   startCodexTask: 'write', listCodexTasks: 'control', codexHistory: 'read', sendCodexMessage: 'write',
   showCodexTask: 'read', readCodexResult: 'read', openCodexOrigin: 'read', openCodexChanges: 'read',
   previewProjectWiki: 'read', cancelProjectWikiPreview: 'control', publishProjectWiki: 'write', publishCodexReview: 'write',
@@ -228,6 +229,7 @@ export const quickActionKinds = {
 } satisfies Record<QuickAction, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
+  codexCommand: '管理 Codex 任務',
   startCodexTask: '啟動 Codex 任務', sendCodexMessage: '傳送 Codex 訊息', resumeCodexTask: '續作 Codex 任務',
   showCodexTask: '查看 Codex 任務', readCodexResult: '讀取任務成果', openCodexOrigin: '返回任務來源', openCodexChanges: '檢視 Issue 修改',
   previewProjectWiki: '預覽 GitLab Wiki', publishProjectWiki: '發布 GitLab Wiki', publishCodexReview: '發布審查留言',
@@ -253,6 +255,7 @@ const connectionActions = new Set(['connect', 'addAccount', 'disconnect', 'switc
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
 const localWorkspaceActions = new Set([
+  'codexCommand',
   'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex',
   'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
@@ -303,6 +306,12 @@ export function describeAction(value: { type: string }, context: ActionContext =
   if (['refreshRepositories', 'refreshMyWork', 'findRepositories', 'findMyWork', 'openIssue', 'openMergeRequest', 'openTools'].includes(action)) kind = 'read';
   let resourceKey = action;
   let slot = action;
+  if (action === 'codexCommand') {
+    const command = request.command;
+    if (['reconcile', 'diagnostics', 'open-file', 'open-diff', 'manage', 'storage'].includes(command?.action)) kind = 'read';
+    if (['approvals', 'reorder'].includes(command?.action)) kind = 'control';
+    resourceKey = 'codex:' + (command?.taskId ?? 'queue'); slot = resourceKey + ':' + command?.action;
+  }
   if (request.type === 'ensureWorkspaceSection') {
     resourceKey = 'workspace-section:' + request.section;
     slot = resourceKey + ':ensure:' + request.connectedScope;
