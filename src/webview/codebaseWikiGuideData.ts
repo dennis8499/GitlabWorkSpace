@@ -213,6 +213,9 @@ export function buildWikiGuideContext(context: WikiGuideContext): string {
       `WorkflowKit helper runner：${JSON.stringify(context.workflowKitRunner)}。執行 Python、Node.js 或 uv helper 時，使用安裝根目錄的 runner 並保留原參數。`,
       `Windows 執行格式：python -X utf8 -B ${JSON.stringify(context.workflowKitRunner.script_path)} -- <原執行檔及參數>。`
     ] : []),
+    ...(context.workflowKitRunner?.syntax_analysis ? [
+      `WorkflowKit 語法分析綁定：${JSON.stringify(context.workflowKitRunner.syntax_analysis)}。來源分析分支先完成原生 inventory，再依 references/syntax-context.md 使用相同 SHA 的結構導航；一般 Query 維持 Wiki-first，NotebookLM 使用完整來源檢查。`
+    ] : []),
     context.profile === 'repository' ? `實際單一 Repo 工作區：${context.root ?? '尚未選擇 Repo'}`
       : `實際 Group 工作區：${context.groupRoot ?? '尚未開啟符合目前 GitLab Group 的 VSCode 工作區'}`,
     '本機實際 Git Repo：',

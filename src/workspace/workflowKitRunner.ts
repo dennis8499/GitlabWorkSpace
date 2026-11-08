@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { PythonRuntime } from './pythonRuntime';
 import type { WorkflowKitRunnerBinding } from './reviewSessionProtocol';
+import { readSyntaxAnalysisBinding, verifySyntaxAnalysisBinding } from './syntaxAnalysis';
 
 const RUNNER_RELATIVE_PATH = '.agents/gitlab-workspace-kit/run.py';
 const RUNNER_FILE = RUNNER_RELATIVE_PATH.split('/').join(path.sep);
@@ -62,13 +63,15 @@ export async function readWorkflowKitRunnerBinding(root: string): Promise<Workfl
   if (!runnerInfo.isFile() || runnerInfo.isSymbolicLink()) throw new Error('WorkflowKit 已宣告 runner，但檔案不存在或不是一般檔案；請重新安裝工作流程包。');
   const actual = createHash('sha256').update(await fs.readFile(runnerPath)).digest('hex');
   if (actual !== expected.toLowerCase()) throw new Error('WorkflowKit runner 與已驗證的安裝紀錄不符；請重新安裝工作流程包。');
-  return { script_path: runnerPath, script_sha256: actual };
+  const syntax_analysis = await readSyntaxAnalysisBinding(root);
+  return { script_path: runnerPath, script_sha256: actual, ...(syntax_analysis ? { syntax_analysis } : {}) };
 }
 
 /** Recheck the runner before launch and preserve Python launcher arguments for both processes. */
 export async function workflowKitPythonCommand(python: PythonRuntime,
   runner: WorkflowKitRunnerBinding | undefined, helperArgs: readonly string[]): Promise<{ executable: string; args: string[] }> {
   if (!runner) return { executable: python.executable, args: [...python.args, ...helperArgs] };
+  if (runner.syntax_analysis) await verifySyntaxAnalysisBinding(runner.syntax_analysis);
   if (!/^[a-f0-9]{64}$/i.test(runner.script_sha256)) throw new Error('WorkflowKit runner 摘要格式無效。');
   const runnerDirectory = path.dirname(runner.script_path);
   const agentsDirectory = path.dirname(runnerDirectory);

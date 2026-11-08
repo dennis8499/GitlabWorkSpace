@@ -2,6 +2,8 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
+0.44.0 可搭配 WorkflowKit 1.6.0 的離線 Tree-sitter，讓 Wiki 與 Reviewer 使用 C#、Java、JS／TS 結構導航。工作台會核對共用引擎的完整身分，並保留舊版套件流程。加速功能在模型品質與整體耗時驗收前預設關閉；解析資產由 WorkflowKit 安裝，VSIX 不重複內附。
+
 ## 目錄
 
 - [功能](#功能)

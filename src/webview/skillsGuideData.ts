@@ -215,6 +215,11 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
         : nativeMergeCapabilities ? '使用 MergeReviewer 原生 session 介面；只呼叫其宣告的命令，不傳入新版 preparation、payload 或預算參數。'
           : sessionCapabilities ? '沿用已安裝 session 介面宣告的能力及選項。'
             : '入口未宣告 capabilities；依已安裝 Skill 驗證現有 CLI，不傳入新版選項。'] : []),
+    ...(workflowKitRunner?.syntax_analysis ? [
+      'WorkflowKit 語法分析綁定：' + JSON.stringify(workflowKitRunner.syntax_analysis),
+      '依 .agents/gitlab-workspace-kit/references/syntax-context.md 使用安裝版初始讀取計畫；保留全部 Diff、必要版本與未讀範圍，結構解析不代表語意審查完成。',
+      '先以已綁定語法入口 capabilities --expected-engine-sha256 核對引擎；沿用驗收預設模式，不為本次審查自行開啟尚未驗收的功能。'
+    ] : []),
     ...(context.reviewerRequestId && supportsRequestId ? [`Review request ID: ${context.reviewerRequestId}. Reuse this ID for retries.`] : []),
     ...(release && supports('read_window') ? ['For large evidence, use read-window with a starting line and count, then follow next cursor.'] : []),
     ...(release && supports('literal_search_batch') ? ['Batch consecutive case-sensitive literal searches for the same Repo; keep one result record per query.'] : []),

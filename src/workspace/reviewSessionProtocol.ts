@@ -6,6 +6,15 @@ export function isReviewerTool(value: unknown): value is ReviewerToolId {
 export interface WorkflowKitRunnerBinding {
   script_path: string;
   script_sha256: string;
+  syntax_analysis?: SyntaxAnalysisBinding;
+}
+
+export interface SyntaxAnalysisBinding {
+  schema: 'SyntaxAnalysisBinding/v1';
+  script_path: string;
+  engine_sha256: string;
+  languages: string[];
+  default_mode: 'auto' | 'off';
 }
 
 /** Identity and local integrity measurements for an installed Reviewer payload. */
