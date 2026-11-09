@@ -21,7 +21,8 @@ async function until(predicate: () => boolean): Promise<void> {
   while (!predicate()) { if (Date.now() > deadline) throw new Error('Routing test timed out'); await new Promise(resolve => setTimeout(resolve, 10)); }
 }
 async function setup(t: { after(fn: () => Promise<void>): void }, options: {
-  effort?: 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'; initial?: string; escalate?: string; mode?: string; release?: boolean;
+  effort?: string; initial?: string; escalate?: string; mode?: string; release?: boolean;
+  model?: string; supportedEfforts?: string[]; recommended?: string; capped?: boolean;
 } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'routing-bridge-'));
   const tool = options.release ? 'release-reviewer' : 'merge-reviewer';
@@ -40,12 +41,15 @@ async function setup(t: { after(fn: () => Promise<void>): void }, options: {
     context_dir: path.join(runtimeRoot, 'sessions', requestId), input_digest: 'b'.repeat(64), state: 'ready'
   }));
   await writeFile(path.join(root, 'fixture-routing.json'), JSON.stringify({ tool, requestId, runtimeRoot, requestedEffort: effort,
-    initialEffort: options.initial, escalate: options.escalate }));
+    initialEffort: options.initial, escalate: options.escalate, model: options.model, supportedEfforts: options.supportedEfforts,
+    recommended: options.recommended, capped: options.capped }));
   const binding = await modelRoutingBinding(root, tool, runtimeRoot, requestId, effort);
+  if (options.model) Object.assign(binding, { model: options.model, supportedEfforts: options.supportedEfforts, supportsModelSelection: true });
   const spec: CodexTaskSpec = { source: { kind: 'skill', featureId: options.release ? 'release-review' : 'merge-repo', inputs: {}, revision: 'r' },
     title: 'Routing test', root, workspaceKey: root, prompt: 'Use the same frozen session.',
     skill: { name: tool, path: path.join(root, '.agents/skills', tool, 'SKILL.md') },
-    writableRoots: [root], environmentKey: 'r', review: { tool, requestId, revision: 'r' }, routing: binding };
+    writableRoots: [root], environmentKey: 'r', review: { tool, requestId, revision: 'r' }, routing: binding,
+    ...(options.model ? { model: options.model, effort } : {}) };
   const requests: Array<{ method: string; params: any }> = [], events: CodexEvent[] = [];
   let completed = 0, cancelled = 0;
   const bridges: CodexBridge[] = [];
@@ -196,4 +200,40 @@ test('published review follow-up answers use the selected Luna effort without re
   assert.equal(turns[1].params.outputSchema, undefined);
   assert.match(turns[1].params.input[0].text, /Explain the existing report/);
   assert.doesNotMatch(turns[1].params.input[0].text, /routing_phase=assess/);
+});
+
+test('selected reviewer model is used for assessment, capped review, follow-up and saved recovery', async t => {
+  const f = await setup(t, { model: 'fixture-model', supportedEfforts: ['low', 'xhigh'], initial: 'xhigh', recommended: 'max', capped: true });
+  await f.bridge.enqueue(f.spec, 'selected');
+  await until(() => ['completed', 'failed'].includes(f.bridge.list()[0]?.status));
+  assert.equal(f.bridge.list()[0].status, 'completed', f.bridge.list()[0].error ?? 'Selected model should complete');
+  const turns = f.requests.filter(item => item.method === 'turn/start');
+  assert.deepEqual(turns.map(item => [item.params.model, item.params.effort]), [['fixture-model', 'xhigh'], ['fixture-model', 'xhigh']]);
+  assert.match(turns[0].params.input[0].text, /--model "fixture-model" --supported-efforts low,xhigh/);
+  assert.equal(f.bridge.list()[0].modelRouting?.capped, true);
+  assert.equal(f.bridge.list()[0].modelRouting?.recommendedEffort, 'max');
+  const recovered = await modelRoutingBinding(f.root, f.binding.tool, f.binding.runtimeRoot, f.binding.requestId);
+  assert.equal(recovered.model, 'fixture-model'); assert.deepEqual(recovered.supportedEfforts, ['low', 'xhigh']);
+  const preparedAgain = await modelRoutingBinding(f.root, f.binding.tool, f.binding.runtimeRoot, f.binding.requestId, recovered.requestedEffort, true, recovered);
+  assert.equal(preparedAgain.model, recovered.model); assert.deepEqual(preparedAgain.supportedEfforts, recovered.supportedEfforts);
+  assert.equal((await readModelRouting(preparedAgain))?.phase, 'complete');
+  await f.bridge.message('selected', 'Explain this report.');
+  await until(() => ['completed', 'failed'].includes(f.bridge.list()[0]?.status));
+  assert.equal(f.requests.filter(item => item.method === 'turn/start').at(-1)?.params.model, 'fixture-model');
+});
+
+test('a selected model becoming unavailable after assessment stops without another model', async t => {
+  const f = await setup(t, { model: 'fixture-model', supportedEfforts: ['high'], mode: 'routing-selected-removed' });
+  await f.bridge.enqueue(f.spec, 'removed');
+  await until(() => f.bridge.list()[0]?.status === 'failed');
+  assert.equal(f.requests.filter(item => item.method === 'turn/start').length, 1);
+  assert.match(f.bridge.list()[0].error!, /fixture-model/);
+});
+
+test('manual catalog effort labels do not require a known Auto rank', async t => {
+  const f = await setup(t, { model: 'fixture-model', supportedEfforts: ['custom'], effort: 'custom' });
+  await f.bridge.enqueue(f.spec, 'manual-custom');
+  await until(() => ['completed', 'failed'].includes(f.bridge.list()[0]?.status));
+  assert.equal(f.bridge.list()[0].status, 'completed', f.bridge.list()[0].error ?? 'Manual effort should complete');
+  assert.deepEqual(f.requests.filter(item => item.method === 'turn/start').map(item => item.params.effort), ['custom']);
 });

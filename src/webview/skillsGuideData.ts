@@ -35,7 +35,7 @@ const repoField = () => field('repo', 'Repo', { required: true });
 const releaseFields = (): SkillGuideField[] => [repoField(),
   field('base', '基礎分支', { required: true, placeholder: '例如 main 或 origin/main' }),
   field('head', '比較分支', { required: true, placeholder: '例如 feature/payment 或 origin/feature/payment' }),
-  field('effort', 'Luna 思考強度', { kind: 'select', defaultValue: 'auto', options: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] })
+  field('effort', '審查思考強度（建立任務時可調整）', { kind: 'select', defaultValue: 'auto', options: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] })
 ];
 
 export const skillGuideCards: readonly SkillGuideCard[] = [
@@ -227,7 +227,7 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     ...(nativeMergeCapabilities?.features.read_only_artifact_view ? ['For large local artifacts, use the installed Skill documented view command and its continuation offsets.'] : []),
     ...(reviewer ? [`Session controls: status \u6062\u5fa9\u3001cancel \u53d6\u6d88\u3002 ${python(`${JSON.stringify(script)} ${statusCommand}${runtimeArg}${requestIdArg}`)}; ${python(`${JSON.stringify(script)} cancel${runtimeArg}${requestIdArg}`)}.`] : []),
     ...(release && supports('read_only_view') ? ['Use read-only view and its continuation cursor to inspect existing artifacts.'] : []),
-    context.modelRouting ? `$model-routing effort=${effort}：先固定一次證據，再依實際內容選擇 GPT-6 Luna 思考強度；已路由 continuation 沿用同一 request、SHA、草稿與 checkpoint。auto 可提高，手動指定固定；依 Model Routing 的 direct／workbench adapter 執行。`
+    context.modelRouting ? `$model-routing effort=${effort}：先固定一次證據，再依實際內容選擇思考強度；直接呼叫預設 GPT-6 Luna，workbench adapter 沿用 Host 指定模型與強度。已路由 continuation 沿用同一 request、SHA、草稿與 checkpoint。auto 可提高，手動指定固定。`
       : '執行方式：單一 Agent。由目前 Agent 完成審查，不建立子 Agent。',
     '啟動 helper：' + python(JSON.stringify(script) + (prepared ? ' start --prepare-evidence' : ' start') +
       requestIdArg +

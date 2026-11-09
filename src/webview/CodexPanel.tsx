@@ -27,7 +27,7 @@ export function CodexSettings({ post }: { post: Post }) {
       <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.codex.executablePath' })}>設定執行檔</button>
       {environment.authenticated === false && <button type="button" onClick={() => post({ type: 'configureCodex', action: 'login' })}>登入 Codex</button>}
       {environment.sandbox && environment.sandbox !== 'ready' && <button type="button" onClick={() => post({ type: 'configureCodex', action: 'sandbox' })}>設定 Windows sandbox</button>}
-    </div><p class="subtle">帳號沿用本機 Codex；已啟用 Model Routing 的審查使用 GPT-6 Luna，其餘任務沿用本機模型。額外權限會在任務面板詢問。</p>
+    </div><p class="subtle">帳號沿用本機 Codex；建立任務時可選模型與思考強度。審查預選 Luna＋Auto，可依套件能力選擇其他模型。額外權限會在任務面板詢問。</p>
   </section>;
 }
 export function Interaction({ interaction, root, post }: { interaction: CodexInteraction; root: string; post: (request: WorkspaceRequest) => DispatchResult }) {

@@ -236,7 +236,8 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
       {task.workingDirectory && task.workingDirectory !== (task.origin?.repositoryRoot ?? task.root) && <p class="subtle codex-root">實際執行目錄：{task.workingDirectory}</p>}
       {(task.error || task.controls?.autoAcceptError) && <p class="warning" role="status">{task.error ?? task.controls?.autoAcceptError}</p>}
       <CodexWorkflowResult task={task} payload={c.results[task.id]} post={post} active={active} />
-      {task.modelRouting && <details class="codex-routing"><summary>GPT-6 Luna · {task.modelRouting.effort ?? 'auto'} · {{ assessing: '判斷風險', reviewing: '正式審查', complete: '已產生報告' }[task.modelRouting.phase]}</summary>
+      {task.modelRouting && <details class="codex-routing"><summary>{task.modelRouting.model} · {task.modelRouting.effort ?? 'auto'} · {{ assessing: '判斷風險', reviewing: '正式審查', complete: '已產生報告' }[task.modelRouting.phase]}</summary>
+        {task.modelRouting.capped && <p>建議 {task.modelRouting.recommendedEffort}；已使用此模型最高強度 {task.modelRouting.effort}。</p>}
         <p>{task.modelRouting.reason}</p>{task.modelRouting.history.map((entry, index) => <p key={index}>{entry.effort}：{entry.reason}</p>)}
         {task.modelRouting.reportPath && <p>報告：{task.modelRouting.reportPath}</p>}</details>}
       <div class="codex-reading-actions"><button type="button" class="quiet" onClick={toLatest}>{following ? '跳至最新回覆' : '回到最新'}</button>

@@ -48,7 +48,10 @@ test('one corrupt record remains intact while valid v1 records load and migrate 
     spec: { source: { kind: 'free', repository: root, prompt: 'test' }, title: 'test', root, workspaceKey: root, prompt: 'test', writableRoots: [root], environmentKey: 'test' } };
   await store.save(record);
   const malformed = [ { title: {} }, { progress: { plan: {} } }, { result: { state: 'ready', summary: 'Invalid', replyDrafts: {} } },
-    { modelRouting: { phase: 'reviewing', history: {} } }, { goal: { objective: 'Goal', tokensUsed: {} } } ];
+    { modelRouting: { phase: 'reviewing', history: {} } }, { goal: { objective: 'Goal', tokensUsed: {} } },
+    { modelRouting: { phase: 'reviewing', history: [], model: {} } },
+    { modelRouting: { phase: 'reviewing', history: [], recommendedEffort: {} } },
+    { modelRouting: { phase: 'reviewing', history: [], capped: {} } } ];
   for (const [index, fields] of malformed.entries()) {
     const id = 'malformed-' + index;
     await writeFile(path.join(store.directory, id + '.json'), JSON.stringify({ ...record, ...fields, id }));

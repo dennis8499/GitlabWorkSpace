@@ -32,6 +32,7 @@ import { bmadKitTaskIssue } from './bmadKit';
 import { inspectBmadEnvironment } from './bmadEnvironment';
 import { CodexBridge } from '../codex/bridge';
 import { CodexHostActions } from '../codex/hostActions';
+import { applyExecutionSelection, pickExecutionSelection } from '../codex/executionSelection';
 import { prepareFreeTask, pathInside } from '../codex/freeTask';
 import type { CodexTaskSpec, CodexTaskSource, CodexTaskOrigin, CodexTaskResult, CodexOutputItem } from '../codex/protocol';
 import { collectIssueResult, issueBranchName, readWorkflowReport, startIssueWorkflow, startWikiWorkflow,
@@ -1233,8 +1234,8 @@ export class WorkspacePanel implements vscode.Disposable {
             ['queued', 'starting', 'running', 'waiting', 'pausing'].includes(task.status));
           if (existing) { await this.navigateTo('codex'); this.post({ type: 'codexTaskStarted', taskId: existing.id }); break; }
         }
-        const prepared = await this.prepareCodexTask(request.source);
-        const taskId = await this.getCodexBridge().enqueue(prepared, this.operationContext.getStore() ?? request.operationId);
+        const taskId = await this.createSelectedCodexTask(request.source, this.operationContext.getStore() ?? request.operationId);
+        if (!taskId) break;
         this.activeMode = 'codex';
         await this.context.globalState.update(SELECTED_MODE_KEY, 'codex');
         this.post({ type: 'codexTaskStarted', taskId });
@@ -2342,6 +2343,15 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.gitRepositories?.openRepositoryPath(root); this.skillsContextCache = undefined;
   }
   async createCodexTask(context?: 'selection' | 'file' | 'diff'): Promise<void> { await this.getCodexHostActions().run({ action: 'create', context }); }
+  private async createSelectedCodexTask(source: CodexTaskSource, operationId?: string): Promise<string | undefined> {
+    const prepared = await this.prepareCodexTask(source);
+    // Recovery must use the native request's saved model and effort.
+    if (source.kind === 'review' && source.action === 'resume') return this.getCodexBridge().enqueue(prepared, operationId);
+    const selection = await pickExecutionSelection(vscode, await this.getCodexBridge().models(prepared.root), prepared);
+    if (!selection) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return undefined; }
+    const confirmed = await this.prepareCodexTask({ ...source, model: selection.model, effort: selection.effort, modelEfforts: selection.modelEfforts }, prepared);
+    return this.getCodexBridge().enqueue(confirmed, operationId);
+  }
   private async codexRepositories(): Promise<Array<{ name: string; path: string }>> {
     await this.refreshInventory();
     const folders = this.reviewerWorkspaceFolders?.folders ?? (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath);
@@ -2352,6 +2362,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private getCodexHostActions(): CodexHostActions {
     return this.codexHostActions ??= new CodexHostActions({
       bridge: () => this.getCodexBridge(), repositories: () => this.codexRepositories(), prepare: source => this.prepareCodexTask(source),
+      createTask: source => this.createSelectedCodexTask(source),
       selected: async taskId => { await this.navigateTo('codex'); this.post({ type: 'codexTaskStarted', taskId }); },
       check: spec => { if (spec.origin) this.checkLinkedCodexAccess(spec)(); },
       diff: async (spec, taskId) => {
@@ -2378,12 +2389,12 @@ export class WorkspacePanel implements vscode.Disposable {
       const client = await this.session.getClient(), branch = await client.getRepositoryBranch(spec.origin.projectId, spec.origin.sourceBranch);
       this.checkLinkedCodexAccess(spec)();
       if (branch.commit.id === spec.origin.sourceSha) { await vscode.window.showInformationMessage('Wiki 來源版本尚未變更，可接續原任務調整內容。'); return; }
-      const next = await this.prepareCodexTask({ kind: 'project-wiki', projectId: spec.origin.projectId, incrementalFrom: taskId });
-      const id = await this.getCodexBridge().enqueue(next); await this.navigateTo('codex'); this.post({ type: 'codexTaskStarted', taskId: id }); return;
+      const id = await this.createSelectedCodexTask({ kind: 'project-wiki', projectId: spec.origin.projectId, incrementalFrom: taskId });
+      if (id) { await this.navigateTo('codex'); this.post({ type: 'codexTaskStarted', taskId: id }); } return;
     }
     if (action === 'mr-fix' && spec.origin?.kind === 'merge-request') {
-      const next = await this.prepareCodexTask({ kind: 'merge-request', projectId: spec.origin.projectId, iid: spec.origin.iid!, intent: 'fix-comments' });
-      const id = await this.getCodexBridge().enqueue(next); await this.navigateTo('codex'); this.post({ type: 'codexTaskStarted', taskId: id }); return;
+      const id = await this.createSelectedCodexTask({ kind: 'merge-request', projectId: spec.origin.projectId, iid: spec.origin.iid!, intent: 'fix-comments' });
+      if (id) { await this.navigateTo('codex'); this.post({ type: 'codexTaskStarted', taskId: id }); } return;
     }
     if (action === 'remove-worktree') {
       await this.getCodexBridge().withResources(taskId, () => removeManagedWorktree(spec));
@@ -2826,6 +2837,9 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async prepareCodexTask(source: CodexTaskSource, previous?: CodexTaskSpec): Promise<CodexTaskSpec> {
+    return applyExecutionSelection(await this.prepareCodexEnvironment(source, previous), source);
+  }
+  private async prepareCodexEnvironment(source: CodexTaskSource, previous?: CodexTaskSpec): Promise<CodexTaskSpec> {
     if (source.kind === 'free') return prepareFreeTask(source, (await this.codexRepositories()).map(repo => repo.path));
     if (!vscode.workspace.isTrusted) throw new Error('請先信任此 VS Code 工作區，才能執行 Codex。');
     if (!source || typeof source !== 'object' || JSON.stringify(source).length > 100_000) throw new Error('Codex 任務格式無效。');
@@ -2857,7 +2871,8 @@ export class WorkspacePanel implements vscode.Disposable {
       const executionRuntime = result.runtimeRoot;
       const routing = skills.installed.capabilities?.includes('model-routing') && (!result.published || previous?.routing)
         ? await modelRoutingBinding(skills.root, source.tool, executionRuntime, previous?.review?.requestId ?? result.reviewRequestId,
-          source.action === 'refresh' ? 'auto' : previous?.routing?.requestedEffort) : undefined;
+          source.action === 'refresh' ? 'auto' : previous?.routing?.requestedEffort,
+          skills.installed.capabilities?.includes('model-routing-model-selection'), source.action === 'resume' ? previous?.routing : undefined) : undefined;
       prepared = await this.codexSpec(source, `${source.action === 'resume' ? '恢復' : '重新同步'}${source.tool === 'merge-reviewer' ? '合併審查' : '上版檢查'}`,
         skills.root, source.tool, result.prompt, [executionRuntime, ...(routing ? [reviewerRunnerRuntime(executionRuntime)] : []), await sharedReviewCacheRoot(executionRuntime), sharedReviewCacheV2Root()],
         { tool: source.tool, requestId: previous?.review?.requestId ?? result.reviewRequestId, revision: skills.revision }, JSON.stringify(binding), routing);
@@ -2929,7 +2944,8 @@ export class WorkspacePanel implements vscode.Disposable {
     const prompt = `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`;
     const runtime = card.tool === 'merge-reviewer' ? current.reviewRuntimeRoot : card.tool === 'release-reviewer' ? current.releaseReviewRuntimeRoot : undefined;
     const routing = reviewer && context.modelRouting && runtime && context.reviewerRequestId
-      ? await modelRoutingBinding(current.root, card.tool as ReviewerToolId, runtime, context.reviewerRequestId, inputs[`${card.id}.effort`] ?? 'auto') : undefined;
+      ? await modelRoutingBinding(current.root, card.tool as ReviewerToolId, runtime, context.reviewerRequestId, inputs[`${card.id}.effort`] ?? 'auto',
+        current.installed.capabilities?.includes('model-routing-model-selection')) : undefined;
     return this.codexSpec({ kind: 'skill', ...request }, card.title, current.root, card.tool, prompt,
       runtime ? [runtime, ...(routing ? [reviewerRunnerRuntime(runtime)] : []), await sharedReviewCacheRoot(runtime), sharedReviewCacheV2Root()] : [],
       context.reviewerRequestId ? { tool: card.tool as ReviewerToolId, requestId: context.reviewerRequestId, revision: current.revision } : undefined,

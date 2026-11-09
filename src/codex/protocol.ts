@@ -4,14 +4,15 @@ import type { ModelRoutingBinding, ModelRoutingSummary } from './modelRoutingPro
 import type { CodexTaskOrigin, CodexTaskResult, CodexWorkflowBinding } from './workflowProtocol';
 export type { CodexTaskOrigin, CodexTaskResult } from './workflowProtocol';
 
-export type CodexTaskSource =
-  | { kind: 'free'; repository: string; prompt: string; contexts?: CodexContext[]; model?: string; effort?: string }
+export interface CodexExecutionSelection { model?: string; effort?: string; modelEfforts?: string[]; }
+export type CodexTaskSource = (
+  | { kind: 'free'; repository: string; prompt: string; contexts?: CodexContext[] }
   | { kind: 'skill'; featureId: string; inputs: Record<string, string>; revision: string }
   | { kind: 'bmad'; request: BmadCommandRequest }
   | { kind: 'issue'; projectId: number; issueIid: number; isolated?: boolean }
   | { kind: 'project-wiki'; projectId: number; incrementalFrom?: string }
   | { kind: 'merge-request'; projectId: number; iid: number; intent?: 'review' | 'fix-comments'; discussionIds?: string[] }
-  | { kind: 'review'; action: 'resume' | 'refresh'; tool: ReviewerToolId; requestId: string; revision: string };
+  | { kind: 'review'; action: 'resume' | 'refresh'; tool: ReviewerToolId; requestId: string; revision: string }) & CodexExecutionSelection;
 export interface CodexTaskSpec {
   source: CodexTaskSource;
   title: string;
@@ -68,6 +69,7 @@ export interface CodexTaskState {
   root: string;
   status: CodexTaskStatus;
   workingDirectory?: string;
+  selection?: CodexExecutionSelection;
   createdAt: string;
   updatedAt: string;
   threadId?: string;
@@ -170,6 +172,6 @@ export function canonicalReviewRequestId(value: string): string {
 export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
   const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, result,
     revision, pinned, archived, progress, recovery, goal, publication } = record;
-  return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin, result,
+  return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin, result,
     revision, pinned, archived, progress: progress ? { ...progress, diff: undefined, hasDiff: !!progress.diff } : undefined, recovery, goal, publication };
 }

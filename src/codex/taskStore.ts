@@ -6,6 +6,7 @@ import type { CodexTaskRecord, CodexStorageProblem } from './protocol';
 import { canonicalReviewRequestId, codexTaskActive } from './protocol';
 import { atomicNetworkJson, LocalNetworkLease } from '../api/localNetworkLease';
 import { requestedEffort } from './modelRouting';
+import { validateExecutionSelection } from './executionSelection';
 
 export const codexRootKey = (root: string): string => createHash('sha256').update(process.platform === 'win32' ? root.toLowerCase() : root).digest('hex');
 export const validTaskId = (id: unknown): id is string => typeof id === 'string' && /^[a-z0-9-]{1,100}$/i.test(id);
@@ -59,12 +60,18 @@ export class CodexTaskStore {
         }
       }
       const routing = value.spec.routing;
+      validateExecutionSelection(value.spec.source);
+      validateExecutionSelection({ model: value.spec.model, effort: value.spec.effort });
       if (routing) {
         if (!value.spec.review || routing.tool !== value.spec.review.tool || routing.requestId !== value.spec.review.requestId ||
             !path.isAbsolute(routing.runtimeRoot) || !path.isAbsolute(routing.skillPath) ||
             path.resolve(routing.skillPath) !== path.join(value.root, '.agents/skills/model-routing/SKILL.md') ||
             !/^[a-f0-9]{64}$/.test(routing.payloadHash)) throw new Error('Codex 任務的 Model Routing 身分無效。');
         requestedEffort(routing.requestedEffort);
+        if (routing.model !== undefined || routing.supportedEfforts !== undefined) {
+          validateExecutionSelection({ model: routing.model, effort: routing.requestedEffort, modelEfforts: routing.supportedEfforts });
+          if (!routing.model || !routing.supportedEfforts) throw new Error('審查模型能力設定不完整。');
+        }
       }
       records.push(value);
       } catch { problems.push({ id: name.slice(0, -5), reason: '任務紀錄無法驗證；原件已保留，請檢查儲存區並重新載入。' }); }

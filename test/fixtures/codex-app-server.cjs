@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const root = process.argv[2];
 const mode = process.argv[3];
 let initialized = false, sequence = 0, active, pending = [];
-let goal;
+let goal, selectedModelLost = false;
 const send = message => process.stdout.write(JSON.stringify(message) + '\n');
 const notify = (method, params) => send({ method, params });
 function complete(status = 'completed') {
@@ -68,8 +68,12 @@ rl.on('line', line => {
   if (method === 'skills/extraRoots/set') { send({ id, result: {} }); return; }
   if (method === 'model/list') {
     const efforts = mode === 'routing-max-missing' ? ['low', 'medium', 'high', 'xhigh'] : ['low', 'medium', 'high', 'xhigh', 'max'];
+    let config;
+    try { config = JSON.parse(fs.readFileSync(path.join(root, 'fixture-routing.json'), 'utf8')); } catch {}
+    const additional = config?.model && config.model !== 'gpt-6-luna' && !selectedModelLost ? [{ id: config.model, model: config.model,
+      displayName: config.model, supportedReasoningEfforts: config.supportedEfforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) }] : [];
     send({ id, result: { data: mode === 'routing-model-missing' || mode === 'routing-page' && !params.cursor ? [] : [
-      { id: 'gpt-6-luna', model: 'gpt-6-luna', displayName: 'GPT-6 Luna', supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) }
+      { id: 'gpt-6-luna', model: 'gpt-6-luna', displayName: 'GPT-6 Luna', supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) }, ...additional
     ], nextCursor: mode === 'routing-page' && !params.cursor ? 'second' : null } }); return;
   }
   if (method === 'thread/start') { send({ id, result: { thread: { id: 'thread-' + ++sequence } } }); return; }
@@ -102,9 +106,9 @@ rl.on('line', line => {
       const write = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(value)); };
       const job = JSON.parse(fs.readFileSync(jobPath, 'utf8'));
       const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : {
-        schema: 'ReviewModelRouting/v1', tool: config.tool, request_id: config.requestId, runtime_root: config.runtimeRoot,
+        schema: config.model ? 'ReviewModelRouting/v2' : 'ReviewModelRouting/v1', tool: config.tool, request_id: config.requestId, runtime_root: config.runtimeRoot,
         context_dir: job.context_dir, input_digest: job.input_digest, snapshot_hash: 'a'.repeat(64),
-        requested_effort: config.requestedEffort, model: 'gpt-6-luna', effort: null, phase: 'routing', reason: '', checkpoint: '', history: [], revision: 0
+        requested_effort: config.requestedEffort, model: config.model ?? 'gpt-6-luna', ...(config.model ? { supported_efforts: config.supportedEfforts } : {}), effort: null, phase: 'routing', reason: '', checkpoint: '', history: [], revision: 0
       };
       const heldReview = path.join(root, 'fixture-held-review');
       if (mode === 'routing-hold-review' && prompt.includes('routing_phase=review') && !fs.existsSync(heldReview)) {
@@ -114,6 +118,8 @@ rl.on('line', line => {
       }
       if (mode !== 'routing-no-decision') {
         if (prompt.includes('routing_phase=assess')) {
+          if (config.model) { state.recommended_effort = config.recommended ?? config.initialEffort ?? 'high'; state.capped = config.capped ?? false; }
+          if (mode === 'routing-selected-removed') selectedModelLost = true;
           state.effort = config.initialEffort ?? 'high'; state.phase = 'reviewing'; state.reason = 'Fixed API behavior.';
           state.history.push({ effort: state.effort, reason: state.reason, kind: 'decide' }); state.revision++;
         } else if (config.escalate && state.effort !== config.escalate) {

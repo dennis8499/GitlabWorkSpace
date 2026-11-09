@@ -13,7 +13,8 @@ export function CodexTaskDetails({ task, post }: { task: CodexTaskState; post(re
     {progress?.plan?.length ? <details open><summary>執行計畫</summary><ol>{progress.plan.map((step, index) => <li key={index}>
       <span>{({ pending: '待處理', inProgress: '進行中', completed: '已完成' })[step.status]}：</span>{step.step}</li>)}</ol></details> : null}
     <details><summary>模型與使用量{progress?.model ? ` · ${progress.model}` : ''}</summary>
-      <p>模型：{progress?.model ?? '沿用本機設定，實際模型尚未回報'}{progress?.effort ? ` · ${progress.effort}` : ''}</p>
+      <p>任務設定：{task.selection?.model ?? '沿用本機設定'}{task.selection?.effort ? ` · ${task.selection.effort}` : ''}</p>
+      <p>實際執行：{progress?.model ?? '尚未回報'}{progress?.effort ? ` · ${progress.effort}` : ''}</p>
       <p>Token：{progress?.tokens ? `${progress.tokens.total.toLocaleString()}（輸入 ${progress.tokens.input.toLocaleString()}／輸出 ${progress.tokens.output.toLocaleString()}）` : '未知'}</p>
       <p>額度：{progress?.quota ? `${progress.quota.usedPercent}% 已使用${progress.quota.resetsAt ? ` · ${new Date(progress.quota.resetsAt * 1000).toLocaleString()} 重設` : ''}` : '未知'}</p>
       {progress?.tool && <p>工具：{progress.tool}</p>}{progress?.updatedAt && <p class="subtle">最後更新：{new Date(progress.updatedAt).toLocaleString()}</p>}

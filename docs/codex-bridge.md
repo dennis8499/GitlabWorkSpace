@@ -2,7 +2,9 @@
 
 ## 新增任務與管理
 
-可從 Codex 頁按「建立 Codex 任務」，或執行命令「GitLab Workspace: 建立 Codex 任務」。原生選單會固定本次 Repo、需求、上下文及選用的模型／思考強度；自由任務不需要 WorkflowKit。也可使用「將選取文字帶入 Codex 任務」。文字檔與選取區塊固定為送出時的快照，每項最多 32,000 字、合計最多 128,000 字及 10 項；送出前可預覽，其他 Repo 的檔案會被拒絕。
+可從 Codex 頁按「建立 Codex 任務」，或執行命令「GitLab Workspace: 建立 Codex 任務」。自由任務、Skills、BMAD、Issue、Wiki、MR 審查／修正及 Wiki 增量更新均在建立前使用相同的原生選單選擇模型及思考強度。選項來自目前 App Server 的 `model/list`；一般任務預選「沿用本機 Codex 設定」，明確選模型後預選其預設強度。取消選單不建立或排隊，表單與需求草稿保留。自由任務不需要 WorkflowKit，也可使用「將選取文字帶入 Codex 任務」。文字檔與選取區塊固定為送出時的快照，每項最多 32,000 字、合計最多 128,000 字及 10 項；送出前可預覽，其他 Repo 的檔案會被拒絕。
+
+每個任務獨立保存模型與強度，後續傳送及恢復沿用選擇；對話分支繼承來源設定，重新同步的新 request 可重新選擇。Codex 頁的「模型與使用量」分別顯示任務設定與實際執行資訊。這些選擇不會修改全域 Codex 設定。
 
 任務清單支援搜尋、狀態／Repo 篩選與顯示封存。「更多操作」提供重新命名、釘選、封存、排隊順序、診斷、對話分支及目標設定；封存只隱藏管理紀錄。對話分支建立獨立且暫停的自由任務，保留原對話，也不繼承原工作流程的發布權限。
 
@@ -44,7 +46,7 @@ Wiki、合併審查、上版檢查及 BMAD 頁面的「使用 Codex 執行」會
 2. 在「工具與環境」的「Codex 執行環境」按「檢查 Codex」。Windows 需要可用的 Codex sandbox；尚未登入或設定完成時，使用畫面的登入及設定入口。
 3. 安裝此專案對應的 WorkflowKit，並在功能頁填妥參數，按「使用 Codex 執行」。
 
-預設從 VS Code 的 PATH 尋找相容的 Codex，支援官方 npm 安裝。若找不到，於使用者設定填寫 `gitlabWorkspace.codex.executablePath` 的完整路徑；工作區設定不會覆寫此執行檔。Provider 與既有帳號沿用本機 Codex，登入由 Codex 自行保存及更新。一般任務沿用本機模型；啟用 Model Routing 的審查使用 GPT-6 Luna。
+預設從 VS Code 的 PATH 尋找相容的 Codex，支援官方 npm 安裝。若找不到，於使用者設定填寫 `gitlabWorkspace.codex.executablePath` 的完整路徑；工作區設定不會覆寫此執行檔。Provider 與既有帳號沿用本機 Codex，登入由 Codex 自行保存及更新。一般任務預選沿用本機設定，審查預選 Luna＋Auto；建立前可依模型清單及套件能力修改。
 
 ## 從 GitLab 工作直接啟動
 
@@ -72,7 +74,9 @@ Wiki、合併審查、上版檢查及 BMAD 頁面的「使用 Codex 執行」會
 
 ## Reviewer Model Routing
 
-WorkflowKit 1.4.0 與工作台 0.40.0 起，合併審查、上版檢查提供「Luna 思考強度」。預設 auto 先以 Luna high 讀取固定 diff 與必要上下文，再依共用規則選擇正式審查的 low、medium、high、xhigh 或 max。純敘述文件可用 low、局部簡單邏輯可用 medium，一般程式變更從 high 起；跨 Repo、權限、資料及部署風險提高強度。
+合併審查、上版檢查預選 Luna＋Auto。WorkflowKit 宣告 `model-routing-model-selection` 時，可在建立前選用其他模型；舊套件保留既有 Luna 路由，其他模型需要更新套件。Auto 的評估與正式審查使用同一個所選模型，評估以 high 為目標。純敘述文件建議 low、局部簡單邏輯建議 medium，一般程式變更從 high 起；跨 Repo、權限、資料及部署風險提高強度。
+
+Auto 從模型支援的強度中選擇達到建議值的最低可用強度；超過模型上限時使用最高可用值，並顯示建議、實際強度與上限原因。無法排序的強度只能手動選擇。升級只提高實際強度，已達上限時繼續審查並保留證據缺口。新模型選擇保存為 `ReviewModelRouting/v2`；v1 任務仍沿用 Luna 與原固定證據。
 
 手動選擇只套用本次 request 並固定到結束。auto 可在具體新風險出現後保存草稿與 checkpoint，以較高強度接續同一份固定證據。模型與強度透過 App Server 的 model/list 核對，並在每個 turn/start 明確指定；不修改全域 Codex 設定。缺少所需模型或強度時保留進度並回報。
 

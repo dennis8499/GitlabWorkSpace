@@ -26,7 +26,8 @@ export function validStoredCodexProjection(value: unknown): boolean {
     optional(item.replyDrafts, drafts => array(drafts, entry => object(entry) && string(entry.discussionId) && string(entry.body))) &&
     optional(item.evidence, evidence => object(evidence) && ['sourceSha', 'branch', 'digest', 'verifiedAt'].every(key => string(evidence[key]))))) return false;
   if (!optional(value.modelRouting, item => object(item) && ['assessing', 'reviewing', 'complete'].includes(String(item.phase)) &&
-    array(item.history, entry => object(entry) && string(entry.reason) && fields(entry, ['effort'])) && fields(item, ['reason', 'effort', 'reportPath']))) return false;
+    array(item.history, entry => object(entry) && string(entry.reason) && fields(entry, ['effort'])) &&
+    fields(item, ['model', 'reason', 'effort', 'recommendedEffort', 'reportPath']) && optional(item.capped, flag => typeof flag === 'boolean'))) return false;
   if (!optional(value.goal, item => object(item) && string(item.objective) && fields(item, ['status', 'startedAt']) &&
     fields(item, ['tokenBudget', 'timeBudgetSeconds', 'tokensUsed', 'timeUsedSeconds'], integer))) return false;
   if (!optional(value.recovery, item => object(item) && ['checkedAt', 'message', 'execution', 'cleanup', 'publication'].every(key => string(item[key])))) return false;

@@ -10,6 +10,7 @@ export interface CodexHostActionOptions {
   bridge(): CodexBridge;
   repositories(): Promise<Array<{ name: string; path: string }>>;
   prepare(source: CodexTaskSource): Promise<CodexTaskSpec>;
+  createTask(source: CodexTaskSource): Promise<string | undefined>;
   selected(taskId: string): Promise<void>;
   check(spec: CodexTaskSpec): void;
   diff(spec: CodexTaskSpec, taskId: string): Promise<void>;
@@ -18,6 +19,7 @@ export interface CodexHostActionOptions {
 }
 /** Native pickers own paths/models; the webview can only request named actions. */
 export class CodexHostActions {
+  private draft?: { repository: string; prompt: string; contexts: CodexContext[] };
   constructor(private readonly options: CodexHostActionOptions, private readonly vscode: typeof VSCode) {}
   async run(command: CodexCommand): Promise<void> {
     if (!this.vscode.workspace.isTrusted) throw new Error('請先信任工作區。');
@@ -103,36 +105,30 @@ export class CodexHostActions {
     if (!repositories.length) throw new Error('請先開啟或掃描本機 Repo。');
     const repo = await this.vscode.window.showQuickPick(repositories.map(repo => ({ label: repo.name, description: repo.path, repo })), { title: '建立 Codex 任務：選擇 Repo' });
     if (!repo) return;
-    const prompt = await this.vscode.window.showInputBox({ title: '輸入需求與完成條件', ignoreFocusOut: true,
+    const prompt = await this.vscode.window.showInputBox({ title: '輸入需求與完成條件', ignoreFocusOut: true, value: this.draft?.repository === repo.repo.path ? this.draft.prompt : undefined,
       validateInput: value => !value.trim() || value.length > 32000 ? '請輸入 1 到 32,000 字' : undefined });
     if (!prompt) return;
-    let contexts = initial === 'none' ? [] : await this.context(initial, repo.repo.path);
-    let model: string | undefined, effort: string | undefined;
+    let contexts = initial === 'none' ? this.draft?.repository === repo.repo.path ? this.draft.contexts : [] : await this.context(initial, repo.repo.path);
     for (;;) {
+      this.draft = { repository: repo.repo.path, prompt, contexts };
       const summary = contexts.map(item => `${item.kind} · ${path.basename(item.path)} · ${item.text.length} 字`).join('；') || '未附加內容';
       const choice = await this.vscode.window.showQuickPick([
-        { label: '建立任務', value: 'start', description: `${model ?? '沿用本機模型'} · ${summary}` },
+        { label: '建立任務', value: 'start', description: `接著選擇模型與思考強度 · ${summary}` },
         { label: '預覽需求與上下文', value: 'preview' }, { label: '加入選取文字', value: 'selection' }, { label: '加入文字檔', value: 'file' },
-        { label: '加入 Git Diff', value: 'diff' }, { label: '選擇模型與思考強度', value: 'model' }
+        { label: '加入 Git Diff', value: 'diff' }
       ], { title: `確認 ${repo.repo.name} 的任務`, placeHolder: summary });
       if (!choice) return;
-      if (choice.value === 'start') break;
+      if (choice.value === 'start') {
+        const taskId = await this.options.createTask({ kind: 'free', repository: repo.repo.path, prompt, contexts });
+        if (!taskId) return;
+        this.draft = undefined; await this.options.selected(taskId); return;
+      }
       if (choice.value === 'preview') { await this.vscode.window.showTextDocument(await this.vscode.workspace.openTextDocument({ content: [prompt, ...contexts.map(item => `${item.path}\n${item.text}`)].join('\n\n'), language: 'plaintext' }), { preview: true }); continue; }
-      if (choice.value === 'model') {
-        const models = await this.options.bridge().models(repo.repo.path);
-        const selected = await this.vscode.window.showQuickPick([{ label: '沿用本機 Codex 模型', model: undefined }, ...models.map(item => ({ label: item.displayName, description: item.model, model: item }))], { title: '模型清單；實際可用性由執行回應確認' });
-        if (!selected) continue; model = selected.model?.model; effort = undefined;
-        if (selected.model) {
-          const value = await this.vscode.window.showQuickPick(selected.model.supportedReasoningEfforts.map(item => ({ label: item.reasoningEffort, description: item.description })), { title: '本次任務思考強度' });
-          effort = value?.label;
-        }
-      } else {
+      {
         const next = [...contexts, ...await this.context(choice.value as 'selection' | 'file' | 'diff', repo.repo.path)];
         if (next.length > 10 || next.reduce((sum, item) => sum + item.text.length, 0) > 128_000) throw new Error('上下文最多 10 項、合計 128,000 字。');
         contexts = next;
       }
     }
-    const source: CodexTaskSource = { kind: 'free', repository: repo.repo.path, prompt, contexts, model, effort };
-    const spec = await this.options.prepare(source); await this.options.selected(await this.options.bridge().enqueue(spec));
   }
 }
