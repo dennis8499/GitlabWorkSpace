@@ -4,7 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink, lstat } from 'node:fs/promises';
-import { startIssueWorkflow, verifyManagedWorktree, removeManagedWorktree, implementationDigest, collectIssueResult } from '../../src/codex/projectWorkflows';
+import { startIssueWorkflow, startWikiWorkflow, verifyManagedWorktree, removeManagedWorktree, implementationDigest, collectIssueResult } from '../../src/codex/projectWorkflows';
+import { resolvePythonRuntime } from '../../src/workspace/pythonRuntime';
 import { CodexTaskScheduler, codexResourcePaths, codexResourcesOverlap } from '../../src/codex/scheduler';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
 import { codexRootKey } from '../../src/codex/taskStore';
@@ -54,6 +55,19 @@ test('worktrees share their Git common-directory resource and redirected output 
   assert.equal(codexResourcesOverlap(original, isolated), true);
   await removeManagedWorktree(f.spec); await symlink(f.repo, f.target, process.platform === 'win32' ? 'junction' : 'dir');
   await assert.rejects(verifyManagedWorktree(f.spec), /重新導向/);
+});
+test('Wiki source archives are removed after extraction and after a failed extractor, while snapshots remain', async t => {
+  const f = await fixture(t), python = await resolvePythonRuntime('python');
+  f.spec.source = { kind: 'project-wiki', projectId: 1 }; f.spec.origin!.kind = 'project-wiki';
+  f.spec.workflow!.worktree = undefined; f.spec.workflow!.sourceRoot = path.join(f.runtime, 'source');
+  f.spec.executionRoot = path.join(f.runtime, 'source', 'wiki');
+  await startWikiWorkflow(f.spec, python);
+  await assert.rejects(lstat(path.join(f.runtime, 'source.zip')), { code: 'ENOENT' });
+  assert.equal((await readFile(path.join(f.runtime, 'source', 'main.py'), 'utf8')).replace(/\r\n/g, '\n'), git(f.repo, 'show', f.spec.origin!.sourceSha + ':main.py').replace(/\r\n/g, '\n'));
+  await rm(path.join(f.runtime, 'source.json'));
+  await assert.rejects(startWikiWorkflow(f.spec, { ...python, executable: process.execPath, args: ['-e', 'process.exit(3)', '--'] }));
+  await assert.rejects(lstat(path.join(f.runtime, 'source.zip')), { code: 'ENOENT' });
+  assert.ok(await lstat(path.join(f.runtime, 'source')));
 });
 
 test('directory aliases use the physical legacy workspace lock as well as the shared scheduler resource', async t => {

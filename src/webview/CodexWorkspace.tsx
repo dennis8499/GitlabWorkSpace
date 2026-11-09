@@ -203,7 +203,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
         <option value="all">全部狀態</option><option value="active">執行／排隊中</option><option value="waiting">等待回覆</option><option value="paused">已暫停</option><option value="completed">本輪完成</option><option value="uncertain">結果待核對</option><option value="failed">失敗</option></select></label>
       <label class="codex-task-filter">Repo<select value={repo} onChange={event => { setRepo(event.currentTarget.value); setTaskLimit(50); }}><option value="all">全部 Repo</option>{roots.map(root => <option key={root} value={root}>{root}</option>)}</select></label>
       <label><input type="checkbox" checked={archived} onChange={event => setArchived(event.currentTarget.checked)} />顯示已封存</label>
-      {!!c.environment.storageProblems?.length && <div class="warning" role="status"><p>{c.environment.storageProblems.length} 筆紀錄待修復；新派發已暫停。</p>
+      {!!c.environment.storageProblems?.length && <div class="warning" role="status"><p>{c.environment.storageProblems.some(problem => problem.kind !== 'cleanup') ? '紀錄待修復；新派發已暫停。' : '對話附屬資料清理待重試。'}</p>
         <details><summary>待修復紀錄</summary>{c.environment.storageProblems.map(problem => <p key={problem.id}>{problem.id}：{problem.reason}</p>)}</details>
         <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'storage' } })}>開啟紀錄資料夾</button>
         <button type="button" onClick={() => post({ type: 'listCodexTasks' })}>重新讀取</button></div>}
@@ -226,7 +226,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
           onChange={event => post({ type: 'setCodexAutoAccept', taskId: task.id, enabled: event.currentTarget.checked })} />Auto-Accept: {task.controls?.external ? '由原視窗管理' : task.controls?.autoAccept ? 'ON' : 'OFF'}</label>
         {task.origin && <button type="button" class="quiet" onClick={() => post({ type: 'openCodexOrigin', taskId: task.id })}>返回{task.origin.kind === 'issue' ? ' Issue' : task.origin.kind === 'merge-request' ? ' MR' : '專案'}</button>}
         <button type="button" class="quiet" disabled={!task.threadId || !historyReady && !task.turnId} onClick={() => post({ type: 'codexHistory', taskId: task.id, force: true })}>讀取對話</button>
-        <button type="button" class="quiet" disabled={!task.controls?.canDelete} title={task.controls?.canDelete ? '保留 Codex 對話、檔案及報告' : '請先暫停並確認清理完成'} onClick={() => post({ type: 'deleteCodexTask', taskId: task.id })}>刪除紀錄</button>
+        <button type="button" class="quiet" disabled={!task.controls?.canDelete} title={task.controls?.canDelete ? '刪除本對話的 globalStorage 資料及隔離成果；保留原專案檔案' : '請先暫停並確認清理完成'} onClick={() => post({ type: 'deleteCodexTask', taskId: task.id })}>刪除紀錄</button>
       </div>
       <div class="codex-extra-controls"><button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'manage', taskId: task.id } })}>更多操作</button>
         <button type="button" disabled={codexTaskActive(task.status) || task.status === 'queued' || !!task.controls?.external} onClick={() => post({ type: 'codexCommand', command: { action: 'reconcile', taskId: task.id } })}>核對任務狀態</button>

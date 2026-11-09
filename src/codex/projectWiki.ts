@@ -1,13 +1,15 @@
 import { lstat, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { atomicNetworkJson, LocalNetworkLease } from '../api/localNetworkLease';
+import { atomicNetworkJson } from '../api/localNetworkLease';
 import { GitLabApiError, gitLabWriteFailureEffect, type GitLabClient } from '../api/gitLabClient';
 import { GitLabBudgetExceededError } from '../api/gitLabRequestBudget';
 import type { GitLabWikiPage } from '../api/types';
 import type { CodexTaskOrigin, CodexTaskResult, ProjectWikiPreview } from './workflowProtocol';
 import { sameWorkflowPath, workflowHash } from './projectWorkflows';
 import { wikiSourceReferences, wikiIncrementalSelection, wikiPageFile } from './wikiIncremental';
+import { missingFile, ownedStoragePath, removeOwnedStorage, removeOwnedAtomicTemps } from '../storage/ownedStorage';
+import { acquireStorageControl } from '../storage/controlLease';
 
 interface WikiDraftPage {
   slug: string; title: string; content: string;
@@ -112,7 +114,11 @@ export class ProjectWikiStore {
     return path.join(this.directory, id + '.json');
   }
   private async load(id: string, origin: CodexTaskOrigin): Promise<WikiDraft> {
-    const file = this.file(id), info = await lstat(file);
+    await this.assertPresent(id);
+    return this.loadFile(this.file(id), id, origin);
+  }
+  private async loadFile(file: string, id: string, origin: CodexTaskOrigin): Promise<WikiDraft> {
+    const info = await lstat(file);
     if (!info.isFile() || info.isSymbolicLink() || info.size > 8 * 1024 * 1024) throw new Error('Wiki 草稿格式無效。');
     const draft = JSON.parse(await readFile(file, 'utf8')) as WikiDraft;
     if (draft.schema !== 'GitLabWorkspaceProjectWiki/v1' || draft.id !== id || !Array.isArray(draft.pages) ||
@@ -124,14 +130,55 @@ export class ProjectWikiStore {
     return draft;
   }
   private async save(draft: WikiDraft): Promise<void> {
+    await this.assertPresent(draft.id);
     draft.revision = workflowHash(JSON.stringify([draft.pages, draft.error ?? '', draft.preview ?? null]));
     if (Buffer.byteLength(JSON.stringify(draft), 'utf8') > 8 * 1024 * 1024) throw new Error('Wiki 草稿超過容量限制，請縮小產出範圍。');
     await mkdir(this.directory, { recursive: true });
     await atomicNetworkJson(this.file(draft.id), draft);
   }
+  private async assertPresent(id: string): Promise<void> {
+    try { await lstat(this.file(id) + '.deleted'); }
+    catch (error) { if (missingFile(error)) return; throw error; }
+    throw new Error('此 Wiki 草稿所屬對話已刪除。');
+  }
+  async remove(id: string): Promise<void> {
+    await mkdir(this.directory, { recursive: true });
+    await ownedStoragePath(path.dirname(this.directory), this.directory);
+    const lease = await acquireStorageControl(this.file(id) + '.publish', 'wiki-publish');
+    try {
+      await this.assertDeletable(id);
+      await atomicNetworkJson(this.file(id) + '.deleted', { id });
+      await removeOwnedStorage(this.directory, this.file(id));
+      await removeOwnedAtomicTemps(this.directory, this.file(id));
+      await removeOwnedAtomicTemps(this.directory, this.file(id) + '.deleted');
+    } finally { await lease.release(); }
+  }
+  async assertDeletable(id: string, origin?: CodexTaskOrigin): Promise<void> {
+    const file = this.file(id);
+    if (!await ownedStoragePath(this.directory, file)) return;
+    const info = await lstat(file);
+    if (!info.isFile() || info.size > 8 * 1024 * 1024) throw new Error('Wiki 草稿無法驗證，已保留原件。');
+    const draft = JSON.parse(await readFile(file, 'utf8')) as WikiDraft;
+    if (draft.schema !== 'GitLabWorkspaceProjectWiki/v1' || draft.id !== id || !Array.isArray(draft.pages)) throw new Error('Wiki 草稿無法驗證，已保留原件。');
+    if (origin) await this.loadFile(file, id, origin);
+    if (draft.pages.some(page => page.sending)) throw new Error('Wiki 發布結果仍待核對，請先重新預覽再刪除對話。');
+  }
+  async copySeed(id: string, origin: CodexTaskOrigin, storage: string, runtime: string): Promise<void> {
+    const seed = path.join(runtime, 'wiki-seed.json');
+    if (await ownedStoragePath(storage, seed)) { await this.loadFile(seed, id, origin); return; }
+    const lease = await acquireStorageControl(this.file(id) + '.publish', 'wiki-publish');
+    try {
+      const draft = await this.load(id, origin);
+      if (draft.pages.some(page => page.sending)) throw new Error('原 Wiki 發布結果仍待核對。');
+      await ownedStoragePath(storage, runtime);
+      await mkdir(runtime, { recursive: true });
+      await ownedStoragePath(storage, runtime);
+      await atomicNetworkJson(seed, draft);
+    } finally { await lease.release(); }
+  }
   async create(id: string, origin: CodexTaskOrigin, executionRoot: string): Promise<CodexTaskResult> {
     await mkdir(this.directory, { recursive: true });
-    const lease = await LocalNetworkLease.acquire(this.file(id) + '.publish', 'wiki-publish');
+    const lease = await acquireStorageControl(this.file(id) + '.publish', 'wiki-publish');
     try { return await this.createNow(id, origin, executionRoot); } finally { await lease.release(); }
   }
   private async createNow(id: string, origin: CodexTaskOrigin, executionRoot: string): Promise<CodexTaskResult> {
@@ -184,10 +231,12 @@ export class ProjectWikiStore {
     return { state: pages.every(page => page.published) ? 'published' : 'draft', draftId: id, revision: draft.revision,
       summary: `已產生 ${pages.length} 頁 Wiki 草稿，請預覽後發布。` };
   }
-  async seedIncremental(previousId: string, previousOrigin: CodexTaskOrigin, executionRoot: string, changed: string[], ancestor: boolean): Promise<{
+  async seedIncremental(previousId: string, previousOrigin: CodexTaskOrigin, executionRoot: string, changed: string[], ancestor: boolean, seedFile?: string): Promise<{
     mode: 'full' | 'incremental'; pages: string[]; reason: string; unchanged: Array<{ file: string; hash: string }>
   }> {
-    const previous = await this.load(previousId, previousOrigin);
+    let previous: WikiDraft;
+    try { previous = seedFile ? await this.loadFile(seedFile, previousId, previousOrigin) : await this.load(previousId, previousOrigin); }
+    catch (error) { if (!seedFile || !missingFile(error)) throw error; previous = await this.load(previousId, previousOrigin); }
     if (previous.pages.some(page => page.sending)) throw new Error('原 Wiki 發布結果仍待核對。');
     const plan = wikiIncrementalSelection(previous.pages, changed, previous.mappingComplete === true, ancestor);
     const unchanged: Array<{ file: string; hash: string }> = [];
@@ -230,7 +279,7 @@ export class ProjectWikiStore {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) throw new RangeError('Wiki preview batches contain one to twenty pages.');
     options.signal?.throwIfAborted();
     await mkdir(this.directory, { recursive: true });
-    const lease = await LocalNetworkLease.acquire(this.file(id) + '.publish', 'wiki-publish', { signal: options.signal });
+    const lease = await acquireStorageControl(this.file(id) + '.publish', 'wiki-publish', { signal: options.signal });
     try {
       const draft = await this.load(id, origin);
       assertCurrent();
@@ -288,7 +337,7 @@ export class ProjectWikiStore {
     } finally { await lease.release(); }
   }
   async publish(id: string, origin: CodexTaskOrigin, revision: string, client: WikiClient, assertCurrent: () => void): Promise<CodexTaskResult> {
-    const lease = await LocalNetworkLease.acquire(this.file(id) + '.publish', 'wiki-publish');
+    const lease = await acquireStorageControl(this.file(id) + '.publish', 'wiki-publish');
     try {
       const draft = await this.load(id, origin);
       if (draft.revision !== revision || draft.preview?.remaining.length || draft.pages.some(page => page.baseline === undefined)) throw new Error('Wiki 草稿已更新或尚未完成預覽，請重新預覽。');

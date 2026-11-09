@@ -8,6 +8,7 @@ import { createReadStream } from 'node:fs';
 import { captureGitProcess } from '../git/gitProcess';
 import type { GitLabProject } from '../api/types';
 import { atomicNetworkJson } from '../api/localNetworkLease';
+import { removeOwnedStorage } from '../storage/ownedStorage';
 import { projectRemoteMatches } from '../git/cloneService';
 import type { PythonRuntime } from '../workspace/pythonRuntime';
 import type { CodexOutputItem, CodexTaskResult, CodexTaskSpec } from './protocol';
@@ -143,11 +144,11 @@ export async function startManagedWorktree(spec: CodexTaskSpec): Promise<void> {
   }
   await atomicNetworkJson(receipt, binding);
 }
-export async function removeManagedWorktree(spec: CodexTaskSpec): Promise<void> {
+export async function removeManagedWorktree(spec: CodexTaskSpec, discard = false): Promise<void> {
   const root = await verifyManagedWorktree(spec);
-  if ((await workflowGit(root, ['status', '--porcelain', '-z', '--untracked-files=all', '--ignored=matching'])).length) throw new Error('worktree 還有未保存變更或忽略的檔案，請先保存並清理；不會強制刪除。');
+  if (!discard && (await workflowGit(root, ['status', '--porcelain', '-z', '--untracked-files=all', '--ignored=matching'])).length) throw new Error('worktree 還有未保存變更或忽略的檔案，請先保存並清理；不會強制刪除。');
   // The exact absolute path and Git ownership have been verified above. Branch commits remain.
-  await workflowGit(spec.origin!.repositoryRoot, ['worktree', 'remove', '--', root], 60_000);
+  await workflowGit(spec.origin!.repositoryRoot, ['worktree', 'remove', ...(discard ? ['--force'] : []), '--', root], 60_000);
 }
 
 export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRuntime): Promise<void> {
@@ -158,6 +159,7 @@ export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRunti
     if (receipt.sha !== origin.sourceSha || !sameWorkflowPath(receipt.repository, origin.repositoryRoot)) throw new Error('Wiki 來源快照不符合本次任務。');
     if (!(await lstat(root)).isDirectory()) throw new Error('Wiki 來源快照已遺失。');
     if (workflow.sourceRoot) await mkdir(spec.executionRoot!, { recursive: true });
+    await removeOwnedStorage(workflow.runtimeRoot, path.join(workflow.runtimeRoot, 'source.zip'));
     return;
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   await mkdir(root, { recursive: true });
@@ -165,6 +167,8 @@ export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRunti
     throw new Error('Wiki 來源分支在排隊期間已變更，請重新建立草稿。');
   }
   const archive = path.join(workflow.runtimeRoot, 'source.zip');
+  let cleanupUncertain = false;
+  try {
   await workflowGit(origin.repositoryRoot, ['archive', '--format=zip', '--output', archive, origin.sourceSha], 60_000);
   const script = [
     'import pathlib,sys,zipfile',
@@ -181,6 +185,10 @@ export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRunti
     { env: python.env, signal: workflowContext.getStore()?.signal, windowsHide: true, timeout: 60_000, maxBuffer: 64_000 });
   if (workflow.sourceRoot) await mkdir(spec.executionRoot!, { recursive: true });
   await atomicNetworkJson(receiptPath, { sha: origin.sourceSha, repository: origin.repositoryRoot });
+  } catch (error) {
+    cleanupUncertain = !!error && typeof error === 'object' && 'workflowCleanupUncertain' in error;
+    throw error;
+  } finally { if (!cleanupUncertain) await removeOwnedStorage(workflow.runtimeRoot, archive); }
 }
 
 function testCommand(command: string): boolean {

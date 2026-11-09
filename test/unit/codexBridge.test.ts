@@ -70,6 +70,32 @@ function linkIssue(spec: CodexTaskSpec): void {
   spec.workflow = { id: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', runtimeRoot: path.join(spec.root, 'runtime'), remote: 'origin' };
 }
 
+test('shutdown waits for an auxiliary connection being created and closes it exactly once', async t => {
+  const f = await setup(t), options = (f.bridge as any).options as CodexBridgeOptions, original = options.client!;
+  let enter!: () => void, release!: () => void, closes = 0;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+  options.client = async root => {
+    const connection = await original(root), close = connection.client.close.bind(connection.client);
+    connection.client.close = async timeout => { closes++; await close(timeout); };
+    enter(); await held; return connection;
+  };
+  const models = f.bridge.models(f.root); void models.catch(() => {}); await entered;
+  const closing = f.bridge.shutdown(); release(); await closing;
+  await assert.rejects(models, /關閉/); assert.equal(closes, 1);
+});
+
+test('history returns its borrowed task client without closing the running server', async t => {
+  const f = await setup(t, 'hold'), options = (f.bridge as any).options as CodexBridgeOptions, original = options.client!;
+  let closes = 0, created = 0;
+  options.client = async root => {
+    created++; const connection = await original(root), close = connection.client.close.bind(connection.client);
+    connection.client.close = async timeout => { closes++; await close(timeout); }; return connection;
+  };
+  await f.bridge.enqueue(f.spec, 'borrowed'); await until(() => !!f.bridge.list()[0]?.turnId);
+  await f.bridge.history('borrowed'); assert.equal(created, 1); assert.equal(closes, 0);
+  await f.bridge.pause('borrowed'); assert.equal(closes, 1);
+});
+
 test('Issue workflow continues from specification to verified implementation and only publishes the final completed state', async t => {
   let turns = 0;
   const f = await setup(t, 'success', '', { completed: async () => ++turns === 1

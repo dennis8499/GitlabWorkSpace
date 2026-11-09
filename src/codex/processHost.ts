@@ -49,7 +49,7 @@ process.stdout.once('error', stop);
 child.stdin.on('error', stop);
 process.once('SIGTERM', stop);
 process.once('SIGINT', stop);
-child.once('error', () => { process.exitCode = 1; process.stdin.destroy(); });
+child.once('error', () => { if (!child.pid) stopped = Promise.resolve(true); process.exitCode = 1; process.stdin.destroy(); });
 child.once('close', code => {
   void (async () => {
     const processTreeConfirmed = await stopped ?? false;

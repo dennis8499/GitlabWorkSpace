@@ -100,7 +100,7 @@ export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
   pendingMessageIsUser?: boolean;
   ownerInstance?: string;
   dispatch?: { id: string; state: 'prepared' | 'acknowledged' | 'completed'; createdAt: string; turnId?: string };
-  lease?: { directory: string; nonce?: string; receipt?: { path: string; nonce: string }; extras?: Array<{ directory: string; nonce: string }> };
+  lease?: { directory: string; nonce?: string; receipt?: { path: string; nonce: string }; released?: boolean; extras?: Array<{ directory: string; nonce: string }> };
   forkedFrom?: { taskId: string; threadId: string; turnId: string };
   approvalSettings?: CodexApprovalSettings;
 }
@@ -144,7 +144,7 @@ export interface CodexEnvironment {
   checkedAt?: string;
   storageProblems?: CodexStorageProblem[];
 }
-export interface CodexStorageProblem { id: string; reason: string; }
+export interface CodexStorageProblem { id: string; reason: string; kind?: 'cleanup'; }
 export type CodexEvent =
   | { kind: 'tasks'; tasks: CodexTaskState[] }
   | { kind: 'output'; taskId: string; items: CodexOutputItem[]; replace?: boolean }

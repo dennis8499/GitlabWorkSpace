@@ -12,6 +12,7 @@ import { NotificationCenter } from './notifications/notificationCenter';
 import { randomUUID } from 'node:crypto';
 import { OperationTracker, operationLabels } from './workspace/operations';
 import { OperationReceiptFileStore } from './workspace/operationReceiptStore';
+import { cleanupLegacyLogs } from './storage/legacyLogs';
 
 let activeOperations: OperationTracker | undefined;
 let shutdownCodex: (() => Promise<void>) | undefined;
@@ -30,6 +31,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const logChannel = vscode.window.createOutputChannel('GitLab Workspace', { log: true });
   const log = new OperationLog(logChannel);
   notifications.setSanitizer(message => log.sanitize(message));
+  if (await cleanupLegacyLogs(context.globalStorageUri.fsPath)) notifications.publish({ level: 'warn', title: '儲存區清理', message: '部分舊日誌無法核對或仍被占用，已保留；下次啟動會重試。' });
   const session = new GitLabSession(context.secrets, context.globalState, testMode, context.workspaceState, log);
   log.setContextSource(() => ({ accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }));
   context.subscriptions.push({ dispose: () => { log.dispose(); logChannel.dispose(); } }, notifications, operations);
@@ -42,6 +44,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const workspacePanel = new WorkspacePanel(context, session, issuePanels, () => navigation?.refresh(), gitRepositories, notifications, operations);
   navigation = new NavigationViews(gitRepositories, workspacePanel, error => notifications.publish({ level: 'error', title: '側欄資料', message: readableError(error), origin: workspacePanel?.getNotificationOrigin() }));
   shutdownCodex = () => workspacePanel!.shutdownCodex();
+  try { await workspacePanel.initializeStorageCleanup(); }
+  catch { notifications.publish({ level: 'warn', title: '儲存區清理', message: '部分儲存資料尚未完成清理；已保留原件，可在 Codex 重新讀取後重試。' }); }
   gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);
 
   refreshWorkspaceAfterIssueChange = () => {

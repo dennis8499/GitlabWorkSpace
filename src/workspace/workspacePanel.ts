@@ -1251,7 +1251,7 @@ export class WorkspacePanel implements vscode.Disposable {
         const task = this.getCodexBridge().list().find(value => value.id === request.taskId);
         if (!task?.controls?.canDelete) throw new Error('請先暫停任務並確認清理完成，再刪除紀錄。');
         const decision = await vscode.window.showWarningMessage(`刪除「${task.title}」的任務紀錄？`,
-          { modal: true, detail: '只刪除管理介面的紀錄與草稿。Codex 對話、產生的檔案及報告會保留。' }, '刪除紀錄');
+          { modal: true, detail: '一併刪除本對話位於擴充功能 globalStorage 的紀錄、草稿、快照及隔離 worktree，包含其中未提交的修改。原專案目錄、分支提交及 Codex 自身的對話紀錄會保留。' }, '刪除紀錄');
         if (decision !== '刪除紀錄') { this.noteOutcome({ status: 'cancelled', effect: 'none' }); break; }
         this.codexWorkflows?.cancelPreview(request.taskId);
         await this.getCodexBridge().delete(request.taskId); this.noteOutcome({ effect: 'applied' }); break;
@@ -2318,6 +2318,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   async shutdownCodex(): Promise<void> { await this.codex?.shutdown(); }
+  async initializeStorageCleanup(): Promise<void> { await this.getCodexBridge().publish(); await this.workflowKit.initializeCleanup(); }
 
   private codexHostActions?: CodexHostActions;
   private codexStatusBar?: vscode.StatusBarItem;
@@ -2528,7 +2529,7 @@ export class WorkspacePanel implements vscode.Disposable {
                 await workflowGit(origin.repositoryRoot, ['merge-base', '--is-ancestor', workflow.wikiIncremental.baseSha, origin.sourceSha]); ancestor = true;
                 changed = (await workflowGit(origin.repositoryRoot, ['diff', '--name-only', '-z', workflow.wikiIncremental.baseSha, origin.sourceSha])).split('\0').filter(Boolean);
               } catch { ancestor = false; }
-              const plan = await this.wikiStore().seedIncremental(workflow.wikiIncremental.previousDraftId, { ...origin, sourceSha: workflow.wikiIncremental.baseSha }, workflow.sourceRoot!, changed, ancestor);
+              const plan = await this.wikiStore().seedIncremental(workflow.wikiIncremental.previousDraftId, { ...origin, sourceSha: workflow.wikiIncremental.baseSha }, workflow.sourceRoot!, changed, ancestor, path.join(workflow.runtimeRoot, 'wiki-seed.json'));
               await atomicNetworkJson(manifest, { ...plan, changedFiles: changed, sourceSha: origin.sourceSha });
             }
           }
@@ -5418,7 +5419,7 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.refreshWorkflowKitInstallState();
   }
 
-  private async workflowKitHelper(root?: string): Promise<{ path: string; version: string }> {
+  private async workflowKitHelper(root?: string): Promise<{ path: string; version: string; release?(): Promise<void> }> {
     return this.workflowKit.statusHelper(root);
   }
 
@@ -5430,8 +5431,9 @@ export class WorkspacePanel implements vscode.Disposable {
     const python = await resolvePythonRuntime(pythonPath);
     await beforeLaunch?.();
     this.operationPhase('', args[0] === 'install' ? '正在安裝 Skills…' : args[0] === 'inspect' ? '正在驗證工作流程包…' : '正在檢查 Skills 安裝狀態…');
-    const helper = installerPath ? { path: installerPath, version: '' }
+    const helper: { path: string; version: string; release?(): Promise<void> } = installerPath ? { path: installerPath, version: '' }
       : await this.workflowKitHelper(args[0] === 'status' ? args[1] : undefined);
+    try {
     if (args[0] === 'status') {
       const index = args.indexOf('--expected-version');
       args = index >= 0 ? [...args.slice(0, index + 1), helper.version, ...args.slice(index + 2)]
@@ -5447,6 +5449,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const value = parseLastJsonLine(result.stdout) as Record<string, unknown>;
     if (value.ok !== true) throw workflowKitFailure(result.stdout) ?? new Error('Workflow kit operation was not confirmed.');
     return value;
+    } finally { await helper.release?.(); }
   }
 
   private async refreshWorkflowKitReleases(source: RemoteToolSource = this.workflowKit.snapshot.source): Promise<void> {

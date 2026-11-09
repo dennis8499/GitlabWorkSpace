@@ -8,7 +8,7 @@ import { WorkflowKitReleaseManager, PackageIntegrityError, compareVersions } fro
 import { workflowKitInterfaceCompatible, workflowKitStatusApiCompatible } from './workflowKitCompatibility';
 import { resolveWorkflowKitInstallRoot, sameRealLocalPathAsync } from './workspacePaths';
 import type { InstalledWorkflowKitState, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkflowKitReleaseSummary } from './workspaceProtocol';
-import type { WorkflowKitRelease } from './workflowKitReleases';
+import type { WorkflowKitRelease, WorkflowKitHelper } from './workflowKitReleases';
 
 const execFileAsync = promisify(execFile);
 type WorkflowKitProfile = 'group' | 'repository';
@@ -165,7 +165,7 @@ export class WorkflowKitService {
         releases = await this.packages.refresh(source, undefined, identity?.source === source ? identity.version : undefined);
         const installedRelease = identity?.source === source
           ? releases.find(item => item.version === identity.version && workflowKitStatusApiCompatible(item.descriptor)) : undefined;
-        if (installedRelease) await this.packages.prepareStatusVerifier(installedRelease.id, checkAccess);
+        if (installedRelease) await this.packages.prepareStatusVerifier(installedRelease.id, checkAccess, undefined, this.target.root);
       } catch (error) {
         if (error instanceof PackageIntegrityError) throw error;
         releases = await this.packages.useCached(source);
@@ -207,6 +207,7 @@ export class WorkflowKitService {
     };
     const root = target.root;
     const profile = target.profile ?? 'repository';
+    let acquired: (WorkflowKitRelease & { release?(): Promise<void> }) | undefined;
     try {
       this.options.reportPhase('installWorkflowKit', '等待目前 Skills 檢查完成…');
       await this.statusReads.get(pathKey(root));
@@ -214,7 +215,10 @@ export class WorkflowKitService {
       const validation = await resolveWorkflowKitInstallRoot(root, undefined, []);
       if (validation.error) throw new Error(validation.error);
       if (!validation.root || !await sameRealLocalPathAsync(root, validation.root)) throw new Error('安裝位置已變更，請重新檢查或選擇資料夾。');
-      const selected = await this.packages.getRelease(releaseId, current, message => this.options.reportPhase('installWorkflowKit', message));
+      const phase = (message: string) => this.options.reportPhase('installWorkflowKit', message);
+      const selected = this.packages.acquireRelease ? await this.packages.acquireRelease(releaseId, root, current, phase)
+        : await this.packages.getRelease(releaseId, current, phase);
+      acquired = selected;
       current();
       if (target.state.version && compareVersions(selected.version, target.state.version) < 0) throw new Error('已安裝版本較新，不會降級 WorkflowKit。');
       const beforeLaunch = async () => { current(); await guard.validateTarget(context); current(); };
@@ -241,14 +245,18 @@ export class WorkflowKitService {
       }
       throw error;
     } finally {
+      try { await acquired?.release?.(); }
+      catch { this.options.onMessage?.('安裝程序已結束，下載快取清理待重試。'); }
+      this.reportCleanupWarnings();
       this.installation = undefined;
       this.emit();
     }
   }
 
   waitForStatus(root: string): Promise<InstalledWorkflowKitState> | undefined { return this.statusReads.get(pathKey(root)); }
+  async initializeCleanup(): Promise<void> { await this.packages.maintain?.(); this.reportCleanupWarnings(); }
 
-  statusHelper(root?: string): Promise<{ path: string; version: string }> { return this.helper(root); }
+  statusHelper(root?: string): Promise<WorkflowKitHelper> { return this.helper(root); }
 
   setStatusError(message: string, revision?: string): void {
     if (!this.context || (revision !== undefined && this.context.revision !== revision) || this.disposed) return;
@@ -276,6 +284,7 @@ export class WorkflowKitService {
     const task: Promise<InstalledWorkflowKitState> = (async (): Promise<InstalledWorkflowKitState> => {
       try {
         const response = await this.runHelper(['status', root], 60_000);
+        await this.packages.maintain?.(root); this.reportCleanupWarnings();
         const identity = await installedKitIdentity(root);
         if (identity && ['installed', 'update-available'].includes(String(response.status)) &&
             (response.version !== identity.version || response.source !== identity.source)) throw new Error('安裝紀錄在檢查期間已變更，請重新檢查。');
@@ -320,7 +329,8 @@ export class WorkflowKitService {
       await beforeLaunch?.();
       const action = args[0];
       this.options.reportPhase('', action === 'install' ? '正在安裝 Skills…' : action === 'inspect' ? '正在驗證工作流程包…' : '正在檢查 Skills 安裝狀態…');
-      const helper = installerPath ? { path: installerPath, version: '' } : await this.helper(action === 'status' ? String(args[1]) : undefined);
+      const helper: WorkflowKitHelper = installerPath ? { path: installerPath, version: '' } : await this.helper(action === 'status' ? String(args[1]) : undefined);
+      try {
       let safeArgs = [...args];
       if (action === 'status') {
         const index = safeArgs.indexOf('--expected-version');
@@ -336,6 +346,7 @@ export class WorkflowKitService {
       const value = parseLastJsonLine(result.stdout) as Record<string, unknown>;
       if (value.ok !== true) throw workflowKitFailure(result.stdout) ?? new Error('Workflow kit operation was not confirmed.');
       return value;
+      } finally { await helper.release?.(); }
       };
     // Status is a read-only probe and is already coalesced per root. Let a new
     // project's probe proceed while an obsolete project's helper is still slow.
@@ -352,11 +363,14 @@ export class WorkflowKitService {
     finally { release(); if (this.queue === current) this.queue = undefined; }
   }
 
-  private async helper(root?: string): Promise<{ path: string; version: string }> {
+  private async helper(root?: string): Promise<WorkflowKitHelper> {
     const identity = root ? await installedKitIdentity(root) : undefined;
-    return (identity ? await this.packages.statusHelper(identity) : undefined) ?? {
+    return (identity ? typeof this.packages.leaseStatusHelper === 'function' && root ? await this.packages.leaseStatusHelper(identity, root) : await this.packages.statusHelper(identity) : undefined) ?? {
       path: path.join(this.options.extensionDirectory, 'resources', 'workflow-kit-status.py'), version: this.options.extensionVersion
     };
+  }
+  private reportCleanupWarnings(): void {
+    for (const warning of this.packages.cleanupWarnings?.splice(0) ?? []) this.options.onMessage?.(warning);
   }
 
   private assertActive(): void { if (this.disposed) throw new Error('WorkflowKit service is disposed.'); }

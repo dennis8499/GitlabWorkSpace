@@ -3,7 +3,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { atomicNetworkJson, LocalNetworkLease, networkRuntimeRoot } from '../api/localNetworkLease';
+import { atomicNetworkJson, networkRuntimeRoot } from '../api/localNetworkLease';
+import { acquireStorageControl } from '../storage/controlLease';
 import { CodexWorkspaceLease } from './workspaceLease';
 import { codexRootKey } from './taskStore';
 import type { CodexTaskSpec } from './protocol';
@@ -76,7 +77,7 @@ export class CodexTaskScheduler {
   private write(entries: ReservationRecord[]): Promise<void> { return atomicNetworkJson(path.join(this.root, 'reservations.json'), { schema: 'GitLabWorkspaceCodexScheduler/v2', entries }); }
   async tryAcquire(taskId: string, spec: CodexTaskSpec, limit: number, signal?: AbortSignal, resources?: string[]): Promise<{ reservation?: CodexReservation; reason?: 'resource' | 'capacity' }> {
     const paths = resources ?? await codexResourcePaths(spec);
-    const guard = await LocalNetworkLease.acquire(path.join(this.root, 'control'), 'codex-scheduler', { signal, timeoutMs: 2000 });
+    const guard = await acquireStorageControl(path.join(this.root, 'control'), 'codex-scheduler', { signal, timeoutMs: 2000 });
     const leases: CodexWorkspaceLease[] = [];
     try {
       let entries = await this.read();
@@ -117,7 +118,7 @@ export class CodexTaskScheduler {
       entries.push(record); await this.write(entries);
       return { reservation: { primary, extras: leases.filter((_, index) => index !== primaryIndex), directory: directories[primaryIndex],
         release: async (quarantined, processStopped = false) => {
-          const control = await LocalNetworkLease.acquire(path.join(this.root, 'control'), 'codex-scheduler');
+          const control = await acquireStorageControl(path.join(this.root, 'control'), 'codex-scheduler');
           try {
             const latest = await this.read(), owned = latest.find(entry => entry.nonce === record.nonce);
             if (owned && quarantined) { owned.quarantined = true; owned.processStopped = processStopped; const receipt = await primary.processReceipt().catch(() => undefined); if (receipt) owned.locks[primaryIndex].receipt = receipt; }
@@ -128,11 +129,15 @@ export class CodexTaskScheduler {
     finally { await guard.release(); }
   }
   async reconcile(taskId: string): Promise<void> {
-    const guard = await LocalNetworkLease.acquire(path.join(this.root, 'control'), 'codex-scheduler');
+    const guard = await acquireStorageControl(path.join(this.root, 'control'), 'codex-scheduler');
     try {
       const entries = await this.read(), target = entries.find(entry => entry.taskId === taskId);
-      if (!target || !target.quarantined) return;
+      if (!target) return;
       if (!(await Promise.all(target.locks.map(lock => CodexWorkspaceLease.inspect(lock.directory, lock.receipt)))).every(value => value === 'confirmed')) return;
+      for (const lock of target.locks) {
+        try { await lstat(lock.directory); return; }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      }
       await this.write(entries.filter(entry => entry !== target));
     } finally { await guard.release(); }
   }

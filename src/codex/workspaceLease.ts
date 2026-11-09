@@ -1,13 +1,16 @@
-import { lstat, readFile, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { lstat, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { LocalNetworkLease, LEASE_SCHEMA } from '../api/localNetworkLease';
+import { LocalNetworkLease, LEASE_SCHEMA, networkRuntimeRoot } from '../api/localNetworkLease';
+import { missingFile, ownedStoragePath } from '../storage/ownedStorage';
 
 export interface CodexProcessReceipt { path: string; nonce: string; }
 /** A crashed owner is recoverable only after its pipe supervisor confirms tree termination. */
 export class CodexWorkspaceLease {
   private receipt?: CodexProcessReceipt;
+  private started = false;
   private constructor(private readonly lease: LocalNetworkLease) {}
   get directory(): string { return this.lease.directory; }
+  markStarted(): void { this.started = true; }
   static async acquire(directory: string, options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<CodexWorkspaceLease> {
     await this.recover(directory);
     return new CodexWorkspaceLease(await LocalNetworkLease.acquire(directory, 'codex', options));
@@ -23,10 +26,10 @@ export class CodexWorkspaceLease {
     return owner.nonce;
   }
   async release(executionStarted = false): Promise<void> {
-    if (executionStarted && this.receipt && !await confirmed(this.receipt)) throw new Error('Codex 程序樹停止狀態待核對；保留工作區鎖。');
+    if ((executionStarted || this.started) && this.receipt && !await confirmed(this.receipt)) throw new Error('Codex 程序樹停止狀態待核對；保留工作區鎖。');
     await this.lease.release();
-    // Retain the proof until the task is deleted: a crash while releasing a
-    // delegated Repo lock must not erase the only durable tree-stop evidence.
+    // The bridge clears proof only after every delegated lock, scheduler entry
+    // and durable task state has committed its release.
   }
   async quarantine(): Promise<void> {
     await this.lease.update({ state: 'quarantined' });
@@ -55,6 +58,36 @@ export class CodexWorkspaceLease {
   static async clearReceipt(receipt: CodexProcessReceipt): Promise<void> {
     if (!receipt.path.endsWith(`.stopped-${receipt.nonce}.json`) || !await confirmed(receipt)) return;
     await unlink(receipt.path).catch(error => { if (error.code !== 'ENOENT') throw error; });
+  }
+  static async sweepProcesses(): Promise<Array<{ id: string; kind: 'cleanup'; reason: string }>> {
+    const root = path.join(networkRuntimeRoot(), 'codex-processes'), problems: Array<{ id: string; kind: 'cleanup'; reason: string }> = [];
+    let names: string[];
+    try { if (!await ownedStoragePath(networkRuntimeRoot(), root)) return problems; names = await readdir(root); }
+    catch (error) { if (missingFile(error)) return problems; throw error; }
+    for (const name of names) {
+      const stopped = /^([a-f0-9-]{36}\.lock)\.stopped-([a-z0-9-]{16,128})\.json$/i.exec(name);
+      if (stopped) {
+        try {
+          const receipt = { path: path.join(root, name), nonce: stopped[2] };
+          if (!await ownedStoragePath(root, path.join(root, stopped[1]))) await this.clearReceipt(receipt);
+        } catch { problems.push({ id: name, kind: 'cleanup', reason: 'Codex 停止收據無法安全清理，已保留。' }); }
+        continue;
+      }
+      if (!/^[a-f0-9-]{36}\.lock$/i.test(name)) continue;
+      const directory = path.join(root, name);
+      try {
+        await ownedStoragePath(root, directory);
+        const owner = JSON.parse(await readFile(path.join(directory, 'owner.json'), 'utf8'));
+        if (owner.schema !== LEASE_SCHEMA || owner.kind !== 'codex' || !Number.isSafeInteger(owner.pid) || owner.pid < 1 || !/^[a-z0-9-]{16,128}$/i.test(owner.nonce)) throw new Error('Unknown owner');
+        let dead = false;
+        try { process.kill(owner.pid, 0); } catch (error) { dead = (error as NodeJS.ErrnoException).code === 'ESRCH'; }
+        if (!dead && owner.state !== 'quarantined') continue;
+        const receipt = { path: directory + `.stopped-${owner.nonce}.json`, nonce: owner.nonce };
+        if (!await confirmed(receipt)) throw new Error('缺少程序停止證據');
+        await this.releaseWithProof(directory, owner.nonce, receipt); await this.clearReceipt(receipt);
+      } catch { problems.push({ id: name, kind: 'cleanup', reason: 'Codex 輔助程序的停止或清理結果待核對；所屬鎖與證據已保留。' }); }
+    }
+    return problems;
   }
   private static async recover(directory: string): Promise<void> {
     const guard = directory + '.recovery';

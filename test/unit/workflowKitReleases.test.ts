@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -181,6 +181,36 @@ test('rechecks the selected project before cache writes and installation', async
   let checks = 0;
   await assert.rejects(manager.getRelease(item.id, () => { if (++checks === 2) throw new Error('project changed'); }), /project changed/);
   assert.deepEqual(await readdir(root), []);
+});
+test('owned release assets are retained while borrowed, then archives are removed while installed verifier pins survive', async t => {
+  const { manager, root } = await context(t); const [item] = await manager.refresh('github');
+  const project = path.join(root, 'project'); await mkdir(path.join(project, '.gitlab-workspace', 'tool-manifests'), { recursive: true });
+  const selected = await manager.acquireRelease(item.id, project, () => {}, () => {});
+  await manager.pruneCache(); assert.ok((await readFile(selected.archivePath)).length);
+  await writeFile(path.join(project, '.gitlab-workspace', 'tool-manifests', 'workflow-kit.json'), JSON.stringify({ source: 'github', version: item.version }));
+  await selected.release(); await assert.rejects(readFile(selected.archivePath), { code: 'ENOENT' });
+  assert.ok(await manager.statusHelper({ source: 'github', version: item.version }));
+  assert.deepEqual(await manager.useCached('github'), []);
+  await rm(path.join(project, '.gitlab-workspace', 'tool-manifests', 'workflow-kit.json'));
+  await manager.maintain(project); await assert.rejects(readFile(selected.installerPath), { code: 'ENOENT' });
+});
+test('a failed installation releases its assets and leaves no unreferenced managed verifier', async t => {
+  const { manager, root } = await context(t); const [item] = await manager.refresh('github'), project = path.join(root, 'project'); await mkdir(project);
+  const selected = await manager.acquireRelease(item.id, project, () => {}, () => {}); await selected.release();
+  await assert.rejects(readFile(selected.archivePath), { code: 'ENOENT' }); await assert.rejects(readFile(selected.installerPath), { code: 'ENOENT' });
+});
+test('different installed versions sharing an installer hash keep the artifact until the final root releases it', async t => {
+  const { manager, root } = await context(t, [release('2.0.0'), release('1.0.0')]);
+  const versions = await manager.refresh('github', undefined, '1.0.0'), first = path.join(root, 'first'), second = path.join(root, 'second');
+  for (const project of [first, second]) await mkdir(path.join(project, '.gitlab-workspace', 'tool-manifests'), { recursive: true });
+  const marker = (project: string) => path.join(project, '.gitlab-workspace', 'tool-manifests', 'workflow-kit.json');
+  const older = await manager.acquireRelease(versions[1].id, first, () => {}, () => {});
+  await writeFile(marker(first), JSON.stringify({ source: 'github', version: '1.0.0' })); await older.release();
+  const newer = await manager.acquireRelease(versions[0].id, second, () => {}, () => {});
+  await writeFile(marker(second), JSON.stringify({ source: 'github', version: '2.0.0' })); await newer.release();
+  assert.equal(older.installerPath, newer.installerPath);
+  await rm(marker(first)); await manager.maintain(first); assert.ok((await readFile(newer.installerPath)).length);
+  await rm(marker(second)); await manager.maintain(second); await assert.rejects(readFile(newer.installerPath), { code: 'ENOENT' });
 });
 test('supports the intranet Gitea mirror without automatically contacting GitHub', async t => {
   const { manager, calls } = await context(t, [release('1.0.0', 'gitea')]);
