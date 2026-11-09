@@ -173,7 +173,11 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
       follow.current = saved?.follow ?? true;
       node.scrollTop = follow.current ? node.scrollHeight : saved?.top ?? 0; shown.current = task.id;
     } else if (older.current?.id === task.id) {
-      node.scrollTop = older.current.top + Math.max(0, node.scrollHeight - older.current.height); older.current = undefined;
+      // Windowed rows restore the stable message key themselves. Their mounted
+      // heights can differ from estimates, so a second scrollHeight correction
+      // would overwrite that anchor with the temporary window's height delta.
+      if (entries.length <= 200) node.scrollTop = older.current.top + Math.max(0, node.scrollHeight - older.current.height);
+      older.current = undefined;
     } else if (follow.current) node.scrollTop = node.scrollHeight;
     setFollowing(follow.current);
   }, [active, selected, entries, waiting]);
@@ -256,7 +260,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate }: { controll
           post({ type: 'codexHistory', taskId: task.id, cursor: c.history[task.id].nextCursor });
         }}>讀取更早的對話</button>}
         <VirtualRows key={selected} items={entries} itemKey={codexOutputKey} estimateHeight={72} className="codex-transcript"
-          active={active} scrollRoot={output} semanticList initialAnchor={initialAnchor} renderItem={item => {
+          active={active} scrollRoot={output} semanticList initialAnchor={initialAnchor} layout="flow" renderItem={item => {
             const key = codexOutputKey(item);
             return <TranscriptLine item={item} taskId={task.id} post={post} expanded={expanded.has(key)} toggle={() => setExpanded(current => {
               const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next;

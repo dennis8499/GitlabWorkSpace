@@ -31,6 +31,10 @@ rl.on('line', line => {
   if (method === 'initialized') { initialized = true; return; }
   if (!initialized) { send({ id, error: { code: -32000, message: 'Not initialized' } }); return; }
   if (method === 'test/echo') { setTimeout(() => send({ id, result: params }), params.delay ?? 0); return; }
+  if (method === 'test/agent-response') {
+    send({ id, result: {} });
+    notify('item/agentMessage/delta', { ...active, itemId: 'actual-agent', delta: 'Actual delayed response' }); return;
+  }
   if (method === 'test/ignore') return;
   if (method === 'test/exit') { process.exit(3); }
   if (method === 'test/bad-json') { process.stdout.write('{bad\n'); return; }
@@ -91,6 +95,9 @@ rl.on('line', line => {
     send({ id, result: { turn: { id: active.turnId, status: 'inProgress', items: [] } } });
     notify('turn/started', { threadId: active.threadId, turn: { id: active.turnId } });
     const prompt = params.input[0].text;
+    if (mode === 'startup-user-echo') {
+      notify('item/started', { ...active, item: { id: 'user-echo', type: 'userMessage', content: [{ type: 'inputText', text: prompt }] } }); return;
+    }
     if (mode.startsWith('evolution')) {
       notify('turn/plan/updated', { ...active, plan: [{ step: 'Inspect', status: 'inProgress' }] });
       notify('turn/diff/updated', { ...active, diff: '--- a/main.ts\n+++ b/main.ts\n@@ -1 +1 @@\n-old\n+new' });

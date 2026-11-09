@@ -34,7 +34,9 @@
 .codex-item.user > .codex-marker { color: var(--vscode-terminal-ansiCyan, var(--vscode-textLink-foreground)); }
 .codex-entry-content { flex: 1; min-width: 0; }
 .codex-item pre, .codex-interaction pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0; }
-.page .codex-item pre, .page .codex-interaction pre { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; overflow: visible; }
+/* The dashboard caps other code blocks at 360px. Conversation text must grow
+   with its contents before the following message or approval controls begin. */
+.page .codex-item pre, .page .codex-interaction pre { max-height: none; border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; overflow: visible; }
 .codex-command { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .codex-command span, .codex-item.notice, .codex-working { color: var(--vscode-descriptionForeground); }
 .codex-copy { margin-top: 4px; }

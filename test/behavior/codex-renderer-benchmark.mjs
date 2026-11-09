@@ -23,7 +23,7 @@ assert.equal(functions.length, 2, 'Dashboard fixture functions changed; review t
 const snapshot = new Function(functions.join('\n') + '; return snapshot;')();
 const theme = ':root{--vscode-foreground:#ccc;--vscode-editor-background:#1f1f1f;--vscode-sideBar-background:#181818;--vscode-descriptionForeground:#9d9d9d;--vscode-focusBorder:#0078d4;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-panel-border:#444;--vscode-font-family:Segoe UI,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:Consolas,monospace;}';
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
-const measurements = [], checks = [];
+const measurements = [], checks = [], layoutChecks = [];
 const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.ceil(values.length * fraction) - 1)];
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))));
 const send = (page, data) => page.evaluate(data => window.dispatchEvent(new MessageEvent('message', { data })), data);
@@ -76,6 +76,13 @@ async function functional(target, view, count) {
   await page.locator('.codex-output').evaluate(node => { node.scrollTop = node.scrollHeight / 2; }); await settle(page);
   const before = await geometry(page);
   assert.ok(before.key, 'the scroll region has a visible logical anchor');
+  await page.locator('.mode-navigation [data-mode="clone"]').click(); await settle(page);
+  await send(page, { type: 'codexEvent', event: { kind: 'output', taskId: 'a', items: [{ id: String(count - 1), threadId: 'thread-a', turnId: 'turn', kind: 'agent', text: 'Hidden streamed reply', final: true }], replace: true } });
+  await send(page, { type: 'codexEvent', event: { kind: 'tasks', tasks: [task('a'), task('b')] } }); await settle(page);
+  await page.locator('.mode-navigation [data-mode="codex"]').click(); await settle(page);
+  const revealed = await geometry(page);
+  assert.equal(revealed.key, before.key, 'hidden task updates preserve the visible message when reopened');
+  assert.ok(Math.abs(revealed.offset - before.offset) <= 2, `hidden task updates preserve the intra-row offset: ${JSON.stringify({ before, revealed })}`);
   const saved = await page.evaluate(() => window.benchmarkSaved);
   await page.getByRole('button', { name: /Synthetic task b/ }).click(); await settle(page);
   await page.getByRole('button', { name: /Synthetic task a/ }).click(); await settle(page);
@@ -96,7 +103,7 @@ async function functional(target, view, count) {
   await settle(page);
   const prepended = await geometry(page);
   assert.equal(prepended.key, before.key, 'history prepends preserve the visible message');
-  assert.ok(Math.abs(prepended.offset - before.offset) <= 2, 'history prepends preserve the intra-row offset');
+  assert.ok(Math.abs(prepended.offset - before.offset) <= 2, `history prepends preserve the intra-row offset: ${JSON.stringify({ before, prepended })}`);
   await send(page, { type: 'codexEvent', event: { kind: 'output', taskId: 'a', items: [{ id: 'latest', threadId: 'thread-a', turnId: 'turn', kind: 'agent', text: 'New streamed reply', final: true }], replace: true } });
   await settle(page);
   const streamed = await geometry(page);
@@ -108,7 +115,108 @@ async function functional(target, view, count) {
   await page.evaluate(() => { window.benchmarkFocus = document.activeElement; document.querySelector('.codex-output').scrollTop = 0; }); await settle(page);
   assert.equal(await page.evaluate(() => document.activeElement === window.benchmarkFocus), true, 'virtual scrolling retains the focused reply');
   assert.ok(await page.locator('.codex-transcript .virtual-list-row').count() < 100);
-  checks.push({ count, taskSwitchAnchor: true, restoredAnchor: true, historyPrependAnchor: true, streamingAnchor: true, jumpLatestFocus: true, pinnedFocus: true });
+  checks.push({ count, hiddenUpdateAnchor: true, taskSwitchAnchor: true, restoredAnchor: true, historyPrependAnchor: true, streamingAnchor: true, jumpLatestFocus: true, pinnedFocus: true });
+}
+
+// Start observing before the mutation: waiting for a settled screenshot misses
+// the frames where new or growing rows still have their previous cached height.
+async function verifyLayoutFrames(page, count, stage, mutate) {
+  await page.evaluate(() => {
+    window.benchmarkLayoutFrames = [];
+    const capture = () => {
+      const rows = [...document.querySelectorAll('.codex-transcript [data-virtual-index]')];
+      const boxes = rows.map(row => row.getBoundingClientRect());
+      let rowOverlap = 0, textOverflow = 0, controlOverlap = 0;
+      for (let index = 1; index < boxes.length; index++) rowOverlap = Math.max(rowOverlap, boxes[index - 1].bottom - boxes[index].top);
+      for (const pre of document.querySelectorAll('.codex-item pre, .codex-interaction pre')) {
+        const range = document.createRange(); range.selectNodeContents(pre);
+        textOverflow = Math.max(textOverflow, range.getBoundingClientRect().bottom - pre.getBoundingClientRect().bottom);
+        const controls = pre.closest('.codex-interaction')?.querySelector('.button-row');
+        if (controls) controlOverlap = Math.max(controlOverlap, range.getBoundingClientRect().bottom - controls.getBoundingClientRect().top);
+      }
+      window.benchmarkLayoutFrames.push({ total: Number(rows[0]?.getAttribute('aria-setsize') ?? 0), mounted: rows.length, rowOverlap, textOverflow, controlOverlap });
+      window.benchmarkLayoutFrame = requestAnimationFrame(capture);
+    };
+    window.benchmarkLayoutFrame = requestAnimationFrame(capture);
+  });
+  let frames;
+  try {
+    await mutate();
+    await page.evaluate(() => new Promise(resolve => {
+      let remaining = 6;
+      const next = () => { if (--remaining) requestAnimationFrame(next); else resolve(); };
+      requestAnimationFrame(next);
+    }));
+  } finally {
+    frames = await page.evaluate(() => { window.cancelAnimationFrame(window.benchmarkLayoutFrame); return window.benchmarkLayoutFrames; });
+  }
+  assert.ok(frames.filter(frame => frame.total === count).length >= 3, `${stage}: the expected transcript must be rendered during the probe`);
+  for (const frame of frames) {
+    assert.ok(frame.rowOverlap <= 1, `${stage}: adjacent mounted rows overlap: ${JSON.stringify(frame)}`);
+    assert.ok(frame.textOverflow <= 1, `${stage}: visible text overflows its layout box: ${JSON.stringify(frame)}`);
+    assert.ok(frame.controlOverlap <= 1, `${stage}: interaction text covers its controls: ${JSON.stringify(frame)}`);
+    if (frame.total > 200) assert.ok(frame.mounted < 100, `${stage}: long conversations must remain windowed`);
+  }
+  layoutChecks.push({ count, stage, frames });
+}
+
+const longText = (label, lines = 50) => Array.from({ length: lines }, (_, index) => `${label} line ${index + 1}: long conversation content`).join('\n');
+const variableEntries = count => entries(count).map((item, index) => ({ ...item,
+  kind: index !== 0 && index !== count - 1 && index % 5 === 0 ? 'command' : 'agent', command: 'synthetic command',
+  text: longText(`Reply ${index}`, index % 5 === 0 ? 25 : 1 + index % 9)
+}));
+
+async function layoutRegression(target) {
+  const longView = await mount(target), longPage = longView.page;
+  try {
+    await verifyLayoutFrames(longPage, 2, 'two-long-replies', () => send(longPage, { type: 'codexEvent', event: {
+      kind: 'history', taskId: 'a', reset: true, items: entries(2).map(item => ({ ...item, text: longText(item.id) }))
+    } }));
+    assert.ok(await longPage.locator('.codex-item pre').first().evaluate(node => node.getBoundingClientRect().height) > 360,
+      'long messages must grow beyond the dashboard code-block height limit');
+    await verifyLayoutFrames(longPage, 2, 'long-interaction-detail', () => send(longPage, { type: 'codexEvent', event: {
+      kind: 'interactions', taskId: 'a', interactions: [{ id: 'long-approval', taskId: 'a', kind: 'command', title: 'Synthetic approval', detail: longText('Approval') }]
+    } }));
+    assert.ok(await longPage.locator('.codex-interaction pre').evaluate(node => node.getBoundingClientRect().height) > 360,
+      'long approval details must grow before the controls');
+    assert.deepEqual(longView.errors, []); assert.deepEqual(longView.external, []);
+    assert.deepEqual(await longPage.evaluate(() => window.benchmarkCsp), []);
+  } finally { await longView.context.close(); }
+
+  for (const count of [200, 201, 300, 10_000]) {
+    const view = await mount(target), { page } = view, items = variableEntries(count);
+    try {
+      await verifyLayoutFrames(page, count, `${count}-initial`, () => send(page, { type: 'codexEvent', event: { kind: 'history', taskId: 'a', reset: true, items } }));
+      if (count === 200) {
+        await verifyLayoutFrames(page, 201, 'threshold-up', () => send(page, { type: 'codexEvent', event: {
+          kind: 'output', taskId: 'a', items: [{ ...items[0], id: '200', text: longText('Threshold') }], replace: true
+        } }));
+        await verifyLayoutFrames(page, 200, 'threshold-down', () => send(page, { type: 'codexEvent', event: { kind: 'history', taskId: 'a', reset: true, items } }));
+      }
+      const growingId = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('.codex-transcript [data-virtual-key]')];
+        const row = rows.slice(0, -1).find(row => row.querySelector('.codex-item.agent'));
+        return row ? JSON.parse(row.dataset.virtualKey)[2] : undefined;
+      });
+      assert.ok(growingId, 'the variable transcript contains a mounted reply before its neighbour');
+      await verifyLayoutFrames(page, count, `${count}-stream-growth`, () => send(page, { type: 'codexEvent', event: {
+        kind: 'output', taskId: 'a', items: [{ ...items[Number(growingId)], text: longText('Growing reply', 60) }], replace: true
+      } }));
+      const expand = page.locator('.codex-transcript button[aria-expanded="false"]').first();
+      assert.ok(await expand.count(), 'the mounted variable-height window contains expandable output');
+      await verifyLayoutFrames(page, count, `${count}-expand`, () => expand.evaluate(button => button.click()));
+      await verifyLayoutFrames(page, count, `${count}-narrow`, () => page.setViewportSize({ width: 320, height: 900 }));
+      await verifyLayoutFrames(page, count, `${count}-wide`, () => page.setViewportSize({ width: 1280, height: 900 }));
+      await page.locator('.codex-reading-actions button').first().evaluate(button => button.click()); await settle(page);
+      await verifyLayoutFrames(page, count, `${count}-last-reply-growth`, () => send(page, { type: 'codexEvent', event: {
+        kind: 'output', taskId: 'a', items: [{ ...items[count - 1], text: longText('Latest growing reply', 60) }], replace: true
+      } }));
+      assert.ok(await page.locator('.codex-output').evaluate(node => node.scrollHeight - node.scrollTop - node.clientHeight <= 2),
+        'following the latest reply must stay at the bottom while that reply grows');
+      assert.deepEqual(view.errors, []); assert.deepEqual(view.external, []);
+      assert.deepEqual(await page.evaluate(() => window.benchmarkCsp), []);
+    } finally { await view.context.close(); }
+  }
 }
 
 try {
@@ -148,13 +256,14 @@ try {
     const values = measurements.filter(row => row.label === 'after' && row.count === count).flatMap(row => row.latencies);
     assert.ok(percentile(values, 0.95) <= 100, `Codex ${count}-item updates must meet the 100ms p95 budget`);
   }
+  await layoutRegression(roots.find(target => target.label === 'after'));
 } finally {
   const summary = roots.flatMap(target => counts.map(count => {
     const rows = measurements.filter(row => row.label === target.label && row.count === count), latencies = rows.flatMap(row => row.latencies);
     return { label: target.label, count, samples: latencies.length, p50Ms: percentile(latencies, 0.5), p95Ms: percentile(latencies, 0.95), mountedMax: Math.max(...rows.map(row => row.mounted)) };
   }));
   const report = { schema: 'GitLabWorkspaceCodexRendererBenchmark/v1', checkedAt: new Date().toISOString(), browser: browser.version(),
-    method: 'Production bundle, synthetic Host, live batches seed the complete transcript; updates dispatch through two animation frames. Excludes OS input, native VS Code bridge and external service latency.', summary, checks, measurements };
+    method: 'Production bundle, synthetic Host, live batches seed the complete transcript; updates dispatch through two animation frames. Layout probes observe every animation frame across long text, threshold changes, streaming, expansion and viewport changes. Excludes OS input, native VS Code bridge and external service latency.', summary, checks, measurements, layoutChecks };
   if (destination) { await mkdir(path.dirname(path.resolve(destination)), { recursive: true }); await writeFile(destination, JSON.stringify(report, null, 2) + '\n'); }
-  console.log(JSON.stringify({ summary, checks })); await browser.close();
+  console.log(JSON.stringify({ summary, checks, layoutChecks: layoutChecks.map(({ count, stage, frames }) => ({ count, stage, frames: frames.length })) })); await browser.close();
 }

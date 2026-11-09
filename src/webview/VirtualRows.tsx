@@ -17,10 +17,12 @@ interface VirtualRowsProps<T> {
   scrollRoot?: { readonly current: HTMLDivElement | null };
   semanticList?: boolean;
   initialAnchor?: { key: string | number; offset: number };
+  /** Flow rows push their neighbours immediately while streamed content is measured. */
+  layout?: 'absolute' | 'flow';
 }
 
 /** Variable-height list windowing with ten-row overscan and full-data keyboard navigation. */
-export function VirtualRows<T>({ items, itemKey, estimateHeight, className, renderItem, resetKey, active = true, empty, scrollRoot, semanticList, initialAnchor }: VirtualRowsProps<T>) {
+export function VirtualRows<T>({ items, itemKey, estimateHeight, className, renderItem, resetKey, active = true, empty, scrollRoot, semanticList, initialAnchor, layout = 'absolute' }: VirtualRowsProps<T>) {
   const windowed = items.length > 200;
   const container = useRef<HTMLDivElement>(null);
   const observer = useRef<ResizeObserver>();
@@ -52,7 +54,7 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
   const writeTop = (top: number) => { const root = scroller(); if (root) root.scrollTop = listOffset() + top; };
 
   const keys = useMemo(() => items.map(itemKey), [items, itemKey]);
-  const previousLayout = useRef<{ keys: (string | number)[]; geometry: number[]; resetKey?: string | number; windowed: boolean }>({ keys: [], geometry: [], resetKey, windowed });
+  const previousLayout = useRef<{ keys: (string | number)[]; geometry: number[]; resetKey?: string | number; windowed: boolean; offset?: number }>({ keys: [], geometry: [], resetKey, windowed });
   function naturalGeometry(rowKeys: readonly (string | number)[]): number[] {
     const offsets = [0];
     let zoom = 1;
@@ -85,7 +87,11 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     const reset = previous.resetKey !== resetKey;
     const nextGeometry = !windowed && previous.windowed ? naturalGeometry(keys) : geometry;
     const canAnchor = previous.geometry.length === previous.keys.length + 1 && nextGeometry.length === keys.length + 1;
-    let nextTop = reset ? 0 : canAnchor ? restoreScrollAnchor(previous.keys, previous.geometry, keys, nextGeometry, readTop()) : readTop();
+    // A history header can disappear in this commit. Interpret the old scroll
+    // position with its old list offset before restoring the message anchor.
+    const anchorTop = layout === 'flow' && previous.offset !== undefined
+      ? Math.max(0, (element?.scrollTop ?? 0) - previous.offset) : readTop();
+    let nextTop = reset ? 0 : canAnchor ? restoreScrollAnchor(previous.keys, previous.geometry, keys, nextGeometry, anchorTop) : readTop();
     const removedFocus = active && focusInside.current && focusedKeyRef.current !== undefined && !keys.includes(focusedKeyRef.current);
     if (removedFocus) {
       const formerIndex = previous.keys.indexOf(focusedKeyRef.current!);
@@ -111,7 +117,10 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
         search?.focus();
       }
     }
-    previousLayout.current = { keys, geometry, resetKey, windowed };
+    // display:none reports zero rectangles while background task events can
+    // still update the rows. Keep the last visible offset for the next reveal.
+    const offset = layout === 'flow' && (!active || !element?.clientHeight) ? previous.offset : listOffset();
+    previousLayout.current = { keys, geometry, resetKey, windowed, offset };
     if (!windowed) measured.current.clear();
     else if (reset) { measured.current.clear(); setMeasureRevision(revision => revision + 1); }
     if (element && Math.abs(readTop() - nextTop) > 0.5) writeTop(nextTop);
@@ -119,7 +128,7 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     const retained = new Set(keys);
     for (const key of measured.current.keys()) if (!retained.has(key)) measured.current.delete(key);
     for (const key of rowRefs.current.keys()) if (!retained.has(key)) rowRefs.current.delete(key);
-  }, [keys, geometry, resetKey, windowed, scrollRoot]);
+  }, [keys, geometry, resetKey, windowed, scrollRoot, layout]);
 
   useEffect(() => {
     if (!active || !initialAnchor || restoredInitialAnchor.current || !windowed) return;
@@ -252,6 +261,25 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     setScrollTop(readTop());
   }
 
+  const flow = windowed && layout === 'flow';
+  const rows: ComponentChildren[] = [];
+  let previousEnd = 0;
+  for (const { item, index } of visible) {
+    const key = keys[index];
+    if (flow && index > previousEnd) rows.push(<div key={`spacer:before:${String(key)}`} class="virtual-list-spacer" aria-hidden="true" role="presentation"
+      style={{ height: `${Math.max(0, geometry[index] - geometry[previousEnd])}px` }} />);
+    if (!rowRefs.current.has(key)) rowRefs.current.set(key, element => setRowRef(key, element));
+    rows.push(<div class="virtual-list-row" role={semanticList ? 'listitem' : undefined} aria-posinset={semanticList ? index + 1 : undefined} aria-setsize={semanticList ? items.length : undefined}
+      key={`row:${String(key)}`} ref={rowRefs.current.get(key)} data-virtual-index={index} data-virtual-key={String(key)} data-virtual-key-number={typeof key === 'number' ? 'true' : 'false'} style={windowed && !flow ? { position: 'absolute', insetInline: 0, top: `${geometry[index]}px` } : undefined}>
+      {renderItem(item, index)}
+    </div>);
+    previousEnd = index + 1;
+  }
+  // Keep every row under the same parent, even when a focused offscreen row
+  // splits the mounted range. Stable keys retain its DOM node and focus.
+  if (flow && previousEnd < items.length) rows.push(<div key="spacer:after" class="virtual-list-spacer" aria-hidden="true" role="presentation"
+    style={{ height: `${Math.max(0, geometry[items.length] - geometry[previousEnd])}px` }} />);
+
   return <div ref={container} class={className} role={semanticList ? 'list' : undefined}
     onScroll={() => { if (!scrollRoot) setScrollTop(readTop()); }} onKeyDownCapture={moveFocus}
     onFocusCapture={(event) => {
@@ -273,16 +301,9 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
       if (event.relatedTarget) clear();
       else queueMicrotask(clear);
     }}>
-    <div style={windowed ? { height: `${geometry[items.length] ?? 0}px`, position: 'relative' } : undefined}>
+    <div style={windowed && !flow ? { height: `${geometry[items.length] ?? 0}px`, position: 'relative' } : undefined}>
       {!items.length && empty}
-      {visible.map(({ item, index }) => {
-        const key = keys[index];
-        if (!rowRefs.current.has(key)) rowRefs.current.set(key, element => setRowRef(key, element));
-        return <div class="virtual-list-row" role={semanticList ? 'listitem' : undefined} aria-posinset={semanticList ? index + 1 : undefined} aria-setsize={semanticList ? items.length : undefined}
-          key={String(key)} ref={rowRefs.current.get(key)} data-virtual-index={index} data-virtual-key={String(key)} data-virtual-key-number={typeof key === 'number' ? 'true' : 'false'} style={windowed ? { position: 'absolute', insetInline: 0, top: `${geometry[index]}px` } : undefined}>
-          {renderItem(item, index)}
-        </div>;
-      })}
+      {rows}
     </div>
   </div>;
 }

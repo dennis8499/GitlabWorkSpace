@@ -29,6 +29,10 @@ import { cleanupTaskStorage, type CodexCleanupPlan } from './taskCleanup';
 import { ProjectWikiStore } from './projectWiki';
 
 type CodexConnection = { client: CodexAppServer; version: string; executable: string };
+interface CodexStartupTimings {
+  prepareMs?: number; processMs?: number; initializeMs?: number; readinessMs?: number; dispatchMs?: number;
+  executionToDispatchMs?: number; firstResponseMs?: number; executionToFirstResponseMs?: number;
+}
 
 interface PendingInteraction { projection: CodexInteraction; request: RpcMessage; client: CodexAppServer; responding?: boolean; }
 interface ActiveExecution {
@@ -40,6 +44,9 @@ interface ActiveExecution {
   version?: string;
   goalTimer?: ReturnType<typeof setTimeout>;
   goalStartedAt?: number;
+  startupStartedAt: number; startup: CodexStartupTimings; dispatchSentAt?: number;
+  telemetryStarted?: boolean; telemetryAbort?: AbortController;
+  environment?: CodexEnvironment;
 }
 export interface CodexBridgeOptions {
   storage: string;
@@ -91,6 +98,7 @@ export class CodexBridge {
   private autoAccept = new Set<string>();
   private approvals = new Map<string, CodexApprovalSettings>();
   private diagnostics = new Map<string, CodexRpcDiagnostic[]>();
+  private startupDiagnostics = new Map<string, CodexStartupTimings>();
   private progressTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private autoAcceptErrors = new Map<string, string>();
   private seenRequests = new WeakMap<CodexAppServer, Set<string>>();
@@ -279,7 +287,8 @@ export class CodexBridge {
       cliVersion: this.environment.version, capabilities: this.environment.capabilities, taskId: id,
       status: record.status, revision: record.revision, dispatchState: record.dispatch?.state,
       recovery: record.recovery ? { execution: record.recovery.execution, cleanup: record.recovery.cleanup, publication: record.recovery.publication, checkedAt: record.recovery.checkedAt } : undefined,
-      rpc: this.diagnostics.get(id) ?? [] };
+      rpc: this.diagnostics.get(id) ?? [],
+      startup: this.startupDiagnostics.has(id) ? { ...this.startupDiagnostics.get(id), origin: 'execution-start', firstResponseFrom: 'dispatchSent' } : undefined };
   }
   progress(id: string) { return structuredClone(this.record(id).progress); }
   async notePublication(id: string, publication: NonNullable<CodexTaskRecord['publication']>): Promise<void> {
@@ -386,12 +395,13 @@ export class CodexBridge {
     if (this.disposed) throw new Error('Codex Bridge 已關閉。');
     if (!this.options.trusted()) throw new Error('請先信任此 VS Code 工作區，才能執行 Codex。');
   }
-  private makeClient(root: string, lease?: CodexWorkspaceLease): Promise<CodexConnection> {
+  private makeClient(root: string, lease?: CodexWorkspaceLease, execution?: ActiveExecution): Promise<CodexConnection> {
     this.requireTrusted();
-    const pending = this.makeClientNow(root, lease); this.connecting.add(pending);
+    const pending = this.makeClientNow(root, lease, execution); this.connecting.add(pending);
     void pending.finally(() => this.connecting.delete(pending)).catch(() => {}); return pending;
   }
-  private async makeClientNow(root: string, suppliedLease?: CodexWorkspaceLease): Promise<CodexConnection> {
+  private async makeClientNow(root: string, suppliedLease?: CodexWorkspaceLease, execution?: ActiveExecution): Promise<CodexConnection> {
+    const processStarted = Date.now();
     let connection: CodexConnection, lease = suppliedLease;
     if (this.options.client) connection = await this.options.client(root);
     else {
@@ -404,6 +414,13 @@ export class CodexBridge {
       connection = { client: new CodexAppServer(spawnCodex(executable.file, root, receipt)), version: executable.version, executable: executable.file };
     }
     const { client } = connection, close = client.close.bind(client), proof = !this.options.client ? await lease!.processReceipt() : undefined;
+    if (execution) {
+      execution.startup.processMs = Date.now() - processStarted;
+      client.onDiagnostic = event => {
+        const entries = this.diagnostics.get(execution.record.id) ?? [];
+        entries.push(event); if (entries.length > 100) entries.shift(); this.diagnostics.set(execution.record.id, entries);
+      };
+    }
     this.clients.add(client);
     let closing: Promise<void> | undefined;
     client.close = timeout => closing ??= (async () => {
@@ -418,22 +435,64 @@ export class CodexBridge {
         this.emit({ kind: 'environment', environment: this.environment }); throw error;
       }
     })();
+    const initializeStarted = Date.now();
     try { if (!this.options.client) await client.initialize(this.options.version); this.requireTrusted(); }
     catch (error) { await client.close(); throw error; }
+    finally { if (execution) execution.startup.initializeMs = Date.now() - initializeStarted; }
     return connection;
   }
-  private async inspect(client: CodexAppServer, version: string, executable: string): Promise<CodexEnvironment> {
-    const auth = await client.request('account/read', { refreshToken: false });
+  private async inspect(client: CodexAppServer, version: string, executable: string, includeMcp = true): Promise<CodexEnvironment> {
+    const [auth, sandboxResult, requirementsResult] = await Promise.all([
+      client.request('account/read', { refreshToken: false }),
+      process.platform === 'win32' ? client.request('windowsSandbox/readiness') : Promise.resolve({ status: 'ready' }),
+      client.request('configRequirements/read')
+    ]);
     const authenticated = !auth.requiresOpenaiAuth || !!auth.account;
-    const sandbox = process.platform === 'win32' ? (await client.request('windowsSandbox/readiness')).status : 'ready';
-    const requirements = (await client.request('configRequirements/read')).requirements;
+    const sandbox = sandboxResult.status;
+    const requirements = requirementsResult.requirements;
     const permitted = (!requirements?.allowedApprovalPolicies || requirements.allowedApprovalPolicies.includes('on-request')) &&
       (!requirements?.allowedSandboxModes || requirements.allowedSandboxModes.includes('workspace-write'));
-    const mcp = codexCapabilities(version).usage ? await client.request<{ data?: Array<{ name: string; authStatus?: string }> }>('mcpServerStatus/list', { limit: 100 }, { timeoutMs: 5000 }).catch(() => undefined) : undefined;
+    const mcp = includeMcp && codexCapabilities(version).usage ? await client.request<{ data?: Array<{ name: string; authStatus?: string }> }>('mcpServerStatus/list', { limit: 100 }, { timeoutMs: 5000 }).catch(() => undefined) : undefined;
     return { state: authenticated && sandbox === 'ready' && permitted ? 'ready' : 'blocked', authenticated, sandbox, version, executable, capabilities: codexCapabilities(version), checkedAt: new Date().toISOString(),
       mcp: Array.isArray(mcp?.data) ? mcp.data.slice(0, 100).map(server => ({ name: safeText(server.name, 200), status: safeText(server.authStatus, 100) || '未知' })) : undefined,
       message: !authenticated ? '請先登入 Codex。' : sandbox !== 'ready' ? '請先完成 Codex Windows sandbox 設定。'
         : !permitted ? 'Codex 管理政策不允許 workspace-write／on-request，請洽管理員核對設定。' : 'Codex 已準備完成；建立任務時可選擇模型與思考強度，審查預選 Luna＋Auto。' };
+  }
+  private dispatchStarted(active: ActiveExecution): number {
+    const started = Date.now();
+    if (active.dispatchSentAt === undefined) {
+      active.dispatchSentAt = started;
+      active.startup.executionToDispatchMs = started - active.startupStartedAt;
+    }
+    return started;
+  }
+  private firstResponse(active: ActiveExecution | undefined): void {
+    if (!active || active.dispatchSentAt === undefined || active.startup.firstResponseMs !== undefined) return;
+    const now = Date.now();
+    active.startup.firstResponseMs = now - active.dispatchSentAt;
+    active.startup.executionToFirstResponseMs = now - active.startupStartedAt;
+  }
+  /** Optional status must never delay dispatch or extend the lifetime of a task process. */
+  private startTelemetry(active: ActiveExecution): void {
+    if (active.telemetryStarted) return;
+    active.telemetryStarted = true;
+    if (!active.client || !active.version || !codexCapabilities(active.version).usage || active.turnStatus || active.abort.signal.aborted || this.disposed) return;
+    const controller = active.telemetryAbort = new AbortController(), client = active.client, record = active.record;
+    const environment = active.environment, threadId = record.threadId, turnId = record.turnId;
+    const current = () => !this.disposed && !controller.signal.aborted && !active.abort.signal.aborted &&
+      this.executions.get(record.id) === active && this.records.get(record.id) === record &&
+      record.threadId === threadId && record.turnId === turnId && !active.turnStatus;
+    const options = { signal: controller.signal, timeoutMs: 5000 };
+    void client.request('account/rateLimits/read', {}, options).then(quota => {
+      if (!current()) return;
+      const progress = projectCodexProgress(record.progress, 'account/rateLimits/updated', quota);
+      if (progress) { record.progress = progress; this.scheduleProgress(record); }
+    }).catch(() => {});
+    void client.request<{ data?: Array<{ name: string; authStatus?: string; startupState?: string }> }>('mcpServerStatus/list', { limit: 100 }, options).then(mcp => {
+      if (!current() || this.environment !== environment || !Array.isArray(mcp?.data)) return;
+      this.environment = { ...this.environment, mcp: mcp.data.slice(0, 100).map(item => ({ name: safeText(item.name, 200), status: safeText(item.startupState ?? item.authStatus, 100) || '未知' })) };
+      this.emit({ kind: 'environment', environment: this.environment });
+    }).catch(() => {});
   }
   private async beginGoal(record: CodexTaskRecord, active: ActiveExecution): Promise<void> {
     if (!record.goal || record.goal.status === 'complete') return;
@@ -525,7 +584,9 @@ export class CodexBridge {
   private schedule(): void { if (!this.processing && !this.disposed) this.processingTask = this.pump(); }
   private async execute(record: CodexTaskRecord, reservation: CodexReservation): Promise<void> {
     let settle!: () => void;
-    const active: ActiveExecution = { record, abort: new AbortController(), settled: new Promise(resolve => { settle = resolve; }), settle: () => settle() };
+    const startup: CodexStartupTimings = {};
+    this.startupDiagnostics.set(record.id, startup); this.diagnostics.delete(record.id);
+    const active: ActiveExecution = { record, startup, startupStartedAt: Date.now(), abort: new AbortController(), settled: new Promise(resolve => { settle = resolve; }), settle: () => settle() };
     this.executions.set(record.id, active);
     return this.executionContext.run(active, () => this.executeNow(record, active, reservation));
   }
@@ -537,17 +598,22 @@ export class CodexBridge {
       const directory = reservation.directory;
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       this.requireTrusted();
+      const prepareStarted = Date.now();
       const prepared = await this.options.prepare(record.spec.source, record.spec);
+      active.startup.prepareMs = Date.now() - prepareStarted;
       if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root || prepared.executionRoot !== record.spec.executionRoot || JSON.stringify(prepared.writableRoots) !== JSON.stringify(record.spec.writableRoots)) throw new Error('專案或 Skills 環境已變更，請重新確認表單再建立任務。');
       record.spec = { ...record.spec, root: prepared.root, executionRoot: prepared.executionRoot, writableRoots: prepared.writableRoots, skill: prepared.skill };
       record.status = 'starting'; record.error = undefined; record.progress = { ...record.progress, waitReason: undefined }; await this.save(record);
       record.lease = { directory, nonce: await lease.ownerNonce(), ...(!this.options.client ? { receipt: await lease.processReceipt() } : {}),
         extras: await Promise.all(repositoryLeases.map(async extra => ({ directory: extra.directory, nonce: await extra.ownerNonce() }))) };
       await this.save(record);
-      const connection = await this.makeClient(record.root, lease); active.client = connection.client; active.version = connection.version;
+      const connection = await this.makeClient(record.root, lease, active); active.client = connection.client; active.version = connection.version;
       const client = connection.client;
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
-      this.environment = await this.inspect(client, connection.version, connection.executable);
+      const readinessStarted = Date.now();
+      this.environment = await this.inspect(client, connection.version, connection.executable, false);
+      active.environment = this.environment;
+      active.startup.readinessMs = Date.now() - readinessStarted;
       this.emit({ kind: 'environment', environment: this.environment });
       if (this.environment.state !== 'ready') throw new Error(this.environment.message);
       if (record.goal && record.goal.status !== 'complete' && !codexCapabilities(connection.version).goals) throw new Error('目前 CLI 不支援已設定的目標模式。');
@@ -556,17 +622,6 @@ export class CodexBridge {
         const model = models.find(model => model.model === record.spec.model || model.id === record.spec.model);
         if (!model || !record.spec.routing && record.spec.effort && !model.supportedReasoningEfforts.some(item => item.reasoningEffort === record.spec.effort)) throw new Error('所選模型或思考強度目前不可用，已保留任務。');
       }
-      if (codexCapabilities(connection.version).usage) {
-        const adapter = new CodexProtocolAdapter(client, connection.version);
-        const quota = await adapter.quota().catch(() => undefined);
-        if (quota) record.progress = projectCodexProgress(record.progress, 'account/rateLimits/updated', quota);
-        const mcp = await adapter.read<{ data?: Array<{ name: string; authStatus?: string; startupState?: string }> }>('mcpServerStatus/list', { limit: 100 }).catch(() => undefined);
-        if (Array.isArray(mcp?.data)) this.environment.mcp = mcp.data.slice(0, 100).map(item => ({ name: safeText(item.name, 200), status: safeText(item.startupState ?? item.authStatus, 100) || '未知' }));
-        this.emit({ kind: 'environment', environment: this.environment });
-      }
-      client.onDiagnostic = event => {
-        const entries = this.diagnostics.get(record.id) ?? []; entries.push(event); if (entries.length > 100) entries.shift(); this.diagnostics.set(record.id, entries);
-      };
       record.progress = { ...record.progress, model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? routingModel : undefined), effort: record.spec.routing ? undefined : record.spec.effort, updatedAt: new Date().toISOString() };
       if (record.spec.workflow) {
         try { await client.request('skills/extraRoots/set', { extraRoots: [path.dirname(path.dirname(record.spec.skill!.path))] }); }
@@ -578,6 +633,7 @@ export class CodexBridge {
       client.onRequest = message => this.receiveInteraction(record, client, message);
       client.onNotification = message => this.receiveNotification(record, message);
       client.onExit = error => {
+        active.telemetryAbort?.abort();
         if (codexTaskActive(record.status)) {
           if (this.autoAccept.delete(record.id)) this.autoAcceptErrors.set(record.id, 'Codex 連線已中斷，已關閉 Auto-Accept；請核對已送出的要求。');
           record.status = 'uncertain'; record.error = error.message; active.finish?.();
@@ -622,14 +678,17 @@ export class CodexBridge {
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       sent = true;
       active.unmaterializedThreadId = undefined;
+      const dispatchStarted = this.dispatchStarted(active);
       const dispatched = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: record.dispatch!.id,
         input: [{ type: 'text', text: message }, ...(record.spec.skill ? [{ type: 'skill', name: record.spec.skill.name, path: record.spec.skill.path }] : [])],
         ...(record.spec.model ? { model: record.spec.model } : {}), ...(record.spec.effort ? { effort: record.spec.effort } : {}),
         approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd,
         sandboxPolicy: { type: 'workspaceWrite', writableRoots: record.spec.writableRoots, networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false } });
       if (typeof dispatched.turn?.id !== 'string') throw new Error('Codex 未傳回有效的 turn 識別，請先核對結果。');
+      active.startup.dispatchMs ??= Date.now() - dispatchStarted;
       record.turnId = dispatched.turn.id; if (record.dispatch) { record.dispatch.state = 'acknowledged'; record.dispatch.turnId = record.turnId; } record.dispatchPending = false; record.pendingMessage = undefined;
       record.pendingMessageIsUser = undefined;
+      this.startTelemetry(active);
       await this.save(record);
       await this.beginGoal(record, active);
       await finished;
@@ -656,6 +715,7 @@ export class CodexBridge {
       else if ((record.status as CodexTaskState['status']) === 'completed') record.error = 'Codex 本輪已完成，但工作台資料更新失敗；請手動更新產物狀態。';
       else if (record.status !== 'uncertain') { record.status = active.abort.signal.aborted ? 'pausing' : sent || record.dispatchPending ? 'uncertain' : 'failed'; record.error = active.abort.signal.aborted ? undefined : this.errorText(error); }
     } finally {
+      active.telemetryAbort?.abort();
       if (active.goalTimer) clearTimeout(active.goalTimer);
       if (record.goal && active.goalStartedAt) record.goal.timeUsedSeconds = (record.goal.timeUsedSeconds ?? 0) + Math.ceil((Date.now() - active.goalStartedAt) / 1000);
       if (record.goal?.status === 'active' && active.client && record.threadId && active.version) {
@@ -779,13 +839,16 @@ export class CodexBridge {
     if (phase === 'review') input.push({ type: 'skill', name: record.spec.skill!.name, path: record.spec.skill!.path });
     if (this.active?.abort.signal.aborted) throw new Error('任務已停止。');
     this.active!.unmaterializedThreadId = undefined;
+    const active = this.active!, dispatchStarted = this.dispatchStarted(active);
     const result = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: record.dispatch!.id, input,
       model, effort, ...(phase === 'assess' ? { outputSchema: routingAssessmentOutputSchema } : {}),
       approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd: record.spec.executionRoot ?? record.root,
       sandboxPolicy: { type: 'workspaceWrite', writableRoots: record.spec.writableRoots, networkAccess: false,
         excludeTmpdirEnvVar: false, excludeSlashTmp: false } });
     if (typeof result.turn?.id !== 'string') throw new Error('Codex 未傳回有效的路由回合識別，請先核對結果。');
+    active.startup.dispatchMs ??= Date.now() - dispatchStarted;
     record.turnId = result.turn.id; if (record.dispatch) { record.dispatch.state = 'acknowledged'; record.dispatch.turnId = record.turnId; } record.dispatchPending = false; record.pendingMessage = undefined;
+    this.startTelemetry(active);
     record.pendingMessageIsUser = undefined; await this.save(record);
     await finished; await this.active?.steering?.catch(() => {});
     if (this.active?.turnStatus !== 'completed') throw new Error(record.error ?? 'Codex 路由回合未完成；已保留審查進度。');
@@ -797,6 +860,8 @@ export class CodexBridge {
     if (params.threadId && params.threadId !== record.threadId) return;
     const eventTurnId = params.turnId ?? params.turn?.id;
     if (eventTurnId && record.turnId && eventTurnId !== record.turnId && !(record.goal?.status === 'active' && message.method === 'turn/started')) return;
+    if (message.method === 'item/agentMessage/delta' && safeText(params.delta).length ||
+      ['item/started', 'item/completed'].includes(message.method ?? '') && params.item?.type === 'agentMessage' && safeText(params.item.text).length) this.firstResponse(active);
     if (message.method === 'thread/goal/updated' && record.goal && params.goal?.objective === record.goal.objective) {
       const goal = params.goal;
       if (['active', 'paused', 'blocked', 'usageLimited', 'budgetLimited', 'complete'].includes(goal.status)) record.goal.status = goal.status;
@@ -832,6 +897,7 @@ export class CodexBridge {
       this.publishInteractions(record.id);
     }
     if (message.method === 'turn/completed') {
+      active?.telemetryAbort?.abort();
       if (active) active.turnStatus = params.turn?.status;
       if (!active?.stopAs) record.status = params.turn?.status === 'completed' ? record.spec.routing || implementationTask(record.spec) || record.goal?.status === 'active' ? 'running' : 'completed' : params.turn?.status === 'interrupted' ? 'interrupted' : 'failed';
       for (const item of params.turn?.items ?? []) {
@@ -1048,6 +1114,7 @@ export class CodexBridge {
       active.stopAs ??= target;
       // Stop automatic responses synchronously, before any persistence or RPC awaits.
       active.abort.abort();
+      active.telemetryAbort?.abort();
       active.cancellation ??= (async () => {
         try {
           record.status = 'pausing'; await this.save(record);
@@ -1122,7 +1189,7 @@ export class CodexBridge {
     this.records.delete(id); this.persisted.delete(id); this.owned.delete(id); this.outputs.delete(id); this.histories.delete(id);
     this.historyPages.invalidateWhere(key => key.startsWith(id + '\0'));
     for (const key of this.historyApplied.keys()) if (key.startsWith(id + '\0')) this.historyApplied.delete(key);
-    this.autoAccept.delete(id); this.autoAcceptErrors.delete(id); this.approvals.delete(id); this.diagnostics.delete(id);
+    this.autoAccept.delete(id); this.autoAcceptErrors.delete(id); this.approvals.delete(id); this.diagnostics.delete(id); this.startupDiagnostics.delete(id);
     const progressTimer = this.progressTimers.get(id); if (progressTimer) clearTimeout(progressTimer); this.progressTimers.delete(id);
     this.queue = this.queue.filter(value => value !== id);
     const timer = this.outputTimers.get(id); if (timer) clearTimeout(timer); this.outputTimers.delete(id);
@@ -1166,6 +1233,7 @@ export class CodexBridge {
   shutdown(): Promise<void> {
     return this.shutdownTask ??= (async () => {
       this.disposed = true;
+      for (const active of this.executions.values()) active.telemetryAbort?.abort();
       this.historyPages.clear();
       this.historyApplied.clear();
       this.watcher?.close(); if (this.reloadTimer) clearTimeout(this.reloadTimer);
