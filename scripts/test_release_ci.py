@@ -356,6 +356,10 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertIsNotNone(matrix, "Scoped validation must retain an explicit complete release matrix")
             cells = [cell["cell"] for cell in json.loads(matrix[1])["include"]]
             self.assertIn("matrix: ${{ fromJSON(needs.route.outputs.matrix) }}", text)
+            evidence_dir = "${{ runner.temp }}/gitlab-workspace-validation/${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cell }}"
+            self.assertEqual(text.count("GITLAB_WORKSPACE_VALIDATION_DIR: " + evidence_dir), 3)
+            self.assertNotIn("GITLAB_WORKSPACE_VALIDATION_DIR: .gitlab-workspace-validation/ci", text)
+            self.assertIn("root = Path(os.environ['GITLAB_WORKSPACE_VALIDATION_DIR'])", text)
         else:
             cells = re.findall(r"^\s+- cell: (\S+)$", text, flags=re.M)
         self.assertEqual(set(cells), set(spec["cells"]))
