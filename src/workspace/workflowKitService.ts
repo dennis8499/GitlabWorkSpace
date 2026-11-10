@@ -67,6 +67,7 @@ export class WorkflowKitService {
   private queue?: Promise<void>;
   private generation = 0;
   private disposed = false;
+  private sourceBeforeWrite?: ToolSource;
 
   constructor(private readonly options: WorkflowKitServiceOptions) {
     this.packages = options.releaseManager ?? new WorkflowKitReleaseManager(options.storagePath);
@@ -105,9 +106,14 @@ export class WorkflowKitService {
     this.emit();
   }
 
-  async setSource(source: ToolSource): Promise<void> {
+  async setSource(source: ToolSource, current: () => boolean = () => true): Promise<void> {
     if (source !== 'github' && source !== 'gitea') throw new Error('Invalid workflow kit source.');
-    await this.options.writeSource(source);
+    const previous = this.source();
+    this.sourceBeforeWrite = previous;
+    try {
+      await this.options.writeSource(source);
+      if (!current()) await this.options.writeSource(previous);
+    } finally { this.sourceBeforeWrite = undefined; }
     this.emit();
   }
 
@@ -274,7 +280,7 @@ export class WorkflowKitService {
 
   private refreshTask?: { contextKey: string; signal?: AbortSignal; promise: Promise<void> };
 
-  private source(): ToolSource { return this.options.readSource() === 'gitea' ? 'gitea' : 'github'; }
+  private source(): ToolSource { return this.sourceBeforeWrite ?? (this.options.readSource() === 'gitea' ? 'gitea' : 'github'); }
 
   private async readStatus(root: string): Promise<InstalledWorkflowKitState> {
     if (this.installation && samePath(root, this.installation.root)) return { status: 'installing' };

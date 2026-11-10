@@ -18,6 +18,9 @@ import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import type { WikiGuideInputValues } from './codebaseWikiGuideData';
 import { legacyWikiInputs, resolveReviewerRepository, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
 import { SkillsGuide } from './SkillsGuide';
+import { applyStateEdits, normalizeProjectRoot, projectDraftScope, recordStateEdits, sameHydratingIdentity, savedProjectScope, savedRootKey, scopeProjectRoot, type ExplicitStateEdits } from './projectUiState';
+import { UiSelectionIntents } from './uiSelectionIntent';
+import type { UiIntentField, UiIntentValues } from '../workspace/uiIntentProtocol';
 import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { BmadPanel } from './BmadPanel';
 import { CodexSettings } from './CodexPanel';
@@ -100,6 +103,7 @@ interface SavedState {
   recoveredBundle?: IssueDraftBundle;
   projectGuideScope?: string;
   skillsGuideByScope?: Record<string, SkillGuideState>;
+  skillsGuideLegacyRoots?: Record<string, string>;
   wikiGuideInputsByScope?: Record<string, WikiGuideInputValues>;
   wikiGuideSelectionsByScope?: Record<string, string>;
   version?: 3;
@@ -262,6 +266,11 @@ function filterOptionsComplete(snapshot: WorkspaceSnapshot, section: FilterOptio
   return !error && state?.status === 'ready' && state.complete === true && !state.error && !state.refreshing;
 }
 
+function projectsComplete(snapshot: WorkspaceSnapshot): boolean {
+  const state = snapshot.sections?.projects;
+  return state?.status === 'ready' && state.complete === true && !state.error && !state.refreshing;
+}
+
 function WorkspaceFilterOptions({ label, status, error, count, retainedSelection, disabled, onLoad, children }: {
   label: string; status?: WorkspaceSectionState; error?: string; count: number; disabled: boolean;
   retainedSelection?: boolean; onLoad: () => void; children: ComponentChildren;
@@ -382,6 +391,9 @@ function App() {
   }, []);
   latestConnectedScope = snapshot?.connectedScope;
   const [bmadUiByRoot, setBmadUiByRoot] = useState<Record<string, BmadPanelState>>(initial?.bmadUiByRoot ?? {});
+  const bmadUiRef = useRef(bmadUiByRoot); bmadUiRef.current = bmadUiByRoot;
+  const bmadBoundRoot = useRef<string>();
+  const unresolvedBmadEdits = useRef<ExplicitStateEdits>({});
   const issueEditorDrafts = useRef<Record<string, IssueEditorDraftState>>(initial?.issueEditorDrafts ?? {});
   const [mode, setMode] = useState<WorkspaceMode>(normalizeWorkspaceMode(initial?.mode));
   const modeRef = useRef(mode);
@@ -437,6 +449,7 @@ function App() {
   const [reports, setReports] = useState<Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean; taskId?: string }>>(initial?.reports ?? {});
   const [_similarIssues, setSimilarIssues] = useState<Record<string, Array<{ iid: number; title: string; webUrl: string }>>>({});
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initialScopedState?.reviewFilter ?? initial?.reviewFilter ?? 'all');
+  const unresolvedReviewFilter = useRef<UiIntentValues['mergeRequestFilter']>();
   const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>(initial?.reviewerTab ?? 'changes');
   const [mrReplyDrafts, setMrReplyDrafts] = useState<Record<string, string>>(initial?.mrReplyDrafts ?? {});
   const [mrExpandedFiles, setMrExpandedFiles] = useState<Record<string, string[]>>(initial?.mrExpandedFiles ?? {});
@@ -447,6 +460,24 @@ function App() {
   const skipDrawerReturnFocus = useRef(false);
   useLayoutEffect(() => { if (toolDrawer) skipDrawerReturnFocus.current = false; }, [toolDrawer]);
   const [workflowKitSource, setWorkflowKitSource] = useState<ToolSource>(initial?.workflowKitSource ?? initial?.toolSource ?? 'github');
+  const uiIntentsRef = useRef<UiSelectionIntents>();
+  uiIntentsRef.current ??= new UiSelectionIntents({ mode, projectSource: projectTab, mergeRequestFilter: reviewFilter, workflowKitSource });
+  const uiIntents = uiIntentsRef as { current: UiSelectionIntents };
+  const applyUiValues = (values: Partial<UiIntentValues>): void => {
+    if (values.mode !== undefined) {
+      if (modeRef.current !== values.mode) setMobilePanel('list');
+      modeRef.current = values.mode; requestMode = values.mode; setMode(values.mode);
+    }
+    if (values.projectSource !== undefined) { requestProjectSource = values.projectSource; setProjectTab(values.projectSource); }
+    if (values.mergeRequestFilter !== undefined) setReviewFilter(values.mergeRequestFilter);
+    if (values.workflowKitSource !== undefined) setWorkflowKitSource(values.workflowKitSource);
+  };
+  const requestUiChoice = <K extends UiIntentField>(field: K, value: UiIntentValues[K], request: WorkspaceRequest): void => {
+    const metadata = uiIntents.current.begin(field);
+    applyUiValues({ [field]: value });
+    const result = post({ ...request, ...metadata });
+    if (result.status === 'blocked') applyUiValues(uiIntents.current.blocked(field, metadata.uiIntentId));
+  };
   const initialScopeState = initialScopedState;
   const initialManualTimeState = restoreManualTimeState(initialScopeState, initial);
   const [manualTimes, setManualTimes] = useState<Record<string, ManualTimeDraft>>(initialManualTimeState.manualTimes);
@@ -525,12 +556,18 @@ function App() {
   const savedWikiGuideSelectionsRef = useRef(initial?.wikiGuideSelectionsByScope ?? {});
   const wikiGuideScopeRef = useRef(initial?.projectGuideScope ?? wikiGuideScopeKey(initial?.scopeKey, initial?.instanceUserScope));
   const savedSkillsGuideRef = useRef(initial?.skillsGuideByScope ?? {});
+  const skillsGuideLegacyRoots = useRef(initial?.skillsGuideLegacyRoots ?? {});
+  const initialGuideScope = useRef(wikiGuideScopeRef.current);
+  const initialGuideScopes = useRef(new Set([...Object.keys(initial?.skillsGuideByScope ?? {}),
+    ...Object.keys(initial?.wikiGuideInputsByScope ?? {}), ...Object.keys(initial?.wikiGuideSelectionsByScope ?? {})]));
   const [skillsGuide, setSkillsGuide] = useState<SkillGuideState>(() => restoreSkillGuideState(
     savedSkillsGuideRef.current[wikiGuideScopeRef.current], savedWikiGuideInputsRef.current[wikiGuideScopeRef.current],
     savedWikiGuideSelectionsRef.current[wikiGuideScopeRef.current]
   ));
   const skillsGuideRef = useRef(skillsGuide);
   skillsGuideRef.current = skillsGuide;
+  const skillsBoundRoot = useRef<string>();
+  const unresolvedSkillEdits = useRef<ExplicitStateEdits>({});
   const loadReviewerCapabilities = (tool: ReviewerToolId): void => {
     const revision = snapshotRef.current?.skillsContext?.revision;
     if (!revision) return;
@@ -552,6 +589,17 @@ function App() {
     skillsGuideRef.current = value;
     setSkillsGuide(value);
   };
+  const updateSkillsGuideFromUser = (update: (current: SkillGuideState) => SkillGuideState, input?: { key: string; value: string }): void => {
+    const previous = skillsGuideRef.current, value = update(previous);
+    if (!skillsBoundRoot.current) {
+      const edits = unresolvedSkillEdits.current;
+      recordStateEdits(edits, previous, value, ['selections', 'inputs', 'commitRepositoryRequired']);
+      edits.tool = value.tool;
+      edits.selections = { ...(edits.selections as object ?? {}), [value.tool]: value.selections[value.tool] };
+      if (input) edits.inputs = { ...(edits.inputs as object ?? {}), [input.key]: input.value };
+    }
+    updateSkillsGuide(value);
+  };
 
   const scopedState: ScopedSavedState = {
     filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
@@ -560,6 +608,8 @@ function App() {
   };
   const currentScopeStateRef = useRef(scopedState);
   currentScopeStateRef.current = scopedState;
+  const initialScopeStateRef = useRef(scopedState);
+  const unresolvedScopedEdits = useRef<ExplicitStateEdits>({});
   const saveStatePatch = (patch: Partial<SavedState>): void => vscode.setState({ ...emptySaved(), ...vscode.getState(), ...patch });
   const updateReviewerTab = (tab: NonNullable<SavedState['reviewerTab']>): void => { saveStatePatch({ reviewerTab: tab }); setReviewerTab(tab); };
   const updateIssueDrafts = (scope: string, state: IssueEditorDraftState): void => {
@@ -630,6 +680,18 @@ function App() {
       if (message.type === 'notificationsChanged') { receiveNotifications(message.snapshot); return; }
       if (message.type === 'openNotifications') { setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); return; }
       if (message.type === 'openSettings') { openSettings(); return; }
+      if (message.type === 'uiIntentResult') {
+        const values = uiIntents.current.result(message);
+        if (values) {
+          applyUiValues(values);
+          if (!message.applied && message.error) setPageError({ message: message.error, mode: modeRef.current, scope: operationScope });
+        }
+        return;
+      }
+      if (message.type === 'hostNavigation') {
+        applyUiValues(uiIntents.current.navigate(message.generation, message.values, message.hostSessionId));
+        return;
+      }
       if (message.type === 'operationChanged') {
         if (message.operation.status === 'succeeded' && !message.operation.refreshError) setPageError(current =>
           current && current.scope === message.operation.scopeRevision && (current.action === message.operation.action || !current.action && message.operation.action === 'refresh') ? undefined : current);
@@ -694,7 +756,12 @@ function App() {
           skipNotificationReturnFocus.current = true;
           drawerReturnFocus.current = undefined; notificationReturnFocus.current = undefined;
         }
-        const previousSkillsRevision = snapshotRef.current?.skillsContext?.revision;
+        const previousSnapshot = snapshotRef.current;
+        const previousSkillsRevision = previousSnapshot?.skillsContext?.revision;
+        if (previousSnapshot && (!sameHydratingIdentity(previousSnapshot, message.snapshot)
+          || previousSnapshot.connected && !message.snapshot.connected)) {
+          uiIntents.current.reset(); unresolvedReviewFilter.current = undefined; unresolvedScopedEdits.current = {};
+        }
         snapshotRef.current = message.snapshot;
         const nextOperationScope = message.snapshot.operationScope ?? `${message.snapshot.connectedScope ?? 'offline'}:${message.snapshot.projectContext?.revision ?? message.snapshot.groupRoot ?? 'none'}`;
         const nextLocalOperationScope = message.snapshot.localOperationScope ?? nextOperationScope;
@@ -710,28 +777,47 @@ function App() {
         if (message.snapshot.operationSnapshot) actions.reconcile(message.snapshot.operationSnapshot);
         else for (const operation of message.snapshot.operations ?? []) actions.receive(operation);
         projectRevision = message.snapshot.projectContext?.revision;
-        const guideRoot = message.snapshot.skillsContext?.root ?? message.snapshot.projectContext?.root ?? message.snapshot.groupRoot;
-        const nextGuideScope = message.snapshot.skillsContext?.mode === 'unavailable' ? wikiGuideScopeRef.current
-          : guideRoot ? 'project:' + guideRoot + ':' + (message.snapshot.skillsContext?.mode ?? 'local')
-          : wikiGuideScopeRef.current;
+        const guideRoot = message.snapshot.projectContext?.root ?? message.snapshot.skillsContext?.root ?? message.snapshot.groupRoot;
+        const nextGuideScope = guideRoot ? projectDraftScope(guideRoot) : wikiGuideScopeRef.current;
+        let unboundLegacyKey: string | undefined;
+        if (guideRoot) {
+          const identity = normalizeProjectRoot(guideRoot), groupKey = wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
+          const ownedInitial = initialGuideScope.current;
+          const initialUnbound = !scopeProjectRoot(ownedInitial) && (ownedInitial === groupKey || ownedInitial === 'offline'
+            || ownedInitial === `no-group:${message.snapshot.instanceUserScope}`) ? ownedInitial : undefined;
+          const candidates = [...new Set([groupKey, initialUnbound].filter((key): key is string => !!key))]
+            .filter(key => initialGuideScopes.current.has(key));
+          let changed = false;
+          for (const key of candidates) if (!Object.hasOwn(skillsGuideLegacyRoots.current, key)) {
+            skillsGuideLegacyRoots.current = { ...skillsGuideLegacyRoots.current, [key]: identity }; changed = true;
+          }
+          if (changed) saveStatePatch({ skillsGuideLegacyRoots: skillsGuideLegacyRoots.current });
+          unboundLegacyKey = candidates.find(key => skillsGuideLegacyRoots.current[key] === identity);
+        }
         if (nextGuideScope !== wikiGuideScopeRef.current) {
           savedSkillsGuideRef.current[wikiGuideScopeRef.current] = skillsGuideRef.current;
           savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] = legacyWikiInputs(skillsGuideRef.current.inputs);
           savedWikiGuideSelectionsRef.current[wikiGuideScopeRef.current] = skillsGuideRef.current.selections['codebase-wiki']!;
-          if (!savedSkillsGuideRef.current[nextGuideScope] && guideRoot) {
-            const legacyKey = [
-              ...(message.snapshot.skillsContext?.mode === 'repository' ? ['repository:' + guideRoot] : []),
-              'project:' + guideRoot + ':local', wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope)
-            ].find(key => key !== nextGuideScope && (savedSkillsGuideRef.current[key] || savedWikiGuideInputsRef.current[key]));
-            if (legacyKey) {
-              savedSkillsGuideRef.current[nextGuideScope] = restoreSkillGuideState(savedSkillsGuideRef.current[legacyKey],
-                savedWikiGuideInputsRef.current[legacyKey], savedWikiGuideSelectionsRef.current[legacyKey]);
-              delete savedSkillsGuideRef.current[legacyKey]; delete savedWikiGuideInputsRef.current[legacyKey]; delete savedWikiGuideSelectionsRef.current[legacyKey];
-            }
-          }
+          const scopes = { ...savedWikiGuideSelectionsRef.current, ...savedWikiGuideInputsRef.current, ...savedSkillsGuideRef.current };
+          const legacyKey = guideRoot ? savedProjectScope(guideRoot, scopes, wikiGuideScopeRef.current, message.snapshot.skillsContext?.mode)
+            ?? unboundLegacyKey : undefined;
+          let restored = restoreSkillGuideState(legacyKey ? savedSkillsGuideRef.current[legacyKey] : undefined,
+            legacyKey ? savedWikiGuideInputsRef.current[legacyKey] : undefined, legacyKey ? savedWikiGuideSelectionsRef.current[legacyKey] : undefined);
+          if (!skillsBoundRoot.current) restored = applyStateEdits(restored, unresolvedSkillEdits.current, ['selections', 'inputs', 'commitRepositoryRequired']);
           wikiGuideScopeRef.current = nextGuideScope;
-          updateSkillsGuide(restoreSkillGuideState(savedSkillsGuideRef.current[nextGuideScope],
-            savedWikiGuideInputsRef.current[nextGuideScope], savedWikiGuideSelectionsRef.current[nextGuideScope]));
+          savedSkillsGuideRef.current[nextGuideScope] = restored;
+          updateSkillsGuide(restored);
+        }
+        if (guideRoot) { skillsBoundRoot.current = normalizeProjectRoot(guideRoot); unresolvedSkillEdits.current = {}; }
+        if (guideRoot) {
+          const rootKey = projectDraftScope(guideRoot), existing = savedRootKey(guideRoot, bmadUiRef.current);
+          if (!Object.hasOwn(bmadUiRef.current, rootKey) || !bmadBoundRoot.current && Object.keys(unresolvedBmadEdits.current).length) {
+            let state = existing ? bmadUiRef.current[existing] : {};
+            if (!bmadBoundRoot.current) state = applyStateEdits(state, unresolvedBmadEdits.current);
+            bmadUiRef.current = { ...bmadUiRef.current, [rootKey]: state };
+            setBmadUiByRoot(bmadUiRef.current);
+          }
+          bmadBoundRoot.current = normalizeProjectRoot(guideRoot); unresolvedBmadEdits.current = {};
         }
         const nextScope = message.snapshot.connectedScope;
         if (nextScope && nextScope !== scopeRef.current) {
@@ -742,7 +828,14 @@ function App() {
           else if (initial && !initial.scopeKey && initial.importedBundle) setRecoveredBundle(initial.importedBundle);
           const saved = nextScope ? savedScopesRef.current[nextScope] : undefined;
           const defaults = emptyScopedState();
-          const value = saved ?? defaults;
+          const firstHydration = !scopeRef.current && sameHydratingIdentity(previousSnapshot, message.snapshot);
+          const edits: ExplicitStateEdits = {};
+          if (firstHydration) recordStateEdits(edits, initialScopeStateRef.current, currentScopeStateRef.current,
+            ['filters', 'selectedIds', 'graphNodePositions', 'manualTimes', 'timeEdits']);
+          else { uiIntents.current.reset(); unresolvedReviewFilter.current = undefined; unresolvedScopedEdits.current = {}; }
+          let value = applyStateEdits(saved ?? defaults, edits, ['filters', 'selectedIds', 'graphNodePositions', 'manualTimes', 'timeEdits']);
+          if (firstHydration) value = applyStateEdits(value, unresolvedScopedEdits.current, ['filters']);
+          unresolvedScopedEdits.current = {};
           scopeRef.current = nextScope;
           timerVersionRef.current = message.snapshot.timerVersion ?? 0;
           issueGraphVersionRef.current = message.snapshot.issueGraphVersion ?? 0;
@@ -752,7 +845,7 @@ function App() {
             ? preferredBoardId
             : message.snapshot.groupIssueBoards.find((item) => item.id === preferredBoardId)?.id ?? 'all';
           issueBoardIdRef.current = boardId;
-          setFilters(value.filters); setSelectedIds(value.selectedIds); setSelectedProjectIds(reconcileProjectSelection(value.selectedProjectIds, availableIds));
+          setFilters(value.filters); setSelectedIds(value.selectedIds); setSelectedProjectIds(projectsComplete(message.snapshot) ? reconcileProjectSelection(value.selectedProjectIds, availableIds) : value.selectedProjectIds);
           setAnalysisProjectIds(value.analysisProjectIds); setIssueBoardId(boardId);
           setDeveloperView(value.developerView ?? 'list'); setGraphBoardId(value.graphBoardId ?? 'all');
           setGraphCamera(value.graphCamera ?? defaultGraphCamera); setGraphNodePositions(value.graphNodePositions ?? {});
@@ -761,7 +854,7 @@ function App() {
           setIssueDetailSearch(value.issueDetailSearch ?? initial?.issueDetailSearch ?? '');
           setIssueProjectFilter(value.issueProjectFilter); setIssueLabelFilter(value.issueLabelFilter);
           setIssueMilestoneFilter(value.issueMilestoneFilter ?? 'all');
-          setReviewFilter(message.snapshot.mergeRequestFilter ?? value.reviewFilter); setIntent(value.analysisIntent); setRequirement(value.requirement);
+          setReviewFilter(value.reviewFilter); setIntent(value.analysisIntent); setRequirement(value.requirement);
           setImportText(value.importText); setBundle(value.importedBundle); setDraftChecked(value.draftChecked);
           setDraftChoices(value.draftChoices); setReports(value.reports);
           const manualTimeState = restoreManualTimeState(value);
@@ -772,7 +865,7 @@ function App() {
           setMoreRepoActions(false);
         } else if (nextScope && nextScope === scopeRef.current) {
           const availableIds = message.snapshot.projects.map((project) => project.id);
-          setSelectedProjectIds((current) => reconcileProjectSelection(current, availableIds));
+          if (projectsComplete(message.snapshot)) setSelectedProjectIds((current) => reconcileProjectSelection(current, availableIds));
           if (filterOptionsComplete(message.snapshot, 'boards')) {
             const selectedBoardId = issueBoardIdRef.current;
             const boardId = selectedBoardId === 'all' || message.snapshot.groupIssueBoards.some((item) => item.id === selectedBoardId)
@@ -808,16 +901,14 @@ function App() {
         const operation = message.snapshot.connectedScope && message.snapshot.cloneOperation?.scopeKey === message.snapshot.connectedScope && (!message.snapshot.cloneOperation.projectRevision || message.snapshot.cloneOperation.projectRevision === message.snapshot.projectContext?.revision) ? message.snapshot.cloneOperation : undefined;
         setCloneOperation(operation as Extract<WorkspaceResponse, { type: 'cloneOperation' }> | undefined);
         if (operation) applyCompletedSelection(operation);
-        const nextMode = normalizeWorkspaceMode(message.snapshot.activeMode);
-        if (modeRef.current !== nextMode) setMobilePanel('list');
-        modeRef.current = nextMode;
-        setMode(nextMode);
-        if (message.snapshot.projectSource === 'gitlab' || message.snapshot.projectSource === 'local') {
-          requestProjectSource = message.snapshot.projectSource;
-          setProjectTab(message.snapshot.projectSource);
+        applyUiValues(uiIntents.current.snapshot({ mode: normalizeWorkspaceMode(message.snapshot.activeMode),
+          ...(message.snapshot.projectSource ? { projectSource: message.snapshot.projectSource } : {}),
+          ...(message.snapshot.mergeRequestFilter ? { mergeRequestFilter: message.snapshot.mergeRequestFilter } : {}),
+          workflowKitSource: message.snapshot.workflowKitSource }, message.snapshot.hostNavigationGeneration, message.snapshot.operationSnapshot?.sessionId));
+        if (message.snapshot.connectedScope && unresolvedReviewFilter.current !== undefined) {
+          const filter = unresolvedReviewFilter.current; unresolvedReviewFilter.current = undefined;
+          requestUiChoice('mergeRequestFilter', filter, { type: 'setMergeRequestFilter', filter, connectedScope: message.snapshot.connectedScope });
         }
-        if (message.snapshot.mergeRequestFilter) setReviewFilter(message.snapshot.mergeRequestFilter);
-        setWorkflowKitSource(message.snapshot.workflowKitSource);
       } else if (message.type === 'issueNavigation') {
         setIssueNavigation(message.navigation);
         if (message.navigation) { modeRef.current = 'developer'; setMode('developer'); setMobilePanel('detail'); }
@@ -968,11 +1059,12 @@ function App() {
       instanceUserScope: snapshot?.instanceUserScope,
       projectGuideScope: wikiGuideScopeRef.current,
       skillsGuideByScope: { ...savedSkillsGuideRef.current, [wikiGuideScopeRef.current]: skillsGuide },
+      skillsGuideLegacyRoots: skillsGuideLegacyRoots.current,
       wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: legacyWikiInputs(skillsGuide.inputs) },
       wikiGuideSelectionsByScope: { ...savedWikiGuideSelectionsRef.current, [wikiGuideScopeRef.current]: skillsGuide.selections['codebase-wiki']! },
       mode, projectSource: projectTab, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
-      draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource: snapshot?.workflowKitSource ?? workflowKitSource, recoveredBundle,
+      draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource, recoveredBundle,
       manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts: issueEditorDrafts.current
     };
     vscode.setState(state);
@@ -1125,10 +1217,8 @@ function App() {
     sendGraphRelationRequest();
   }, [mode, !!issueNavigation, developerView, snapshot?.connectedScope, selectedGraphNode?.id, selectedGraphNode?.kind, issueGraphSnapshot?.status]);
 
-  useEffect(() => {
-    if (!issueGraphSnapshot || !['ready', 'partial', 'error'].includes(issueGraphSnapshot.status)) return;
-    if (selectedGraphNodeId && !issueGraphSnapshot.nodes.some((node) => node.id === selectedGraphNodeId)) setSelectedGraphNodeId(undefined);
-  }, [issueGraphSnapshot?.status, issueGraphSnapshot?.nodes, selectedGraphNodeId]);
+  // A graph is bounded and may omit the selected node during refresh or failure.
+  // Only a user selection/reset or an actual context change clears its identity.
   const visibleProjects = useMemo(() => projects.filter((project) => filterText(mode, `${project.name} ${project.path_with_namespace}`)), [projects, mode, filters[mode]]);
   const visibleProjectIds = useMemo(() => new Set(visibleProjects.map((project) => project.id)), [visibleProjects]);
   const selectedProjectIdSet = useMemo(() => new Set(selectedProjectIds), [selectedProjectIds]);
@@ -1139,7 +1229,8 @@ function App() {
     }
     return copies;
   }, [snapshot?.localWorkspaceRepositories]);
-  const hiddenSelectionCount = countHiddenProjectSelection(selectedProjectIds, [...visibleProjectIds]);
+  const unloadedSelectionCount = selectedProjectIds.reduce((count, id) => count + Number(!projectById.has(id)), 0);
+  const hiddenSelectionCount = countHiddenProjectSelection(selectedProjectIds, [...visibleProjectIds]) - unloadedSelectionCount;
   const allVisibleProjectsSelected = visibleProjects.length > 0 && visibleProjects.every((project) => selectedProjectIdSet.has(project.id));
   const selectedVisibleProjectCount = visibleProjects.reduce((count, project) => count + Number(selectedProjectIdSet.has(project.id)), 0);
   const hasIssueFilter = !!filters.developer?.trim() || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' || issueMilestoneFilter !== 'all';
@@ -1175,24 +1266,37 @@ function App() {
     const query = (filters[key] ?? '').trim().toLocaleLowerCase();
     return !query || text.toLocaleLowerCase().includes(query);
   }
-  function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); modeRef.current = next; requestMode = next; setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next, projectSource: requestProjectSource, mergeRequestFilter: reviewFilter }); }
+  function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); requestUiChoice('mode', next, { type: 'setMode', mode: next }); }
   function showLocalRepositories(): void { changeProjectSource('local'); modeChange('clone'); }
   function showGitLabProjects(): void { changeProjectSource('gitlab'); modeChange('clone'); }
   function changeProjectSource(source: 'gitlab' | 'local'): void {
     if (source === projectTab && source === requestProjectSource) return;
-    requestProjectSource = source; setProjectTab(source); post({ type: 'setProjectSource', source });
+    requestUiChoice('projectSource', source, { type: 'setProjectSource', source });
   }
   const closeIssue = useCallback(() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }, []);
-  function setFilter(key: WorkspaceMode, value: string): void { setFilters((current) => ({ ...current, [key]: value })); }
+  function setFilter(key: WorkspaceMode, value: string): void {
+    if (!scopeRef.current) unresolvedScopedEdits.current.filters = { ...(unresolvedScopedEdits.current.filters as object ?? {}), [key]: value };
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
+  function changeWorkChoice(key: 'developerView' | 'issueProjectFilter' | 'issueLabelFilter' | 'issueMilestoneFilter' | 'issueBoardId' | 'graphBoardId', value: string | number): void {
+    if (!scopeRef.current) unresolvedScopedEdits.current[key] = value;
+    if (key === 'developerView' && (value === 'list' || value === 'graph')) setDeveloperView(value);
+    else if (key === 'issueBoardId' && (value === 'all' || typeof value === 'number')) setIssueBoardId(value);
+    else if (key === 'graphBoardId' && (value === 'all' || typeof value === 'number')) setGraphBoardId(value);
+    else if (key === 'issueProjectFilter') setIssueProjectFilter(String(value));
+    else if (key === 'issueLabelFilter') setIssueLabelFilter(String(value));
+    else if (key === 'issueMilestoneFilter') setIssueMilestoneFilter(String(value));
+  }
   function changeReviewFilter(filter: 'all' | 'reviewer' | 'assigned'): void {
+    if (!scopeRef.current) unresolvedScopedEdits.current.reviewFilter = filter;
+    if (!snapshot?.connectedScope) { unresolvedReviewFilter.current = filter; setReviewFilter(filter); return; }
     if (filter === reviewFilter) return;
-    setReviewFilter(filter);
-    if (snapshot?.connectedScope) post({ type: 'setMergeRequestFilter', filter, connectedScope: snapshot.connectedScope });
+    requestUiChoice('mergeRequestFilter', filter, { type: 'setMergeRequestFilter', filter, connectedScope: snapshot.connectedScope });
   }
   function clearIssueFilters(): void {
-    setFilter('developer', ''); setIssueProjectFilter('all'); setIssueLabelFilter('all'); setIssueMilestoneFilter('all');
-    if (developerView === 'graph') setGraphBoardId('all');
-    else { if (typeof issueBoardId === 'number' && snapshot?.connectedScope) post({ type: 'selectIssueBoard', boardId: issueBoardId, connectedScope: snapshot.connectedScope, mode: 'cancel' }); setIssueBoardId('all'); }
+    setFilter('developer', ''); changeWorkChoice('issueProjectFilter', 'all'); changeWorkChoice('issueLabelFilter', 'all'); changeWorkChoice('issueMilestoneFilter', 'all');
+    if (developerView === 'graph') changeWorkChoice('graphBoardId', 'all');
+    else { if (typeof issueBoardId === 'number' && snapshot?.connectedScope) post({ type: 'selectIssueBoard', boardId: issueBoardId, connectedScope: snapshot.connectedScope, mode: 'cancel' }); changeWorkChoice('issueBoardId', 'all'); }
   }
   function selectedIssueAction(issue: GitLabIssue): void {
     listReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
@@ -1242,7 +1346,8 @@ function App() {
   const localBlocked = localProjectBlocker(snapshot.workspaceCapabilities);
   const cloneRootBlocked = firstBlocker(localBlocked, waiting, blockedWhen(!snapshot.cloneRoot, '請在設定中選擇共用根目錄。'),
     blockedWhen(snapshot.cloneRootError, snapshot.cloneRootError ?? '', 'warning'));
-  const cloneSelectedBlocked = firstBlocker(cloneRootBlocked, blockedWhen(!selectedProjectIds.length, '請先勾選要處理的 Repo。'));
+  const cloneSelectedBlocked = firstBlocker(cloneRootBlocked, blockedWhen(!selectedProjectIds.length, '請先勾選要處理的 Repo。'),
+    blockedWhen(unloadedSelectionCount > 0, '部分已選專案尚未載入，請繼續載入專案清單。'));
   const cloneBlockers = { '下載／更新、更新選取 Repo 預設分支': cloneSelectedBlocked, '更新全部本機預設分支': cloneRootBlocked };
   const mrWaiting = blockedWhen(mrBusy, 'MR 操作正在處理，請稍候。');
   const mrVersionBlocked = blockedWhen(!currentSha || currentSha !== mr?.diff_refs?.head_sha, '審查版本尚未確認或已變更，請重新檢查 MR。', 'warning');
@@ -1256,6 +1361,7 @@ function App() {
     '分支審查': firstBlocker(localBlocked, blockedWhen(!snapshot.groupRoot, snapshot.workspaceRootError ?? snapshot.skillsContext?.reason ?? '請先選擇可執行分支審查的本機專案目錄。', 'warning')) };
   const remotePage = mode === 'dashboard' && snapshot.connected || mode === 'developer' || mode === 'reviewer' || mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && !!snapshot.group;
   const projectRoot = snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot;
+  const projectRootKey = projectRoot ? projectDraftScope(projectRoot) : 'none';
   const scanBusy = scanPending || snapshot.repositoryScan?.status === 'scanning';
   const scanBlocked = firstBlocker(localBlocked,
     blockedWhen(!projectRoot, snapshot.projectContext?.error ?? '請先開啟或選擇專案資料夾。'),
@@ -1318,7 +1424,7 @@ function App() {
         <div ref={workspaceVisual} class="workspace-tasks" hidden={!!issueNavigation}>
         {!localBlocked && <CodexWorkspace controller={codex} active={mode === 'codex' && !issueNavigation} onNavigate={modeChange} />}
         <div class="git-mode-host" hidden={mode !== 'git'}>
-          {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel skills={snapshot.skillsContext} active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
+          {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel skills={snapshot.skillsContext} active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} navigationState={{ hostSessionId: snapshot.operationSnapshot?.sessionId, generation: uiIntents.current.hostGeneration }} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
         {mode !== 'git' && mode !== 'bmad' && mode !== 'codex' && <div class="page-heading"><div><div class="eyebrow">{mode === 'dashboard' ? '共用工作台' : remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'clone' && mode !== 'dashboard' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}<button class="quiet" type="button" disabled={busy || !!localBlocked && mode !== 'dashboard' && !remotePage} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button></div></div>}
@@ -1355,7 +1461,7 @@ function App() {
                     {snapshot.cloneRoot && <button class="quiet small clone-open-workspace" type="button" disabled={blockingWork || !!snapshot.cloneRootError} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button>}
                   </div>
                   <div class="clone-actions-row">
-                    <div class="clone-selection-summary"><strong>已選 {selectedProjectIds.length} 個專案</strong>{hiddenSelectionCount > 0 && <span class="subtle">{hiddenSelectionCount} 個不在目前搜尋結果</span>}</div>
+                    <div class="clone-selection-summary"><strong>已選 {selectedProjectIds.length} 個專案</strong>{hiddenSelectionCount > 0 && <span class="subtle">{hiddenSelectionCount} 個不在目前搜尋結果</span>}{unloadedSelectionCount > 0 && <span class="subtle clone-unloaded-selection" role="status">{unloadedSelectionCount} 個尚未載入</span>}</div>
                     <button class="quiet small" type="button" disabled={!selectedProjectIds.length || blockingWork} onClick={() => setSelectedProjectIds([])}>清除選取</button>
                     <details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel">
                       <button class="secondary" type="button" {...availabilityProps('clone-actions', cloneSelectedBlocked)} onClick={() => post({ type: 'syncRepos', projectIds: selectedProjectIds })}>更新選取 Repo 預設分支（{selectedProjectIds.length}）</button>
@@ -1369,8 +1475,14 @@ function App() {
                 </div>
               </div></div>
             : mode === 'bmad' ? <BmadPanel snapshot={snapshot.bmad}
-              state={bmadUiByRoot[projectRoot ?? 'none'] ?? {}} onChange={state => setBmadUiByRoot(current => ({ ...current, [projectRoot ?? 'none']: state }))}
-              key={projectRoot ?? 'none'}
+              state={bmadUiByRoot[projectRootKey] ?? {}} onChange={state => {
+                if (!bmadBoundRoot.current) recordStateEdits(unresolvedBmadEdits.current, bmadUiRef.current[projectRootKey] ?? {}, state);
+                bmadUiRef.current = { ...bmadUiRef.current, [projectRootKey]: state }; setBmadUiByRoot(bmadUiRef.current);
+              }}
+              onEnvironmentChange={state => {
+                bmadUiRef.current = { ...bmadUiRef.current, [projectRootKey]: state }; setBmadUiByRoot(bmadUiRef.current);
+              }}
+              key={projectRootKey}
               environment={snapshot.bmadEnvironment}
               kit={snapshot.workflowKit}
               onOpenSettings={() => { setSettingsSection('tools'); setToolDrawer(true); }}
@@ -1423,22 +1535,22 @@ function App() {
               repositories={snapshot.skillsContext?.repositories ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : [])}
               repositoryScanStatus={snapshot.skillsContext ? snapshot.skillsContext.groupMatch.status === 'checking' ? 'scanning' : 'ready' : snapshot.groupRepositoryScanStatus}
               repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.skillsContext ? snapshot.skillsContext.installed.version : snapshot.workflowKit.version}
-              kitInstalled={snapshot.workflowKit.status === 'installed'} state={skillsGuide} onChange={updateSkillsGuide}
+              kitInstalled={snapshot.workflowKit.status === 'installed'} state={skillsGuide} onChange={updateSkillsGuideFromUser} onEnvironmentChange={updateSkillsGuide}
               onRun={featureId => snapshot.skillsContext && post({ type: 'startCodexTask', source: { kind: 'skill', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision } })}
               onCopy={(text, featureId) => snapshot.skillsContext ? post({ type: 'copySkillGuidePrompt', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision }) : post({ type: 'copy', text })}
               onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
               <div class="toolbar developer-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label>
-                <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => setDeveloperView('list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => setDeveloperView('graph')}>圖譜</button></div>
+                <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => changeWorkChoice('developerView', 'list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => changeWorkChoice('developerView', 'graph')}>圖譜</button></div>
                 <button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button>
               </div>
               <div class="filter-row developer-filter-row">
                 <WorkspaceFilterOptions label="看板" status={snapshot.sections?.boards} error={snapshot.groupIssueBoardsError} count={issueBoards.length} retainedSelection={(developerView === 'graph' ? graphBoardId : issueBoardId) !== 'all'} disabled={busy} onLoad={() => ensureFilterOptions('boards')}>
                 <select aria-label={developerView === 'graph' ? '圖譜 Issue Board' : 'Issue Board'} value={developerView === 'graph' ? effectiveGraphBoardId : issueBoardId} disabled={busy || developerView === 'list' && !issueBoards.length && !snapshot.groupIssueBoardsError} onChange={(event) => {
                   const value = event.currentTarget.value;
-                  if (developerView === 'graph') setGraphBoardId(value === 'all' ? 'all' : Number(value));
-                  else if (value === 'all') { if (typeof issueBoardId === 'number' && snapshot.connectedScope) post({ type: 'selectIssueBoard', boardId: issueBoardId, connectedScope: snapshot.connectedScope, mode: 'cancel' }); setIssueBoardId('all'); }
-                  else { const boardId = Number(value); if (Number.isSafeInteger(boardId) && issueBoards.some((board) => board.id === boardId)) setIssueBoardId(boardId); }
+                  if (developerView === 'graph') changeWorkChoice('graphBoardId', value === 'all' ? 'all' : Number(value));
+                  else if (value === 'all') { if (typeof issueBoardId === 'number' && snapshot.connectedScope) post({ type: 'selectIssueBoard', boardId: issueBoardId, connectedScope: snapshot.connectedScope, mode: 'cancel' }); changeWorkChoice('issueBoardId', 'all'); }
+                  else { const boardId = Number(value); if (Number.isSafeInteger(boardId) && issueBoards.some((board) => board.id === boardId)) changeWorkChoice('issueBoardId', boardId); }
                 }}>
                   {developerView === 'graph'
                     ? <option value="all">全部 Board</option>
@@ -1447,21 +1559,22 @@ function App() {
                   {(developerView === 'graph' ? graphBoardId : issueBoardId) !== 'all' && !issueBoards.some(board => board.id === (developerView === 'graph' ? graphBoardId : issueBoardId)) && <option value={developerView === 'graph' ? graphBoardId : issueBoardId}>目前選取的看板（尚未確認）</option>}
                 </select>
                 </WorkspaceFilterOptions>
-                <select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.path_with_namespace}</option>)}</select>
-                <select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
+                <select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => changeWorkChoice('issueProjectFilter', event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.path_with_namespace}</option>)}</select>
+                <select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => changeWorkChoice('issueLabelFilter', event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
                 <WorkspaceFilterOptions label="里程碑" status={snapshot.sections?.milestones} error={snapshot.groupMilestonesError} count={issueMilestones.length} retainedSelection={issueMilestoneFilter !== 'all'} disabled={busy} onLoad={() => ensureFilterOptions('milestones')}>
-                <select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（尚未確認）</option>}</select>
+                <select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => changeWorkChoice('issueMilestoneFilter', event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（尚未確認）</option>}</select>
                 </WorkspaceFilterOptions>
               </div>
               {(hasIssueFilter || activeBoardId !== 'all') && <div class="active-filters" role="group" aria-label="已套用的 Issue 篩選">
                 {filters.developer?.trim() && <button class="quiet small filter-chip" type="button" aria-label="清除 Issue 搜尋" onClick={() => setFilter('developer', '')}>搜尋：{filters.developer} ×</button>}
-                {activeBoardId !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除看板篩選" onClick={() => { if (developerView === 'graph') setGraphBoardId('all'); else { if (snapshot.connectedScope) post({ type: 'selectIssueBoard', boardId: activeBoardId, connectedScope: snapshot.connectedScope, mode: 'cancel' }); setIssueBoardId('all'); } }}>看板：{issueBoards.find(board => board.id === activeBoardId)?.name ?? '已選看板'} ×</button>}
-                {issueProjectFilter !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除專案篩選" onClick={() => setIssueProjectFilter('all')}>Repo：{projectById.get(Number(issueProjectFilter))?.name ?? issueProjectFilter} ×</button>}
-                {issueLabelFilter !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除標籤篩選" onClick={() => setIssueLabelFilter('all')}>Label：{issueLabelFilter} ×</button>}
-                {issueMilestoneFilter !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除里程碑篩選" onClick={() => setIssueMilestoneFilter('all')}>Milestone：{issueMilestoneFilter === 'none' ? '未設定' : issueMilestones.find(item => String(item.id) === issueMilestoneFilter)?.title ?? '已選里程碑'} ×</button>}
+                {activeBoardId !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除看板篩選" onClick={() => { if (developerView === 'graph') changeWorkChoice('graphBoardId', 'all'); else { if (snapshot.connectedScope) post({ type: 'selectIssueBoard', boardId: activeBoardId, connectedScope: snapshot.connectedScope, mode: 'cancel' }); changeWorkChoice('issueBoardId', 'all'); } }}>看板：{issueBoards.find(board => board.id === activeBoardId)?.name ?? '已選看板'} ×</button>}
+                {issueProjectFilter !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除專案篩選" onClick={() => changeWorkChoice('issueProjectFilter', 'all')}>Repo：{projectById.get(Number(issueProjectFilter))?.name ?? issueProjectFilter} ×</button>}
+                {issueLabelFilter !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除標籤篩選" onClick={() => changeWorkChoice('issueLabelFilter', 'all')}>Label：{issueLabelFilter} ×</button>}
+                {issueMilestoneFilter !== 'all' && <button class="quiet small filter-chip" type="button" aria-label="清除里程碑篩選" onClick={() => changeWorkChoice('issueMilestoneFilter', 'all')}>Milestone：{issueMilestoneFilter === 'none' ? '未設定' : issueMilestones.find(item => String(item.id) === issueMilestoneFilter)?.title ?? '已選里程碑'} ×</button>}
                 <button class="quiet small" type="button" onClick={clearIssueFilters}>清除全部篩選</button>
               </div>}
               {developerView === 'graph' ? <div class="developer-graph-panel">
+                {selectedGraphNodeId && !issueGraphSnapshot?.nodes.some(node => node.id === selectedGraphNodeId) && <p class="subtle graph-selection-pending" role="status">所選節點尚未載入，選取已保留。可繼續載入、重試，或選擇其他節點。</p>}
                 {issueGraphSnapshot && <div class="graph-load-message" role="status"><span>已顯示 {issueGraphSnapshot.roots.length} 個主要 Issue；選取節點時才載入直接關聯。看板色彩可按需載入，尚未載入不代表無歸屬。</span>
                   {issueGraphSnapshot.roots.length < snapshot.issues.length && <button class="quiet small" type="button" disabled={issueGraphSnapshot.status === 'loading'} onClick={() => post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope!, moreRoots: true })}>顯示更多主要 Issue</button>}
                   <button class="quiet small" type="button" disabled={issueGraphSnapshot.status === 'loading' || !issueGraphSnapshot.nodes.some(node => node.isRoot && node.relationsStatus !== 'ready')} onClick={() => post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope!, nodeIds: issueGraphSnapshot.nodes.filter(node => node.isRoot && node.relationsStatus !== 'ready').slice(0, 20).map(node => node.id) })}>展開接下來 20 個 Issue</button>
@@ -1560,7 +1673,7 @@ function App() {
     {toolPresence.present && <ToolDrawer open={toolDrawer} presence={toolPresence} actions={actions} snapshot={snapshot} operationBusy={!!(snapshot.projectOperationBusy ?? blockingWork)} source={workflowKitSource}
       section={settingsSection} onSection={section => { setAccountIntent(undefined); setSettingsSection(section); }} accountIntent={accountIntent} post={post}
       onRetryInstance={() => post({ type: 'retryInstanceCheck' })}
-      onSource={(source) => { setWorkflowKitSource(source); post({ type: 'setWorkflowKitSource', source }); }}
+      onSource={(source) => requestUiChoice('workflowKitSource', source, { type: 'setWorkflowKitSource', source })}
       onInstall={(releaseId) => post({ type: 'installWorkflowKit', releaseId })}
       onOpenDownload={(source) => post({ type: 'openWorkflowKitDownload', source })}
       onSelectProjectRoot={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.projectRoot' })}

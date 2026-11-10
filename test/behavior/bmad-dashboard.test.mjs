@@ -72,7 +72,7 @@ test('task drafts and copy requests stay associated with the selected root', asy
   input.value = '第二個需求'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   await view.sendSnapshot(bmadWorkspaceSnapshot(rootA));
   assert.equal(view.document.querySelector('#bmad-requirement').value, '第一個需求\n檢查畫面');
-  assert.equal(view.saved.bmadUiByRoot[rootB].requirement, '第二個需求');
+  assert.equal(view.saved.bmadUiByRoot['project-root:' + rootB.toLowerCase()].requirement, '第二個需求');
 });
 
 test('settings shows the observed external BMAD version without claiming kit ownership', async t => {
@@ -124,10 +124,10 @@ test('dashboard persists section, task and collapsed catalog choices independent
   view.document.querySelector('.bmad-catalog-toggle').click(); await view.tick();
   view.document.querySelector('[data-step-id="prd"]').click(); await view.tick();
   view.document.getElementById('bmad-phase-solutioning').click(); await view.tick();
-  assert.equal(view.saved.bmadUiByRoot[rootA].selectedTaskId, 'product');
-  assert.equal(view.saved.bmadUiByRoot[rootA].showCatalog, true);
+  assert.equal(view.saved.bmadUiByRoot['project-root:' + rootA.toLowerCase()].selectedTaskId, 'product');
+  assert.equal(view.saved.bmadUiByRoot['project-root:' + rootA.toLowerCase()].showCatalog, true);
   await view.sendSnapshot(bmadWorkspaceSnapshot(rootB)); await view.click('開始使用');
-  assert.equal(view.saved.bmadUiByRoot[rootB].selectedSection, 'start');
+  assert.equal(view.saved.bmadUiByRoot['project-root:' + rootB.toLowerCase()].selectedSection, 'start');
   await view.sendSnapshot(bmadWorkspaceSnapshot(rootA));
   assert.equal(view.document.querySelector('#bmad-tab-capabilities').getAttribute('aria-selected'), 'true');
   assert.equal(view.document.querySelector('[data-task-id="product"]').getAttribute('aria-pressed'), 'true');

@@ -2104,8 +2104,15 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
   let stateSaves = 0;
   dom.window.acquireVsCodeApi = () => ({
     postMessage: (message) => {
-      const { operationId, operationScope, ...payload } = message;
+      const { operationId, operationScope, uiIntentId, hostNavigationGeneration, ...payload } = message;
       requests.push(payload); rawRequests.push(message);
+      const selectionFields = { setMode: ['mode', message.mode], setProjectSource: ['projectSource', message.source],
+        setMergeRequestFilter: ['mergeRequestFilter', message.filter], setWorkflowKitSource: ['workflowKitSource', message.source] };
+      if (uiIntentId && selectionFields[message.type] && options.autoUiIntents !== false) queueMicrotask(() => {
+        const [field, value] = selectionFields[message.type];
+        dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'uiIntentResult', uiIntentId,
+          field, value, applied: true, hostNavigationGeneration: hostNavigationGeneration ?? 0 } }));
+      });
       if (operationId && options.autoOperations !== false) queueMicrotask(() => dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: {
         type: 'operationChanged', operation: { requestId: operationId, scopeRevision: operationScope,
           resourceKey: operationResource(message), action: message.type, label: 'Fixture operation', status: 'succeeded', phase: '已完成', startedAt: Date.now() }
@@ -2557,9 +2564,9 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
 
   await view.tick();
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, query.value);
-  assert.equal(view.savedState.wikiGuideSelectionsByScope['project:C:/workspace/team:local'], 'query');
-  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/team:local']['query.question'], query.value);
-  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/team:local']['audit.scope'], 'src/payments');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['project-root:c:/workspace/team'], 'query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['project-root:c:/workspace/team']['query.question'], query.value);
+  assert.equal(view.savedState.wikiGuideInputsByScope['project-root:c:/workspace/team']['audit.scope'], 'src/payments');
 
   const reopened = await mount(view.savedState, selectedGroup);
   t.after(() => reopened.dom.window.close());
@@ -2728,10 +2735,10 @@ test('keeps Wiki inputs when Group changes and separates drafts by local project
   await view.tick();
   assert.equal(selectedSkillFeature(document), 'query');
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'Team A query');
-  assert.equal(view.savedState.wikiGuideSelectionsByScope['project:C:/workspace/team:local'], 'query');
-  assert.equal(view.savedState.wikiGuideSelectionsByScope['project:C:/workspace/another-team:local'], 'query');
-  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/team:local']['query.question'], 'Team A query');
-  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/another-team:local']['query.question'], 'Team B query');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['project-root:c:/workspace/team'], 'query');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['project-root:c:/workspace/another-team'], 'query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['project-root:c:/workspace/team']['query.question'], 'Team A query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['project-root:c:/workspace/another-team']['query.question'], 'Team B query');
 });
 
 test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, and workflow kit are ready', async (t) => {
@@ -2822,7 +2829,7 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
   assert.equal(selectedSkillTool(document), 'release-reviewer');
   assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, selectedRepo);
   assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]'), null);
-  assert.equal(view.savedState.skillsGuideByScope['project:C:/workspace/another-team:local'].inputs['release-review.repo'], 'C:/workspace/another-team/other-service');
+  assert.equal(view.savedState.skillsGuideByScope['project-root:c:/workspace/another-team'].inputs['release-review.repo'], 'C:/workspace/another-team/other-service');
   const reopened = await mount(view.savedState, data);
   t.after(() => reopened.dom.window.close());
   assert.equal(selectedSkillTool(reopened.dom.window.document), 'release-reviewer');

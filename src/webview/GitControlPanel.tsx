@@ -8,10 +8,11 @@ import type { ActionController, DispatchResult } from '../workspace/actionContro
 import { finishDomainAction, useDomainActions } from './domainActions';
 import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
-import { isGitWriteAction, type GitAction, type GitChange, type GitPanelMessage, type GitRebasePlan, type GitRebaseTodoEntry, type GitRepositorySnapshot, type GitRepositorySummary, type GitStashSummary } from '../git/gitProtocol';
+import type { HostNavigation } from '../workspace/uiIntentProtocol';
+import { isGitWriteAction, type GitAction, type GitChange, type GitPanelMessage, type GitRebasePlan, type GitRebaseTodoEntry, type GitRepositorySnapshot, type GitRepositorySummary, type GitSelectionCursor, type GitStashSummary } from '../git/gitProtocol';
 import { layoutGitGraph, type GitGraphRow } from '../git/gitGraphLayout';
 import { makeDiffLines, makeSelectedPatch, type GitDiffLine } from '../git/gitDiffSelection';
-import { EMPTY_GIT_UI, GIT_UI_STORAGE_KEY, LEGACY_GIT_UI_STORAGE_KEY, restoreGitUi, type RepoGitUi } from './gitUiState';
+import { EMPTY_GIT_UI, GIT_UI_STORAGE_KEY, LEGACY_GIT_UI_STORAGE_KEY, restoreGitManualSelectionBaseline, restoreGitSelectionCursor, restoreGitUi, type GitManualSelectionBaseline, type GitNavigationState, type RepoGitUi } from './gitUiState';
 import { VirtualRows } from './VirtualRows';
 import { usePresence, useVisualTransition } from './motion';
 import './motion.css';
@@ -22,13 +23,15 @@ import './git-control-panel.css';
 
 export interface GitPanelUiState {
   selectedId: string;
+  selectionCursor?: GitSelectionCursor;
+  manualSelectionBaseline?: GitManualSelectionBaseline;
   uiByRepo: Record<string, RepoGitUi>;
   layout: { theme: 'dark' | 'vscode'; left: number; right: number };
   query: string;
   historyFilter: string;
   pendingWrites: Array<{ id: string; repoId: string; label: string; commitMessage?: string; operationId?: string; scopeRevision?: string; lockKey?: string }>;
 }
-interface Props { skills?: SkillsContext; active?: boolean; post: (message: WorkspaceRequest) => void; actions?: ActionController; initialState?: GitPanelUiState; onStateChange?: (state: GitPanelUiState) => void; }
+interface Props { skills?: SkillsContext; active?: boolean; post: (message: WorkspaceRequest) => void; actions?: ActionController; initialState?: GitPanelUiState; onStateChange?: (state: GitPanelUiState) => void; navigationState?: GitNavigationState; }
 interface DialogState { kind: 'branch' | 'fetch' | 'pull' | 'push' | 'stash' | 'rebase' | 'rebaseEditor' | 'merge' | 'reset' | 'commit' | 'pick' | 'stashAction'; value?: string; operation?: 'cherryPick' | 'revert'; pullSource?: { remote: string; branch: string }; }
 interface RequestContext { repoId: string; action: GitAction; key: string; write: boolean; operationId?: string; scopeRevision?: string; lockKey?: string; }
 type GitRequestSender = (action: GitAction, repoId?: string) => DispatchResult;
@@ -61,7 +64,7 @@ function callName(action: GitAction): string {
   return names[action.type] ?? action.type;
 }
 
-export function GitControlPanel({ active = true, post, actions: sharedActions, initialState, onStateChange, skills }: Props) {
+export function GitControlPanel({ active = true, post, actions: sharedActions, initialState, onStateChange, skills, navigationState }: Props) {
   const actions = useDomainActions(sharedActions, post, 'git-panel', operation => operation.resourceKey.startsWith('git:'));
   const restoredWrites = initialState?.pendingWrites ?? [];
   const [repositories, setRepositories] = useState<GitRepositorySummary[]>([]);
@@ -112,7 +115,6 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const rebaseSourceByRepository = useRef(new Map<string, string>());
   const requestId = useRef(0);
   const requestPrefix = useRef(crypto.randomUUID());
-  const restoring = useRef(!!initialState);
   const latestReadByRepo = useRef(new Map<string, string>());
   const requests = useRef(new Map<string, RequestContext>(restoredWrites.map(write => [write.id, {
     repoId: write.repoId, key: write.id, write: true,
@@ -125,9 +127,26 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const restoreSelections = useRef(new Set<string>());
   const latestRevision = useRef(new Map<string, number>());
   const repositoryListRevision = useRef(-1);
+  const selectionCursor = useRef(restoreGitSelectionCursor(initialState?.selectionCursor));
+  const retiredSelectionSessions = useRef(new Set<string>());
+  const manualSelectionBaseline = useRef(restoreGitManualSelectionBaseline(initialState?.manualSelectionBaseline));
+  const modeNavigation = useRef<GitNavigationState>({ generation: 0 });
+  function observeNavigation(next?: GitNavigationState): void {
+    if (!next || !Number.isSafeInteger(next.generation) || next.generation < 0) return;
+    const current = modeNavigation.current;
+    if (next.hostSessionId && retiredSelectionSessions.current.has(next.hostSessionId)) return;
+    if (next.hostSessionId && next.hostSessionId !== current.hostSessionId) {
+      if (current.hostSessionId) retiredSelectionSessions.current.add(current.hostSessionId);
+      modeNavigation.current = { ...next };
+    } else if (next.hostSessionId === current.hostSessionId) {
+      modeNavigation.current = { ...current, generation: Math.max(current.generation, next.generation) };
+    }
+  }
+  observeNavigation(navigationState);
   const activeRef = useRef(active); activeRef.current = active;
   const deferredSnapshots = useRef(new Map<string, GitRepositorySnapshot>());
   const openedRepository = useRef('');
+  const historyRepository = useRef(initialState?.selectedId ?? '');
   const selectedIdRef = useRef(selectedId);
   const snapshotsRef = useRef(snapshotByRepo);
   const uiRef = useRef(uiByRepo);
@@ -138,7 +157,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   stateChange.current = onStateChange;
   const savedView = useRef({ layout, query, historyFilter });
   savedView.current = { layout, query, historyFilter };
-  const lastPersisted = useRef<{ selectedId: string; uiByRepo: Record<string, RepoGitUi>; layout: GitPanelUiState['layout']; query: string; historyFilter: string; writes: string }>();
+  const lastPersisted = useRef<{ selectedId: string; selectionCursor?: GitSelectionCursor; manualSelectionBaseline?: GitManualSelectionBaseline; uiByRepo: Record<string, RepoGitUi>; layout: GitPanelUiState['layout']; query: string; historyFilter: string; writes: string }>();
   function persist(): void {
     const pendingWrites = [...requests.current].filter(([, context]) => context.write).map(([id, context]) => {
         const operation = actions.findByCorrelation(id);
@@ -147,11 +166,19 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
           lockKey: operation?.lockKey ?? context.lockKey,
           ...(context.action.type === 'commit' ? { commitMessage: context.action.message } : {}) };
       });
-    const next = { ...savedView.current, selectedId: selectedIdRef.current, uiByRepo: uiRef.current, writes: JSON.stringify(pendingWrites) };
+    const next = { ...savedView.current, selectedId: selectedIdRef.current, selectionCursor: selectionCursor.current,
+      manualSelectionBaseline: manualSelectionBaseline.current, uiByRepo: uiRef.current, writes: JSON.stringify(pendingWrites) };
     const previous = lastPersisted.current;
     if (previous && (Object.keys(next) as Array<keyof typeof next>).every(key => previous[key] === next[key])) return;
     lastPersisted.current = next;
     const { writes: _, ...view } = next; stateChange.current?.({ ...view, pendingWrites });
+  }
+  function selectRepository(id: string, manual = false): void {
+    if (manual) manualSelectionBaseline.current = modeNavigation.current.hostSessionId
+      ? { hostSessionId: modeNavigation.current.hostSessionId, generation: modeNavigation.current.generation } : undefined;
+    selectedIdRef.current = id;
+    setSelectedId(id);
+    persist();
   }
   useEffect(persist, [selectedId, uiByRepo, layout, query, historyFilter, pendingByRepo]);
   useEffect(() => {
@@ -179,17 +206,33 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const rebaseDialogDetails = dialog?.kind === 'rebaseEditor' ? parseRebaseDialog(dialog.value) : undefined;
 
   useEffect(() => {
-    const receive = (event: MessageEvent<GitPanelMessage>): void => {
+    const receive = (event: MessageEvent<GitPanelMessage | HostNavigation>): void => {
       const message = event.data;
       if (!message || typeof message !== 'object') return;
-      if (message.type === 'gitRepositories') {
+      if (message.type === 'hostNavigation') {
+        if (message.values.mode !== undefined) observeNavigation({ hostSessionId: message.hostSessionId, generation: message.generation });
+      } else if (message.type === 'gitRepositories') {
         if (message.revision < repositoryListRevision.current) return;
         repositoryListRevision.current = message.revision;
         setAvailable(message.available);
         setServiceMessage(message.message ?? '');
         setRepositories(message.repositories);
-        setSelectedId((current) => message.selectedRepositoryId && message.repositories.some((repo) => repo.id === message.selectedRepositoryId)
-          ? message.selectedRepositoryId : current && message.repositories.some((repo) => repo.id === current) ? current : message.repositories[0]?.id ?? '');
+        const contains = (id?: string): id is string => !!id && message.repositories.some(repo => repo.id === id);
+        const intent = message.selectionIntent, cursor = selectionCursor.current;
+        const nextCursor = restoreGitSelectionCursor(intent);
+        const explicit = intent && nextCursor && contains(intent.repositoryId) && !retiredSelectionSessions.current.has(intent.hostSessionId)
+          && (cursor?.hostSessionId !== intent.hostSessionId || intent.sequence > cursor.sequence);
+        if (explicit) {
+          if (cursor && cursor.hostSessionId !== intent.hostSessionId) retiredSelectionSessions.current.add(cursor.hostSessionId);
+          selectionCursor.current = nextCursor;
+        }
+        const generation = intent?.hostNavigationGeneration;
+        const baseline = manualSelectionBaseline.current;
+        const staleNavigation = generation !== undefined && (intent?.hostSessionId === modeNavigation.current.hostSessionId && generation < modeNavigation.current.generation
+          || intent?.hostSessionId === baseline?.hostSessionId && generation <= baseline!.generation);
+        const current = selectedIdRef.current;
+        selectRepository(explicit && !staleNavigation ? intent.repositoryId : contains(current) ? current
+          : contains(message.selectedRepositoryId) ? message.selectedRepositoryId : message.repositories[0]?.id ?? '');
       } else if (message.type === 'gitSnapshot') {
         const incoming = message.snapshot;
         if (!activeRef.current) {
@@ -343,12 +386,12 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
     if (selectedId === openedRepository.current) return;
     openedRepository.current = selectedId;
     setDialogOpen(false); setLeftOpen(false); setRightOpen(false);
-    if (!restoring.current) setHistoryFilter('');
+    if (historyRepository.current !== selectedId) setHistoryFilter('');
+    historyRepository.current = selectedId;
     setHistoryViewport((current) => ({ ...current, top: 0 }));
     if (historyListRef.current) historyListRef.current.scrollTop = 0;
     if (selectedId) {
       send({ type: 'open', repoId: selectedId });
-      restoring.current = false;
     }
   }, [selectedId, active]);
 
@@ -659,7 +702,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
 
   return <section class="git-workbench" ref={hostRef} tabIndex={-1} aria-label="Git 版控工作台" data-theme={layout.theme} style={{ '--git-left-width': layout.left + 'px', '--git-right-width': layout.right + 'px' }}>
     <header class="git-toolbar">
-      <div class="git-repo-picker"><GitIcon name="repo" /><label><span>REPOSITORY</span><select aria-label="版控 Repo" value={selectedId} onChange={(event) => setSelectedId(event.currentTarget.value)}><option value="">選擇 Repo</option>{visibleRepositories.map((repo) => <option key={repo.id} value={repo.id}>{repo.name} · {repo.path}</option>)}</select></label></div>
+      <div class="git-repo-picker"><GitIcon name="repo" /><label><span>REPOSITORY</span><select aria-label="版控 Repo" value={selectedId} onChange={(event) => selectRepository(event.currentTarget.value, true)}><option value="">選擇 Repo</option>{visibleRepositories.map((repo) => <option key={repo.id} value={repo.id}>{repo.name} · {repo.path}</option>)}</select></label></div>
       <label class="git-branch-picker"><GitIcon name="branch" /><select aria-label="切換本機分支" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} value={snapshot?.branch ?? ''} onChange={(event) => event.currentTarget.value && send({ type: 'checkout', name: event.currentTarget.value })}>{!snapshot?.branch && <option value="">Detached HEAD</option>}{snapshot?.branch && !localBranches.some((branch) => branch.name === snapshot.branch) && <option value={snapshot.branch}>{snapshot.branch}</option>}{localBranches.map((branch) => <option key={branch.name} value={branch.name}>{branch.name}</option>)}</select></label>
       {snapshot && <span class="git-toolbar-sync" title={snapshot.tracking ?? '尚未設定追蹤分支'} aria-label={'同步狀態：領先 ' + (snapshot.ahead ?? 0) + '，落後 ' + (snapshot.behind ?? 0)}>↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span>}
       <div class="git-toolbar-spacer" />

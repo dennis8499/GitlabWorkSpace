@@ -183,6 +183,7 @@ export interface WorkflowKitReleaseSummary {
 }
 
 export interface WorkspaceSnapshot {
+  hostNavigationGeneration?: number;
   workspaceCapabilities?: WorkspaceCapabilities;
   bmad?: BmadWorkflowSnapshot;
   bmadEnvironment?: BmadEnvironmentCheck;
@@ -390,9 +391,12 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'selectWorkflowKitInstallRoot' }
   | { type: 'resetWorkflowKitInstallRoot' }
   | { type: 'installWorkflowKit'; releaseId: string }
-) & { projectRevision?: string; operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number };
+) & { projectRevision?: string; operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number }
+  & import('./uiIntentProtocol').UiIntentMetadata;
 
 export type WorkspaceResponse =
+  | import('./uiIntentProtocol').UiIntentResult
+  | import('./uiIntentProtocol').HostNavigation
   | { type: 'protocolError'; operationId?: string; message: string }
   | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
   | { type: 'codexTaskStarted'; taskId: string }

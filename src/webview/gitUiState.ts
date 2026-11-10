@@ -1,4 +1,7 @@
-import type { GitChange } from '../git/gitProtocol';
+import type { GitChange, GitSelectionCursor } from '../git/gitProtocol';
+
+export interface GitNavigationState { hostSessionId?: string; generation: number; }
+export interface GitManualSelectionBaseline extends GitNavigationState { hostSessionId: string; }
 
 export interface RepoGitUi {
   view: 'graph' | 'diff';
@@ -12,6 +15,22 @@ export interface RepoGitUi {
 export const EMPTY_GIT_UI: RepoGitUi = { view: 'graph', selection: 'worktree', draft: '' };
 export const GIT_UI_STORAGE_KEY = 'gitlab-workspace.git-ui.v2';
 export const LEGACY_GIT_UI_STORAGE_KEY = 'gitlab-workspace.git-ui.v1';
+
+export function restoreGitSelectionCursor(value: unknown): GitSelectionCursor | undefined {
+  if (!value || typeof value !== 'object') return;
+  const cursor = value as Partial<GitSelectionCursor>;
+  if (typeof cursor.hostSessionId !== 'string' || !cursor.hostSessionId || cursor.hostSessionId.length > 160 ||
+      !Number.isSafeInteger(cursor.sequence) || cursor.sequence! < 1) return;
+  return { hostSessionId: cursor.hostSessionId, sequence: cursor.sequence! };
+}
+
+export function restoreGitManualSelectionBaseline(value: unknown): GitManualSelectionBaseline | undefined {
+  if (!value || typeof value !== 'object') return;
+  const baseline = value as Partial<GitManualSelectionBaseline>;
+  if (typeof baseline.hostSessionId !== 'string' || !baseline.hostSessionId || baseline.hostSessionId.length > 160 ||
+      !Number.isSafeInteger(baseline.generation) || baseline.generation! < 0) return;
+  return { hostSessionId: baseline.hostSessionId, generation: baseline.generation! };
+}
 
 export function restoreGitUi(text: string | null): Record<string, RepoGitUi> {
   try {

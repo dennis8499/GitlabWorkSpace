@@ -52,6 +52,8 @@ import type { BmadCommandRequest } from './bmadProtocol';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { OperationTracker, isActiveOperation, type WorkspaceOperationState } from './operations';
 import { SnapshotTransport } from './snapshotTransport';
+import { HostUiIntents, type UiIntentTicket } from './hostUiIntents';
+import { uiIntentField, type UiIntentField, type UiIntentValues } from './uiIntentProtocol';
 import { describeAction, effectiveOperationScope } from './actionPolicy';
 import { NotificationCenter } from '../notifications/notificationCenter';
 import { collectWorkspaceFeedback } from '../notifications/workspaceFeedback';
@@ -59,7 +61,7 @@ import type { NotificationOrigin } from '../notifications/notificationProtocol';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './workflowKitReleases';
-import type { BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft, CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry } from './workspaceProtocol';
+import type { BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft, CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry } from './workspaceProtocol';
 import { parseWorkspaceRequest, WorkspaceProtocolError } from './workspaceRequestValidation';
 import { promptNativeAccountLogin, type NativeAccountLogin } from '../connection/nativeAccountLogin';
 import { workspaceSettingIds, type WorkspaceSettingId } from './workspaceProtocol';
@@ -284,6 +286,14 @@ export class WorkspacePanel implements vscode.Disposable {
   private issuePublishQueue: Promise<unknown> = Promise.resolve();
   private readonly issueRelationWritesInFlight = new Set<string>();
   private selectedGitRepositoryId?: string;
+  private uiIntents?: HostUiIntents;
+  private uiIntentRequests?: WeakMap<object, { ticket: UiIntentTicket; viewGeneration: number; epoch: number | undefined; contextKey: string }>;
+  private uiCompanionRequests?: WeakMap<object, Partial<Record<UiIntentField, UiIntentTicket>>>;
+  private uiChoiceContextKey?: string;
+  private acknowledgedUiRequests?: WeakSet<object>;
+  private gitSelectionIntent?: import('../git/gitProtocol').GitSelectionIntent;
+  private gitSelectionSession?: string;
+  private gitSelectionSequence = 0;
   private gitPanelReady = false;
   private gitRepositoryListDirty = false;
   private gitRepositoryListTimer?: ReturnType<typeof setTimeout>;
@@ -375,7 +385,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.issuePanels.setWorkspace({
       post: (message) => this.post(message),
       show: () => this.show('developer'),
-      navigate: (navigation) => { this.issueNavigation = navigation; if (navigation) this.activeMode = 'developer'; this.post({ type: 'issueNavigation', navigation }); }
+      navigate: (navigation) => { this.issueNavigation = navigation; if (navigation) { this.hostNavigate({ mode: 'developer' }); this.activeMode = 'developer'; } this.post({ type: 'issueNavigation', navigation }); }
     });
   }
 
@@ -422,7 +432,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   async show(mode?: WorkspaceMode, options: { refresh?: boolean } = {}): Promise<void> {
     const changed = !!mode && mode !== this.activeMode;
-    if (mode && ALLOWED_MODES.has(mode)) this.activeMode = mode;
+    if (mode && ALLOWED_MODES.has(mode) && !await this.hostSetMode(mode)) return;
     const assetRoot = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'issue-webview');
     if (!this.panel) {
       const panel = vscode.window.createWebviewPanel('gitlabWorkspace.dashboard', 'GitLab Workspace', vscode.ViewColumn.Active, {
@@ -493,8 +503,10 @@ export class WorkspacePanel implements vscode.Disposable {
         await this.context.globalState.update(SELECTED_GIT_REPOSITORY_KEY, repositoryId);
         if (!current()) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
       }
-      this.activeMode = mode;
-      await this.context.globalState.update(SELECTED_MODE_KEY, mode);
+      if (!await this.hostSetMode(mode) || !current()) return;
+      if (repositoryId) this.gitSelectionIntent = { hostSessionId: this.uiHostSession(),
+        sequence: this.gitSelectionSequence = (this.gitSelectionSequence ?? 0) + 1, repositoryId,
+        hostNavigationGeneration: this.uiIntents?.generation ?? 0 };
     }
     if (!current()) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
     this.gitRepositories?.setActivePanelRepository(this.activeMode === 'git' && this.panel?.visible ? this.selectedGitRepositoryId : undefined);
@@ -684,6 +696,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async navigateAndScanRepositories(resume: boolean): Promise<void> {
     const signature = this.projectContextSignature();
+    this.hostNavigate({ projectSource: 'local' });
     this.projectSource = 'local';
     if (!this.webviewReady) this.pendingProjectSource = 'local';
     await this.navigateTo('clone');
@@ -847,7 +860,7 @@ export class WorkspacePanel implements vscode.Disposable {
       this.session.log?.record({ feature: message.type === 'gitError' ? 'git' : 'workspace', action: 'operationError', result: 'error', message: message.message });
     }
     if (!this.disposed && (!this.panel || this.panel.visible === false || !this.webviewReady) && message && typeof message === 'object' && 'type' in message &&
-      (message.type === 'accountLoginResult' ||
+      (message.type === 'hostNavigation' || message.type === 'accountLoginResult' ||
         message.type === 'issueResponse' && 'response' in message && message.response && typeof message.response === 'object' && 'type' in message.response && message.response.type === 'reply')) {
       this.pendingViewNotices.push(message);
       if (this.pendingViewNotices.length > 128) this.pendingViewNotices.shift();
@@ -881,7 +894,8 @@ export class WorkspacePanel implements vscode.Disposable {
         available: state.available,
         message: state.message,
         revision: state.revision,
-        selectedRepositoryId: this.selectedGitRepositoryId
+        selectedRepositoryId: this.selectedGitRepositoryId,
+        selectionIntent: this.gitSelectionIntent
       });
     } catch (error) {
       this.gitRepositoryListDirty = true;
@@ -969,6 +983,83 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
+  private hostNavigate(values: Partial<UiIntentValues>): number {
+    const event = (this.uiIntents ??= new HostUiIntents()).navigate(values);
+    this.post({ ...event, hostSessionId: this.uiHostSession() });
+    return event.generation;
+  }
+
+  private uiHostSession(): string { return this.gitSelectionSession ??= this.operations?.sessionId ?? randomUUID(); }
+
+  private async hostSetMode(mode: WorkspaceMode): Promise<boolean> {
+    const intents = this.uiIntents ??= new HostUiIntents();
+    const event = intents.navigate({ mode });
+    const ticket = intents.register('mode', { hostNavigationGeneration: event.generation });
+    let committed = false;
+    const applied = await intents.apply(ticket, async current => {
+      if (this.disposed) return;
+      await this.context.globalState.update(SELECTED_MODE_KEY, mode);
+      if (!current() || this.disposed) { await this.context.globalState.update(SELECTED_MODE_KEY, this.activeMode); return; }
+      this.activeMode = mode; committed = true;
+    });
+    if (applied && committed) this.post({ ...event, hostSessionId: this.uiHostSession() });
+    return applied && committed;
+  }
+
+  private uiChoiceValues(): UiIntentValues {
+    return { mode: this.activeMode, projectSource: this.projectSource,
+      mergeRequestFilter: this.mergeRequestFilter, workflowKitSource: this.workflowKit?.snapshot.source ?? 'github' };
+  }
+
+  private uiChoiceContext(): string {
+    return JSON.stringify([this.session.baseUrl, this.session.activeAccountId, this.session.selectedGroup?.id]);
+  }
+
+  private registerUiChoice(request: WorkspaceRequest, field: UiIntentField): { ticket: UiIntentTicket; viewGeneration: number; epoch: number | undefined; contextKey: string } {
+    const requests = this.uiIntentRequests ??= new WeakMap();
+    let entry = requests.get(request);
+    if (!entry) {
+      entry = { ticket: (this.uiIntents ??= new HostUiIntents()).register(field, request),
+        viewGeneration: this.viewGeneration, epoch: this.session.connectionEpoch, contextKey: this.uiChoiceContext() };
+      requests.set(request, entry);
+      if (request.type === 'setMode') {
+        const companions: Partial<Record<UiIntentField, UiIntentTicket>> = {};
+        if (request.projectSource !== undefined) companions.projectSource = this.uiIntents!.register('projectSource', request);
+        if (request.mergeRequestFilter !== undefined) companions.mergeRequestFilter = this.uiIntents!.register('mergeRequestFilter', request);
+        (this.uiCompanionRequests ??= new WeakMap()).set(request, companions);
+      }
+    }
+    return entry;
+  }
+
+  private replyUiChoice(request: WorkspaceRequest, field: UiIntentField, applied: boolean, error?: string): void {
+    if (!request.uiIntentId || this.acknowledgedUiRequests?.has(request)) return;
+    (this.acknowledgedUiRequests ??= new WeakSet()).add(request);
+    this.post({ type: 'uiIntentResult', uiIntentId: request.uiIntentId, field, applied,
+      value: this.uiChoiceValues()[field], hostNavigationGeneration: this.uiIntents?.generation ?? 0, error });
+  }
+
+  private async applyUiChoice(request: WorkspaceRequest, field: UiIntentField,
+    mutate: (current: () => boolean) => Promise<void>): Promise<boolean> {
+    const entry = this.registerUiChoice(request, field);
+    let applied = false;
+    try {
+      const committed = await this.uiIntents!.apply(entry.ticket, async latest => {
+        const current = () => latest() && !this.disposed && entry.viewGeneration === this.viewGeneration
+          && entry.epoch === this.session.connectionEpoch && entry.contextKey === this.uiChoiceContext();
+        if (!current()) return;
+        await mutate(current);
+        applied = current();
+      });
+      applied &&= committed;
+      this.replyUiChoice(request, field, applied);
+      return applied;
+    } catch (error) {
+      this.replyUiChoice(request, field, false, readableError(error));
+      throw error;
+    }
+  }
+
   private async handleMessage(value: unknown): Promise<void> {
     try { await this.handleOperationMessage(value); }
     catch (error) {
@@ -987,6 +1078,8 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async handleOperationMessage(value: unknown): Promise<void> {
     let request = parseWorkspaceRequest(value);
+    const choice = uiIntentField(request.type);
+    if (choice) this.registerUiChoice(request, choice);
     if (request.operationId !== undefined && (typeof request.operationId !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(request.operationId))) throw new Error('操作識別碼無效，請重新載入工作台。');
     if (request.operationScope !== undefined && (typeof request.operationScope !== 'string' || request.operationScope.length > 500)) throw new Error('工作區識別資料無效，請重新載入工作台。');
     let normalizationError: unknown;
@@ -994,7 +1087,7 @@ export class WorkspacePanel implements vscode.Disposable {
       try { request = { ...request, request: this.issuePanels.normalizeOperationRequest(request.request) }; }
       catch (error) { normalizationError = error; }
     }
-    await this.runAction(request, async () => {
+    try { await this.runAction(request, async () => {
       if (normalizationError) { this.noteOutcome({ effect: 'none' }); throw normalizationError; }
       await this.dispatchMessage(request);
       // Repository adapters already note the authoritative result, including
@@ -1003,7 +1096,10 @@ export class WorkspacePanel implements vscode.Disposable {
         if (this.repositoryScan.status === 'cancelled') return { status: 'cancelled', effect: 'none' };
         if (this.repositoryScan.status === 'error') return { status: 'failed', error: this.repositoryScan.errors.map(item => item.message).join('；'), effect: 'none' };
       }
-    });
+    }); } catch (error) {
+      if (choice) this.replyUiChoice(request, choice, false, readableError(error));
+      throw error;
+    }
   }
 
   getOperationScope(): string { return this.operationScope(); }
@@ -1236,8 +1332,7 @@ export class WorkspacePanel implements vscode.Disposable {
         }
         const taskId = await this.createSelectedCodexTask(request.source, this.operationContext.getStore() ?? request.operationId);
         if (!taskId) break;
-        this.activeMode = 'codex';
-        await this.context.globalState.update(SELECTED_MODE_KEY, 'codex');
+        if (!await this.hostSetMode('codex')) break;
         this.post({ type: 'codexTaskStarted', taskId });
         this.sendSnapshot();
         this.noteOutcome({ effect: 'applied' }); break;
@@ -1314,30 +1409,38 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'setMode':
         if (!ALLOWED_MODES.has(request.mode)) return;
         await this.withReadHandoff(async () => {
-          this.cancelPageReads();
-          this.activeMode = request.mode;
-          if (request.mergeRequestFilter && ['all', 'reviewer', 'assigned'].includes(request.mergeRequestFilter)) this.changeMergeRequestFilter(request.mergeRequestFilter);
-          if (request.projectSource === 'gitlab' || request.projectSource === 'local') this.projectSource = request.projectSource;
-          if (request.mode !== 'developer') this.hideIssueGraph();
-          await this.context.globalState.update(SELECTED_MODE_KEY, request.mode);
-          this.sendSnapshot(); this.syncBmadVisibility();
-          await this.refresh({ reason: 'entry' });
+          if (await this.applyUiChoice(request, 'mode', async current => {
+            if (!current()) return;
+            await this.context.globalState.update(SELECTED_MODE_KEY, request.mode);
+            if (!current()) {
+              await this.context.globalState.update(SELECTED_MODE_KEY, this.activeMode);
+              return;
+            }
+            this.cancelPageReads();
+            this.activeMode = request.mode;
+            const companions = this.uiCompanionRequests?.get(request);
+            if (request.mergeRequestFilter && companions?.mergeRequestFilter && this.uiIntents!.current(companions.mergeRequestFilter)) this.changeMergeRequestFilter(request.mergeRequestFilter);
+            if (request.projectSource && companions?.projectSource && this.uiIntents!.current(companions.projectSource)) this.projectSource = request.projectSource;
+            if (request.mode !== 'developer') this.hideIssueGraph();
+            this.sendSnapshot(); this.syncBmadVisibility();
+          })) await this.refresh({ reason: 'entry' });
         });
         break;
       case 'setMergeRequestFilter':
-        if (request.connectedScope !== this.connectedScopeKey() || !['all', 'reviewer', 'assigned'].includes(request.filter)) break;
-        if (this.mergeRequestFilter === request.filter) break;
-        this.changeMergeRequestFilter(request.filter);
-        this.sendSnapshot();
-        if (this.activeMode === 'reviewer') await this.refresh({ reason: 'entry' });
+        if (await this.applyUiChoice(request, 'mergeRequestFilter', async () => {
+          if (request.connectedScope !== this.connectedScopeKey()) throw new Error('帳號或 Group 已變更，請重新選擇篩選。');
+          if (this.mergeRequestFilter !== request.filter) this.changeMergeRequestFilter(request.filter);
+          this.sendSnapshot();
+        }) && this.activeMode === 'reviewer') await this.refresh({ reason: 'entry' });
         break;
       case 'setProjectSource':
         if (request.source !== 'gitlab' && request.source !== 'local') return;
-        if (this.projectSource === request.source) break;
         await this.withReadHandoff(async () => {
-          this.cancelPageReads(); this.projectSource = request.source;
-          this.sendSnapshot();
-          if (this.activeMode === 'clone') await this.refresh({ reason: 'entry' });
+          if (await this.applyUiChoice(request, 'projectSource', async current => {
+            if (!current()) return;
+            this.cancelPageReads(); this.projectSource = request.source;
+            this.sendSnapshot();
+          }) && this.activeMode === 'clone') await this.refresh({ reason: 'entry' });
         });
         break;
       case 'issueRequest':
@@ -1530,7 +1633,11 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'replyMergeRequest': await this.replyMergeRequest(request.projectId, request.iid, request.discussionId, request.body); break;
       case 'approveMergeRequest': await this.approveMergeRequest(request.projectId, request.iid, request.sha); break;
       case 'mergeMergeRequest': await this.mergeMergeRequest(request.projectId, request.iid, request.sha); break;
-      case 'setWorkflowKitSource': await this.setWorkflowKitSource(request.source); break;
+      case 'setWorkflowKitSource':
+        if (await this.applyUiChoice(request, 'workflowKitSource', async current => { await this.workflowKit.setSource(request.source, current); })) {
+          await this.refreshWorkflowKitInstallState();
+        }
+        break;
       case 'openWorkflowKitDownload': await this.openWorkflowKitDownload(request.source); break;
       case 'copySkillGuidePrompt': await this.copySkillGuidePrompt(request); break;
       case 'loadReviewSessions': await this.loadReviewSessions(request.revision, request.tool); break;
@@ -3737,6 +3844,9 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private sendSnapshot(): void {
     this.publishNavigation();
+    const choiceContext = this.uiChoiceContext();
+    if (this.uiChoiceContextKey !== undefined && this.uiChoiceContextKey !== choiceContext) this.hostNavigate(this.uiChoiceValues());
+    this.uiChoiceContextKey = choiceContext;
     if (!this.panel || this.panel.visible === false || !this.webviewReady || this.disposed) return;
     const group = this.session.selectedGroup;
     const root = this.projectContext?.root;
@@ -3749,6 +3859,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const cloneRoot = this.projectContext?.root;
     const projectRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', cloneRoot, this.projects);
     const snapshot: WorkspaceSnapshot = {
+      hostNavigationGeneration: this.uiIntents?.generation ?? 0,
       workspaceCapabilities: getWorkspaceCapabilities(vscode.workspace?.workspaceFolders),
       notifications: this.notifications.snapshot(),
       operationScope: this.operationScope(),
@@ -4039,8 +4150,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined; this.issueBoardLoad = undefined;
     this.currentUser = undefined; this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
     if (this.activeMode === 'developer' || this.activeMode === 'reviewer') {
-      this.activeMode = 'dashboard';
-      await this.context.globalState.update(SELECTED_MODE_KEY, 'dashboard');
+      await this.hostSetMode('dashboard');
     }
     this.dashboardSections = {
       local: this.dashboardSections.local.status === 'loading' ? { status: 'idle' } : this.dashboardSections.local,
@@ -5418,11 +5528,6 @@ export class WorkspacePanel implements vscode.Disposable {
     if (current.revision !== revision || !current.availableFeatures.includes(featureId)) {
       throw new Error('Skills 環境或版本已變更，請重新確認任務。');
     }
-  }
-
-  private async setWorkflowKitSource(source: ToolSource): Promise<void> {
-    await this.workflowKit.setSource(source);
-    await this.refreshWorkflowKitInstallState();
   }
 
   private async workflowKitHelper(root?: string): Promise<{ path: string; version: string; release?(): Promise<void> }> {

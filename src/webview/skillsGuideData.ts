@@ -1,6 +1,7 @@
 import type { ReviewerCapabilities, ReviewerSessionCapabilities } from '../workspace/reviewSessionProtocol';
 import { buildCommitGuidePrompt, commitGuideCards, validCommitInputs, type CommitGuideContext } from './commitGuideData';
 import { withOutputStyle } from '../workspace/outputStyle';
+import { normalizeProjectRoot } from './projectUiState';
 import type { InstalledReviewerBinding } from '../workspace/reviewSessionProtocol';
 import {
   buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
@@ -104,10 +105,7 @@ export function legacyWikiInputs(inputs: SkillGuideInputValues): WikiGuideInputV
 
 /** Saved names are accepted only when they identify one current workspace Repo. */
 export function resolveReviewerRepository<T extends { name: string; path: string }>(input: string, repositories: readonly T[]): T | undefined {
-  const key = (value: string): string => {
-    const normalized = value.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-    return /^(?:[a-z]:\/|\/\/)/i.test(normalized) ? normalized.toLowerCase() : normalized;
-  };
+  const key = normalizeProjectRoot;
   const requested = input.trim();
   if (!requested) return undefined;
   const paths = repositories.filter(repo => key(repo.path) === key(requested));

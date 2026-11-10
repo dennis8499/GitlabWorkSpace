@@ -146,8 +146,11 @@ export function isGitWriteAction(action: GitAction): boolean {
   }
 }
 
+export interface GitSelectionCursor { hostSessionId: string; sequence: number; }
+export interface GitSelectionIntent extends GitSelectionCursor { repositoryId: string; hostNavigationGeneration?: number; }
+
 export type GitPanelMessage =
-  | { type: 'gitRepositories'; repositories: GitRepositorySummary[]; available: boolean; message?: string; selectedRepositoryId?: string; revision: number }
+  | { type: 'gitRepositories'; repositories: GitRepositorySummary[]; available: boolean; message?: string; selectedRepositoryId?: string; selectionIntent?: GitSelectionIntent; revision: number }
   | { type: 'gitSnapshot'; snapshot: GitRepositorySnapshot; requestId?: string }
   | { type: 'gitActionResult'; requestId: string; error?: string; commitCompleted?: boolean; write?: boolean; effect?: 'none' | 'applied' | 'partial' | 'unknown'; refreshError?: string }
   | { type: 'gitError'; message: string };

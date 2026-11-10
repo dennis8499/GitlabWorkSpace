@@ -25,7 +25,8 @@ const dictionary = (check: Check, max = 1000): Check => value => record(value) &
 const strings = array(key), ids = array(id, 10000), tool = one('merge-reviewer', 'release-reviewer');
 const source = one('gitea', 'github'), mode = one('dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'codex');
 const metadata: Shape = { operationId: optional(value => identity(value) && /^[a-z0-9-]{1,100}$/i.test(String(value))),
-  operationScope: optional(string(500)), hostSessionId: optional(identity), scopeEpoch: optional(integer), projectRevision: optional(key) };
+  operationScope: optional(string(500)), hostSessionId: optional(identity), scopeEpoch: optional(integer), projectRevision: optional(key),
+  uiIntentId: optional(object({ viewId: identity, sequence: integer })), hostNavigationGeneration: optional(integer) };
 const issueMetadata: Shape = { requestId: optional(identity), operationId: optional(identity), operationScope: optional(string(500)),
   projectId: optional(id), issueIid: optional(id) };
 

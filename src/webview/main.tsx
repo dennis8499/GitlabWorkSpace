@@ -22,6 +22,7 @@ import type { IssueCapability } from '../issues/protocol';
 import './style.css';
 import type { CodexTaskState } from '../codex/protocol';
 import { CodexWorkflowLaunch } from './CodexWorkflow';
+import { retainChildTaskRows, settleChildTaskDraft, updateChildTaskState, type ChildTaskDraft, type ChildTaskDraftState } from './childTaskDrafts';
 
 function postIssueRequest(message: IssuePanelRequest): void {
   window.dispatchEvent(new CustomEvent<IssuePanelRequest>('workspaceIssueRequest', { detail: message }));
@@ -50,6 +51,7 @@ export interface IssueEditorDraftState {
   create: Record<string, FormState>;
   issues: Record<string, FormState>;
   conversations: Record<string, { comment: string; reply: Record<string, string>; internal?: boolean }>;
+  childTasks?: ChildTaskDraftState;
   tabs?: Record<string, { tab: 'content' | 'relations' | 'time'; revision: number }>;
   uncertain?: Record<string, IssueUncertainSubmission>;
   pending?: Record<string, IssueUncertainSubmission>;
@@ -57,7 +59,7 @@ export interface IssueEditorDraftState {
 interface IssueUncertainSubmission {
   issueId: number | null; projectId: number; action: IssueAction | null; replyId: string | null;
   issueIid?: number; operationId?: string; resourceKey?: string; scopeRevision?: string; lockKey?: string;
-  submission: { body?: string; taskTitle: string; taskDescription: string } | null;
+  submission: { body?: string; taskId?: string; taskTitle: string; taskDescription: string } | null;
   form: FormState | null; creating: boolean;
 }
 
@@ -330,6 +332,10 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
   const activeIssueId = useRef<number | null>(null);
   const issueDrafts = useRef<Map<number, FormState>>(new Map(Object.entries(draftState?.issues ?? {}).map(([id, form]) => [Number(id), form])));
   const conversationDrafts = useRef<Map<number, { comment: string; reply: Record<string, string>; internal?: boolean }>>(new Map(Object.entries(draftState?.conversations ?? {}).map(([id, conversation]) => [Number(id), conversation])));
+  const [childTaskDrafts, setChildTaskDrafts] = useState<ChildTaskDraftState>(draftState?.childTasks ?? {});
+  const childTaskDraftsRef = useRef(childTaskDrafts);
+  childTaskDraftsRef.current = childTaskDrafts;
+  const childTaskRows = useRef(new Map<number, { tasks: IssueDetailData['tasks']; complete: boolean }>());
   const routeRevision = useRef<number | undefined>();
   const [editorHtml, setEditorHtml] = useState<Record<string, string>>({});
   const [similar, setSimilar] = useState<GitLabIssue[]>([]);
@@ -370,12 +376,12 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
       if (editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
       conversationDrafts.current.set(activeIssueId.current, { comment: commentRef.current, reply: replyRef.current, internal: internalRef.current });
     }
-    const next = { create: Object.fromEntries(createDrafts.current), issues: Object.fromEntries(issueDrafts.current), conversations: Object.fromEntries(conversationDrafts.current), tabs: savedDetailTabs.current, uncertain: Object.fromEntries(uncertainSubmissions.current), pending: Object.fromEntries(submittedRequests.current) };
+    const next = { create: Object.fromEntries(createDrafts.current), issues: Object.fromEntries(issueDrafts.current), conversations: Object.fromEntries(conversationDrafts.current), childTasks: childTaskDraftsRef.current, tabs: savedDetailTabs.current, uncertain: Object.fromEntries(uncertainSubmissions.current), pending: Object.fromEntries(submittedRequests.current) };
     const previous = persistedDraft.current;
     const submissions = JSON.stringify([next.uncertain, next.pending]);
     if (previous && sameDraftRecords(previous.create, next.create) && sameDraftRecords(previous.issues, next.issues)
       && sameDraftRecords(previous.conversations, next.conversations, (left, right) => left.comment === right.comment && left.reply === right.reply && (left.internal ?? false) === (right.internal ?? false))
-      && sameDraftRecords(previous.tabs, next.tabs) && submissions === persistedSubmissions.current) return;
+      && sameDraftRecords(previous.childTasks, next.childTasks) && sameDraftRecords(previous.tabs, next.tabs) && submissions === persistedSubmissions.current) return;
     persistedDraft.current = next; persistedSubmissions.current = submissions;
     onDraftStateChange(next);
   };
@@ -435,11 +441,69 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
   const pendingAction = useRef<IssueAction | null>(null);
   const pendingReplyDiscussion = useRef<string | null>(null);
-  const pendingSubmission = useRef<{ body?: string; taskTitle: string; taskDescription: string } | null>(null);
+  const pendingSubmission = useRef<NonNullable<IssueUncertainSubmission['submission']> | null>(null);
   const activeRequest = useRef<{ id: string; epoch: number }>();
   const sectionRequests = useRef(new Map<string, Set<IssueDetailSection>>());
   const uncertainSubmissions = useRef(new Map<string, IssueUncertainSubmission>(Object.entries(draftState?.uncertain ?? {})));
   const submittedRequests = useRef(new Map<string, IssueUncertainSubmission>(Object.entries(draftState?.pending ?? {})));
+  const commitChildTaskDrafts = (next: ChildTaskDraftState): void => {
+    if (next === childTaskDraftsRef.current) return;
+    childTaskDraftsRef.current = next; setChildTaskDrafts(next); saveDraftsRef.current();
+  };
+  const showChildTask = (issueId: number, tasks: IssueDetailData['tasks']): void => {
+    const saved = childTaskDraftsRef.current[issueId];
+    const taskId = saved?.selectedId;
+    const draft = taskId ? saved?.drafts[taskId] : undefined;
+    const task = tasks.find(item => item.id === taskId);
+    selectedTaskIdRef.current = taskId ?? null; setSelectedTaskId(taskId ?? null);
+    taskTitleRef.current = draft?.title ?? task?.title ?? '';
+    taskDescriptionRef.current = draft?.description ?? task?.description ?? '';
+    setTaskTitle(taskTitleRef.current); setTaskDescription(taskDescriptionRef.current); setTaskEditing(!!draft);
+  };
+  const observeChildTasks = (issueId: number, incoming: IssueDetailData['tasks'], complete: boolean): IssueDetailData['tasks'] => {
+    const previous = childTaskRows.current.get(issueId);
+    const tasks = retainChildTaskRows(previous?.tasks ?? [], incoming, complete);
+    childTaskRows.current.set(issueId, { tasks, complete });
+    const selected = childTaskDraftsRef.current[issueId]?.selectedId;
+    if (complete && selected && !tasks.some(item => item.id === selected)) {
+      commitChildTaskDrafts(updateChildTaskState(childTaskDraftsRef.current, issueId, current => ({ ...current, selectedId: undefined })));
+    }
+    showChildTask(issueId, tasks);
+    return tasks;
+  };
+  const selectChildTask = (task: IssueDetailData['tasks'][number]): void => {
+    const issueId = activeIssueId.current;
+    if (issueId === null) return;
+    commitChildTaskDrafts(updateChildTaskState(childTaskDraftsRef.current, issueId, current => ({ ...current,
+      selectedId: current.selectedId === task.id ? undefined : task.id })));
+    showChildTask(issueId, childTaskRows.current.get(issueId)?.tasks ?? [task]);
+  };
+  const editChildTask = (patch: Partial<ChildTaskDraft> = {}): void => {
+    const issueId = activeIssueId.current, taskId = selectedTaskIdRef.current;
+    if (issueId === null || !taskId) return;
+    const draft = { title: taskTitleRef.current, description: taskDescriptionRef.current, ...patch };
+    taskTitleRef.current = draft.title; taskDescriptionRef.current = draft.description;
+    setTaskTitle(draft.title); setTaskDescription(draft.description); setTaskEditing(true);
+    commitChildTaskDrafts(updateChildTaskState(childTaskDraftsRef.current, issueId, current => ({ ...current,
+      drafts: { ...current.drafts, [taskId]: draft } })));
+  };
+  const discardChildTaskDraft = (taskId: string): void => {
+    const issueId = activeIssueId.current;
+    if (issueId === null) return;
+    commitChildTaskDrafts(updateChildTaskState(childTaskDraftsRef.current, issueId, current => {
+      const drafts = { ...current.drafts }; delete drafts[taskId]; return { ...current, drafts };
+    }));
+    showChildTask(issueId, childTaskRows.current.get(issueId)?.tasks ?? []);
+  };
+  const settleChildTaskSubmission = (submitted: IssueUncertainSubmission, refreshError?: string): void => {
+    const value = submitted.submission;
+    if (submitted.action !== 'updateChild' || submitted.issueId === null || !value || refreshError) return;
+    const next = settleChildTaskDraft(childTaskDraftsRef.current, submitted.issueId, value.taskId,
+      { title: value.taskTitle, description: value.taskDescription });
+    if (next === childTaskDraftsRef.current) return;
+    commitChildTaskDrafts(next);
+    if (activeIssueId.current === submitted.issueId) showChildTask(submitted.issueId, childTaskRows.current.get(submitted.issueId)?.tasks ?? []);
+  };
   useEffect(() => {
     const pendingIds: string[] = [];
     for (const [requestId, submitted] of new Map([...submittedRequests.current, ...uncertainSubmissions.current])) {
@@ -473,7 +537,9 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         operationId: result.operationId, resourceKey: operation?.resourceKey, scopeRevision: operation?.scopeRevision, lockKey: operation?.lockKey,
         action: request.type === 'invoke' ? request.action : null,
         replyId: typeof payload?.discussionId === 'string' ? payload.discussionId : null,
-        submission: request.type === 'invoke' ? { body: typeof payload?.body === 'string' ? payload.body : undefined, taskTitle: taskTitleRef.current, taskDescription: taskDescriptionRef.current } : null,
+        submission: request.type === 'invoke' ? { body: typeof payload?.body === 'string' ? payload.body : undefined,
+          taskId: request.action === 'updateChild' && typeof payload?.taskId === 'string' ? payload.taskId : undefined,
+          taskTitle: taskTitleRef.current, taskDescription: taskDescriptionRef.current } : null,
         form: request.type === 'invoke' ? null : formRef.current, creating: request.type === 'create'
       });
       saveDraftsRef.current();
@@ -547,7 +613,8 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
     if (!beginRequest({ type: 'invoke', issueId: detail?.issue.id ?? 0, action, payload })) return;
     pendingAction.current = action;
     pendingReplyDiscussion.current = action === 'reply' && typeof payload.discussionId === 'string' ? payload.discussionId : null;
-    pendingSubmission.current = { body: typeof payload.body === 'string' ? payload.body : undefined, taskTitle, taskDescription };
+    pendingSubmission.current = { body: typeof payload.body === 'string' ? payload.body : undefined,
+      taskId: action === 'updateChild' && typeof payload.taskId === 'string' ? payload.taskId : undefined, taskTitle, taskDescription };
   };
   const openLink = (url: string) => post({ type: 'openLink', url });
   const requestIssueRelations = () => {
@@ -630,6 +697,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
       uncertainSubmissions.current.delete(requestId);
       submittedRequests.current.delete(requestId);
       if (operation.effect !== 'applied') { saveDraftsRef.current(); continue; }
+      settleChildTaskSubmission(submitted, operation.refreshError);
       const body = submitted.submission?.body;
       const conversation = submitted.issueId === null ? undefined : conversationDrafts.current.get(submitted.issueId);
       if (body !== undefined && (submitted.action === 'note' || submitted.action === 'thread')) {
@@ -687,7 +755,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
     loadedRelationKey.current = key;
     setRelationData(detail);
     requestIssueRelations();
-  }, [active, mode, detailTab, detail?.issue.id, snapshot?.connectedScope, navigation?.revision, embedded]);
+  }, [active, mode, detailTab, detail?.issue.id, detail?.sections?.tasks, snapshot?.connectedScope, navigation?.revision, embedded]);
 
   useEffect(() => {
     const current = relationRequest.current;
@@ -703,10 +771,13 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
     setRelationMutationApplied(response.mutationApplied === true);
     if (response.data) {
       const data = response.data;
-      setRelationData(data);
+      const complete = !!data.parentWorkItemId;
+      const tasks = observeChildTasks(data.issue.id, data.tasks, complete);
+      setRelationData({ ...data, tasks });
       setDetail((previous) => {
         if (!previous || previous.issue.id !== data.issue.id) return previous;
-        return { ...previous, links: data.links, tasks: data.tasks, parentWorkItemId: data.parentWorkItemId,
+        return { ...previous, links: data.links, tasks, parentWorkItemId: data.parentWorkItemId,
+          sections: { ...previous.sections, tasks: complete ? 'ready' : 'unsupported' },
           taskTypeId: data.taskTypeId, canLink: data.canLink, canManageChildren: data.canManageChildren };
       });
     }
@@ -742,6 +813,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         editorPreviewTargets.current.delete(message.requestId);
         const submitted = submittedRequests.current.get(message.requestId);
         submittedRequests.current.delete(message.requestId);
+        if (message.effect === 'applied' && submitted) settleChildTaskSubmission(submitted, message.refreshError);
         if (message.effect === 'unknown' && submitted) {
           uncertainSubmissions.current.set(message.requestId, submitted);
         }
@@ -764,7 +836,10 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         return;
       }
       if (activeRequest.current?.epoch === viewEpoch.current && ['createData', 'projectData', 'detailData', 'error', 'cancelled', 'deleted'].includes(message.type)) {
-        finishDomainAction(actions, activeRequest.current.id, {
+        // A detail refresh can precede the terminal write receipt. Child drafts
+        // remain pending until that receipt confirms the submitted task itself.
+        const childDetailRefresh = message.type === 'detailData' && submittedRequests.current.get(activeRequest.current.id)?.action === 'updateChild';
+        if (!childDetailRefresh) finishDomainAction(actions, activeRequest.current.id, {
           status: message.type === 'error' ? 'failed' : message.type === 'cancelled' ? 'cancelled' : 'succeeded',
           error: message.type === 'error' ? message.message : undefined,
           effect: message.effect ?? (submittedRequests.current.has(activeRequest.current.id) && ['detailData', 'deleted'].includes(message.type) ? 'applied' : undefined), refreshError: message.refreshError
@@ -845,7 +920,6 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
           internalRef.current = conversation?.internal ?? false; setInternal(internalRef.current);
           setNoteEmoji({}); setEditingNoteId(null); setDeletingNoteId(null);
           setTargetProject(''); setTargetQuery(''); setTargetProjectResults([]);
-          setSelectedTaskId(null); setTaskEditing(false);
         }
         editorPreviewTargets.current.clear(); latestEditorPreview.current.clear(); uploadTargets.current.clear(); setEditorHtml({});
         activeIssueId.current = message.data.issue.id;
@@ -863,7 +937,6 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         }
         pendingReplyDiscussion.current = null;
         if (pendingAction.current === 'editNote' && editingNoteBodyRef.current === submission?.body) setEditingNoteId(null);
-        if (pendingAction.current === 'updateChild' && taskTitleRef.current === submission?.taskTitle && taskDescriptionRef.current === submission?.taskDescription) setTaskEditing(false);
         pendingAction.current = null;
         pendingSubmission.current = null;
         const restoredConflict = conflictDraft.current !== null;
@@ -872,8 +945,10 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         pendingIssueSave.current = false;
         submittedIssueForm.current = null;
         busyRef.current = false;
-        setMode('detail'); setDetail(message.data); setProjects(message.data.projects); setOptions(message.data.options); setForm(draft ?? formFromIssue(message.data.issue, message.data.startDate));
-        setSelectedTaskId((current) => current && message.data.tasks.some((task) => task.id === current) ? current : null);
+        const tasksStatus = message.data.sections?.tasks;
+        const tasks = observeChildTasks(message.data.issue.id, message.data.tasks, tasksStatus === undefined || tasksStatus === 'ready');
+        if (message.data.sections?.tasks === 'idle') loadedRelationKey.current = '';
+        setMode('detail'); setDetail({ ...message.data, tasks }); setProjects(message.data.projects); setOptions(message.data.options); setForm(draft ?? formFromIssue(message.data.issue, message.data.startDate));
         setEditing(!!draft); setPreviewHtml('');
         if (restoredConflict) localFeedback('Latest GitLab issue loaded. Review your preserved draft before saving again.', message.operationId);
         else setError('');
@@ -888,11 +963,14 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
       } else if (message.type === 'detailPatch') {
         if (activeIssueId.current !== message.issueId) return;
         if (message.patch.discussions && displayedIssue.current) reconcileNoteMarkdown(message.patch.discussions, displayedIssue.current.project_id);
+        const taskRows = message.patch.tasks !== undefined || message.patch.sections?.tasks !== undefined
+          ? observeChildTasks(message.issueId, message.patch.tasks ?? childTaskRows.current.get(message.issueId)?.tasks ?? [], message.patch.sections?.tasks === 'ready' || message.patch.tasks !== undefined && message.patch.sections?.tasks === undefined) : undefined;
         setDetail((current) => {
           if (!current || current.issue.id !== message.issueId) return current;
           return {
             ...current,
             ...message.patch,
+            ...(taskRows ? { tasks: taskRows } : {}),
             options: message.patch.options ? { ...current.options, ...message.patch.options, states: { ...current.options.states, ...message.patch.options.states } } : current.options,
             noteReactions: { ...current.noteReactions, ...message.patch.noteReactions },
             noteReactionStates: current.noteReactionStates || message.patch.noteReactionStates ? { ...current.noteReactionStates, ...message.patch.noteReactionStates } : undefined,
@@ -955,7 +1033,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
             const discussionId = uploadTarget.slice('reply:'.length);
             setReply((current) => ({ ...current, [discussionId]: append(current[discussionId] ?? '') }));
           }
-          else if (uploadTarget.startsWith('task:') && selectedTaskIdRef.current === uploadTarget.slice('task:'.length)) setTaskDescription((current) => append(current));
+          else if (uploadTarget.startsWith('task:') && selectedTaskIdRef.current === uploadTarget.slice('task:'.length)) editChildTask({ description: append(taskDescriptionRef.current) });
         }
       } else if (message.type === 'error') {
         createPending.current = null;
@@ -1096,10 +1174,15 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         </section>
         {detailTab === 'content' && <FeatureNotices id={noticeScope + '-comment'} items={commentBlockers} />}
         <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>子工作 <span class="muted small">{detail.tasks.length}</span></h2>
+          {!childTaskRows.current.get(issue.id)?.complete && (selectedTaskId || Object.keys(childTaskDrafts[issue.id]?.drafts ?? {}).length > 0) && <p class="subtle" role="status">子工作資料尚未確認，選取與編輯草稿已保留。</p>}
+          {childTaskRows.current.get(issue.id)?.complete && Object.entries(childTaskDrafts[issue.id]?.drafts ?? {}).filter(([id]) => !detail.tasks.some(task => task.id === id)).map(([id, draft]) => <div class="recovered-draft child-task-orphan-draft" key={id}>
+            <strong>子工作已不在目前清單，尚未儲存的草稿已保留</strong><p>{draft.title}</p><pre>{draft.description}</pre>
+            <div class="toolbar wrap"><button type="button" onClick={() => postWorkspace({ type: 'copy', text: `# ${draft.title}\n\n${draft.description}` })}>複製子工作草稿</button><button type="button" onClick={() => discardChildTaskDraft(id)}>丟棄子工作草稿</button></div>
+          </div>)}
           {detail.tasks.length ? detail.tasks.map((task) => <div class="task-group" key={task.id}><div class="list-row">
-            <span class={`state ${task.state}`}>{task.state}</span><button class="text-link" onClick={() => { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); setTaskTitle(task.title); setTaskDescription(task.description ?? ''); setTaskEditing(false); }}>#{task.iid} {task.title}</button>
-            {task.canEdit && <button disabled={busy} onClick={() => invoke('setChildState', { taskId: task.id, stateEvent: task.state.toLowerCase() === 'closed' ? 'reopen' : 'close' })}>{task.state.toLowerCase() === 'closed' ? '重新開啟' : '結案'}</button>}{detail.canManageChildren && <button disabled={busy} onClick={() => invoke('removeChild', { taskId: task.id })}>移除子工作</button>}
-          </div>{selectedTaskId === task.id && <div class="task-detail">{taskEditing ? <><label class="field"><span>子工作標題</span><input aria-label="子工作標題" value={taskTitle} onInput={(event) => setTaskTitle(event.currentTarget.value)} /></label><label class="field"><span>子工作描述</span><textarea aria-label="子工作描述" rows={6} value={taskDescription} onInput={(event) => setTaskDescription(event.currentTarget.value)} /></label><div class="toolbar wrap"><button disabled={!taskDescription.trim()} onClick={() => previewEditor(`task:${task.id}`, taskDescription)}>預覽 Markdown</button><button onClick={() => upload(`task:${task.id}`)}>上傳附件</button><button class="primary" disabled={!taskTitle.trim() || busy} onClick={() => invoke('updateChild', { taskId: task.id, title: taskTitle, description: taskDescription })}>儲存子工作</button><button onClick={() => setTaskEditing(false)}>取消</button></div>{editorHtml[`task:${task.id}`] && <Markdown html={editorHtml[`task:${task.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : <>{task.descriptionHtml ? <Markdown html={task.descriptionHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{task.description || '尚未提供描述。'}</pre>}{task.canEdit && <button onClick={() => setTaskEditing(true)}>編輯子工作</button>}</>}</div>}</div>) : <p class="muted">尚無子工作。</p>}
+            <span class={`state ${task.state}`}>{task.state}</span><button class="text-link" onClick={() => selectChildTask(task)}>#{task.iid} {task.title}</button>
+            {task.canEdit && <button disabled={busy || !childTaskRows.current.get(issue.id)?.complete} onClick={() => invoke('setChildState', { taskId: task.id, stateEvent: task.state.toLowerCase() === 'closed' ? 'reopen' : 'close' })}>{task.state.toLowerCase() === 'closed' ? '重新開啟' : '結案'}</button>}{detail.canManageChildren && <button disabled={busy || !childTaskRows.current.get(issue.id)?.complete} onClick={() => invoke('removeChild', { taskId: task.id })}>移除子工作</button>}
+          </div>{selectedTaskId === task.id && <div class="task-detail">{taskEditing ? <><label class="field"><span>子工作標題</span><input aria-label="子工作標題" value={taskTitle} onInput={(event) => editChildTask({ title: event.currentTarget.value })} /></label><label class="field"><span>子工作描述</span><textarea aria-label="子工作描述" rows={6} value={taskDescription} onInput={(event) => editChildTask({ description: event.currentTarget.value })} /></label><div class="toolbar wrap"><button disabled={!taskDescription.trim()} onClick={() => previewEditor(`task:${task.id}`, taskDescription)}>預覽 Markdown</button><button onClick={() => upload(`task:${task.id}`)}>上傳附件</button><button class="primary" disabled={!taskTitle.trim() || busy || !childTaskRows.current.get(issue.id)?.complete || !task.canEdit} onClick={() => invoke('updateChild', { taskId: task.id, title: taskTitle, description: taskDescription })}>儲存子工作</button><button onClick={() => discardChildTaskDraft(task.id)}>取消</button></div>{editorHtml[`task:${task.id}`] && <Markdown html={editorHtml[`task:${task.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : <>{task.descriptionHtml ? <Markdown html={task.descriptionHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{task.description || '尚未提供描述。'}</pre>}{task.canEdit && <button disabled={!childTaskRows.current.get(issue.id)?.complete} onClick={() => editChildTask()}>編輯子工作</button>}</>}</div>}</div>) : <p class="muted">尚無子工作。</p>}
           <IssueRelationsEditor key={issue.id} issue={issue} data={relationData?.issue.id === issue.id ? relationData : detail} projects={detail.projects}
             busy={relationBusy || busy} error={relationError || error || undefined} mutationApplied={relationMutationApplied}
             onReload={requestIssueRelations} onAction={mutateIssueRelations} onOpenLink={openLink} showLinks

@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { BmadCatalogNode, BmadCommandRequest, BmadPanelState, BmadProgressStatus, BmadWorkflowSnapshot } from '../workspace/bmadProtocol';
 import type { BmadEnvironmentCheck } from '../workspace/bmadEnvironmentProtocol';
@@ -14,6 +14,7 @@ export interface BmadPanelProps {
   kit?: InstalledWorkflowKitState;
   state?: BmadPanelState;
   onChange?: (state: BmadPanelState) => void;
+  onEnvironmentChange?: (state: BmadPanelState) => void;
   onRefresh: () => void;
   onCopyCommand: (request: BmadCommandRequest) => void;
   onRunCommand?: (request: BmadCommandRequest) => void;
@@ -46,11 +47,26 @@ const nativeCommand = (skill: string, action?: string): string => `$${skill}${ac
 
 import { FeatureNotices, FeatureButton } from './FeatureNotice';
 import { availabilityProps, blockedWhen, firstBlocker } from './featureAvailability';
+import { normalizeProjectRoot } from './projectUiState';
 
 /** Guidance never changes progress; all project state comes from observed native artifacts. */
-export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefresh, onCopyCommand, onRunCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
+export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvironmentChange = onChange, onRefresh, onCopyCommand, onRunCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
   const [localState, setLocalState] = useState<BmadPanelState>({});
   const ui = state ?? localState;
+  const initialSection = useRef<Section>();
+  const latestUi = useRef(ui); latestUi.current = ui;
+  const environmentChange = useRef(onEnvironmentChange); environmentChange.current = onEnvironmentChange;
+  const defaultPersisted = useRef(false);
+  const artifacts = snapshot?.steps.flatMap(step => step.artifacts.map(artifact => ({ step, artifact }))) ?? [];
+  const hasProgress = !!snapshot && (snapshot.currentCandidates.length > 0 || snapshot.stories.length > 0 || artifacts.length > 0);
+  if (snapshot) initialSection.current ??= hasProgress ? 'progress' : 'start';
+  useEffect(() => {
+    const section = initialSection.current;
+    if (!section || sections.some(item => item.id === latestUi.current.selectedSection) || defaultPersisted.current) return;
+    defaultPersisted.current = true;
+    const next = { ...latestUi.current, selectedSection: section };
+    setLocalState(next); environmentChange.current?.(next);
+  }, [snapshot?.root, ui.selectedSection, initialSection.current]);
   const catalogRef = useRef<HTMLDivElement>(null);
   const nodes = snapshot?.nodes ?? [];
   const nodesById = useMemo(() => new Map(nodes.map(node => [node.id, node])), [snapshot?.nodes]);
@@ -62,16 +78,14 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
     return remaining.length ? [...declared, { id: 'other', label: '其他能力', nodeIds: remaining.map(node => node.id) }] : declared;
   }, [snapshot?.nodes, snapshot?.phases]);
   const change = (patch: Partial<BmadPanelState>): void => {
-    const next = { ...ui, ...patch }; setLocalState(next); onChange?.(next);
+    const next = { ...ui, selectedSection: ui.selectedSection ?? initialSection.current ?? 'start', ...patch }; setLocalState(next); onChange?.(next);
   };
 
   if (!snapshot) return <div class="bmad-panel bmad-loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true" />正在讀取 BMAD 專案狀態…</div>;
 
-  const artifacts = snapshot.steps.flatMap(step => step.artifacts.map(artifact => ({ step, artifact })));
-  const hasProgress = snapshot.currentCandidates.length > 0 || snapshot.stories.length > 0 || artifacts.length > 0;
   const ready = snapshot.installation.state === 'ready' && snapshot.codex.state === 'ready';
   const selectedSection = sections.some(item => item.id === ui.selectedSection) ? ui.selectedSection!
-    : hasProgress ? 'progress' : 'start';
+    : initialSection.current!;
   const selectedTask = BMAD_TASK_GUIDES.find(task => task.id === ui.selectedTaskId) ?? BMAD_TASK_GUIDES[0];
   const selected = ui.selectedStepId ? nodesById.get(ui.selectedStepId) : undefined;
   const selectedGuide = selected ? BMAD_CAPABILITY_GUIDES[selected.skill] : undefined;
@@ -116,7 +130,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
     </li>;
   };
   const observationTime = snapshot.observation.lastSuccessfulAt ?? snapshot.observedAt;
-  const environmentMatches = !!environment && !!snapshot.root && environment.root === snapshot.root;
+  const environmentMatches = !!environment?.root && !!snapshot.root && normalizeProjectRoot(environment.root) === normalizeProjectRoot(snapshot.root);
   const kitIssue = bmadKitTaskIssue(kit);
   const taskReady = !!snapshot.root && snapshot.installation.state === 'ready' && snapshot.compatibility !== 'unsupported'
     && snapshot.codex.skills.includes('bmad-help') && snapshot.observation.state !== 'error' && !kitIssue;

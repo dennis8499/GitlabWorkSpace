@@ -23,13 +23,14 @@ const wikiGroups = [
   { title: '匯出', ids: ['notebooklm-export'] }
 ];
 
-export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpenSettings, kitInstalled, skillsContext,
+export function SkillsGuide({ state, onChange, onEnvironmentChange = onChange, onCopy, onRun, onRunReview, onOpenSettings, kitInstalled, skillsContext,
   branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope,
   reviewSessions = [], reviewSessionsTool, reviewSessionsError, onLoadReviewSessions, reviewerCapabilitiesStatus,
   onLoadReviewerCapabilities, onCancelReview, onCopyReviewRefresh, onCopyReviewResume, onOpenReviewReport, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
   state: SkillGuideState;
-  onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
+  onChange: (update: (current: SkillGuideState) => SkillGuideState, input?: { key: string; value: string }) => void;
+  onEnvironmentChange?: (update: (current: SkillGuideState) => SkillGuideState) => void;
   onCopy: (text: string, featureId: string) => void;
   onRun?: (featureId: string) => void;
   onRunReview?: (tool: ReviewerToolId, id: string, action: 'resume' | 'refresh') => void;
@@ -72,7 +73,7 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
   useEffect(() => {
     if (!repositoryTool || explicitRepositoryRequired) return;
     const candidate = selectedRepo ?? (!repoInput && repositories.length === 1 ? repositories[0] : undefined);
-    if (candidate && repoInput !== candidate.path) onChange(current => ({ ...current,
+    if (candidate && repoInput !== candidate.path) onEnvironmentChange(current => ({ ...current,
       inputs: { ...current.inputs, [`${card.id}.repo`]: candidate.path } }));
   }, [repositoryTool, explicitRepositoryRequired, card.id, repoInput, repo, repositories]);
   useEffect(() => {
@@ -146,13 +147,13 @@ export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpe
           <button type="button" onClick={() => onChange(current => { const inputs = { ...current.inputs }; delete inputs['merge-repo.confirmationRequired']; return { ...current, inputs, migrationNotice: undefined }; })}>確認使用分支審查</button></div>}
         <div class="wiki-guide-fields">{getSkillGuideFields(card, state.inputs).filter(item => item.id !== 'effort' || modelRouting).map(item => {
           const key = `${card.id}.${item.id}`, value = state.inputs[key] ?? item.defaultValue ?? '';
-          const onInput = (value: string) => onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: value } }));
+          const onInput = (value: string) => onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: value } }), { key, value });
           let control: JSX.Element;
           if (repositoryTool && item.id === 'repo') control = <select id={`wiki-input-${key}`} value={repo ?? value} required={item.required}
             onChange={event => {
               const nextRepo = event.currentTarget.value;
               onChange(current => ({ ...current, ...(tool === 'commit-reviewer' ? { commitRepositoryRequired: { ...current.commitRepositoryRequired, [card.id]: false } } : {}), inputs: { ...current.inputs, [key]: nextRepo,
-                ...(reviewer ? { [`${card.id}.base`]: '', [`${card.id}.head`]: '' } : card.id === 'mr-precheck' ? { [`${card.id}.remote`]: '', [`${card.id}.target`]: '' } : {}) } }));
+                ...(reviewer ? { [`${card.id}.base`]: '', [`${card.id}.head`]: '' } : card.id === 'mr-precheck' ? { [`${card.id}.remote`]: '', [`${card.id}.target`]: '' } : {}) } }), { key, value: nextRepo });
             }}>
             <option value="">{repositories.length ? '請選擇 VSCode 工作區中的 Repo' : '目前 VSCode 工作區尚未找到 Repo'}</option>
             {value && !selectedRepo && <option value={value} disabled>已保存的 Repo 不在目前工作區：{value}</option>}
