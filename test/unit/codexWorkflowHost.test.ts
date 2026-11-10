@@ -69,6 +69,28 @@ test('Host Wiki preparation uses a private archive destination rather than the w
   assert.match(spec.prompt, /不可建立指向這些產物的文件連結/);
 });
 
+test('isolated Issue instructions, BMAD outputs and write roots consistently target the worktree', async t => {
+  const f = await fixture(t);
+  const spec: CodexTaskSpec = await f.panel.prepareLinkedCodexTask({ kind: 'issue', projectId: 4, issueIid: 8, isolated: true });
+  assert.ok(spec.workflow?.worktree); assert.equal(spec.executionRoot, spec.workflow.worktree.path);
+  assert.ok(spec.prompt.includes(`工作根目錄：${spec.executionRoot}`));
+  assert.ok(spec.prompt.includes(`BMAD 預設產出位置：${path.join(spec.executionRoot, '_bmad-output')}`));
+  assert.equal(spec.prompt.includes(`工作根目錄：${f.repo}\n`), false);
+  assert.ok(spec.prompt.includes(`本次只在 Repo ${JSON.stringify(spec.executionRoot)}`));
+  assert.equal(spec.writableRoots.includes(f.repo), false);
+});
+
+test('selected model and supplemental acceptance criteria retain the same admission identity', async t => {
+  const f = await fixture(t);
+  f.panel.prepareCodexEnvironment = (source: any, previous?: CodexTaskSpec) => f.panel.prepareLinkedCodexTask(source, previous);
+  const source: CodexTaskSpec['source'] = { kind: 'issue', projectId: 4, issueIid: 8, isolated: true,
+    requirement: 'Also cover the empty input.', model: 'fixture-model', effort: 'high' };
+  const first: CodexTaskSpec = await f.panel.prepareCodexTask(source), rechecked: CodexTaskSpec = await f.panel.prepareCodexTask(first.source, first);
+  assert.equal(rechecked.environmentKey, first.environmentKey); assert.equal(rechecked.executionRoot, first.executionRoot);
+  assert.equal(rechecked.prompt, first.prompt); assert.equal(rechecked.prompt.split(source.requirement!).length - 1, 1);
+  assert.equal(rechecked.model, 'fixture-model'); assert.equal(rechecked.effort, 'high');
+});
+
 test('Host MR preparation pins two local evidence refs and checks source, target and account again before publication', async t => {
   const f = await fixture(t);
   const spec: CodexTaskSpec = await f.panel.prepareLinkedCodexTask({ kind: 'merge-request', projectId: 4, iid: 8 });

@@ -15,14 +15,14 @@ const counts = option('--counts', '2000,10000').split(',').map(Number), samples 
 assert.ok(counts.every(count => Number.isSafeInteger(count) && count > 0 && count <= 10_000));
 assert.ok(Number.isSafeInteger(samples) && samples >= 3 && samples <= 300 && samples % 3 === 0);
 const baseline = option('--baseline-root'), destination = option('--out');
-const roots = [...(baseline ? [{ label: 'before', directory: path.resolve(baseline) }] : []), { label: 'after', directory: root }];
+const roots = [...(baseline ? [{ label: 'before', directory: path.resolve(baseline) }] : []), { label: 'after', directory: path.resolve(option('--bundle-root', root)) }];
 const source = await readFile(path.join(root, 'test/behavior/dashboard.test.mjs'), 'utf8');
 const ast = ts.createSourceFile('fixtures.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
 const functions = ast.statements.filter(node => ts.isFunctionDeclaration(node) && ['project', 'snapshot'].includes(node.name?.text)).map(node => node.getText(ast));
 assert.equal(functions.length, 2, 'Dashboard fixture functions changed; review the benchmark fixture.');
 const snapshot = new Function(functions.join('\n') + '; return snapshot;')();
 const theme = ':root{--vscode-foreground:#ccc;--vscode-editor-background:#1f1f1f;--vscode-sideBar-background:#181818;--vscode-descriptionForeground:#9d9d9d;--vscode-focusBorder:#0078d4;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-panel-border:#444;--vscode-font-family:Segoe UI,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:Consolas,monospace;}';
-const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }) });
 const measurements = [], checks = [], layoutChecks = [];
 const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.ceil(values.length * fraction) - 1)];
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))));
@@ -128,7 +128,7 @@ async function verifyLayoutFrames(page, count, stage, mutate) {
       const boxes = rows.map(row => row.getBoundingClientRect());
       let rowOverlap = 0, textOverflow = 0, controlOverlap = 0;
       for (let index = 1; index < boxes.length; index++) rowOverlap = Math.max(rowOverlap, boxes[index - 1].bottom - boxes[index].top);
-      for (const pre of document.querySelectorAll('.codex-item pre, .codex-interaction pre')) {
+      for (const pre of document.querySelectorAll('.codex-item .codex-markdown, .codex-item pre, .codex-interaction pre')) {
         const range = document.createRange(); range.selectNodeContents(pre);
         textOverflow = Math.max(textOverflow, range.getBoundingClientRect().bottom - pre.getBoundingClientRect().bottom);
         const controls = pre.closest('.codex-interaction')?.querySelector('.button-row');
@@ -172,7 +172,7 @@ async function layoutRegression(target) {
     await verifyLayoutFrames(longPage, 2, 'two-long-replies', () => send(longPage, { type: 'codexEvent', event: {
       kind: 'history', taskId: 'a', reset: true, items: entries(2).map(item => ({ ...item, text: longText(item.id) }))
     } }));
-    assert.ok(await longPage.locator('.codex-item pre').first().evaluate(node => node.getBoundingClientRect().height) > 360,
+    assert.ok(await longPage.locator('.codex-item .codex-markdown').first().evaluate(node => node.getBoundingClientRect().height) > 360,
       'long messages must grow beyond the dashboard code-block height limit');
     await verifyLayoutFrames(longPage, 2, 'long-interaction-detail', () => send(longPage, { type: 'codexEvent', event: {
       kind: 'interactions', taskId: 'a', interactions: [{ id: 'long-approval', taskId: 'a', kind: 'command', title: 'Synthetic approval', detail: longText('Approval') }]

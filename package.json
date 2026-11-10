@@ -251,6 +251,14 @@
     ],
     "configuration": {
       "properties": {
+        "gitlabWorkspace.codex.workspaceLayout": {
+          "type": "string",
+          "enum": ["workspace", "classic"],
+          "enumDescriptions": ["任務工作台：執行與成果分頁。", "傳統版面：執行與成果同頁，詳情於頁內展開。"],
+          "default": "workspace",
+          "scope": "window",
+          "description": "Codex 版面回退開關。切換立即生效並保留草稿；只改變排列，沿用相同任務準備、執行、收據與安全限制，不恢復舊版後端或自動重送任務。"
+        },
         "gitlabWorkspace.codex.maxConcurrentTasks": {
           "type": "integer",
           "default": 1,
@@ -467,6 +475,7 @@
     "@iarna/toml": "^2.2.5",
     "d3-force": "^3.0.0",
     "dompurify": "^3.4.16",
+    "marked": "^18.0.14",
     "preact": "^10.29.8",
     "yaml": "^2.9.1"
   },
@@ -545,5 +554,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.46.0"
+  "version": "0.47.0"
 }

@@ -4,9 +4,26 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { CodexProcessReceipt } from './workspaceLease';
+import { GitLabReadCache } from '../api/gitLabReadCache';
 
 const run = promisify(execFile);
-export interface CodexExecutable { file: string; version: string; }
+export interface CodexExecutable { file: string; version: string; identity?: string; }
+const versions = new GitLabReadCache(60_000, 32, Date.now, 64 * 1024);
+export function invalidateCodexExecutableCache(): void { versions.invalidate(); }
+/** File identity is checked on every lookup; only the executable probe is reused. */
+export async function codexExecutableVersion(file: string, signal?: AbortSignal,
+  probe: (file: string, signal: AbortSignal) => Promise<string> = async (target, abort) =>
+    (await run(target, ['--version'], { signal: abort, windowsHide: true, timeout: 10_000, maxBuffer: 32_768 })).stdout): Promise<{ version: string; identity: string }> {
+  const info = await stat(file);
+  const identity = JSON.stringify([file, info.dev, info.ino, info.size, info.mtimeMs, info.ctimeMs]);
+  const version = await versions.get(identity, async abort => {
+    const output = await probe(file, abort);
+    const match = /codex-cli\s+((\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?)/.exec(output);
+    if (!match) throw new Error('無法辨識 Codex CLI 版本。');
+    return match[1];
+  }, { signal });
+  return { version, identity };
+}
 const fileExists = async (filename: string): Promise<boolean> => {
   try { return (await stat(filename)).isFile(); } catch { return false; }
 };
@@ -34,13 +51,15 @@ async function npmPayload(shim: string): Promise<string | undefined> {
   }
   return undefined;
 }
-export async function resolveCodexExecutable(configured = '', projectRoot?: string): Promise<CodexExecutable> {
+export async function resolveCodexExecutable(configured = '', projectRoot?: string, signal?: AbortSignal): Promise<CodexExecutable> {
+  signal?.throwIfAborted();
   if (configured.includes('\0') || configured.length > 4096) throw new Error('Codex 執行檔設定無效。');
   const directories = (process.env.PATH ?? '').split(path.delimiter).map(value => value.replace(/^"|"$/g, '')).filter(value => path.isAbsolute(value));
   const candidates = configured ? [configured] : directories.flatMap(directory =>
     (process.platform === 'win32' ? ['codex.exe', 'codex.cmd'] : ['codex']).map(name => path.join(directory, name)));
   let incompatible = false;
   for (const candidate of candidates) {
+    signal?.throwIfAborted();
     if (!path.isAbsolute(candidate) || !await fileExists(candidate)) continue;
     const file = /\.(cmd|bat|ps1|js)$/i.test(candidate) ? await npmPayload(candidate) : await realpath(candidate);
     if (!file) continue;
@@ -49,14 +68,13 @@ export async function resolveCodexExecutable(configured = '', projectRoot?: stri
       if (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`)) throw new Error('請將 Codex 安裝於專案外，或設定使用者層級的 Codex 執行檔。');
     }
     await access(file);
-    const output = await run(file, ['--version'], { windowsHide: true, timeout: 10_000, maxBuffer: 32_768 });
-    const version = /codex-cli\s+((\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?)/.exec(output.stdout);
-    if (!version) throw new Error('無法辨識 Codex CLI 版本。');
-    if (+version[2] === 0 && (+version[3] < 165 || +version[3] === 165 && version[1].includes('-'))) {
+    const { version, identity } = await codexExecutableVersion(file, signal);
+    const [major, minor] = version.split('.').map(Number);
+    if (major === 0 && (minor < 165 || minor === 165 && version.includes('-'))) {
       if (configured) throw new Error('一鍵執行需要 Codex CLI 0.165.0 或更新版本，請更新 Codex。');
       incompatible = true; continue;
     }
-    return { file, version: version[1] };
+    return { file, version, identity };
   }
   throw new Error(incompatible ? '一鍵執行需要 Codex CLI 0.165.0 或更新版本，請更新 Codex。' : '找不到 Codex CLI；請安裝 Codex，或在使用者設定指定 gitlabWorkspace.codex.executablePath。');
 }

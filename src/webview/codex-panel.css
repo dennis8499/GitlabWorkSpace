@@ -1,6 +1,6 @@
 .page[data-mode="codex"] { padding: 0; overflow: hidden; }
 .page[data-mode="codex"] .workspace-tasks { display: flex; flex: 1 1 0; min-height: 0; }
-.codex-workspace { display: grid; grid-template-columns: minmax(170px, 23%) minmax(0, 1fr); flex: 1 1 0; min-height: 0; min-width: 0; background: var(--vscode-editor-background); }
+.codex-workspace { display: grid; grid-template-columns: minmax(210px, 23%) minmax(0, 1fr); flex: 1 1 0; min-height: 0; min-width: 0; background: var(--vscode-editor-background); }
 .codex-workspace[hidden] { display: none; }
 .page .codex-conversation button:not(.quiet), .codex-settings button { border: 1px solid var(--vscode-button-border, transparent); border-radius: 3px; padding: 5px 9px; background: var(--vscode-button-secondaryBackground, var(--vscode-editor-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .page .codex-conversation button:not(.quiet):not(:disabled):hover, .codex-settings button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
@@ -14,7 +14,7 @@
 .codex-tasks > button:hover { background: var(--vscode-list-hoverBackground); }
 .codex-tasks > button.active { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-focusBorder); }
 .codex-tasks small { max-width: 100%; color: inherit; opacity: .8; }
-.codex-conversation { display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; }
+.codex-conversation { display: flex; flex-direction: column; position: relative; overflow: hidden; min-width: 0; min-height: 0; }
 .codex-task-heading { display: flex; flex: 0 0 auto; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; padding: 14px 18px 0; }
 .codex-task-heading > div { flex: 1; min-width: 0; }
 .codex-task-heading h2 { font-size: 1.15rem; margin: 0 0 5px; overflow-wrap: anywhere; }
@@ -25,7 +25,7 @@
 .codex-auto-accept input { margin: 0; accent-color: var(--vscode-checkbox-selectBackground); }
 .codex-conversation > .warning, .codex-conversation > .subtle { margin: 6px 18px; }
 .codex-reading-actions { display: flex; flex: 0 0 auto; gap: 6px; padding: 4px 14px; }
-.codex-output { flex: 1 1 0; min-height: 80px; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; padding: 12px 18px 20px; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 13px); line-height: 1.55; color: var(--vscode-terminal-foreground, var(--vscode-foreground)); background: var(--vscode-terminal-background, var(--vscode-editor-background)); }
+.codex-output { flex: 1 1 0; min-height: 48px; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; padding: 12px 18px 20px; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 13px); line-height: 1.55; color: var(--vscode-terminal-foreground, var(--vscode-foreground)); background: var(--vscode-terminal-background, var(--vscode-editor-background)); }
 .codex-item { display: flex; gap: 10px; min-width: 0; margin: 0 0 14px; padding: 0; }
 .codex-transcript { min-width: 0; }
 .codex-transcript .virtual-list-row { display: flow-root; }
@@ -36,16 +36,31 @@
 .codex-item pre, .codex-interaction pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0; }
 /* The dashboard caps other code blocks at 360px. Conversation text must grow
    with its contents before the following message or approval controls begin. */
-.page .codex-item pre, .page .codex-interaction pre { max-height: none; border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; overflow: visible; }
+.page .codex-item > .codex-entry-content > pre, .page .codex-interaction > pre { max-height: none; border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; overflow: visible; }
 .codex-command { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .codex-command span, .codex-item.notice, .codex-working { color: var(--vscode-descriptionForeground); }
 .codex-copy { margin-top: 4px; }
-.codex-item:focus-visible, .codex-output:focus-visible, .codex-interaction:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
-.codex-message { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; flex: 0 0 auto; margin: 0; padding: 12px 18px 6px; border-top: 1px solid var(--vscode-panel-border); }
+.codex-item:focus-visible, .codex-output:focus-visible, .codex-interaction:focus-visible, .codex-interaction > pre:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
+.codex-message { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; flex: 0 0 auto; margin: 0; padding: 12px 18px 6px; border-top: 1px solid var(--vscode-panel-border); }
 .codex-message label { grid-column: 1 / -1; }
 .codex-message textarea { width: 100%; box-sizing: border-box; min-width: 0; max-height: 160px; resize: vertical; font-family: var(--vscode-editor-font-family, monospace); }
 .codex-message button { align-self: end; }
+.codex-message-status { grid-column: 1 / -1; margin: 0; font-size: .9rem; }
+.codex-message-queue { grid-column: 1 / -1; min-width: 0; }
+.codex-message-queue-content { position: absolute; inset: auto 0 100%; z-index: 3; box-sizing: border-box; max-height: min(320px, 45vh); overflow: auto; padding: 8px 18px; border: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background); box-shadow: 0 -4px 16px var(--vscode-widget-shadow, #0003); }
+.codex-message-queue summary { cursor: pointer; padding: 4px 0; }
+.codex-message-queue article { border-top: 1px solid var(--vscode-panel-border); padding: 8px 0; }
+.codex-queued-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.codex-message-queue pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family, monospace); }
+.codex-launch-return { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 20px; border-left: 2px solid var(--vscode-focusBorder); background: var(--vscode-sideBar-background); }
+.codex-launch-return span { overflow-wrap: anywhere; }
 .codex-footnote { flex: 0 0 auto; font-size: .9rem; padding-bottom: 6px; }
+.codex-draft-sync { flex: 0 0 auto; padding: 4px 10px; color: var(--vscode-descriptionForeground); font-size: .9rem; }
+.codex-draft-sync > details, .codex-previous-questions { max-height: 30vh; overflow: auto; }
+.codex-draft-sync article, .codex-previous-questions article { padding: 8px 0; border-top: 1px solid var(--vscode-panel-border); }
+.codex-draft-sync pre, .codex-previous-questions pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.codex-draft-sync .button-row { flex-wrap: wrap; }
+.codex-previous-questions { flex: 0 0 auto; padding: 6px 10px; }
 .codex-interaction { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 10px 14px; margin: 12px 0; border-left: 2px solid var(--vscode-focusBorder); font-family: var(--vscode-font-family); }
 .codex-interaction h4, .codex-interaction p { margin: 0; }
 .codex-interaction label { display: flex; flex-direction: column; gap: 6px; }
@@ -56,11 +71,7 @@
 .codex-workflow-launch { min-width: 0; margin: 10px 0; overflow-wrap: anywhere; }
 .codex-workflow-launch.compact { margin: 0; }
 .codex-workflow-launch p { margin: 6px 0; }
-.codex-workflow-result { flex: 0 1 auto; min-height: 0; max-height: 45vh; overflow: auto; padding: 8px 18px; border-bottom: 1px solid var(--vscode-panel-border); overflow-wrap: anywhere; }
-/* Keep Wiki progress and continuation controls readable in a short pane. The
-   conversation can scroll to its composer instead of shrinking the preview. */
-.codex-conversation:has(.codex-wiki-preview) { overflow-y: auto; }
-.codex-workflow-result:has(.codex-wiki-preview) { flex-shrink: 0; }
+.codex-workflow-result { min-width: 0; padding: 16px 18px; overflow-wrap: anywhere; }
 .codex-workflow-result p { margin: 6px 0; }
 .codex-workflow-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; font-family: var(--vscode-editor-font-family, monospace); }
 .codex-workflow-result select { width: 100%; min-width: 0; }
@@ -70,25 +81,100 @@
 .codex-announcement { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 20px; font-size: .9rem; color: var(--vscode-descriptionForeground); }
 .codex-announcement:empty { display: none; }
 .codex-nav-count { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 10px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); font-size: .85rem; }
-@media (max-width: 650px) {
-  .codex-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(66px, 22%) minmax(0, 1fr); }
-  .codex-tasks { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); padding: 6px; }
-  .codex-tasks > button { padding: 5px 8px; }
-  .codex-tasks > button small { display: none; }
-  .codex-task-heading, .codex-controls, .codex-output, .codex-message { padding-left: 10px; padding-right: 10px; }
-  .codex-message { grid-template-columns: minmax(0, 1fr); }
-  .codex-message button { justify-self: end; }
-  .codex-footnote { display: none; }
-}
 .codex-task-filter { display: grid; gap: 3px; margin: 6px 0; }
 .codex-task-filter input, .codex-task-filter select { width: 100%; min-width: 0; box-sizing: border-box; }
-.codex-task-details { min-width: 0; max-height: 35vh; overflow: auto; padding: 0 10px; border-bottom: 1px solid var(--vscode-panel-border); }
+.codex-task-details { min-width: 0; padding: 0 10px; border-bottom: 1px solid var(--vscode-panel-border); }
 .codex-task-details details { margin: 5px 0; }
 .codex-task-details p { margin: 5px 0; overflow-wrap: anywhere; }
 .codex-task-details ol { padding-inline-start: 22px; }
 .codex-extra-controls, .codex-approval-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 5px 10px; }
 .codex-approval-options label { display: inline-flex; align-items: center; gap: 3px; }
-.codex-conversation { overflow-y: auto; }
 .codex-task-details { flex: 0 0 auto; }
 .codex-extra-controls { flex: 0 0 auto; }
 .codex-tasks > button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.codex-source { color: var(--vscode-descriptionForeground); font-size: .9rem; padding-bottom: 5px; }
+.codex-journey { display: flex; flex: 0 0 auto; gap: 0; padding: 0 18px; margin: 12px 0 0; list-style: none; }
+.codex-journey li { padding: 4px 12px 6px; border-bottom: 2px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); font-size: .9rem; }
+.codex-journey li[aria-current="step"] { color: var(--vscode-foreground); border-color: var(--vscode-focusBorder); font-weight: 600; }
+.codex-journey li.complete { border-color: var(--vscode-testing-iconPassed, var(--vscode-focusBorder)); }
+.codex-mobile-tasks { display: none; }
+.codex-content-tabs { display: flex; flex: 0 0 auto; gap: 4px; padding: 0 14px; border-bottom: 1px solid var(--vscode-panel-border); }
+.page .codex-content-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 9px 10px; color: var(--vscode-descriptionForeground); }
+.page .codex-content-tabs button[aria-selected="true"] { border-bottom-color: var(--vscode-focusBorder); color: var(--vscode-foreground); font-weight: 600; }
+.codex-execution-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 84px; min-width: 0; overflow: hidden; }
+.codex-results-panel { flex: 1 1 0; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; }
+.codex-results-empty { padding: 16px 18px; }
+.codex-result-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 18px 0; }
+.codex-launch-container { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; min-height: 0; }
+.codex-execution-panel[hidden], .codex-results-panel[hidden], .codex-attention[hidden], .codex-details-drawer[hidden], .codex-launch-container[hidden], .codex-journey[hidden], .codex-content-tabs[hidden] { display: none; }
+.codex-details-toggle { margin-left: auto; }
+.codex-auto-accept-details { display: none; }
+.codex-details-drawer { position: absolute; inset: 0 0 0 auto; z-index: 5; width: min(420px, 100%); box-sizing: border-box; padding: 12px; overflow: auto; border-left: 1px solid var(--vscode-panel-border); background: var(--vscode-sideBar-background, var(--vscode-editor-background)); box-shadow: -4px 0 16px var(--vscode-widget-shadow, #0003); }
+.codex-drawer-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+.codex-drawer-heading h3 { margin: 0; }
+.codex-blockers { flex: 0 0 auto; padding: 0 18px; color: var(--vscode-descriptionForeground); }
+.codex-blockers p { margin: 5px 0; }
+.codex-attention { flex: 0 1 auto; min-height: 96px; max-height: 36vh; overflow: auto; padding: 0 18px; border-top: 2px solid var(--vscode-focusBorder); background: var(--vscode-editor-background); }
+.codex-attention .codex-interaction { margin: 0; padding: 12px 0; border-left: 0; }
+.codex-interaction > .button-row { position: static; padding: 8px 0; background: var(--vscode-editor-background); }
+.codex-question { margin: 0; padding: 0; border: 0; min-width: 0; }
+.codex-question legend { margin-bottom: 8px; font-weight: 600; }
+.codex-answer-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.page .codex-answer-options button { display: flex; flex-direction: column; flex: 1 1 180px; text-align: left; gap: 4px; white-space: normal; }
+.page .codex-answer-options button[aria-pressed="true"] { border-color: var(--vscode-focusBorder); }
+.codex-answer-options span { font-size: .9rem; color: var(--vscode-descriptionForeground); }
+@media (max-width: 719px) {
+  .codex-workspace { grid-template-columns: minmax(0, 1fr); }
+  .codex-tasks { display: none; }
+  .codex-mobile-tasks { display: flex; flex: 0 0 auto; gap: 8px; align-items: end; padding: 8px 10px; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-sideBar-background); }
+  .codex-mobile-tasks label { display: grid; gap: 4px; flex: 1; min-width: 0; }
+  .codex-mobile-tasks select { width: 100%; min-width: 0; }
+  .codex-task-heading { padding-top: 9px; gap: 5px 10px; }
+  .codex-task-heading h2 { font-size: 1.05rem; }
+  .codex-task-heading .codex-root { display: none; }
+  .codex-source { font-size: .85rem; }
+  .codex-task-heading, .codex-controls, .codex-output, .codex-message, .codex-attention, .codex-blockers { padding-left: 10px; padding-right: 10px; }
+  .codex-journey { margin-top: 7px; padding: 0 10px; }
+  .codex-journey li { padding: 3px 8px 5px; }
+  .codex-controls { gap: 6px 10px; padding-top: 8px; padding-bottom: 8px; }
+  .codex-controls > .codex-auto-accept { display: none; }
+  .codex-auto-accept-details { display: flex; margin-bottom: 12px; }
+  .codex-content-tabs { padding: 0 6px; }
+  .codex-message { padding-top: 8px; }
+  .codex-message textarea { max-height: 100px; }
+  .codex-footnote { display: none; }
+}
+/* Keep keyboard focus clear of the sticky form actions. */
+.codex-launch { scroll-padding-bottom: 120px; }
+/* Short windows and display scaling need one reachable vertical flow. */
+@media (max-height: 600px), (max-width: 399px) {
+  .codex-conversation { overflow-y: auto; scroll-padding-block: 12px 170px; }
+  .codex-conversation > * { flex-shrink: 0; }
+  .codex-execution-panel { flex: 0 0 200px; min-height: 200px; }
+  .codex-results-panel { flex: 0 0 auto; min-height: 240px; overflow: visible; }
+  .codex-attention { flex: 0 0 auto; min-height: 0; max-height: none; overflow: visible; }
+  .codex-attention .codex-interaction > .button-row { position: static; }
+  .codex-message { position: sticky; bottom: 0; z-index: 4; max-height: 180px; box-sizing: border-box; overflow-y: auto; background: var(--vscode-editor-background); }
+  .codex-message-queue-content { position: static; max-height: 160px; }
+  .codex-launch-container { flex: 0 0 auto; }
+  .codex-launch-container .codex-launch { overflow: visible; }
+  .codex-launch .codex-launch-actions { position: static; }
+}
+/* Classic changes presentation only; all controls and drafts retain their owners. */
+.codex-workspace[data-layout="classic"] .codex-conversation { overflow-y: auto; scroll-padding-block: 12px 170px; }
+.codex-workspace[data-layout="classic"] .codex-conversation > * { flex-shrink: 0; }
+.codex-workspace[data-layout="classic"] .codex-results-panel { flex: 0 0 auto; min-height: 160px; overflow: visible; }
+.codex-workspace[data-layout="classic"] .codex-execution-panel { flex: 0 0 min(400px, 50vh); min-height: 200px; }
+.codex-workspace[data-layout="classic"] .codex-details-drawer { position: static; width: auto; overflow: visible; border: 0; border-bottom: 1px solid var(--vscode-panel-border); box-shadow: none; }
+.codex-workspace[data-layout="classic"] .codex-attention { flex: 0 0 auto; min-height: 0; max-height: none; overflow: visible; }
+.codex-workspace[data-layout="classic"] .codex-message { position: sticky; bottom: 0; z-index: 4; max-height: 180px; box-sizing: border-box; overflow-y: auto; background: var(--vscode-editor-background); }
+.codex-workspace[data-layout="classic"] .codex-message-queue-content { position: static; max-height: 160px; }
+.codex-workspace[data-layout="classic"] .codex-launch-container { flex: 0 0 auto; }
+.codex-workspace[data-layout="classic"] .codex-launch { overflow: visible; }
+.codex-workspace[data-layout="classic"] .codex-launch-actions { position: static; }
+/* The outer workbench also scrolls at extreme zoom. A second sticky footer can
+   remain below that outer viewport after keyboard focus scrolls its content. */
+@media (max-height: 400px) {
+  .codex-workspace.codex-panel .codex-conversation { scroll-padding-block: 12px; }
+  .codex-workspace.codex-panel .codex-message { position: static; max-height: none; overflow: visible; }
+}

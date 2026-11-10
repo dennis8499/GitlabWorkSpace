@@ -1,0 +1,3039 @@
+{
+  "schema": "GitLabWorkspaceNativeCodexZoom/v1",
+  "executedCases": 12,
+  "baselineDpr": 1.5,
+  "assetHashes": {
+    "dashboard.html": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428",
+    "dashboard.js": "96e9cf154876b99bff7f9228e3a9f2945c71206ddb190349986756b83d4dbb14",
+    "dashboard.css": "618caca9d5f245fcc4aa26e23ecd76bd53198d04ff36cfaea7f3f8338a5e6431",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+  },
+  "method": "VS Code window.zoomLevel, verified by Webview DPR ratio; native viewport, no CSS scaling or theme injection",
+  "cases": [
+    {
+      "theme": "Dark+",
+      "scale": 1,
+      "dpr": 1.5,
+      "width": 787,
+      "height": 800,
+      "bodyClasses": "vscode-dark",
+      "themeId": "Dark+",
+      "themeKind": "vscode-dark",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 1856,
+      "detailScrollHeight": 1856,
+      "detailClientHeight": 1856,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 127, 212)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 248,
+          "y": 680.6666870117188,
+          "width": 430.66668701171875,
+          "height": 46
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 642.6666870117188,
+            "height": 90,
+            "scrollTop": 0,
+            "clientHeight": 89,
+            "scrollHeight": 89,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 127, 212)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 248,
+          "y": 592.1666870117188,
+          "width": 97.33333587646484,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 584.1666870117188,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -1373.8333740234375,
+            "height": 2016.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 2017,
+            "scrollHeight": 2017,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 522.1666870117188,
+            "height": 120.5,
+            "scrollTop": 1898,
+            "clientHeight": 119,
+            "scrollHeight": 2017,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 233.83334350585938,
+            "height": 534.1666870117188,
+            "scrollTop": 0,
+            "clientHeight": 534,
+            "scrollHeight": 534,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Dark+",
+      "scale": 1.25,
+      "dpr": 1.875,
+      "width": 499,
+      "height": 620,
+      "bodyClasses": "vscode-dark",
+      "themeId": "Dark+",
+      "themeKind": "vscode-dark",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 1792.0001220703125,
+      "detailScrollHeight": 1792,
+      "detailClientHeight": 1792,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 127, 212)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 30.000001907348633,
+          "y": 537.7667236328125,
+          "width": 371.86669921875,
+          "height": 44.93333435058594
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 504.5666809082031,
+            "height": 84.13333892822266,
+            "scrollTop": 0,
+            "clientHeight": 84,
+            "scrollHeight": 84,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 209.60000610351562,
+            "clientHeight": 293,
+            "scrollHeight": 503,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 127, 212)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 30.000001907348633,
+          "y": 454.70001220703125,
+          "width": 97.05834197998047,
+          "height": 30.000001907348633
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 446.70001220703125,
+            "height": 46.000003814697266,
+            "scrollTop": 0,
+            "clientHeight": 46,
+            "scrollHeight": 46,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -1445.300048828125,
+            "height": 1950.0001220703125,
+            "scrollTop": 0,
+            "clientHeight": 1950,
+            "scrollHeight": 1950,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 408.5666809082031,
+            "height": 96.00000762939453,
+            "scrollTop": 1855.4666748046875,
+            "clientHeight": 94,
+            "scrollHeight": 1950,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 209.60000610351562,
+            "clientHeight": 293,
+            "scrollHeight": 503,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 295.16668701171875,
+            "height": 293.1000061035156,
+            "scrollTop": 0,
+            "clientHeight": 293,
+            "scrollHeight": 293,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Dark+",
+      "scale": 2,
+      "dpr": 3,
+      "width": 662,
+      "height": 349,
+      "bodyClasses": "vscode-dark",
+      "themeId": "Dark+",
+      "themeKind": "vscode-dark",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 1792,
+      "detailScrollHeight": 1792,
+      "detailClientHeight": 1792,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 127, 212)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 30,
+          "y": 264.16668701171875,
+          "width": 523,
+          "height": 46.66666793823242
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 230.5,
+            "height": 86.33333587646484,
+            "scrollTop": 0,
+            "clientHeight": 85,
+            "scrollHeight": 85,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2244.666748046875,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 194.3333282470703,
+            "clientHeight": 349,
+            "scrollHeight": 543,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 0,
+            "clientHeight": 349,
+            "scrollHeight": 349,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 127, 212)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 30,
+          "y": 181.5,
+          "width": 98,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 173.5,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -1718.5,
+            "height": 1950.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": -1720.5,
+            "height": 1952.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2243,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": [],
+      "optionalSidebarsClosed": true
+    },
+    {
+      "theme": "Light+",
+      "scale": 1,
+      "dpr": 1.5,
+      "width": 1383,
+      "height": 800,
+      "bodyClasses": "vscode-light",
+      "themeId": "Light+",
+      "themeKind": "vscode-light",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 928,
+      "detailScrollHeight": 928,
+      "detailClientHeight": 928,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 144, 241)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 343.4375,
+          "y": 680.6666870117188,
+          "width": 931.2291870117188,
+          "height": 46
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 642.6666870117188,
+            "height": 90,
+            "scrollTop": 0,
+            "clientHeight": 89,
+            "scrollHeight": 89,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 144, 241)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 343.4375,
+          "y": 591.8333740234375,
+          "width": 97.33333587646484,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 583.8333740234375,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -446.16668701171875,
+            "height": 1088.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1089,
+            "scrollHeight": 1089,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 486.5,
+            "height": 156.1666717529297,
+            "scrollTop": 934.6666870117188,
+            "clientHeight": 154,
+            "scrollHeight": 1089,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Light+",
+      "scale": 1.25,
+      "dpr": 1.875,
+      "width": 1095,
+      "height": 620,
+      "bodyClasses": "vscode-light",
+      "themeId": "Light+",
+      "themeKind": "vscode-light",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 896.0000610351562,
+      "detailScrollHeight": 896,
+      "detailClientHeight": 896,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 144, 241)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 277.933349609375,
+          "y": 501.3000183105469,
+          "width": 712.2000122070312,
+          "height": 44.93333435058594
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 464.10003662109375,
+            "height": 88.13333892822266,
+            "scrollTop": 0,
+            "clientHeight": 88,
+            "scrollHeight": 88,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 113.5999984741211,
+            "clientHeight": 392,
+            "scrollHeight": 506,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 144, 241)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 277.933349609375,
+          "y": 414.2333679199219,
+          "width": 97.05834197998047,
+          "height": 30.000001907348633
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 406.2333679199219,
+            "height": 46.000003814697266,
+            "scrollTop": 0,
+            "clientHeight": 46,
+            "scrollHeight": 46,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -589.7667236328125,
+            "height": 1054,
+            "scrollTop": 0,
+            "clientHeight": 1054,
+            "scrollHeight": 1054,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 368.1000061035156,
+            "height": 96.00000762939453,
+            "scrollTop": 959.4666748046875,
+            "clientHeight": 94,
+            "scrollHeight": 1054,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 113.5999984741211,
+            "clientHeight": 392,
+            "scrollHeight": 506,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Light+",
+      "scale": 2,
+      "dpr": 3,
+      "width": 662,
+      "height": 349,
+      "bodyClasses": "vscode-light",
+      "themeId": "Light+",
+      "themeKind": "vscode-light",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 1792,
+      "detailScrollHeight": 1792,
+      "detailClientHeight": 1792,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 144, 241)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 30,
+          "y": 264.16668701171875,
+          "width": 523,
+          "height": 46.66666793823242
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 230.5,
+            "height": 86.33333587646484,
+            "scrollTop": 0,
+            "clientHeight": 85,
+            "scrollHeight": 85,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2244.666748046875,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 194.3333282470703,
+            "clientHeight": 349,
+            "scrollHeight": 543,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 0,
+            "clientHeight": 349,
+            "scrollHeight": 349,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 144, 241)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 30,
+          "y": 181.5,
+          "width": 98,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 173.5,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -1718.5,
+            "height": 1950.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": -1720.5,
+            "height": 1952.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2243,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Default High Contrast",
+      "scale": 1,
+      "dpr": 1.5,
+      "width": 1383,
+      "height": 800,
+      "bodyClasses": "vscode-high-contrast",
+      "themeId": "Default High Contrast",
+      "themeKind": "vscode-high-contrast",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 928,
+      "detailScrollHeight": 928,
+      "detailClientHeight": 928,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(243, 133, 24)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 343.4375,
+          "y": 680.6666870117188,
+          "width": 931.2291870117188,
+          "height": 46
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 642.6666870117188,
+            "height": 90,
+            "scrollTop": 0,
+            "clientHeight": 89,
+            "scrollHeight": 89,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(243, 133, 24)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 343.4375,
+          "y": 591.8333740234375,
+          "width": 97.33333587646484,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 583.8333740234375,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -446.16668701171875,
+            "height": 1088.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1089,
+            "scrollHeight": 1089,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 486.5,
+            "height": 156.1666717529297,
+            "scrollTop": 934.6666870117188,
+            "clientHeight": 154,
+            "scrollHeight": 1089,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Default High Contrast",
+      "scale": 1.25,
+      "dpr": 1.875,
+      "width": 1095,
+      "height": 620,
+      "bodyClasses": "vscode-high-contrast",
+      "themeId": "Default High Contrast",
+      "themeKind": "vscode-high-contrast",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 896.0000610351562,
+      "detailScrollHeight": 896,
+      "detailClientHeight": 896,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(243, 133, 24)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 277.933349609375,
+          "y": 501.3000183105469,
+          "width": 712.2000122070312,
+          "height": 44.93333435058594
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 464.10003662109375,
+            "height": 88.13333892822266,
+            "scrollTop": 0,
+            "clientHeight": 88,
+            "scrollHeight": 88,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 113.5999984741211,
+            "clientHeight": 392,
+            "scrollHeight": 506,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(243, 133, 24)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 277.933349609375,
+          "y": 414.2333679199219,
+          "width": 97.05834197998047,
+          "height": 30.000001907348633
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 406.2333679199219,
+            "height": 46.000003814697266,
+            "scrollTop": 0,
+            "clientHeight": 46,
+            "scrollHeight": 46,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -589.7667236328125,
+            "height": 1054,
+            "scrollTop": 0,
+            "clientHeight": 1054,
+            "scrollHeight": 1054,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 368.1000061035156,
+            "height": 96.00000762939453,
+            "scrollTop": 959.4666748046875,
+            "clientHeight": 94,
+            "scrollHeight": 1054,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 113.5999984741211,
+            "clientHeight": 392,
+            "scrollHeight": 506,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Default High Contrast",
+      "scale": 2,
+      "dpr": 3,
+      "width": 662,
+      "height": 349,
+      "bodyClasses": "vscode-high-contrast",
+      "themeId": "Default High Contrast",
+      "themeKind": "vscode-high-contrast",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 1792,
+      "detailScrollHeight": 1792,
+      "detailClientHeight": 1792,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(243, 133, 24)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 30,
+          "y": 264.16668701171875,
+          "width": 523,
+          "height": 46.66666793823242
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 230.5,
+            "height": 86.33333587646484,
+            "scrollTop": 0,
+            "clientHeight": 85,
+            "scrollHeight": 85,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2244.666748046875,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 194.3333282470703,
+            "clientHeight": 349,
+            "scrollHeight": 543,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 0,
+            "clientHeight": 349,
+            "scrollHeight": 349,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(243, 133, 24)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 30,
+          "y": 181.5,
+          "width": 98,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 173.5,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -1718.5,
+            "height": 1950.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": -1720.5,
+            "height": 1952.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2243,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Default High Contrast Light",
+      "scale": 1,
+      "dpr": 1.5,
+      "width": 1383,
+      "height": 800,
+      "bodyClasses": "vscode-high-contrast-light vscode-high-contrast",
+      "themeId": "Default High Contrast Light",
+      "themeKind": "vscode-high-contrast-light",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 928,
+      "detailScrollHeight": 928,
+      "detailClientHeight": 928,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 107, 189)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 343.4375,
+          "y": 680.6666870117188,
+          "width": 931.2291870117188,
+          "height": 46
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 642.6666870117188,
+            "height": 90,
+            "scrollTop": 0,
+            "clientHeight": 89,
+            "scrollHeight": 89,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 800,
+            "scrollTop": 0,
+            "clientHeight": 800,
+            "scrollHeight": 800,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 107, 189)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 343.4375,
+          "y": 591.8333740234375,
+          "width": 97.33333587646484,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 583.8333740234375,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -446.16668701171875,
+            "height": 1088.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1089,
+            "scrollHeight": 1089,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 486.5,
+            "height": 156.1666717529297,
+            "scrollTop": 934.6666870117188,
+            "clientHeight": 154,
+            "scrollHeight": 1089,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 198.1666717529297,
+            "height": 569.8333740234375,
+            "scrollTop": 0,
+            "clientHeight": 570,
+            "scrollHeight": 570,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Default High Contrast Light",
+      "scale": 1.25,
+      "dpr": 1.875,
+      "width": 1095,
+      "height": 620,
+      "bodyClasses": "vscode-high-contrast-light vscode-high-contrast",
+      "themeId": "Default High Contrast Light",
+      "themeKind": "vscode-high-contrast-light",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 896.0000610351562,
+      "detailScrollHeight": 896,
+      "detailClientHeight": 896,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 107, 189)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 277.933349609375,
+          "y": 501.3000183105469,
+          "width": 712.2000122070312,
+          "height": 44.93333435058594
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 464.10003662109375,
+            "height": 88.13333892822266,
+            "scrollTop": 0,
+            "clientHeight": 88,
+            "scrollHeight": 88,
+            "overflowY": "visible",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 113.5999984741211,
+            "clientHeight": 392,
+            "scrollHeight": 506,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 620.2667236328125,
+            "scrollTop": 0,
+            "clientHeight": 620,
+            "scrollHeight": 620,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 1.6,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 107, 189)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 277.933349609375,
+          "y": 414.2333679199219,
+          "width": 97.05834197998047,
+          "height": 30.000001907348633
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 406.2333679199219,
+            "height": 46.000003814697266,
+            "scrollTop": 0,
+            "clientHeight": 46,
+            "scrollHeight": 46,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -589.7667236328125,
+            "height": 1054,
+            "scrollTop": 0,
+            "clientHeight": 1054,
+            "scrollHeight": 1054,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": 368.1000061035156,
+            "height": 96.00000762939453,
+            "scrollTop": 959.4666748046875,
+            "clientHeight": 94,
+            "scrollHeight": 1054,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 113.5999984741211,
+            "clientHeight": 392,
+            "scrollHeight": 506,
+            "overflowY": "hidden",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 196.433349609375,
+            "height": 391.8333435058594,
+            "scrollTop": 0,
+            "clientHeight": 392,
+            "scrollHeight": 392,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    },
+    {
+      "theme": "Default High Contrast Light",
+      "scale": 2,
+      "dpr": 3,
+      "width": 662,
+      "height": 349,
+      "bodyClasses": "vscode-high-contrast-light vscode-high-contrast",
+      "themeId": "Default High Contrast Light",
+      "themeKind": "vscode-high-contrast-light",
+      "draft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "savedDraft": "跨 zoom／主題保留的補充需求：請驗證結果，尚未送出。",
+      "detailPreserved": true,
+      "detailHeight": 1792,
+      "detailScrollHeight": 1792,
+      "detailClientHeight": 1792,
+      "controlsOverlap": 0,
+      "overflow": 0,
+      "inputFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "TEXTAREA",
+          "id": "codex-follow-up"
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 107, 189)",
+        "id": "codex-follow-up",
+        "rect": {
+          "x": 30,
+          "y": 264.16668701171875,
+          "width": 523,
+          "height": 46.66666793823242
+        },
+        "hit": {
+          "tag": "TEXTAREA",
+          "className": "",
+          "text": ""
+        },
+        "ancestors": [
+          {
+            "tag": "FORM",
+            "className": "codex-message",
+            "y": 230.5,
+            "height": 86.33333587646484,
+            "scrollTop": 0,
+            "clientHeight": 85,
+            "scrollHeight": 85,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2244.666748046875,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "MAIN",
+            "className": "app-shell",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 194.3333282470703,
+            "clientHeight": 349,
+            "scrollHeight": 543,
+            "overflowY": "auto",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "",
+            "y": 0,
+            "height": 349,
+            "scrollTop": 0,
+            "clientHeight": 349,
+            "scrollHeight": 349,
+            "overflowY": "visible",
+            "position": "static"
+          }
+        ]
+      },
+      "approvalFocus": {
+        "focused": true,
+        "documentFocused": true,
+        "connected": true,
+        "activeElement": {
+          "tag": "BUTTON",
+          "id": ""
+        },
+        "visible": true,
+        "focusVisible": true,
+        "outlineWidth": 2,
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 107, 189)",
+        "id": "核准本次要求",
+        "rect": {
+          "x": 30,
+          "y": 181.5,
+          "width": 98,
+          "height": 30.666667938232422
+        },
+        "hit": {
+          "tag": "BUTTON",
+          "className": "primary",
+          "text": "核准本次要求"
+        },
+        "ancestors": [
+          {
+            "tag": "DIV",
+            "className": "button-row",
+            "y": 173.5,
+            "height": 46.66666793823242,
+            "scrollTop": 0,
+            "clientHeight": 47,
+            "scrollHeight": 47,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "FORM",
+            "className": "codex-interaction",
+            "y": -1718.5,
+            "height": 1950.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "codex-attention",
+            "y": -1720.5,
+            "height": 1952.666748046875,
+            "scrollTop": 0,
+            "clientHeight": 1951,
+            "scrollHeight": 1951,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-conversation",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 2243,
+            "clientHeight": 240,
+            "scrollHeight": 2485,
+            "overflowY": "auto",
+            "position": "relative"
+          },
+          {
+            "tag": "SECTION",
+            "className": "codex-workspace codex-panel",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workspace-tasks",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "visible",
+            "position": "static"
+          },
+          {
+            "tag": "SECTION",
+            "className": "page",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          },
+          {
+            "tag": "DIV",
+            "className": "workbench",
+            "y": 76.83333587646484,
+            "height": 240,
+            "scrollTop": 0,
+            "clientHeight": 240,
+            "scrollHeight": 240,
+            "overflowY": "hidden",
+            "position": "static"
+          }
+        ]
+      },
+      "errors": [],
+      "violations": []
+    }
+  ]
+}

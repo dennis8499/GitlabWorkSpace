@@ -400,7 +400,7 @@ function App() {
   modeRef.current = mode;
   requestMode = mode;
   const codex = useCodexWorkspace({ post, actions, initialState: initial?.codexUi,
-    scope: `${snapshot?.instanceUserScope ?? ''}:${snapshot?.activeAccountId ?? ''}`,
+    scope: `${snapshot?.instanceUserScope ?? ''}:${snapshot?.activeAccountId ?? ''}:${snapshot?.projectContext?.root ?? snapshot?.groupRoot ?? ''}`,
     enabled: !!snapshot && !localProjectBlocker(snapshot.workspaceCapabilities), visible: mode === 'codex', onOpen: () => modeChange('codex'),
     onStateChange: codexUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), codexUi }) });
   const [gitPanelVisited, setGitPanelVisited] = useState(initial?.mode === 'git');
@@ -1405,6 +1405,8 @@ function App() {
         const id = Object.keys(codex.interactions).find(key => codex.interactions[key].length);
         if (id) codex.select(id); modeChange('codex');
       }}>前往待回覆要求（{codex.waitingCount}）</button>}</div>
+    {mode !== 'codex' && codex.launch && <div class="codex-launch-return" role="status"><span>已保留任務準備：{codex.launch.title}</span>
+      <button type="button" onClick={() => { codex.showLaunch(); modeChange('codex'); }}>返回任務準備</button></div>}
     <div class="workbench" data-mobile-panel={mobilePanel}>
       <section class="page" data-mode={mode} aria-label={modes.find(item => item.id === mode)?.name}>
         {snapshot.connectedScope && remotePage && mode !== 'dashboard' && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
@@ -1422,7 +1424,7 @@ function App() {
             onOpenSettings={() => setToolDrawer(true)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div ref={workspaceVisual} class="workspace-tasks" hidden={!!issueNavigation}>
-        {!localBlocked && <CodexWorkspace controller={codex} active={mode === 'codex' && !issueNavigation} onNavigate={modeChange} />}
+        {!localBlocked && <CodexWorkspace controller={codex} layout={snapshot.codexWorkspaceLayout} active={mode === 'codex' && !issueNavigation} onNavigate={modeChange} />}
         <div class="git-mode-host" hidden={mode !== 'git'}>
           {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel skills={snapshot.skillsContext} active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} navigationState={{ hostSessionId: snapshot.operationSnapshot?.sessionId, generation: uiIntents.current.hostGeneration }} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>

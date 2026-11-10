@@ -6,6 +6,10 @@ import type { ThreadGoalGetResponse } from './generated/v2/ThreadGoalGetResponse
 import type { GetAccountRateLimitsResponse } from './generated/v2/GetAccountRateLimitsResponse';
 import type { CodexEnvironment } from './protocol';
 import { CodexRpcError } from './rpcError';
+import { GitLabReadCache } from '../api/gitLabReadCache';
+
+const modelCatalogs = new WeakMap<CodexAppServer, GitLabReadCache>();
+export function invalidateCodexModelCatalog(client: CodexAppServer): void { modelCatalogs.get(client)?.invalidate(); }
 
 /** Advanced methods are enabled only against a captured, tested CLI contract. */
 export function codexCapabilities(version: string): NonNullable<CodexEnvironment['capabilities']> {
@@ -23,11 +27,16 @@ export class CodexProtocolAdapter {
       return this.client.request<T>(method, params, { signal });
     }
   }
-  async models(signal?: AbortSignal): Promise<ModelListResponse['data']> {
+  async models(signal?: AbortSignal, options: { includeHidden?: boolean; force?: boolean } = {}): Promise<ModelListResponse['data']> {
+    let cache = modelCatalogs.get(this.client);
+    if (!cache) { cache = new GitLabReadCache(60_000, 2, Date.now, 2 * 1024 * 1024); modelCatalogs.set(this.client, cache); }
+    return structuredClone(await cache.get(options.includeHidden ? 'all' : 'visible', abort => this.readModels(abort, options.includeHidden), { signal, force: options.force }));
+  }
+  private async readModels(signal: AbortSignal, includeHidden = false): Promise<ModelListResponse['data']> {
     const all: ModelListResponse['data'] = [], seen = new Set<string>();
     let cursor: string | undefined;
     do {
-      const page = await this.read<ModelListResponse>('model/list', { limit: 100, ...(cursor ? { cursor } : {}) }, signal);
+      const page = await this.read<ModelListResponse>('model/list', { limit: 100, ...(includeHidden ? { includeHidden: true } : {}), ...(cursor ? { cursor } : {}) }, signal);
       if (!Array.isArray(page.data)) throw new CodexRpcError('protocol', 'model/list');
       if (page.data.some(model => !model || typeof model.model !== 'string' || !model.model || !Array.isArray(model.supportedReasoningEfforts))) throw new CodexRpcError('protocol', 'model/list');
       all.push(...page.data); cursor = page.nextCursor ?? undefined;

@@ -4,6 +4,7 @@ import type { IssueAction, IssuePanelRequest } from '../issues/protocol';
 import type { GitAction } from '../git/gitProtocol';
 import { isGitPanelRequest } from '../git/gitProtocol';
 import { isCodexCommand } from '../codex/commands';
+import { sanitizeCodexUiDraftValue } from '../codex/uiDraftProtocol';
 
 type Check = (value: unknown) => boolean;
 type Shape = Record<string, Check>;
@@ -121,9 +122,23 @@ const taskSource: Check = value => record(value) && (
             intent: optional(one('review', 'fix-comments')), discussionIds: optional(array(identity, 30)) })(value)
             : value.kind === 'review' && object({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
 
+const launchPatch = object({ requirement: optional(text), repositoryId: optional(identity), model: optional(string(200)),
+  effort: optional(string(40)), isolated: optional(boolean), discussionIds: optional(array(identity, 30)), acknowledgedSource: optional(identity) });
+const uiDraftUpdate: Check = value => {
+  if (!object({ key: string(9000, 1), revision: integer, value: () => true })(value)) return false;
+  try { const item = value as { key: string; value: unknown }; sanitizeCodexUiDraftValue(item.key, item.value); return JSON.stringify(value).length <= 200_000; } catch { return false; }
+};
 export const workspaceRequestSchemas = {
+  loadCodexUiDrafts: { requestId: identity },
+  saveCodexUiDrafts: { requestId: identity, scope: value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value), updates: array(uiDraftUpdate, 100), resolveConflictIds: optional(array(identity, 100)) },
   codexCommand: { command: isCodexCommand },
   startCodexTask: { source: taskSource }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key), force: optional(boolean) },
+  createCodexLaunch: { source: optional(taskSource) },
+  updateCodexLaunch: { draftId: identity, revision: integer, patch: launchPatch },
+  checkCodexLaunch: { draftId: identity, revision: optional(integer), patch: optional(launchPatch) },
+  submitCodexLaunch: { draftId: identity, revision: optional(integer), patch: optional(launchPatch) },
+  cancelCodexLaunch: { draftId: identity, revision: optional(integer) }, showCodexLaunch: { draftId: identity, revision: optional(integer) },
+  repairCodexLaunch: { draftId: identity, action: one('login', 'clone', 'scan', 'tools', 'codex-login', 'sandbox', 'executable') },
   showCodexTask: { taskId: identity }, readCodexResult: { taskId: identity }, openCodexOrigin: { taskId: identity }, openCodexChanges: { taskId: identity },
   previewProjectWiki: { taskId: identity, refresh: optional(boolean), confirmRetry: optional(boolean), cursor: optional(identity) },
   cancelProjectWikiPreview: { taskId: identity },

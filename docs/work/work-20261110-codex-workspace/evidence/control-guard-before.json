@@ -1,0 +1,14 @@
+{
+  "method": "Independent deterministic pre-fix reproduction using the existing compiled acquireStorageControl. A safely owned TEMP directory contained an empty control.recovery file, representing the interval between exclusive creation and completion of writeFile. The authoritative control directory was free.",
+  "expected": "Ignore the unverified optional recovery guard, preserve it, and acquire the authoritative control lease normally.",
+  "observed": {
+    "result": "rejected",
+    "name": "SyntaxError",
+    "message": "Unexpected end of JSON input"
+  },
+  "compiledSha256": "c11d235b43af01c92944b6552dca4f2ea47b94b86bf77a620b5c87ba6ebdfe09",
+  "sourceSha256": "3f5f140f7cd85bd40bfe8ea13790056492dc30b6ed2e2f7ff08ea958a4cbdb6a",
+  "remoteCalls": 0,
+  "modelTurns": 0,
+  "cleanup": "Verified resolved TEMP parent and task-specific directory prefix before recursive removal."
+}

@@ -123,6 +123,7 @@ try {
     }
     if (includes('all', 'ui', 'behavior')) {
       await required(node('behavior-node', '--require', './test/network-test-environment.cjs', '--test', ...await testFiles('test/behavior', '.test.mjs')));
+      await required(node('codex-renderer', 'test/behavior/codex-renderer-benchmark.mjs', '--out', path.join(evidenceDir, 'codex-renderer.json')));
       for (const [id, steps, feature] of [['issues', 'steps.cjs', 'issues.feature'], ['connect', 'connect.steps.cjs', 'connect.feature']]) {
         await required(node('behavior-' + id, '--require', './test/network-test-environment.cjs', 'node_modules/@cucumber/cucumber/bin/cucumber.js', '--require', 'test/behavior/' + steps, '--tags', '@automated', 'test/behavior/' + feature));
       }

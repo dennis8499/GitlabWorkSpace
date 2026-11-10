@@ -1,0 +1,23 @@
+{
+  "results": [
+    {
+      "phase": "cold",
+      "totalMs": 3620,
+      "state": "ready",
+      "version": "0.166.0",
+      "authenticated": true,
+      "sandbox": "ready",
+      "models": 8
+    },
+    {
+      "phase": "warm",
+      "totalMs": 11,
+      "state": "ready",
+      "version": "0.166.0",
+      "authenticated": true,
+      "sandbox": "ready",
+      "models": 8
+    }
+  ],
+  "turnsStarted": 0
+}

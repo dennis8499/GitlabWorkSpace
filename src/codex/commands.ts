@@ -17,7 +17,10 @@ export function isCodexCommand(value: unknown): value is CodexCommand {
     if (!record(settings) || Object.keys(settings).length !== 3 || !['command', 'file', 'permissions'].every(key => typeof settings[key] === 'boolean')) return false;
   } else if (value.action === 'reorder') { allowed.push('direction'); if (!['up', 'down'].includes(String(value.direction))) return false; }
   else if (value.action === 'publish-reply') { allowed.push('discussionId', 'body'); if (!string(value.discussionId, 160) || !string(value.body, 50_000)) return false; }
-  else if (value.action === 'open-file') { allowed.push('path'); if (!string(value.path, 4096)) return false; }
-  else if (!['manage', 'reconcile', 'diagnostics', 'fork', 'goal', 'handoff', 'remove-worktree', 'regenerate-wiki', 'mr-fix', 'open-diff'].includes(value.action)) return false;
+  else if (value.action === 'open-file') {
+    allowed.push('path', 'line');
+    if (!string(value.path, 4096) || value.line !== undefined && (!Number.isSafeInteger(value.line) || Number(value.line) < 1 || Number(value.line) > 10_000_000)) return false;
+  }
+  else if (!['manage', 'reconcile', 'diagnostics', 'fork', 'goal', 'handoff', 'handoff-review', 'open-worktree', 'remove-worktree', 'regenerate-wiki', 'mr-fix', 'reprepare', 'open-diff'].includes(value.action)) return false;
   return Object.keys(value).every(key => allowed.includes(key));
 }

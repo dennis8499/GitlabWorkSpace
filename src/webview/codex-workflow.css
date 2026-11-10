@@ -1,0 +1,15 @@
+.codex-workflow-result { min-width: 0; }
+.codex-workflow-result textarea { width: 100%; box-sizing: border-box; }
+.codex-workflow-result details > label { display: block; margin: .6rem 0; }
+.codex-result-files, .codex-wiki-pages { list-style: none; padding: 0; }
+.codex-result-files button { overflow-wrap: anywhere; text-align: left; }
+.codex-wiki-pages { display: flex; flex-wrap: wrap; gap: .35rem; max-height: 8rem; overflow: auto; margin: .6rem 0; }
+.codex-wiki-pages button[aria-current="true"] { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.codex-wiki-pages button span { color: var(--vscode-descriptionForeground); }
+.codex-wiki-modes { margin: .75rem 0; }
+.codex-wiki-modes [aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+.codex-wiki-content { padding: .8rem; border: 1px solid var(--vscode-panel-border); border-radius: 4px; margin: .75rem 0; min-width: 0; }
+.codex-wiki-content > pre { max-height: 32rem; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; }
+.codex-wiki-diff span { display: block; min-height: 1em; white-space: pre-wrap; }
+.codex-diff-added { background: var(--vscode-diffEditor-insertedTextBackground, #4b8b3b26); }
+.codex-diff-removed { background: var(--vscode-diffEditor-removedTextBackground, #b73a3426); }

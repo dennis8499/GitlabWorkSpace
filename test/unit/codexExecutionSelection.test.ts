@@ -6,6 +6,7 @@ import type { CodexTaskSource, CodexTaskSpec } from '../../src/codex/protocol';
 import { applyExecutionSelection, pickExecutionSelection, validateExecutionSelection } from '../../src/codex/executionSelection';
 import { selectRoutingEffort } from '../../src/codex/modelRoutingProtocol';
 import { CodexHostActions } from '../../src/codex/hostActions';
+import { describeAction } from '../../src/workspace/actionPolicy';
 
 const model = (name: string, efforts = ['low', 'high', 'xhigh'], preferred = 'high') => ({ id: name, model: name, displayName: name,
   defaultReasoningEffort: preferred, supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) }) as Model;
@@ -81,18 +82,17 @@ test('Auto maps sparse model efforts upward and records a cap only above its max
   assert.throws(() => selectRoutingEffort('high', ['custom']), /無法排序/);
 });
 
-test('Host creation uses shared pickers for every new source and bypasses them only for native recovery', async () => {
-  const fakeVscode: any = { window: { showQuickPick: async (items: any[]) => items[0] } };
+test('Host creation opens the shared launch draft without preparing or dispatching and preserves native recovery', async () => {
+  const fakeVscode: any = { window: { showQuickPick: async () => { throw new Error('Native picker must not open'); } } };
   const loader = require('node:module'), original = loader._load;
   loader._load = (name: string, ...args: unknown[]) => name === 'vscode' ? fakeVscode : original(name, ...args);
   let WorkspacePanel: any;
   try { ({ WorkspacePanel } = require('../../src/workspace/workspacePanel')); } finally { loader._load = original; }
-  const panel = Object.create(WorkspacePanel.prototype), queued: CodexTaskSpec[] = [], outcomes: any[] = [];
-  let reads = 0, failCatalog = false;
-  panel.noteOutcome = (outcome: unknown) => outcomes.push(outcome);
-  panel.prepareCodexTask = async (source: CodexTaskSource) => applyExecutionSelection({ ...spec(source.kind === 'review' || source.kind === 'merge-request' && source.intent !== 'fix-comments'), source }, source);
-  panel.getCodexBridge = () => ({ models: async () => { reads++; if (failCatalog) throw new Error('catalog failed'); return [model('gpt-6-luna')]; },
-    enqueue: async (prepared: CodexTaskSpec) => { queued.push(prepared); return 'created'; } });
+  const panel = Object.create(WorkspacePanel.prototype), drafts: CodexTaskSource[] = [], queued: CodexTaskSpec[] = [];
+  let prepares = 0;
+  panel.openCodexLaunch = async (source: CodexTaskSource) => { drafts.push(source); };
+  panel.prepareCodexTask = async (source: CodexTaskSource) => { prepares++; return { ...spec(true), source }; };
+  panel.getCodexBridge = () => ({ enqueue: async (prepared: CodexTaskSpec) => { queued.push(prepared); return 'recovered'; } });
   const sources: CodexTaskSource[] = [
     { kind: 'free', repository: 'repo', prompt: 'Work' }, { kind: 'skill', featureId: 'query', inputs: {}, revision: 'r' },
     { kind: 'bmad', request: { command: 'task', revision: 'r' } }, { kind: 'issue', projectId: 1, issueIid: 2 },
@@ -100,22 +100,11 @@ test('Host creation uses shared pickers for every new source and bypasses them o
     { kind: 'merge-request', projectId: 1, iid: 2 }, { kind: 'merge-request', projectId: 1, iid: 2, intent: 'fix-comments' },
     { kind: 'review', tool: 'merge-reviewer', action: 'refresh', revision: 'r', requestId: 'a'.repeat(32) }
   ];
-  for (const source of sources) assert.equal(await panel.createSelectedCodexTask(source), 'created');
-  assert.equal(reads, sources.length); assert.equal(queued.length, sources.length);
-  assert.equal(queued.at(-1)!.routing?.model, 'gpt-6-luna');
-  await panel.createSelectedCodexTask({ kind: 'review', tool: 'merge-reviewer', action: 'resume', revision: 'r', requestId: 'a'.repeat(32) });
-  assert.equal(reads, sources.length);
-  fakeVscode.window.showQuickPick = async (items: any[]) => items.find(item => !item.model);
-  await panel.createSelectedCodexTask({ ...sources[2], model: 'gpt-6-luna', effort: 'high' });
-  assert.equal(queued.at(-1)!.model, undefined); assert.equal(queued.at(-1)!.source.effort, undefined);
-  const before = queued.length;
-  fakeVscode.window.showQuickPick = async () => undefined;
-  assert.equal(await panel.createSelectedCodexTask(sources[0]), undefined); assert.equal(queued.length, before);
-  assert.deepEqual(outcomes.at(-1), { status: 'cancelled', effect: 'none' });
-  failCatalog = true;
-  await assert.rejects(panel.createSelectedCodexTask(sources[0]), /catalog failed/); assert.equal(queued.length, before);
+  for (const source of sources) assert.equal(await panel.createSelectedCodexTask(source), undefined);
+  assert.deepEqual(drafts, sources); assert.equal(prepares, 0); assert.equal(queued.length, 0);
+  assert.equal(await panel.createSelectedCodexTask({ kind: 'review', tool: 'merge-reviewer', action: 'resume', revision: 'r', requestId: 'a'.repeat(32) }), 'recovered');
+  assert.equal(prepares, 1); assert.equal(queued.length, 1); assert.equal(drafts.length, sources.length);
 });
-
 test('free creation preserves the requirement and context when model selection is cancelled', async () => {
   const attempts: CodexTaskSource[] = [], opened: string[] = [];
   const host = new CodexHostActions({
@@ -130,4 +119,49 @@ test('free creation preserves the requirement and context when model selection i
   await host.run({ action: 'create' });
   assert.equal(attempts.length, 2); assert.deepEqual(attempts[0], attempts[1]);
   assert.deepEqual(opened, ['created']);
+});
+
+test('reprepare preserves trusted source, releases resources before preflight and rejects unsettled tasks', async () => {
+  const loader = require('node:module'), original = loader._load;
+  loader._load = (name: string, ...args: unknown[]) => name === 'vscode' ? {} : original(name, ...args);
+  let WorkspacePanel: any;
+  try { ({ WorkspacePanel } = require('../../src/workspace/workspacePanel')); } finally { loader._load = original; }
+  const panel = Object.create(WorkspacePanel.prototype);
+  const trusted: CodexTaskSpec = { ...spec(), source: { kind: 'issue', projectId: 1, issueIid: 2, repository: 'repo', requirement: 'Keep requirement',
+    model: 'model-one', effort: 'high', isolated: true, returnTo: { mode: 'developer', issueTab: 'time' } },
+    origin: { kind: 'issue', accountKey: 'account', baseUrl: 'https://gitlab.test', projectId: 1, projectPath: 'team/repo', repositoryRoot: 'repo',
+      webUrl: 'https://gitlab.test/team/repo/-/issues/2', iid: 2, sourceBranch: 'main', sourceSha: 'a'.repeat(40) } };
+  const base = { id: 'task', status: 'failed', origin: trusted.origin, controls: { canResume: true, canDelete: true, external: false } };
+  let current: any = base, leased = false, enqueues = 0, checks = 0;
+  const drafts: Array<{ source: CodexTaskSource; baseline: CodexTaskSpec }> = [];
+  panel.linkedCodexSpec = async () => trusted;
+  panel.checkLinkedCodexAccess = () => () => { checks++; };
+  panel.getCodexBridge = () => ({ publish: async () => {}, list: () => [current], specification: async () => trusted,
+    enqueue: async () => { enqueues++; }, withResources: async (_id: string, work: () => Promise<void>) => {
+      leased = true; try { return await work(); } finally { leased = false; }
+    } });
+  panel.openCodexLaunch = async (source: CodexTaskSource, baseline: CodexTaskSpec) => {
+    assert.equal(leased, false, 'source preflight must run after old task resource lease is released'); drafts.push({ source, baseline });
+  };
+  await panel.codexWorkflowAction('reprepare', 'task');
+  assert.equal(drafts.length, 1); assert.deepEqual(drafts[0].source, trusted.source); assert.notEqual(drafts[0].source, trusted.source);
+  assert.equal(drafts[0].baseline, trusted); assert.equal(checks, 1); assert.equal(enqueues, 0); assert.equal(current, base);
+  const blocked = [
+    ...['queued', 'starting', 'running', 'waiting', 'pausing', 'uncertain'].map(status => ({ status })),
+    { result: { state: 'uncertain' } }, { publication: { state: 'pending' } }, { publications: { discussion: { state: 'pending' } } },
+    { recovery: { cleanup: 'unknown' } }, { recovery: { publication: 'unknown' } }, { recovery: { publication: 'pending' } },
+    { uncertainMessages: 1 }, { messageQueue: [{ state: 'uncertain' }] }, { messageQueue: [{ state: 'sending' }] },
+    { controls: { ...base.controls, canDelete: false } }, { controls: { ...base.controls, external: true } }
+  ];
+  for (const update of blocked) { current = { ...base, ...update }; await assert.rejects(panel.codexWorkflowAction('reprepare', 'task'), /請先停止/); }
+  current = base;
+  panel.getCodexBridge = () => ({ publish: async () => {}, list: () => [current], withResources: async (_id: string, work: () => Promise<void>) => {
+    current = { ...base, status: 'running' }; return work();
+  } });
+  await assert.rejects(panel.codexWorkflowAction('reprepare', 'task'), /狀態已變更/);
+  panel.linkedCodexSpec = async () => ({ ...trusted, source: { kind: 'review', action: 'resume' } });
+  await assert.rejects(panel.codexWorkflowAction('reprepare', 'task'), /只有 GitLab/);
+  assert.equal(drafts.length, 1); assert.equal(enqueues, 0);
+  const policy = describeAction({ type: 'codexCommand', command: { action: 'reprepare', taskId: 'task' } } as any);
+  assert.equal(policy.kind, 'write'); assert.equal(policy.resourceKey, 'codex:task'); assert.equal(policy.concurrency, 'exclusive');
 });

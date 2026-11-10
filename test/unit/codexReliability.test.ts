@@ -65,6 +65,8 @@ test('one corrupt record remains intact while valid v1 records load and migrate 
 test('new controls reject cross-boundary payloads and progress only accepts bounded fields', () => {
   assert.equal(isCodexCommand({ action: 'metadata', taskId: 'one', pinned: true }), true);
   assert.equal(isCodexCommand({ action: 'create', repository: 'C:/arbitrary' }), false);
+  assert.equal(isCodexCommand({ action: 'open-file', taskId: 'one', path: 'src/file.ts', line: 42 }), true);
+  for (const line of [0, -1, 1.5, 10_000_001, '42']) assert.equal(isCodexCommand({ action: 'open-file', taskId: 'one', path: 'src/file.ts', line }), false);
   assert.equal(isCodexCommand({ action: 'approvals', taskId: 'one', settings: { command: true, file: true, permissions: true, extra: true } }), false);
   const result = projectCodexProgress(undefined, 'thread/tokenUsage/updated', { tokenUsage: { total: { totalTokens: 10, inputTokens: 6, outputTokens: 4 } }, secret: 'SECRET' });
   assert.equal(result?.tokens?.total, 10); assert.ok(!JSON.stringify(result).includes('SECRET'));

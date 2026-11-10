@@ -6,9 +6,11 @@ import type { CodexTaskSpec, CodexTaskResult } from './protocol';
 import type { ProjectWikiStore, WikiPreviewOptions } from './projectWiki';
 import type { ProjectWikiPreview } from './workflowProtocol';
 import { readWorkflowReport } from './projectWorkflows';
+import { lstat, readFile, realpath } from 'node:fs/promises';
+import path from 'node:path';
 
 export interface WikiPreviewRequest { taskId: string; refresh?: boolean; confirmRetry?: boolean; cursor?: string; }
-interface WorkflowResult { type: 'codexWorkflowResult'; taskId: string; result?: CodexTaskResult; report?: string; wiki?: ProjectWikiPreview; }
+interface WorkflowResult { type: 'codexWorkflowResult'; taskId: string; result?: CodexTaskResult; report?: string; handoff?: string; wiki?: ProjectWikiPreview; }
 interface WorkflowServiceOptions {
   bridge(): Pick<CodexBridge, 'specification' | 'list' | 'resultAction'>;
   wiki(): ProjectWikiStore;
@@ -44,8 +46,16 @@ export class CodexWorkflowService {
     const generation = this.generation, spec = await this.specification(taskId), check = this.options.check(spec);
     const result = this.options.bridge().list().find(task => task.id === taskId)?.result;
     const report = result?.reportPath ? await readWorkflowReport(spec, result.reportPath) : undefined; check();
+    let handoff: string | undefined;
+    if (result?.handoffPath && spec.workflow) {
+      const expected = path.join(spec.workflow.runtimeRoot, 'handoff.md'), info = await lstat(expected);
+      if (result.handoffPath !== expected || info.isSymbolicLink() || !info.isFile() || info.size > 512_000 || await realpath(expected) !== path.join(await realpath(spec.workflow.runtimeRoot), 'handoff.md')) {
+        throw new Error('交接草稿路徑或大小無法驗證。');
+      }
+      handoff = await readFile(expected, 'utf8'); check();
+    }
     if (this.disposed || generation !== this.generation) { this.options.cancelled(); return; }
-    this.options.post({ type: 'codexWorkflowResult', taskId, result, report });
+    this.options.post({ type: 'codexWorkflowResult', taskId, result, report, handoff });
   }
   previewWiki(request: WikiPreviewRequest): Promise<void> {
     if (this.disposed || !this.options.visible()) { this.options.cancelled(); return Promise.resolve(); }

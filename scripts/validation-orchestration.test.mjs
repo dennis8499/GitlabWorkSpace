@@ -50,6 +50,7 @@ async function fixture(t) {
   for (const name of ['dashboard.test.mjs', 'skills-guide.test.mjs']) {
     await put(`test/behavior/${name}`, "import test from 'node:test';test('behavior',()=>{});");
   }
+  await put('test/behavior/codex-renderer-benchmark.mjs', "if(process.env.FAKE_CODEX_RENDERER_FAILURE==='1')process.exit(6);");
   await put('test/legacy/behavior/quick-actions.test.mjs', "import test from 'node:test';test('legacy behavior',()=>{});");
   await put('test/release/one_test.py', '# discovered Python suite');
   await put('test/release/workflowkit_131_integration_test.py', '# split into three isolated unittest classes');
@@ -69,7 +70,7 @@ test('full validation builds once, discovers suites, and packages only after eve
   assert.equal(result.status, 'success');
   assert.equal(result.success, true);
   const ids = result.stages.map(stage => stage.id);
-  for (const id of ['lint', 'compile', 'build-dashboard', 'build-issue-tests', 'package', 'verify-package']) {
+  for (const id of ['lint', 'compile', 'build-dashboard', 'build-issue-tests', 'codex-renderer', 'package', 'verify-package']) {
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
   assert.ok(ids.includes('release-one'));
@@ -107,7 +108,7 @@ test('UI validates current behavior and real host core once before packaging', a
   assert.equal(child.status, 0, child.stderr || child.stdout);
   const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
   const ids = result.stages.map(stage => stage.id);
-  for (const id of ['compile', 'build-dashboard', 'build-issue-tests', 'extension', 'workspace-trust', 'unit', 'behavior-node', 'release-tooling', 'package', 'verify-package']) {
+  for (const id of ['compile', 'build-dashboard', 'build-issue-tests', 'extension', 'workspace-trust', 'unit', 'behavior-node', 'codex-renderer', 'release-tooling', 'package', 'verify-package']) {
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
   const host = result.stages.find(stage => stage.id === 'extension');
@@ -115,6 +116,16 @@ test('UI validates current behavior and real host core once before packaging', a
   assert.ok(host.command.includes('--invert'));
   assert.ok(!ids.includes('build-sidebar'));
   assert.ok(!ids.some(id => id.startsWith('release-workflowkit-')));
+});
+
+test('Codex renderer regressions fail the UI gate before a package can be produced', async t => {
+  const { root, evidenceDir, run } = await fixture(t);
+  const child = run({ FAKE_CODEX_RENDERER_FAILURE: '1' }, 'ui');
+  assert.equal(child.status, 1);
+  const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
+  assert.equal(result.stages.find(stage => stage.id === 'codex-renderer').exitCode, 6);
+  assert.equal(result.stages.some(stage => stage.id === 'package'), false);
+  await assert.rejects(readFile(path.join(root, 'dist/gitlab-workspace-1.2.3.vsix')), { code: 'ENOENT' });
 });
 
 for (const workers of ['1', '2']) test(`compatibility retains all installer classes in isolated logs with ${workers} worker(s)`, async t => {

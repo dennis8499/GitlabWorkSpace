@@ -21,10 +21,14 @@ export class CodexTaskStore {
   problems: CodexStorageProblem[] = [];
   private cleanupProblems: CodexStorageProblem[] = [];
   constructor(readonly directory: string, private readonly cleanup: (plan: CodexCleanupPlan) => Promise<void> = plan => cleanupTaskStorage(path.dirname(directory), plan)) {}
-  async load(): Promise<CodexTaskRecord[]> {
+  async load(ids?: readonly string[]): Promise<CodexTaskRecord[]> {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
-    const records: CodexTaskRecord[] = [], problems: CodexStorageProblem[] = [];
-    for (const name of await readdir(this.directory)) {
+    const selected = ids ? new Set(ids) : undefined;
+    if (selected && [...selected].some(id => !validTaskId(id))) throw new Error('Codex 任務識別無效。');
+    const records: CodexTaskRecord[] = [], problems: CodexStorageProblem[] = selected
+      ? this.problems.filter(problem => problem.kind !== 'cleanup' && !selected.has(problem.id)) : [];
+    const names = selected ? [...selected].map(id => id + '.json') : await readdir(this.directory);
+    for (const name of names) {
       if (!/^[a-z0-9-]{1,100}\.json$/i.test(name)) continue;
       try {
       if (await this.isDeleted(name.slice(0, -5))) continue;
@@ -132,7 +136,7 @@ export class CodexTaskStore {
       if (await this.isDeleted(id)) { await this.finishCleanup(id); return; }
       const record = (await this.load()).find(value => value.id === id);
       if (!record) return;
-      if (codexTaskActive(record.status) || ['queued', 'uncertain'].includes(record.status) || record.result?.state === 'uncertain' || record.publication?.state === 'pending') throw new Error('請先暫停任務並確認清理及發布結果，再刪除紀錄。');
+      if (codexTaskActive(record.status) || ['queued', 'uncertain'].includes(record.status) || record.result?.state === 'uncertain' || record.publication?.state === 'pending' || Object.values(record.publications ?? {}).some(publication => publication.state === 'pending')) throw new Error('請先暫停任務並確認清理及發布結果，再刪除紀錄。');
       if (record.lease && record.lease.released !== true) throw new Error('請先核對任務狀態，確認程序與執行鎖已釋放，再刪除紀錄。');
       await prepare?.(record);
       await ownedStoragePath(path.dirname(this.directory), this.directory);

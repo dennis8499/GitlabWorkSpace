@@ -13,9 +13,11 @@ export function validStoredCodexProjection(value: unknown): boolean {
     !optional(value.revision, integer) || !object(value.spec) || !object(value.spec.source) ||
     !['free', 'skill', 'bmad', 'issue', 'project-wiki', 'merge-request', 'review'].includes(String(value.spec.source.kind))) return false;
   const origin = value.spec.origin;
+  if (!optional(value.spec.launch, item => object(item) && integer(item.openedAt) && fields(item, ['draftReadyAt', 'checkedMs', 'submittedAt'], integer))) return false;
   if (!optional(origin, item => object(item) && ['projectPath', 'webUrl', 'sourceBranch'].every(key => string(item[key])) &&
     fields(item, ['targetBranch', 'branch']))) return false;
   if (!optional(value.progress, item => object(item) && fields(item, ['diff', 'model', 'effort', 'tool', 'waitReason', 'updatedAt']) &&
+    optional(item.phase, phase => ['preflight', 'process', 'readiness', 'workspace', 'conversation', 'executing', 'verifying', 'cleanup'].includes(String(phase))) &&
     optional(item.plan, steps => array(steps, step => object(step) && string(step.step) && ['pending', 'inProgress', 'completed'].includes(String(step.status)))) &&
     optional(item.tokens, tokens => object(tokens) && ['total', 'input', 'output'].every(key => integer(tokens[key])) && optional(tokens.contextWindow, integer)) &&
     optional(item.quota, quota => object(quota) && typeof quota.usedPercent === 'number' && quota.usedPercent >= 0 && quota.usedPercent <= 100 && optional(quota.resetsAt, integer)))) return false;
@@ -32,6 +34,12 @@ export function validStoredCodexProjection(value: unknown): boolean {
     fields(item, ['tokenBudget', 'timeBudgetSeconds', 'tokensUsed', 'timeUsedSeconds'], integer))) return false;
   if (!optional(value.recovery, item => object(item) && ['checkedAt', 'message', 'execution', 'cleanup', 'publication'].every(key => string(item[key])))) return false;
   if (!optional(value.publication, item => object(item) && ['kind', 'state', 'key'].every(key => string(item[key])))) return false;
+  if (!optional(value.publications, entries => object(entries) && Object.keys(entries).length <= 1000 && Object.values(entries).every(item =>
+    object(item) && ['review', 'reply'].includes(String(item.kind)) && ['pending', 'confirmed', 'not-published'].includes(String(item.state)) &&
+    string(item.key) && fields(item, ['discussionId', 'bodyHash', 'error'])))) return false;
+  if (!optional(value.queuedMessages, entries => Array.isArray(entries) && entries.length <= 200 && entries.every(item =>
+    object(item) && string(item.id) && /^[a-z0-9-]{1,100}$/i.test(item.id) && string(item.text) && item.text.length <= 32_000 &&
+    ['queued', 'sending', 'accepted', 'uncertain'].includes(String(item.state))))) return false;
   if (!optional(value.routingThreadIds, items => array(items, string)) || !optional(value.routingUserMessages, items => array(items, string))) return false;
   return true;
 }

@@ -8,6 +8,15 @@ const issue = { projectId: 1, issueIid: 2 }, mr = { projectId: 1, iid: 2 };
 const review = { revision: 'root:1', requestId: 'review-1', tool: 'merge-reviewer' as const };
 /** Public UI contract examples, independent of validator implementation. */
 const requests = {
+  loadCodexUiDrafts: { type: 'loadCodexUiDrafts', requestId: 'draft-load-1' },
+  saveCodexUiDrafts: { type: 'saveCodexUiDrafts', requestId: 'draft-save-1', scope: 'a'.repeat(64), updates: [{ key: JSON.stringify(['draft', 'task-1']), revision: 0, value: { text: 'Keep this', revision: 1 } }], resolveConflictIds: [] },
+  createCodexLaunch: { type: 'createCodexLaunch', source: { kind: 'issue', projectId: 1, issueIid: 2 } },
+  updateCodexLaunch: { type: 'updateCodexLaunch', draftId: 'draft-1', revision: 1, patch: { requirement: 'Acceptance', repositoryId: 'repo-1', model: '', isolated: true, acknowledgedSource: 'change-1' } },
+  checkCodexLaunch: { type: 'checkCodexLaunch', draftId: 'draft-1', revision: 1, patch: { discussionIds: ['discussion-1'] } },
+  submitCodexLaunch: { type: 'submitCodexLaunch', draftId: 'draft-1', revision: 1, patch: { model: 'model-1', effort: 'high' } },
+  cancelCodexLaunch: { type: 'cancelCodexLaunch', draftId: 'draft-1' },
+  showCodexLaunch: { type: 'showCodexLaunch', draftId: 'draft-1' },
+  repairCodexLaunch: { type: 'repairCodexLaunch', draftId: 'draft-1', action: 'scan' },
   codexCommand: { type: 'codexCommand', command: { action: 'reconcile', taskId: 'task-1' } },
   showCodexTask: { type: 'showCodexTask', taskId: 'task-1' }, readCodexResult: { type: 'readCodexResult', taskId: 'task-1' },
   openCodexOrigin: { type: 'openCodexOrigin', taskId: 'task-1' }, openCodexChanges: { type: 'openCodexChanges', taskId: 'task-1' },

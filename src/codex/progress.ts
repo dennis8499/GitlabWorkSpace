@@ -11,6 +11,9 @@ export function projectCodexProgress(current: CodexProgress | undefined, method:
   if (method === 'thread/tokenUsage/updated' && params.tokenUsage?.total) {
     const total = params.tokenUsage.total;
     if (number(total.totalTokens) !== undefined && number(total.inputTokens) !== undefined && number(total.outputTokens) !== undefined) {
+      // Thread totals are cumulative; a delayed snapshot cannot erase newer usage.
+      // The bridge clears tokens when it changes to a different thread.
+      if (current?.tokens && total.totalTokens < current.tokens.total) return undefined;
       update = { tokens: { total: total.totalTokens, input: total.inputTokens, output: total.outputTokens,
         contextWindow: number(params.tokenUsage.modelContextWindow) } };
     }

@@ -46,6 +46,11 @@ suite('GitLab Workspace extension activation', () => {
     const concurrency = vscode.workspace.getConfiguration('gitlabWorkspace').inspect<number>('codex.maxConcurrentTasks');
     assert.equal(concurrency?.defaultValue, 1);
     assert.equal(extension.packageJSON.contributes.configuration.properties['gitlabWorkspace.codex.maxConcurrentTasks'].maximum, 2);
+    const layout = vscode.workspace.getConfiguration('gitlabWorkspace').inspect<string>('codex.workspaceLayout');
+    assert.equal(layout?.defaultValue, 'workspace', 'the packaged extension registers the workspace layout as its default');
+    const layoutSetting = extension.packageJSON.contributes.configuration.properties['gitlabWorkspace.codex.workspaceLayout'];
+    assert.deepEqual(layoutSetting.enum, ['workspace', 'classic']);
+    assert.equal(layoutSetting.scope, 'window', 'layout can change per window without changing execution settings');
     const wikiGuideCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSaMode');
     assert.equal(wikiGuideCommand?.title, 'Skills 功能指引');
     const scanCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.scanRepositories');

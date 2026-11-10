@@ -1,0 +1,12 @@
+{
+  "unitGate": ".gitlab-workspace-validation/runs/2026-11-10T10-46-29-candidate-ui",
+  "unitTests": 1349,
+  "pass": 1346,
+  "skipped": 3,
+  "fail": 0,
+  "hostOutSha256": "c851ada2d5d4571bbd03ec4435c0b5a5acccf7c988152a259760b4b6c480f63e",
+  "scope": "Full unit code passed; following changes are the narrow CSS media condition and an offline behavior-test contract allowing the local draft read. Final compiled Host/unit outputs must remain identical.",
+  "hostAndUnitSha256": "6946063dff2ef6c7d1d578d424d4b6822580b5c418934843670daac5901f09c2",
+  "finalHostAndUnitSha256": "6946063dff2ef6c7d1d578d424d4b6822580b5c418934843670daac5901f09c2",
+  "status": "PASS"
+}

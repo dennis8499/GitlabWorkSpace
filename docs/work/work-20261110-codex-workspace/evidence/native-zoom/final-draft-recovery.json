@@ -1,0 +1,22 @@
+{
+  "schema": "GitLabWorkspaceNativeDraftRecovery/v1",
+  "panelsCreated": 3,
+  "storeInstancesRecreated": true,
+  "method": "Actual native panel disposal and fresh Webview API state; new production disk-store instance for each panel; controlled local Host, no model or GitLab calls.",
+  "passed": [
+    "message",
+    "public-answer",
+    "MR-reply",
+    "last-keystroke"
+  ],
+  "secretAbsentFromWireAndDisk": true,
+  "closedWhileSaveAcknowledgementHeld": true,
+  "dispatches": 0,
+  "persistenceReceipts": 3,
+  "assetHashes": {
+    "dashboard.html": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428",
+    "dashboard.js": "96e9cf154876b99bff7f9228e3a9f2945c71206ddb190349986756b83d4dbb14",
+    "dashboard.css": "618caca9d5f245fcc4aa26e23ecd76bd53198d04ff36cfaea7f3f8338a5e6431",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+  }
+}

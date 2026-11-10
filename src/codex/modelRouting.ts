@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CodexAppServer } from './appServer';
+import { CodexProtocolAdapter } from './adapter';
 import type { ReviewerToolId } from '../workspace/reviewSessionProtocol';
 
 import { routingModel, routingEfforts, validModelEfforts, autoEfforts, selectRoutingEffort, type RoutingEffort, type RequestedEffort,
@@ -108,21 +109,14 @@ export async function readModelRouting(binding: ModelRoutingBinding): Promise<Mo
   return value;
 }
 export async function requireRoutingEffort(client: CodexAppServer, effort: RoutingEffort, selectedModel = routingModel): Promise<void> {
-  let cursor: string | undefined;
-  const visited = new Set<string>();
-  do {
-    const page = await client.request('model/list', { limit: 100, includeHidden: true, ...(cursor ? { cursor } : {}) });
-    const model = page.data?.find((entry: any) => entry.model === selectedModel || entry.id === selectedModel);
-    if (model) {
-      if (!model.supportedReasoningEfforts?.some((entry: any) => entry.reasoningEffort === effort)) {
-        throw new Error(`目前 Codex 不支援 ${selectedModel === routingModel ? 'GPT-6 Luna' : selectedModel} ${effort}；已保留審查進度，請核對模型設定。`);
-      }
-      return;
+  const models = await new CodexProtocolAdapter(client, '').models(undefined, { includeHidden: true });
+  const model = models.find(entry => entry.model === selectedModel || entry.id === selectedModel);
+  if (model) {
+    if (!model.supportedReasoningEfforts?.some(entry => entry.reasoningEffort === effort)) {
+      throw new Error(`目前 Codex 不支援 ${selectedModel === routingModel ? 'GPT-6 Luna' : selectedModel} ${effort}；已保留審查進度，請核對模型設定。`);
     }
-    cursor = page.nextCursor ?? undefined;
-    if (cursor && visited.has(cursor)) throw new Error('Codex 模型目錄分頁無法完成。');
-    if (cursor) visited.add(cursor);
-  } while (cursor);
+    return;
+  }
   throw new Error(`目前 Codex 未提供 ${selectedModel === routingModel ? 'GPT-6 Luna' : selectedModel}；已保留審查進度，請核對模型設定。`);
 }
 export function routingSummary(binding: ModelRoutingBinding, state?: ModelRoutingState): ModelRoutingSummary {

@@ -1,0 +1,1126 @@
+{
+  "createdAt": "2026-11-10T10:51:44.260Z",
+  "scope": "Read-only production bundle, synthetic local Host; no model or GitLab calls.",
+  "zoomMethod": "1280x900 physical viewport represented by CSS viewport divided by 1.25/2 and matching deviceScaleFactor; this simulates display scaling, not browser UI zoom.",
+  "assetHashes": {
+    "dashboard.html": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428",
+    "dashboard.js": "96e9cf154876b99bff7f9228e3a9f2945c71206ddb190349986756b83d4dbb14",
+    "dashboard.css": "4b6478836aa245d472b0dc9684d1aacb214dfef8624b44448ba6ff68ac1f4039",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+  },
+  "patchSha256": "b9ab32a7ae68e52067055bb7fe852fb6bb1cddd47eb9f52470203ef708e79d32",
+  "assetsUnchangedDuringProbe": true,
+  "scenarios": 4,
+  "findingCount": 0,
+  "findings": [],
+  "results": [
+    {
+      "name": "launch-light-320-100",
+      "state": "launch",
+      "theme": "light",
+      "width": 320,
+      "scale": 1,
+      "layout": "workspace",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "conversation": {
+        "x": 0,
+        "y": 238,
+        "width": 305,
+        "height": 630,
+        "right": 305,
+        "bottom": 868
+      },
+      "horizontalOverflow": false,
+      "composerClipped": false,
+      "overlap": false,
+      "collapsedResults": false,
+      "tabsWithoutPanel": [],
+      "csp": [],
+      "focusPath": [
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "工具與環境",
+          "selector": "quiet settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "設定",
+          "selector": "quiet native-settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "訊息中心，0 筆未讀",
+          "selector": "quiet notifications-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SUMMARY",
+          "role": null,
+          "id": "",
+          "name": "Test User · @test-user　⌄",
+          "selector": "connection connected",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "總覽",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我的工作",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "專案",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Skills",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "BMAD",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "待審查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "版控",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Codex",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "一鍵掃描 Repo",
+          "selector": "quiet repository-scan-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "準備新任務",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "新增",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "TEXTAREA",
+          "role": null,
+          "id": "codex-launch-requirement",
+          "name": "TEXTAREA",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "codex-launch-repository",
+          "name": "選擇本次工作使用的 Reposervice · C:/workspace/service",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "id": "",
+          "name": "INPUT",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用本機 Codex 設定Fixture model · fixture-model",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用模型預設mediumhigh",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我已核對更新的來源",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "重新檢查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "稍後繼續",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        }
+      ],
+      "keyboard": {
+        "layoutTogglePreservesInput": true,
+        "layoutToggleSingleOwner": true,
+        "layoutDetailsPresentation": true,
+        "layoutToggleDoesNotStartWork": true,
+        "sourceChangePanelPresent": true,
+        "sourceChangeRequiresAcknowledgement": true,
+        "sourceChangeCanRecheck": true,
+        "sourceChangeFocus": true,
+        "sourceChangeWaitsForHost": true,
+        "sourceChangeSavesInput": true,
+        "sourceChangeAcknowledged": true,
+        "sourceChangeDoesNotStart": true,
+        "draftsSaved": true
+      },
+      "longDetailScroll": {},
+      "errors": [],
+      "external": []
+    },
+    {
+      "name": "launch-dark-320-100",
+      "state": "launch",
+      "theme": "dark",
+      "width": 320,
+      "scale": 1,
+      "layout": "workspace",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "conversation": {
+        "x": 0,
+        "y": 238,
+        "width": 305,
+        "height": 630,
+        "right": 305,
+        "bottom": 868
+      },
+      "horizontalOverflow": false,
+      "composerClipped": false,
+      "overlap": false,
+      "collapsedResults": false,
+      "tabsWithoutPanel": [],
+      "csp": [],
+      "focusPath": [
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "工具與環境",
+          "selector": "quiet settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "設定",
+          "selector": "quiet native-settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "訊息中心，0 筆未讀",
+          "selector": "quiet notifications-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SUMMARY",
+          "role": null,
+          "id": "",
+          "name": "Test User · @test-user　⌄",
+          "selector": "connection connected",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "總覽",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我的工作",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "專案",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Skills",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "BMAD",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "待審查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "版控",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Codex",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "一鍵掃描 Repo",
+          "selector": "quiet repository-scan-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "準備新任務",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "新增",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "TEXTAREA",
+          "role": null,
+          "id": "codex-launch-requirement",
+          "name": "TEXTAREA",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "codex-launch-repository",
+          "name": "選擇本次工作使用的 Reposervice · C:/workspace/service",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "id": "",
+          "name": "INPUT",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用本機 Codex 設定Fixture model · fixture-model",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用模型預設mediumhigh",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我已核對更新的來源",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "重新檢查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "稍後繼續",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        }
+      ],
+      "keyboard": {
+        "layoutTogglePreservesInput": true,
+        "layoutToggleSingleOwner": true,
+        "layoutDetailsPresentation": true,
+        "layoutToggleDoesNotStartWork": true,
+        "sourceChangePanelPresent": true,
+        "sourceChangeRequiresAcknowledgement": true,
+        "sourceChangeCanRecheck": true,
+        "sourceChangeFocus": true,
+        "sourceChangeWaitsForHost": true,
+        "sourceChangeSavesInput": true,
+        "sourceChangeAcknowledged": true,
+        "sourceChangeDoesNotStart": true,
+        "draftsSaved": true
+      },
+      "longDetailScroll": {},
+      "errors": [],
+      "external": []
+    },
+    {
+      "name": "launch-hc-dark-320-100",
+      "state": "launch",
+      "theme": "hc-dark",
+      "width": 320,
+      "scale": 1,
+      "layout": "workspace",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "conversation": {
+        "x": 0,
+        "y": 238,
+        "width": 305,
+        "height": 630,
+        "right": 305,
+        "bottom": 868
+      },
+      "horizontalOverflow": false,
+      "composerClipped": false,
+      "overlap": false,
+      "collapsedResults": false,
+      "tabsWithoutPanel": [],
+      "csp": [],
+      "focusPath": [
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "工具與環境",
+          "selector": "quiet settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "設定",
+          "selector": "quiet native-settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "訊息中心，0 筆未讀",
+          "selector": "quiet notifications-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SUMMARY",
+          "role": null,
+          "id": "",
+          "name": "Test User · @test-user　⌄",
+          "selector": "connection connected",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "總覽",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我的工作",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "專案",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Skills",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "BMAD",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "待審查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "版控",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Codex",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "一鍵掃描 Repo",
+          "selector": "quiet repository-scan-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "準備新任務",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "新增",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "TEXTAREA",
+          "role": null,
+          "id": "codex-launch-requirement",
+          "name": "TEXTAREA",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "codex-launch-repository",
+          "name": "選擇本次工作使用的 Reposervice · C:/workspace/service",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "id": "",
+          "name": "INPUT",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用本機 Codex 設定Fixture model · fixture-model",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用模型預設mediumhigh",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我已核對更新的來源",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "重新檢查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "稍後繼續",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        }
+      ],
+      "keyboard": {
+        "layoutTogglePreservesInput": true,
+        "layoutToggleSingleOwner": true,
+        "layoutDetailsPresentation": true,
+        "layoutToggleDoesNotStartWork": true,
+        "sourceChangePanelPresent": true,
+        "sourceChangeRequiresAcknowledgement": true,
+        "sourceChangeCanRecheck": true,
+        "sourceChangeFocus": true,
+        "sourceChangeWaitsForHost": true,
+        "sourceChangeSavesInput": true,
+        "sourceChangeAcknowledged": true,
+        "sourceChangeDoesNotStart": true,
+        "draftsSaved": true
+      },
+      "longDetailScroll": {},
+      "errors": [],
+      "external": []
+    },
+    {
+      "name": "launch-hc-light-320-100",
+      "state": "launch",
+      "theme": "hc-light",
+      "width": 320,
+      "scale": 1,
+      "layout": "workspace",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "documentWidth": 320,
+      "conversation": {
+        "x": 0,
+        "y": 238,
+        "width": 305,
+        "height": 630,
+        "right": 305,
+        "bottom": 868
+      },
+      "horizontalOverflow": false,
+      "composerClipped": false,
+      "overlap": false,
+      "collapsedResults": false,
+      "tabsWithoutPanel": [],
+      "csp": [],
+      "focusPath": [
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "工具與環境",
+          "selector": "quiet settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "設定",
+          "selector": "quiet native-settings-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "訊息中心，0 筆未讀",
+          "selector": "quiet notifications-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SUMMARY",
+          "role": null,
+          "id": "",
+          "name": "Test User · @test-user　⌄",
+          "selector": "connection connected",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "總覽",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我的工作",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "專案",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Skills",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "BMAD",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "待審查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "版控",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "Codex",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "一鍵掃描 Repo",
+          "selector": "quiet repository-scan-trigger",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "準備新任務",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "新增",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "TEXTAREA",
+          "role": null,
+          "id": "codex-launch-requirement",
+          "name": "TEXTAREA",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "codex-launch-repository",
+          "name": "選擇本次工作使用的 Reposervice · C:/workspace/service",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "INPUT",
+          "role": null,
+          "id": "",
+          "name": "INPUT",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用本機 Codex 設定Fixture model · fixture-model",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "SELECT",
+          "role": null,
+          "id": "",
+          "name": "沿用模型預設mediumhigh",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "我已核對更新的來源",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "重新檢查",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        },
+        {
+          "tag": "BUTTON",
+          "role": null,
+          "id": "",
+          "name": "稍後繼續",
+          "selector": "",
+          "visible": true,
+          "unobscured": true,
+          "centerVisible": true
+        }
+      ],
+      "keyboard": {
+        "layoutTogglePreservesInput": true,
+        "layoutToggleSingleOwner": true,
+        "layoutDetailsPresentation": true,
+        "layoutToggleDoesNotStartWork": true,
+        "sourceChangePanelPresent": true,
+        "sourceChangeRequiresAcknowledgement": true,
+        "sourceChangeCanRecheck": true,
+        "sourceChangeFocus": true,
+        "sourceChangeWaitsForHost": true,
+        "sourceChangeSavesInput": true,
+        "sourceChangeAcknowledged": true,
+        "sourceChangeDoesNotStart": true,
+        "draftsSaved": true
+      },
+      "longDetailScroll": {},
+      "errors": [],
+      "external": []
+    }
+  ]
+}

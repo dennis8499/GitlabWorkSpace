@@ -1,0 +1,17 @@
+/* Keep keyboard focus clear of the sticky form actions. */
+.codex-attention { scroll-padding-bottom: 64px; }
+.codex-launch { scroll-padding-bottom: 120px; }
+/* Short windows and display scaling need one reachable vertical flow. */
+@media (max-height: 600px) {
+  .codex-conversation { overflow-y: auto; scroll-padding-block: 12px 170px; }
+  .codex-conversation > * { flex-shrink: 0; }
+  .codex-execution-panel { flex: 0 0 200px; min-height: 200px; }
+  .codex-results-panel { flex: 0 0 auto; min-height: 240px; overflow: visible; }
+  .codex-attention { flex: 0 0 auto; min-height: 0; max-height: none; overflow: visible; }
+  .codex-attention .codex-interaction > .button-row { position: static; }
+  .codex-message { position: sticky; bottom: 0; z-index: 4; max-height: 180px; box-sizing: border-box; overflow-y: auto; background: var(--vscode-editor-background); }
+  .codex-message-queue-content { position: static; max-height: 160px; }
+  .codex-launch-container { flex: 0 0 auto; }
+  .codex-launch-container .codex-launch { overflow: visible; }
+  .codex-launch .codex-launch-actions { position: static; }
+}

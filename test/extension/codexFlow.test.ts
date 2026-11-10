@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { chromium } from 'playwright-core';
@@ -40,27 +40,50 @@ suite('Codex one-click packaged extension', function () {
       await writeFile(path.join(evidence, 'skills.json'), JSON.stringify(host.getSkillsContext(), null, 2));
       await wait(() => host.getSkillsContext().installed.status === 'installed', 'WorkflowKit did not become available', 90_000);
       const bridge = host.getCodexBridge() as CodexBridge;
+      const fixtureDirectories = await Promise.all([root, path.join(root, 'service')].map(value => realpath(value)));
+      const canonicalKey = (value: string) => process.platform === 'win32' ? value.toLowerCase() : value;
+      const harmlessCommands = new Set(['git --version', 'git --no-pager -c core.fsmonitor=false status --short',
+        'git --no-pager -c core.fsmonitor=false diff --no-ext-diff --no-textconv --',
+        'git --no-pager -c core.fsmonitor=false diff --cached --no-ext-diff --no-textconv --']);
+      const harmlessCommandFields = new Set(['threadId', 'turnId', 'itemId', 'approvalId', 'reason', 'command', 'cwd', 'availableDecisions']);
+      async function mayApprove(request: { method?: string; params?: Record<string, unknown> }): Promise<boolean> {
+        const params = request.params;
+        // grantRoot and rendered detail alone cannot prove a specific write or shell command is safe.
+        if (request.method !== 'item/commandExecution/requestApproval' || !params ||
+          Object.keys(params).some(key => !harmlessCommandFields.has(key)) || typeof params.command !== 'string' ||
+          !harmlessCommands.has(params.command) || typeof params.cwd !== 'string' || !path.isAbsolute(params.cwd)) return false;
+        const directory = await realpath(params.cwd).catch(() => undefined);
+        return !!directory && fixtureDirectories.some(value => canonicalKey(value) === canonicalKey(directory));
+      }
       async function finish(taskId: string, timeout = 300_000): Promise<CodexTaskState> {
         const deadline = Date.now() + timeout, answered = new Set<string>();
         while (Date.now() < deadline) {
           const task = bridge.list().find(value => value.id === taskId)!;
           if (['completed', 'failed', 'interrupted', 'uncertain'].includes(task.status)) {
-            await wait(() => !(bridge as any).active, 'The process supervisor did not settle');
+            await wait(() => !(bridge as any).executions.has(taskId), 'The task process supervisor did not settle');
             assert.equal(task.status, 'completed', task.error ?? task.status); return task;
           }
-          const requests = [...(bridge as any).interactions.values()] as Array<{ projection: CodexInteraction }>;
-          for (const { projection } of requests) {
-            if (answered.has(projection.id)) continue;
-            answered.add(projection.id);
+          const requests = [...(bridge as any).interactions.values()] as Array<{ projection: CodexInteraction; request: { method?: string; params?: Record<string, unknown> } }>;
+          for (const { projection, request } of requests) {
+            if (projection.taskId !== taskId || answered.has(projection.id)) continue;
+            const form = `.codex-interaction[aria-labelledby=${JSON.stringify('codex-interaction-' + projection.id)}]`;
+            await ui!.waitForVisible(form, 30_000);
             if (projection.kind === 'questions') {
-              const answers = Object.fromEntries((projection.questions ?? []).map(question => [question.id,
-                question.options?.[0]?.label ?? '採用最精簡、僅修改此隔離測試專案的合理預設；不發布、不推送、不傳送訊息。']));
-              await bridge.answer(task.id, projection.id, { decision: 'accept', answers });
+              for (const [index, question] of (projection.questions ?? []).entries()) {
+                if (question.isSecret) throw new Error(`Live fixture requires human input for secret question ${question.id}.`);
+                await ui!.fill(`${form} .codex-question input`,
+                  '採用最精簡、僅修改此隔離測試專案的合理預設；不連外、不發布、不推送、不傳送訊息。', index);
+              }
+              await ui!.click(`${form} button[type="submit"]`);
             } else {
-              // Only local command/file approvals in the explicit disposable workspace are accepted.
-              const local = ['command', 'file'].includes(projection.kind) && !(projection.detail ?? '').includes('http');
-              await bridge.answer(task.id, projection.id, { decision: local ? 'accept' : 'decline' });
+              if (!await mayApprove(request)) {
+                await ui!.click(`${form} .button-row > button:nth-child(3)`);
+                throw new Error(`Live fixture requires explicit human review for ${projection.kind} request ${projection.id}; no approval was granted.`);
+              }
+              await ui!.click(`${form} button[type="submit"]`);
             }
+            answered.add(projection.id);
+            await ui!.waitForHidden(form, 30_000);
           }
           await sleep(200);
         }
@@ -71,30 +94,45 @@ suite('Codex one-click packaged extension', function () {
         const before = new Set(bridge.list().map(value => value.id));
         await ui!.waitForProperty(selector, 'disabled', false, 30_000);
         await ui!.click(selector);
-        await wait(() => bridge.list().some(value => !before.has(value.id)), `${name}: one-click did not enqueue a task`, 90_000);
+        await ui!.waitForVisible('.codex-launch', 90_000);
+        await ui!.waitForProperty('.codex-launch-actions button[type="submit"]', 'disabled', false, 90_000);
+        await ui!.fill('#codex-launch-requirement', '只處理目前的隔離測試專案；不發布、不推送、不建立遠端留言。');
+        await ui!.waitUntil(`document.querySelector('.codex-launch-actions [role="status"]')?.textContent === '設定已保存'`, 30_000, 'Launch edits were not acknowledged and saved');
+        const repository = await ui!.evaluate<string | undefined>(`(() => { const select = document.querySelector('#codex-launch-repository'); return !select?.value ? [...(select?.options ?? [])].find(option => option.value)?.value : undefined; })()`);
+        if (repository) {
+          await ui!.fill('#codex-launch-repository', repository);
+          await ui!.waitUntil(`document.querySelector('.codex-launch-actions [role="status"]')?.textContent === '設定已保存'`, 30_000, 'Repository selection was not acknowledged');
+        }
+        await ui!.click('.codex-launch-actions button[type="submit"]');
+        await wait(() => bridge.list().some(value => !before.has(value.id)), `${name}: confirmed launch did not enqueue a task`, 90_000);
+        checks.launchComposer = true;
         const task = bridge.list().find(value => !before.has(value.id))!;
         await ui!.waitForVisible('.codex-workspace:not([hidden])', 30_000);
         if (name === 'wiki') {
-          await ui!.waitForProperty('.codex-auto-accept input', 'disabled', false, 30_000);
-          await ui!.click('.codex-auto-accept input');
-          await wait(() => bridge.list().find(value => value.id === task.id)?.controls?.autoAccept === true, 'Auto-Accept did not enable');
-          await ui!.waitForProperty('.codex-auto-accept input', 'checked', true, 30_000);
-          await ui!.click('.codex-auto-accept input');
-          await wait(() => bridge.list().find(value => value.id === task.id)?.controls?.autoAccept === false, 'Auto-Accept did not disable');
-          await ui!.waitForProperty('.codex-auto-accept input', 'checked', false, 30_000);
-          checks.autoAcceptToggle = true;
           await wait(() => !!bridge.list().find(value => value.id === task.id)?.turnId || bridge.list().find(value => value.id === task.id)?.status === 'failed', 'Wiki did not enter a turn');
           const running = bridge.list().find(value => value.id === task.id)!;
-          if (running.status === 'running') {
-            await ui!.click('.codex-controls > button.primary');
+          assert.ok(['running', 'waiting'].includes(running.status), 'The required pause scenario must reach a controllable live turn; it may not silently skip');
+          {
+            await ui!.evaluate(`(() => { const button = [...document.querySelectorAll('.codex-controls button')].find(item => item.textContent === '暫停'); if (!button || button.disabled) throw new Error('Pause control is unavailable'); button.click(); })()`);
             await wait(() => bridge.list().find(value => value.id === task.id)?.status === 'paused', 'Wiki pause did not settle', 90_000);
-            assert.equal((bridge as any).active, undefined, 'paused is published after process cleanup');
+            assert.equal((bridge as any).executions.has(task.id), false, 'paused is published after process cleanup');
+            assert.equal([...(bridge as any).interactions.values()].some((item: { projection: CodexInteraction }) => item.projection.taskId === task.id), false);
+            // Toggle only after confirmed cleanup, so this UI check cannot approve an unreviewed live request.
+            await ui!.waitForProperty('.codex-auto-accept input', 'disabled', false, 30_000);
+            await ui!.click('.codex-auto-accept input');
+            await wait(() => bridge.list().find(value => value.id === task.id)?.controls?.autoAccept === true, 'Auto-Accept did not enable');
+            await ui!.waitForProperty('.codex-auto-accept input', 'checked', true, 30_000);
+            await ui!.click('.codex-auto-accept input');
+            await wait(() => bridge.list().find(value => value.id === task.id)?.controls?.autoAccept === false, 'Auto-Accept did not disable');
+            await ui!.waitForProperty('.codex-auto-accept input', 'checked', false, 30_000);
+            checks.autoAcceptToggle = true;
             await ui!.waitForVisible('.codex-controls > button.primary:not([aria-busy]):not([disabled])', 30_000);
             await ui!.click('.codex-controls > button.primary');
             await wait(() => ['queued', 'starting', 'running', 'completed'].includes(bridge.list().find(value => value.id === task.id)!.status), 'Wiki resume was not accepted');
             assert.equal(bridge.list().find(value => value.id === task.id)?.threadId, running.threadId, 'resume retains the real Codex conversation');
             checks.pauseAndResume = true;
           }
+          assert.equal(checks.pauseAndResume, true, 'Pause and resume is mandatory for the live Wiki scenario');
         }
         await finish(task.id);
         if (name === 'wiki') {

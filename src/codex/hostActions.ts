@@ -11,19 +11,23 @@ export interface CodexHostActionOptions {
   repositories(): Promise<Array<{ name: string; path: string }>>;
   prepare(source: CodexTaskSource): Promise<CodexTaskSpec>;
   createTask(source: CodexTaskSource): Promise<string | undefined>;
+  launch?(context?: 'none' | 'selection' | 'file' | 'diff'): Promise<void>;
   selected(taskId: string): Promise<void>;
   check(spec: CodexTaskSpec): void;
   diff(spec: CodexTaskSpec, taskId: string): Promise<void>;
-  workflow(action: 'handoff' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix', taskId: string): Promise<void>;
+  workflow(action: 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare', taskId: string): Promise<void>;
   reply(taskId: string, discussionId: string, body: string): Promise<void>;
 }
-/** Native pickers own paths/models; the webview can only request named actions. */
+/** Host resolves trusted paths and task specifications; the webview requests named actions. */
 export class CodexHostActions {
   private draft?: { repository: string; prompt: string; contexts: CodexContext[] };
   constructor(private readonly options: CodexHostActionOptions, private readonly vscode: typeof VSCode) {}
   async run(command: CodexCommand): Promise<void> {
     if (!this.vscode.workspace.isTrusted) throw new Error('請先信任工作區。');
-    if (command.action === 'create') { await this.create(command.context); return; }
+    if (command.action === 'create') {
+      if (this.options.launch) await this.options.launch(command.context); else await this.create(command.context);
+      return;
+    }
     if (command.action === 'storage') { await this.vscode.commands.executeCommand('revealFileInOS', this.vscode.Uri.file(this.options.bridge().storagePath)); return; }
     const bridge = this.options.bridge(), spec = await bridge.specification(command.taskId);
     this.options.check(spec);
@@ -37,7 +41,7 @@ export class CodexHostActions {
       if (task.controls?.canResume && spec.source.kind === 'free') choices.push({ label: '設定／暫停目標', value: 'goal' });
       if (task.status === 'queued' && !task.controls?.external) choices.push({ label: '向前移動排隊順序', value: 'up' }, { label: '向後移動排隊順序', value: 'down' });
       if (spec.origin?.kind === 'issue' && task.result?.state === 'ready') choices.push({ label: '準備 CommitReviewer 與 MR 草稿', value: 'handoff' });
-      if (spec.workflow?.worktree) choices.push({ label: '移除已保存的隔離 worktree', value: 'remove-worktree' });
+      if (spec.workflow?.worktree) choices.push({ label: '開啟隔離工作區', value: 'open-worktree' }, { label: '移除已保存的隔離 worktree', value: 'remove-worktree' });
       if (spec.origin?.kind === 'project-wiki' && task.controls?.canResume) choices.push({ label: '依來源變更重新產生 Wiki', value: 'regenerate-wiki' });
       if (spec.origin?.kind === 'merge-request' && task.controls?.canResume) choices.push({ label: '將 MR 討論轉成修正任務', value: 'mr-fix' });
       const choice = await this.vscode.window.showQuickPick(choices, { title: task.title }); if (!choice) return;
@@ -66,7 +70,8 @@ export class CodexHostActions {
       const root = await realpath(spec.executionRoot ?? spec.origin?.repositoryRoot ?? spec.root);
       const file = await realpath(path.resolve(root, command.path));
       if (!pathInside(root, file)) throw new Error('檔案不在此任務的 Repo 範圍。');
-      await this.vscode.window.showTextDocument(this.vscode.Uri.file(file));
+      const position = command.line !== undefined ? new this.vscode.Range(command.line - 1, 0, command.line - 1, 0) : undefined;
+      await this.vscode.window.showTextDocument(this.vscode.Uri.file(file), position ? { selection: position } : undefined);
     } else if (command.action === 'open-diff') await this.options.diff(spec, task.id);
     else if (command.action === 'publish-reply') await this.options.reply(task.id, command.discussionId, command.body);
     else if (command.action === 'fork') {

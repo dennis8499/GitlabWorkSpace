@@ -1,0 +1,22 @@
+.codex-markdown { min-width: 0; overflow-wrap: anywhere; line-height: 1.6; }
+.codex-markdown > :first-child { margin-top: 0; }
+.codex-markdown > :last-child { margin-bottom: 0; }
+.codex-markdown h1 { font-size: 1.55em; }
+.codex-markdown h2 { font-size: 1.3em; }
+.codex-markdown h3, .codex-markdown h4, .codex-markdown h5, .codex-markdown h6 { font-size: 1.1em; }
+.codex-markdown p { margin: .65em 0; white-space: pre-wrap; }
+.codex-markdown ul, .codex-markdown ol { padding-left: 1.6em; }
+.codex-markdown li > p { margin: .25em 0; }
+.codex-markdown blockquote { margin: .75em 0; padding: .25em 1em; border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-panel-border)); color: var(--vscode-descriptionForeground); }
+.codex-markdown code { font-family: var(--vscode-editor-font-family, monospace); background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background)); }
+.codex-markdown :not(pre) > code { padding: .1em .3em; border-radius: 3px; }
+.codex-markdown .codex-markdown-code > pre { max-height: none; height: auto; overflow: auto; padding: .75em; white-space: pre; }
+.codex-markdown-code-heading { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
+.codex-markdown .codex-markdown-file { display: inline; border: 0; padding: 0; background: transparent; color: var(--vscode-textLink-foreground); font: inherit; line-height: inherit; text-align: inherit; cursor: pointer; }
+.codex-markdown .codex-markdown-file:hover { text-decoration: underline; }
+.codex-markdown .codex-markdown-file:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.codex-markdown-table { max-width: 100%; overflow: auto; margin: .75em 0; }
+.codex-markdown-table table { width: max-content; min-width: min(100%, 24rem); border-collapse: collapse; }
+.codex-markdown-table th, .codex-markdown-table td { border: 1px solid var(--vscode-panel-border); padding: .4em .65em; }
+.codex-markdown a { color: var(--vscode-textLink-foreground); }
+.codex-markdown-literal { white-space: pre-wrap; }

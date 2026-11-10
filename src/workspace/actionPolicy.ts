@@ -16,8 +16,11 @@ export interface ActionPolicy {
 // These exhaustive tables also classify control traffic, which must never
 // produce further lifecycle messages or notifications.
 export const workspaceActionKinds = {
+  loadCodexUiDrafts: 'control', saveCodexUiDrafts: 'control',
   codexCommand: 'write',
   startCodexTask: 'write', listCodexTasks: 'control', codexHistory: 'read', sendCodexMessage: 'write',
+  createCodexLaunch: 'read', updateCodexLaunch: 'control', checkCodexLaunch: 'read', showCodexLaunch: 'read',
+  submitCodexLaunch: 'write', cancelCodexLaunch: 'control', repairCodexLaunch: 'write',
   showCodexTask: 'read', readCodexResult: 'read', openCodexOrigin: 'read', openCodexChanges: 'read',
   previewProjectWiki: 'read', cancelProjectWikiPreview: 'control', publishProjectWiki: 'write', publishCodexReview: 'write',
   cancelCodexTask: 'control', resumeCodexTask: 'write', answerCodex: 'write', checkCodex: 'read', configureCodex: 'write',
@@ -231,6 +234,8 @@ export const quickActionKinds = {
 export const operationLabels: Record<string, string> = {
   codexCommand: '管理 Codex 任務',
   startCodexTask: '啟動 Codex 任務', sendCodexMessage: '傳送 Codex 訊息', resumeCodexTask: '續作 Codex 任務',
+  createCodexLaunch: '準備 Codex 任務', updateCodexLaunch: '保存任務設定', checkCodexLaunch: '檢查任務設定',
+  submitCodexLaunch: '開始執行 Codex 任務', cancelCodexLaunch: '取消任務準備', showCodexLaunch: '繼續準備任務', repairCodexLaunch: '修復任務環境',
   showCodexTask: '查看 Codex 任務', readCodexResult: '讀取任務成果', openCodexOrigin: '返回任務來源', openCodexChanges: '檢視 Issue 修改',
   previewProjectWiki: '預覽 GitLab Wiki', publishProjectWiki: '發布 GitLab Wiki', publishCodexReview: '發布審查留言',
   pauseCodexTask: '暫停 Codex 任務', deleteCodexTask: '刪除 Codex 任務紀錄', setCodexAutoAccept: '設定 Auto-Accept', openCodex: '開啟 Codex',
@@ -258,6 +263,7 @@ const localWorkspaceActions = new Set([
   'codexCommand',
   'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex',
+  'createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch',
   'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot',
@@ -308,7 +314,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   let slot = action;
   if (action === 'codexCommand') {
     const command = request.command;
-    if (['reconcile', 'diagnostics', 'open-file', 'open-diff', 'manage', 'storage'].includes(command?.action)) kind = 'read';
+    if (['reconcile', 'diagnostics', 'open-file', 'open-diff', 'open-worktree', 'manage', 'storage'].includes(command?.action)) kind = 'read';
     if (['approvals', 'reorder'].includes(command?.action)) kind = 'control';
     resourceKey = 'codex:' + (command?.taskId ?? 'queue'); slot = resourceKey + ':' + command?.action;
   }
@@ -352,6 +358,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (request.type === 'cancelRepositoryDetails' || request.type === 'reconcileOperations') kind = 'control';
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
+  else if (['createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch'].includes(action)) { resourceKey = 'codex-launch:' + (request.draftId ?? 'new'); slot = resourceKey + ':' + action; }
   else if (['startCodexTask', 'sendCodexMessage', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'cancelCodexTask', 'codexHistory', 'checkCodex', 'configureCodex', 'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'publishProjectWiki'].includes(action)) { resourceKey = 'codex:' + (request.taskId ?? 'queue'); slot = resourceKey + ':' + action; }
   else if (action === 'publishCodexReview') resourceKey = 'codex-review:' + request.taskId;
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;
@@ -367,7 +374,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))
     || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects', 'loadTemplate', 'loadCreateProjects'].includes(nestedType)) || action === 'setMergeRequestFilter';
   const concurrency: ActionConcurrency = kind === 'write' ? 'exclusive' : latest ? 'latest' : kind === 'read' ? 'join' : 'parallel';
-  const localResource = resourceKey.startsWith('codex:') || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey.startsWith('review-capabilities:') || resourceKey === 'repositories' || resourceKey === 'skills';
+  const localResource = resourceKey.startsWith('codex:') || resourceKey.startsWith('codex-launch:') || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey.startsWith('review-capabilities:') || resourceKey === 'repositories' || resourceKey === 'skills';
   // Repo IDs are canonical service identities and must not be namespaced by
   // connection scope: switching accounts cannot permit a second local write.
   const namespace = clipboard || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') ? 'global'

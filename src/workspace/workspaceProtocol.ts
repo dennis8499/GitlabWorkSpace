@@ -184,6 +184,7 @@ export interface WorkflowKitReleaseSummary {
 
 export interface WorkspaceSnapshot {
   hostNavigationGeneration?: number;
+  codexWorkspaceLayout?: 'workspace' | 'classic';
   workspaceCapabilities?: WorkspaceCapabilities;
   bmad?: BmadWorkflowSnapshot;
   bmadEnvironment?: BmadEnvironmentCheck;
@@ -281,7 +282,16 @@ export interface CloneOperationState {
 export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId' | 'resourceKey' | 'action' | 'label' | 'correlationId' | 'lockKey' | 'kind'>;
 
 export type WorkspaceRequest = (NotificationRequest
+  | { type: 'loadCodexUiDrafts'; requestId: string }
+  | { type: 'saveCodexUiDrafts'; requestId: string; scope: string; updates: import('../codex/uiDraftProtocol').CodexUiDraftEntry[]; resolveConflictIds?: string[] }
   | { type: 'startCodexTask'; source: import('../codex/protocol').CodexTaskSource }
+  | { type: 'createCodexLaunch'; source?: import('../codex/protocol').CodexTaskSource }
+  | { type: 'updateCodexLaunch'; draftId: string; revision: number; patch: import('../codex/protocol').CodexLaunchPatch }
+  | { type: 'checkCodexLaunch'; draftId: string; revision?: number; patch?: import('../codex/protocol').CodexLaunchPatch }
+  | { type: 'submitCodexLaunch'; draftId: string; revision?: number; patch?: import('../codex/protocol').CodexLaunchPatch }
+  | { type: 'cancelCodexLaunch'; draftId: string; revision?: number }
+  | { type: 'showCodexLaunch'; draftId: string; revision?: number }
+  | { type: 'repairCodexLaunch'; draftId: string; action: NonNullable<import('../codex/protocol').CodexLaunchCheck['repair']> }
   | { type: 'codexCommand'; command: import('../codex/protocol').CodexCommand }
   | { type: 'showCodexTask'; taskId: string }
   | { type: 'readCodexResult'; taskId: string }
@@ -400,7 +410,9 @@ export type WorkspaceResponse =
   | { type: 'protocolError'; operationId?: string; message: string }
   | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
   | { type: 'codexTaskStarted'; taskId: string }
-  | { type: 'codexWorkflowResult'; taskId: string; result?: import('../codex/protocol').CodexTaskResult; report?: string; wiki?: import('../codex/workflowProtocol').ProjectWikiPreview }
+  | { type: 'codexLaunchDraft'; draft?: import('../codex/protocol').CodexLaunchDraft; open?: boolean; hidden?: boolean }
+  | { type: 'codexUiDrafts'; requestId: string; snapshot?: import('../codex/uiDraftProtocol').CodexUiDraftSnapshot; error?: string }
+  | { type: 'codexWorkflowResult'; taskId: string; result?: import('../codex/protocol').CodexTaskResult; report?: string; handoff?: string; wiki?: import('../codex/workflowProtocol').ProjectWikiPreview }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
   | { type: 'openSettings' }

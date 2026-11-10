@@ -1,0 +1,40 @@
+{
+  "schema": "GitLabWorkspaceCandidateIdentity/v1",
+  "status": "PASS",
+  "version": "0.47.0",
+  "archive": {
+    "file": "gitlab-workspace-0.47.0.vsix",
+    "bytes": 2463009,
+    "sha256": "fc6651cb58a05f23e6bd8f1ddb6902864d2cc50d6bfbdcc249020986807566d2"
+  },
+  "uiHashes": {
+    "dashboard.html": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428",
+    "dashboard.js": "96e9cf154876b99bff7f9228e3a9f2945c71206ddb190349986756b83d4dbb14",
+    "dashboard.css": "618caca9d5f245fcc4aa26e23ecd76bd53198d04ff36cfaea7f3f8338a5e6431",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+  },
+  "requiredHostFilesAndNotice": [
+    "out/src/codex/bridge.js",
+    "out/src/codex/launchCoordinator.js",
+    "out/src/codex/uiDraftStore.js",
+    "out/src/codex/uiDraftProtocol.js",
+    "out/src/storage/controlLease.js",
+    "out/src/workspace/workspacePanel.js",
+    "docs/licenses/marked-LICENSE.md"
+  ],
+  "nativeProofs": [
+    "native-codex-zoom.json",
+    "native-codex-draft-recovery.json"
+  ],
+  "visualScenarios": 104,
+  "rendererMeasurements": 6,
+  "preparationInputSha256": "749bf98af654d39f34fc8ff315f11e375b58564c885d0dfdf8f64391031bf96a",
+  "unitValidation": {
+    "pass": 1346,
+    "skipped": 3,
+    "identicalHostAndUnitSha256": "6946063dff2ef6c7d1d578d424d4b6822580b5c418934843670daac5901f09c2"
+  },
+  "localFeedbackSamples": 120,
+  "packageGate": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-11-10T11-07-59-candidate-package",
+  "method": "Exact delivered bytes match current build, both native proofs, 104 browser scenarios and renderer; final build receipt and checksum are valid."
+}

@@ -38,8 +38,8 @@ export class CodexAppServer {
     child.once('error', () => this.fail(new CodexRpcError('transport')));
     child.once('close', () => this.fail(new CodexRpcError('transport', undefined, undefined, 'possibly-sent')));
   }
-  async initialize(version: string, experimentalApi = true): Promise<void> {
-    await this.request('initialize', { clientInfo: { name: 'gitlab_workspace', title: 'GitLab Workspace', version }, capabilities: { experimentalApi } });
+  async initialize(version: string, experimentalApi = true, signal?: AbortSignal): Promise<void> {
+    await this.request('initialize', { clientInfo: { name: 'gitlab_workspace', title: 'GitLab Workspace', version }, capabilities: { experimentalApi } }, { signal });
     this.send({ method: 'initialized', params: {} });
   }
   request<T = any>(method: string, params: Record<string, unknown> = {}, options: RpcOptions = {}): Promise<T> {
