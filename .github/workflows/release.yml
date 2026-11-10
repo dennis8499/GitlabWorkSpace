@@ -150,16 +150,43 @@ jobs:
           GITLAB_WORKSPACE_VALIDATION_DIR: ${{ runner.temp }}/gitlab-workspace-validation/${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cell }}
         run: |
           python -X utf8 -B - <<'PY'
+          import json
           import os
           from pathlib import Path
           root = Path(os.environ['GITLAB_WORKSPACE_VALIDATION_DIR'])
-          for path in sorted(root.glob('*.log')):
-              print('\n### ' + path.name)
-              print(path.read_text(encoding='utf-8', errors='replace')[-20000:])
           timings = root / 'timings.json'
+          failed_logs = []
           if timings.exists():
+              report = json.loads(timings.read_text(encoding='utf-8', errors='replace'))
+              for stage in report.get('stages', []):
+                  if stage.get('exitCode') == 0 or not stage.get('log'):
+                      continue
+                  path = Path(stage['log'])
+                  failed_logs.append(path if path.is_absolute() else root / path)
               print('\n### timings.json')
-              print(timings.read_text(encoding='utf-8', errors='replace'))
+              print(json.dumps(report, indent=2))
+          diagnostics = []
+          for path in failed_logs:
+              if path.is_file():
+                  body = path.read_text(encoding='utf-8', errors='replace')[-20000:]
+                  print('\n### ' + path.name)
+                  print(body)
+                  diagnostics.append('### ' + path.name + '\n\n```text\n' + body + '\n```\n')
+          if not diagnostics:
+              for path in sorted(root.glob('*.log')):
+                  body = path.read_text(encoding='utf-8', errors='replace')[-20000:]
+                  print('\n### ' + path.name)
+                  print(body)
+                  diagnostics.append('### ' + path.name + '\n\n```text\n' + body + '\n```\n')
+          if not diagnostics:
+              print('No validation stage log was recorded.')
+              diagnostics.append('No validation stage log was recorded. See the raw job log and timings.json artifact.')
+          summary = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary:
+              with open(summary, 'a', encoding='utf-8') as output:
+                  output.write('## Validation failure diagnostics\n\n')
+                  output.write('\n'.join(diagnostics))
+                  output.write('\n')
           PY
       - name: Test release provenance and publication contracts
         if: needs.route.outputs.mode == 'all'

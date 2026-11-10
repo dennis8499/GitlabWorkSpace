@@ -34,11 +34,13 @@ def verified_fixture(version):
 class WorkflowKitIntegrationTests(unittest.TestCase):
     KIT_VERSION = "1.3.1"
     def setUp(self):
-        temp_root = FIXTURES.parents[1] / ".tmp"
-        temp_root.mkdir(exist_ok=True)
+        temp_root = Path(tempfile.gettempdir()).resolve()
         self.temporary = tempfile.TemporaryDirectory(prefix="glw-kit-131-", dir=temp_root)
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name).resolve()
+        repository = FIXTURES.parents[1].resolve()
+        self.assertFalse(self.base.is_relative_to(repository), "Integration scratch must stay outside the checkout")
+        self.assertEqual(self.base.parent, temp_root)
         self.env = os.environ.copy()
         self.env.update({"TMP": str(self.base), "TEMP": str(self.base), "TMPDIR": str(self.base)})
 

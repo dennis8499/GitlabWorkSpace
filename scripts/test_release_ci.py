@@ -360,6 +360,11 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertEqual(text.count("GITLAB_WORKSPACE_VALIDATION_DIR: " + evidence_dir), 3)
             self.assertNotIn("GITLAB_WORKSPACE_VALIDATION_DIR: .gitlab-workspace-validation/ci", text)
             self.assertIn("root = Path(os.environ['GITLAB_WORKSPACE_VALIDATION_DIR'])", text)
+            self.assertIn("summary = os.environ.get('GITHUB_STEP_SUMMARY')", text)
+            self.assertIn("for stage in report.get('stages', []):", text)
+            self.assertIn("if stage.get('exitCode') == 0 or not stage.get('log'):", text)
+            self.assertIn("failed_logs.append(path if path.is_absolute() else root / path)", text)
+            self.assertIn("for path in sorted(root.glob('*.log')):", text)
         else:
             cells = re.findall(r"^\s+- cell: (\S+)$", text, flags=re.M)
         self.assertEqual(set(cells), set(spec["cells"]))
