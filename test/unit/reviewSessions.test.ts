@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewSync, withReviewSyncInvalidation, sharedReviewCacheRoot, sharedReviewCacheV2Root, resolveReviewRuntime, defaultReviewRuntime, invalidateReviewAuth } from '../../src/workspace/reviewSessions';
 import { workspaceActionKinds, describeAction } from '../../src/workspace/actionPolicy';
+import { reviewSessionActions } from '../../src/workspace/reviewSessionProtocol';
 
 async function fixture(t: test.TestContext) {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'review-jobs-'));
@@ -22,6 +23,31 @@ async function fixture(t: test.TestContext) {
   await save(job);
   return { base, root, repo, id, job, save };
 }
+
+test('persisted operation progress and checked semantic counts stay separate, and unknown counts are not zero', async t => {
+  const f = await fixture(t);
+  await f.save({ ...f.job, progress: { phase: 'operation-complete', completed: 2, total: 2, operation_id: null, at: '2026-11-10T00:00:00Z' },
+    remaining_counts: { changes: 1, repositories: 3, boundaries: 2, impacts: -1 }, last_check_at: '2026-11-10T00:01:00Z' });
+  let row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.deepEqual(row.progress, { completed: 2, total: 2, updatedAt: '2026-11-10T00:00:00Z' });
+  assert.deepEqual(row.remaining, { changes: 1, boundaries: 2, repositories: 3 });
+  assert.equal(row.lastCheckAt, '2026-11-10T00:01:00Z'); assert.equal(row.reviewOutcome, undefined);
+  await f.save({ ...f.job, state: 'failed', phase: 'terminal', context_retained: true, recoverable: false, next_action: 'inspect-render-error' });
+  row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.equal(row.progress, undefined); assert.equal(row.remaining, undefined);
+  assert.deepEqual(row.recovery, { recoverable: false, terminal: true, nextAction: 'inspect-render-error' });
+  assert.deepEqual(reviewSessionActions(row), { resume: false, cancel: true, report: false, refresh: true });
+});
+
+test('UI and Host action policy permits recovery and cleanup but never resumes terminal or already published work', () => {
+  for (const state of ['running', 'ready', 'reviewing', 'validating']) assert.equal(reviewSessionActions({ state }).resume, true);
+  for (const state of ['failed', 'cancelled', 'published']) {
+    assert.equal(reviewSessionActions({ state }).resume, false); assert.equal(reviewSessionActions({ state }).cancel, false);
+  }
+  assert.equal(reviewSessionActions({ state: 'published', cleanupPending: true }).resume, true);
+  assert.equal(reviewSessionActions({ state: 'failed', cleanupPending: true }).resume, false);
+  assert.equal(reviewSessionActions({ state: 'reviewing', recovery: { terminal: true, recoverable: false } }).resume, false);
+});
 
 test('local budget projection distinguishes wrap-up, one extension and incomplete publication without renewing elapsed time', async t => {
   const f = await fixture(t);

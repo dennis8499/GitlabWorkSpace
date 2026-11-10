@@ -5,7 +5,7 @@ import path from 'node:path';
 import { isDeepStrictEqual, promisify } from 'node:util';
 import { atomicNetworkJson, networkRuntimeRoot } from '../api/localNetworkLease';
 import type { PythonRuntime } from './pythonRuntime';
-import { isReviewerTool, type ReviewerToolId, type ReviewOutcomeSummary, type ReviewSessionSummary, type ReviewBudgetSummary,
+import { isReviewerTool, reviewSessionActions, type ReviewerToolId, type ReviewOutcomeSummary, type ReviewSessionSummary, type ReviewBudgetSummary,
   type WorkflowKitRunnerBinding } from './reviewSessionProtocol';
 import { workflowKitPythonCommand } from './workflowKitRunner';
 
@@ -44,6 +44,30 @@ interface ReviewJob {
   report_receipt?: { review_outcome?: unknown };
   finished_at_epoch?: number;
   budget?: unknown;
+  progress?: unknown;
+  remaining_counts?: unknown;
+  last_check_at?: unknown;
+  recoverable?: boolean;
+  terminal?: boolean;
+  next_action?: string;
+  context_retained?: boolean;
+}
+
+function inspectionSummary(job: ReviewJob): Pick<ReviewSessionSummary, 'progress' | 'remaining' | 'recovery' | 'lastCheckAt' | 'retainedContext'> {
+  const progress = job.progress as Record<string, unknown> | undefined;
+  const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  const current = progress && count(progress.completed) && count(progress.total) && progress.completed <= progress.total ? {
+    completed: progress.completed, total: progress.total,
+    ...(typeof progress.operation_id === 'string' && progress.completed < progress.total ? { operationId: progress.operation_id } : {}),
+    ...(typeof progress.at === 'string' ? { updatedAt: progress.at } : {})
+  } : undefined;
+  const raw = job.remaining_counts as Record<string, unknown> | undefined;
+  const remaining = raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.fromEntries(
+    ['changes', 'boundaries', 'parents', 'impacts', 'repositories'].filter(key => count(raw[key])).map(key => [key, raw[key] as number])) : undefined;
+  return { progress: current, remaining, lastCheckAt: typeof job.last_check_at === 'string' ? job.last_check_at : undefined,
+    retainedContext: job.context_retained === true,
+    recovery: { terminal: ['failed', 'cancelled'].includes(job.state) || job.terminal === true,
+      recoverable: job.recoverable === true, ...(typeof job.next_action === 'string' ? { nextAction: job.next_action } : {}) } };
 }
 
 /** Local display projection only; the native helper enforces the actual checkpoints. */
@@ -147,6 +171,7 @@ export async function readReviewSessions(root: string, workspace: string, reposi
       packCacheHits: job.pack_cache_hits ?? 0, cleanupPending: job.cleanup_pending === true,
       reviewOutcome: reviewOutcome(job, tool),
       budget: budgetSummary(job, tool),
+      ...inspectionSummary(job),
       baseSha: /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(job.fixed_identity?.base_sha ?? '') ? job.fixed_identity?.base_sha : undefined,
       headSha: /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(job.fixed_identity?.head_sha ?? '') ? job.fixed_identity?.head_sha : undefined,
       capturedAt: job.fixed_identity?.capture_completed_at,
@@ -158,7 +183,9 @@ export async function readReviewSessions(root: string, workspace: string, reposi
 export async function cancelReviewSession(root: string, id: string, workspace: string, repositories: readonly string[],
   python: PythonRuntime, skillsDirectory: string, tool: ReviewerToolId = 'merge-reviewer',
   runner?: WorkflowKitRunnerBinding): Promise<void> {
-  await readReviewJob(root, id, workspace, repositories, tool);
+  const job = await readReviewJob(root, id, workspace, repositories, tool);
+  if (!reviewSessionActions({ state: job.state, retainedContext: job.context_retained,
+    recovery: { terminal: job.terminal === true, recoverable: job.recoverable === true } }).cancel) throw new Error('這份審查已結束，沒有可取消的工作。');
   const script = reviewSessionScript(skillsDirectory, tool);
   await plain(script);
   const command = await workflowKitPythonCommand(python, runner, ['-B', script, 'cancel', '--runtime-root', root, '--request-id', id]);

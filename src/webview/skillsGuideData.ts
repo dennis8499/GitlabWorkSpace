@@ -3,6 +3,7 @@ import { buildCommitGuidePrompt, commitGuideCards, validCommitInputs, type Commi
 import { withOutputStyle } from '../workspace/outputStyle';
 import { normalizeProjectRoot } from './projectUiState';
 import type { InstalledReviewerBinding } from '../workspace/reviewSessionProtocol';
+import { reviewLaunchCommand, type ReviewLaunchBinding } from '../workspace/reviewLaunchProtocol';
 import {
   buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
   type WikiGuideCard, type WikiGuideField, type WikiGuideInputValues
@@ -11,7 +12,8 @@ import {
 export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer' | 'commit-reviewer';
 export type SkillGuideInputValues = WikiGuideInputValues;
 export type SkillGuideContext = CommitGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string;
-  reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string; modelRouting?: boolean };
+  reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string; modelRouting?: boolean;
+  reviewLaunch?: ReviewLaunchBinding };
 export type SkillGuideField = WikiGuideField;
 export interface SkillGuideCard extends WikiGuideCard {
   tool: SkillGuideToolId;
@@ -116,6 +118,7 @@ export function resolveReviewerRepository<T extends { name: string; path: string
 
 export function buildSkillGuideContext(card: SkillGuideCard, context: SkillGuideContext): string {
   if (card.tool === 'codebase-wiki') return buildWikiGuideContext(context);
+  if (context.reviewLaunch) return `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '已安裝'}\nSkills 專案根目錄：${context.root ?? context.groupRoot}`;
   return [
     `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '尚未安裝'}`,
     `Skills 專案根目錄：${context.root ?? context.groupRoot ?? '尚未選擇'}`,
@@ -177,6 +180,24 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const effort = input('effort') || 'auto';
   if (!['auto', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) throw new Error('Luna 思考強度無效。');
   if (!context.modelRouting && effort !== 'auto') throw new Error('此工作流程包尚未提供 Model Routing，請先更新。');
+  if (context.reviewLaunch) {
+    const launch = context.reviewLaunch, request = launch.request;
+    if (card.tool !== request.tool || request.project !== selectedRepo?.path || request.base !== input('base') || request.head !== input('head') ||
+      request.workspace !== releaseWorkspace || request.request_id !== context.reviewerRequestId) throw new Error('審查摘要與已保存的啟動輸入不符。');
+    return [
+      `$merge-reviewer ${launch.action === 'start' ? '執行分支合併審查' : '接續同一份固定版本審查'}。`,
+      `Repo：${request.project}\n分支：${request.head} → ${request.base}\n工作區：${request.workspace}\nRequest：${request.request_id}`,
+      '先讀已安裝 merge-reviewer/SKILL.md 與 references/session-workflow.md；依實際需要載入 authoring／契約文件。',
+      `輸入檔：${launch.path}\nSHA-256：${launch.sha256}`,
+      '執行下列固定命令；所有路徑、分支、runtime 與安裝綁定皆從輸入檔讀取。start 先做唯讀預檢，通過後才固定證據；既有 request 沿用原快照。',
+      reviewLaunchCommand(launch),
+      '後續沿用同一命令，只改 --action 為 status、view、check、finish 或 cancel；view 的續讀參數放在 -- 後。status/view 為唯讀。審查 step 依原生 Skill 操作。',
+      '使用 compact 草稿。check 的 completion_preview 核對必要缺口與 scope_notes；finish 完整驗證後依收據區分報告發布與審查完整性。終止時檢視診斷，保留原 request。',
+      context.modelRouting ? `$model-routing effort=${effort}；依已安裝 routing 協定固定一次證據、判定強度並完成原生審查。workbench 使用 Host 指定模型；已路由 continuation 沿用 request、SHA、草稿與 checkpoint。`
+        : '由目前 Agent 完成審查。',
+      '語法輔助沿用安裝驗收模式；結構解析不等於語意覆蓋。'
+    ].join('\n');
+  }
   const sessionCapabilities = context.reviewerCapabilities?.schema === 'ReviewCapabilities/v1'
     ? context.reviewerCapabilities : undefined;
   const nativeMergeCapabilities = context.reviewerCapabilities?.schema === 'MergeReviewCapabilities/v1'
@@ -235,6 +256,7 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
       (runtime ? ' --runtime-root ' + JSON.stringify(runtime) : '') +
       (context.reviewAuthScope ? ' --auth-scope ' + JSON.stringify(context.reviewAuthScope) : '') +
        (prepared && context.reviewerBinding ? ' --expected-payload-sha256 ' + context.reviewerBinding.payload_sha256 : '') +
+      (nativeMergeCapabilities?.draft_formats.includes('compact') ? ' --draft-format compact' : '') +
       (balanced ? ' --budget-profile balanced' : unlimited ? ' --budget-profile unlimited' : '')) + '。',
     ...(balanced ? ['時間目標為單 Repo 3 分鐘、多 Repo 6 分鐘；有已讀證據的具體線索才申請一次 50% 延長。每次操作檢查預算，到期保存已確認問題與必要缺口並收尾；報告驗證仍須完成，不把未完成標為通過。'] : []),
     supportsUpdatesFile ? `Write draft updates to a UTF-8 ${release ? 'ReleaseReviewUpdates/v1' : 'ReviewUpdates/v1'} JSON file and pass them with --updates-file; retry with the same update ID.` : prepared ? '完成必要 step → finish；儲存每個步驟的結果與草稿，並使用回傳的 request 與 operation IDs 繼續。' : '完成必要 step → finish；儲存每個步驟的結果與草稿，並使用回傳的 request 與 operation IDs 繼續。',

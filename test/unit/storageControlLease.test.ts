@@ -40,7 +40,7 @@ test('a missing recovery hint during inspection defers to normal lease admission
 
 test('Windows transient recovery-hint reads preserve the hint and do not fail a confirmed scheduler release', { skip: process.platform !== 'win32' }, async t => {
   const f = await fixture(t), read = fs.readFile;
-  for (const code of ['EPERM', 'EACCES', 'EBUSY']) {
+  for (const code of ['EBADF', 'EPERM', 'EACCES', 'EBUSY']) {
     const contents = JSON.stringify(guardOwner()); await fs.writeFile(f.guard, contents);
     let raced = false;
     const mock = t.mock.method(fs, 'readFile', async (...args: Parameters<typeof read>) => {

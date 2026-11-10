@@ -18,7 +18,7 @@ import { CodexTaskDeletedError, CodexTaskStore, codexRootKey, validTaskId } from
 import { CodexWorkspaceLease } from './workspaceLease';
 import { validateForm } from './forms';
 import { mergeCodexTranscript, projectCodexItem } from './transcript';
-import { readModelRouting, requireRoutingEffort, routingModel, routingEfforts, routingSummary,
+import { readModelRouting, inspectModelRouting, requireRoutingEffort, routingModel, routingEfforts, routingSummary,
   routingTurnPrompt, routingAssessmentOutputSchema } from './modelRouting';
 export { validateForm } from './forms';
 import { codexTaskActive, codexOutputKey, projectCodexTask, type CodexEnvironment, type CodexEvent, type CodexInteraction,
@@ -952,10 +952,13 @@ export class CodexBridge {
         state = await readModelRouting(binding);
         // Recoverable authoring work may span more than one model turn. Resume
         // the same reviewer at the same effort; never repeat an unknown dispatch.
+        let previousCheckpoint = before?.execution_checkpoint;
         for (let repair = 0; phase === 'review' && state?.phase === 'reviewing' && state.effort === effort && repair < 2; repair++) {
           if (before && state.snapshot_hash !== before.snapshot_hash) break;
+          if (state.execution_checkpoint && JSON.stringify(state.execution_checkpoint) === JSON.stringify(previousCheckpoint)) break;
+          previousCheckpoint = state.execution_checkpoint;
           this.output(record.id, { id: 'repair-' + randomUUID(), kind: 'agent', text: `沿用固定版本繼續修稿與驗證（${repair + 1}/2） · ${model} ${effort}` });
-          await this.performRoutingTurn(record, client, prompt + '\n\n上一輪尚未保存完成或升級。先讀原生 status；已發布時驗證收據並 routing complete，保留既有報告。仍在審查時，請現在開啟草稿，將已讀固定證據上的實際判斷寫入 summary、coverage、findings 及必要工程欄位，執行 check 並修復可恢復診斷，再 finish 及 routing complete。生成的索引路徑可由交接資料、start.json 與 context 目錄查得；不要只回覆尚待執行的步驟。\n' +
+          await this.performRoutingTurn(record, client, routingTurnPrompt(binding, phase, original, state) + '\n\n上一輪尚未保存完成或升級。先讀原生 status；已發布時驗證收據並 routing complete，保留既有報告。仍在審查時，先依 execution_checkpoint 續查可取得的必要證據，再將實際判斷寫入草稿，執行 check 並修復診斷；可取得的 remaining 尚未完成時繼續追查，確實受阻才保存具體缺口並 finish。若本輪無法完成，保存含未讀範圍、問題與下一步的 checkpoint；回合限制不是證據缺失。\n' +
             (record.routingUserMessages ?? []).join('\n'), effort, phase);
           state = await readModelRouting(binding);
         }
@@ -975,6 +978,8 @@ export class CodexBridge {
       }
       throw new Error('Model Routing 超過有限的升級次數，請核對保存的進度。');
     } catch (error) {
+      const audit = await inspectModelRouting(binding).catch(() => undefined);
+      if (audit?.nativeState) record.modelRouting = routingSummary(binding, audit);
       if (!this.active?.abort.signal.aborted && record.status !== 'uncertain') record.status = 'failed';
       throw error;
     }

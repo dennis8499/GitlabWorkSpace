@@ -2,25 +2,50 @@ import { lstat, readdir, realpath, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 export const missingFile = (error: unknown): boolean => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
+const transientWindowsPathError = (error: unknown): boolean => process.platform === 'win32' &&
+  ['EBADF', 'EACCES', 'EBUSY', 'EPERM'].includes((error as NodeJS.ErrnoException)?.code ?? '');
+async function retryTransientWindowsPath<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await operation(); }
+    catch (error) {
+      if (!transientWindowsPathError(error) || attempt >= 3) throw error;
+      await new Promise<void>(resolve => setTimeout(resolve, 10 * (attempt + 1)));
+    }
+  }
+}
 export function insideStorage(root: string, target: string): boolean {
   const relative = path.relative(path.resolve(root), path.resolve(target));
   return !!relative && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep);
 }
-/** Validate every existing component, including junctions, before touching owned data. */
-export async function ownedStoragePath(root: string, target: string): Promise<boolean> {
-  if (!insideStorage(root, target)) throw new Error('清理路徑超出所屬儲存區。');
-  const rootInfo = await lstat(root).catch(error => { if (missingFile(error)) return undefined; throw error; });
+type OwnedPathCheck = boolean | 'retry';
+const redirectedPathError = (): Error => new Error('清理路徑不可重新導向。');
+async function inspectOwnedStoragePath(root: string, target: string): Promise<OwnedPathCheck> {
+  const rootInfo = await retryTransientWindowsPath(() => lstat(root)).catch(error => { if (missingFile(error)) return undefined; throw error; });
   if (!rootInfo) return false;
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) throw new Error('儲存區不可重新導向。');
-  const physicalRoot = await realpath(root);
+  const physicalRoot = await retryTransientWindowsPath(() => realpath(root)).catch(error => { if (missingFile(error)) return undefined; throw error; });
+  if (!physicalRoot) return false;
   let current = root;
   for (const component of path.relative(root, target).split(path.sep)) {
     current = path.join(current, component);
     let info;
-    try { info = await lstat(current); } catch (error) { if (missingFile(error)) return false; throw error; }
-    if (info.isSymbolicLink() || !insideStorage(physicalRoot, await realpath(current))) throw new Error('清理路徑不可重新導向。');
+    try { info = await retryTransientWindowsPath(() => lstat(current)); } catch (error) { if (missingFile(error)) return false; throw error; }
+    if (info.isSymbolicLink()) throw redirectedPathError();
+    let resolved: string;
+    try { resolved = await retryTransientWindowsPath(() => realpath(current)); } catch (error) { if (missingFile(error)) return false; throw error; }
+    if (!insideStorage(physicalRoot, resolved)) return 'retry';
   }
   return true;
+}
+/** Validate every existing component, including junctions, before touching owned data. */
+export async function ownedStoragePath(root: string, target: string): Promise<boolean> {
+  if (!insideStorage(root, target)) throw new Error('清理路徑超出所屬儲存區。');
+  for (let attempt = 0; ; attempt++) {
+    const result = await inspectOwnedStoragePath(root, target);
+    if (result !== 'retry') return result;
+    if (process.platform !== 'win32' || attempt >= 3) throw redirectedPathError();
+    await new Promise<void>(resolve => setTimeout(resolve, 10 * (attempt + 1)));
+  }
 }
 export async function removeOwnedStorage(root: string, target: string): Promise<void> {
   if (!await ownedStoragePath(root, target)) return;

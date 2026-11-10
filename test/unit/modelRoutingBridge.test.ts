@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { CodexAppServer } from '../../src/codex/appServer';
 import { CodexBridge } from '../../src/codex/bridge';
-import { modelRoutingBinding, readModelRouting, reviewerRunnerRuntime } from '../../src/codex/modelRouting';
+import { modelRoutingBinding, readModelRouting, inspectModelRouting, reviewerRunnerRuntime, routingSummary } from '../../src/codex/modelRouting';
 import type { CodexEvent, CodexTaskSpec } from '../../src/codex/protocol';
 
 const peer = path.resolve(__dirname, '../../../test/fixtures/codex-app-server.cjs');
@@ -124,6 +124,33 @@ test('missing decisions and unfinished reviews remain failed rather than complet
     assert.equal(f.completed(), 0);
     assert.match(f.bridge.list()[0].error!, /路由|審查/);
   }
+});
+test('unchanged persisted checkpoints stop automatic repair and remain available for explicit resume', async t => {
+  const f = await setup(t, { mode: 'routing-checkpoint-stalled' });
+  await f.bridge.enqueue(f.spec, 'stalled');
+  await until(() => f.bridge.list()[0]?.status === 'failed');
+  const turns = f.requests.filter(item => item.method === 'turn/start');
+  assert.equal(turns.length, 3); // assessment, review, one repair; no second identical repair
+  assert.match(turns[2].params.input[0].text, /Read the frozen consumer/);
+  const state = await readModelRouting(f.binding);
+  assert.equal(state?.phase, 'reviewing'); assert.equal(state?.execution_checkpoint?.next_action, 'Read the frozen consumer.');
+  assert.equal(f.completed(), 0);
+});
+test('terminal routing audit remains readable but cannot authorize another dispatch', async t => {
+  const f = await setup(t, { mode: 'routing-checkpoint-stalled' });
+  await f.bridge.enqueue(f.spec, 'audit'); await until(() => f.bridge.list()[0]?.status === 'failed');
+  const state = (await readModelRouting(f.binding))!;
+  const routingPath = path.join(f.binding.runtimeRoot, 'routing', f.binding.tool, f.binding.requestId + '.json');
+  await writeFile(routingPath, JSON.stringify({ ...state, execution_checkpoint: { ...state.execution_checkpoint, request_id: 'f'.repeat(32) } }));
+  await assert.rejects(inspectModelRouting(f.binding), /checkpoint/);
+  await writeFile(routingPath, JSON.stringify(state));
+  await writeFile(path.join(f.binding.runtimeRoot, 'jobs', f.binding.requestId + '.json'), JSON.stringify({
+    schema: 'MergeReviewSession/v1', request_id: f.binding.requestId, context_dir: state.context_dir,
+    input_digest: state.input_digest, state: 'failed' }));
+  await assert.rejects(readModelRouting(f.binding), /原生審查已停止/);
+  const audit = await inspectModelRouting(f.binding);
+  assert.equal(audit?.nativeState, 'failed'); assert.equal(audit?.effort, state.effort);
+  assert.deepEqual(audit?.history, state.history); assert.equal(routingSummary(f.binding, audit).phase, 'stopped');
 });
 test('cancelling a routing turn stops the helper and never starts review', async t => {
   const f = await setup(t, { mode: 'routing-hold' });

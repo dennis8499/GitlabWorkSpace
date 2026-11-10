@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { CodexAppServer } from './appServer';
 import { CodexProtocolAdapter } from './adapter';
 import type { ReviewerToolId } from '../workspace/reviewSessionProtocol';
+import { reviewRunnerRuntime } from '../workspace/reviewLaunch';
 
 import { routingModel, routingEfforts, validModelEfforts, autoEfforts, selectRoutingEffort, type RoutingEffort, type RequestedEffort,
   type ModelRoutingBinding, type ModelRoutingHistory, type ModelRoutingSummary } from './modelRoutingProtocol';
@@ -31,6 +32,9 @@ export interface ModelRoutingState {
   history: ModelRoutingHistory[];
   revision: number;
   report_path?: string;
+  nativeState?: 'failed' | 'cancelled';
+  execution_checkpoint?: { schema: 'ReviewExecutionCheckpoint/v1'; request_id: string; snapshot_hash: string; draft_sha256: string;
+    completed_operation_ids: string[]; unread_evidence: string[]; open_questions: string[]; next_action: string };
 }
 export function requestedEffort(value: unknown = 'auto'): RequestedEffort {
   if (typeof value === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(value)) return value;
@@ -72,6 +76,13 @@ export async function modelRoutingBinding(root: string, tool: ReviewerToolId, ru
     skillPath: path.join(directory, 'SKILL.md'), payloadHash: hash.digest('hex'), reviewerInstructions };
 }
 export async function readModelRouting(binding: ModelRoutingBinding): Promise<ModelRoutingState | undefined> {
+  return readModelRoutingRecord(binding, false);
+}
+/** Audit reads retain routing history after native termination; they never authorize dispatch. */
+export async function inspectModelRouting(binding: ModelRoutingBinding): Promise<ModelRoutingState | undefined> {
+  return readModelRoutingRecord(binding, true);
+}
+async function readModelRoutingRecord(binding: ModelRoutingBinding, allowTerminal: boolean): Promise<ModelRoutingState | undefined> {
   const filename = path.join(binding.runtimeRoot, 'routing', binding.tool, binding.requestId + '.json');
   let text: string;
   try { text = await plainFile(filename); }
@@ -97,16 +108,26 @@ export async function readModelRouting(binding: ModelRoutingBinding): Promise<Mo
     const selected = selectRoutingEffort(value.recommended_effort ?? '', efforts);
     if (selected.effort !== value.effort || selected.capped !== value.capped) throw new Error('Model Routing 自動強度與模型能力不符。');
   }
+  if (value.execution_checkpoint !== undefined) {
+    const checkpoint = value.execution_checkpoint;
+    const texts = (items: unknown, maximum: number, length: number): boolean => Array.isArray(items) && items.length <= maximum &&
+      items.every(item => typeof item === 'string' && !!item.trim() && item.length <= length) && new Set(items).size === items.length;
+    if (!checkpoint || checkpoint.schema !== 'ReviewExecutionCheckpoint/v1' || checkpoint.request_id !== binding.requestId ||
+        checkpoint.snapshot_hash !== value.snapshot_hash || !/^[a-f0-9]{64}$/.test(checkpoint.draft_sha256) ||
+        !texts(checkpoint.completed_operation_ids, 1000, 200) || !texts(checkpoint.unread_evidence, 200, 2000) ||
+        !texts(checkpoint.open_questions, 100, 2000) || typeof checkpoint.next_action !== 'string' || !checkpoint.next_action.trim() ||
+        checkpoint.next_action.length > 4000) throw new Error('Model Routing checkpoint 與固定審查不符或格式無效。');
+  }
   const job = JSON.parse(await plainFile(path.join(binding.runtimeRoot, 'jobs', binding.requestId + '.json')));
   if (job.schema !== (binding.tool === 'merge-reviewer' ? 'MergeReviewSession/v1' : 'ReleaseReviewSession/v1') ||
       job.request_id !== binding.requestId || job.input_digest !== value.input_digest ||
       !samePath(job.context_dir, value.context_dir) || !samePath(value.context_dir, path.join(binding.runtimeRoot, 'sessions', binding.requestId)) ||
-      !['ready', 'reviewing', 'validating', 'published'].includes(job.state) ||
+      !['ready', 'reviewing', 'validating', 'published', ...(allowTerminal ? ['failed', 'cancelled'] : [])].includes(job.state) ||
       binding.requestedEffort !== 'auto' && value.effort !== binding.requestedEffort ||
       value.phase === 'complete' && (job.state !== 'published' || !job.report_path || job.report_path !== value.report_path)) {
     throw new Error('Model Routing 的原生審查已停止或固定身分不符，請保留診斷後核對。');
   }
-  return value;
+  return ['failed', 'cancelled'].includes(job.state) ? { ...value, nativeState: job.state } : value;
 }
 export async function requireRoutingEffort(client: CodexAppServer, effort: RoutingEffort, selectedModel = routingModel): Promise<void> {
   const models = await new CodexProtocolAdapter(client, '').models(undefined, { includeHidden: true });
@@ -122,7 +143,7 @@ export async function requireRoutingEffort(client: CodexAppServer, effort: Routi
 export function routingSummary(binding: ModelRoutingBinding, state?: ModelRoutingState): ModelRoutingSummary {
   return { model: binding.model ?? routingModel, requestedEffort: binding.requestedEffort, effort: state?.effort ?? undefined,
     recommendedEffort: state?.recommended_effort, capped: state?.capped,
-    phase: !state || state.phase === 'routing' ? 'assessing' : state.phase,
+    phase: state?.nativeState ? 'stopped' : !state || state.phase === 'routing' ? 'assessing' : state.phase,
     reason: state?.reason ?? '', history: state?.history ?? [], reportPath: state?.report_path };
 }
 export function routingTurnPrompt(binding: ModelRoutingBinding, phase: 'assess' | 'review', original: string, state?: ModelRoutingState): string {
@@ -141,7 +162,8 @@ export function routingTurnPrompt(binding: ModelRoutingBinding, phase: 'assess' 
       files: state.files ?? { manifest: path.join(state.context_dir, 'manifest.json'),
         ...(binding.tool === 'merge-reviewer' ? { native_start: path.join(state.context_dir, 'start.json'), initial_reads: path.join(state.context_dir, 'initial-reads.json') }
           : { worklist: path.join(state.context_dir, 'review-worklist.json') }) },
-      snapshot_hash: state.snapshot_hash, effort: state.effort, checkpoint: state.checkpoint }) + '\n'
+      snapshot_hash: state.snapshot_hash, effort: state.effort, checkpoint: state.checkpoint,
+      execution_checkpoint: state.execution_checkpoint }) + '\n'
       : phase === 'review' ? `本次為手動強度 ${binding.requestedEffort}。先檢查原生 job 是否存在；尚無 job 時依原生 Skill start 一次。接著執行已安裝 model-routing/scripts/routing.py bind --tool ${binding.tool} --runtime-root ${JSON.stringify(binding.runtimeRoot)} --request-id ${binding.requestId} --effort ${binding.requestedEffort}${modelArgs}，使用 bind 回傳的 context、draft、files 與 revision 繼續本輪正式審查；不執行自動判斷。\n` : '') +
     (phase === 'assess' ? '不建立子 Agent。先保存 decide，本輪結尾只回傳 {"action":"review","request_id":"本次 ID"}。'
       : '不建立子 Agent。直接完成原生審查與草稿；可恢復的 authoring／coverage 錯誤要沿同一 request 修正。完成並保存 routing complete 後交付報告連結與重點；升級前必須保存 routing escalate。') +
@@ -152,7 +174,4 @@ export const routingAssessmentOutputSchema = { type: 'object', properties: {
 }, required: ['action', 'request_id'], additionalProperties: false };
 
 /** The shared runner's native-session cache must be writable outside the Repo. */
-export function reviewerRunnerRuntime(nativeRuntime: string): string {
-  const resolved = path.resolve(nativeRuntime);
-  return path.join(path.dirname(resolved), path.basename(resolved) + '-workflow-kit');
-}
+export const reviewerRunnerRuntime = reviewRunnerRuntime;

@@ -35,7 +35,7 @@ export interface ModelRoutingSummary {
   model: string;
   requestedEffort: RequestedEffort;
   effort?: RoutingEffort;
-  phase: 'assessing' | 'reviewing' | 'complete';
+  phase: 'assessing' | 'reviewing' | 'complete' | 'stopped';
   reason: string;
   history: ModelRoutingHistory[];
   reportPath?: string;

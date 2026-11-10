@@ -7,6 +7,9 @@ export interface WorkflowKitRunnerBinding {
   script_path: string;
   script_sha256: string;
   syntax_analysis?: SyntaxAnalysisBinding;
+  review_launch_request?: 1;
+  review_launch_sha256?: string;
+  read_only_inspection?: true;
 }
 
 export interface SyntaxAnalysisBinding {
@@ -59,6 +62,26 @@ export interface ReviewSessionSummary {
   capturedAt?: string;
   syncObservations?: Array<{ mode: string; at: string }>;
   budget?: ReviewBudgetSummary;
+  progress?: ReviewProgressSummary;
+  remaining?: Partial<Record<'changes' | 'boundaries' | 'parents' | 'impacts' | 'repositories', number>>;
+  recovery?: { recoverable: boolean; terminal: boolean; nextAction?: string };
+  lastCheckAt?: string;
+  retainedContext?: boolean;
+}
+export interface ReviewProgressSummary {
+  completed: number;
+  total: number;
+  operationId?: string;
+  updatedAt?: string;
+}
+
+/** The same policy drives the buttons and the Host; UI state never authorizes a dispatch. */
+export function reviewSessionActions(session: { state: string; cleanupPending?: boolean; reportPath?: string;
+  retainedContext?: boolean; recovery?: { terminal: boolean; recoverable: boolean } }): { resume: boolean; cancel: boolean; report: boolean; refresh: boolean } {
+  const terminal = ['failed', 'cancelled'].includes(session.state) || session.recovery?.terminal === true;
+  const active = ['running', 'ready', 'reviewing', 'validating'].includes(session.state) && !terminal;
+  return { resume: active || session.state === 'published' && session.cleanupPending === true,
+    cancel: active || terminal && session.retainedContext === true, report: !!session.reportPath, refresh: true };
 }
 export interface ReviewBudgetSummary {
   profile: 'balanced' | 'unlimited';
@@ -102,6 +125,10 @@ export interface NativeMergeReviewerCapabilities {
     request_preflight: boolean;
     incremental_resume: boolean;
     phase_metrics: boolean;
+    launch_preflight?: boolean;
+    read_only_inspection?: boolean;
+    completion_preview?: boolean;
+    scope_notes?: boolean;
   };
 }
 

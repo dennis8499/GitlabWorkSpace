@@ -44,7 +44,10 @@ import { ProjectWikiStore } from '../codex/projectWiki';
 import { CodexWorkflowService } from '../codex/workflowService';
 import { isAbortedRead } from '../api/gitLabReadCache';
 import { buildWikiGuideContext, buildWikiGuidePrompt } from '../webview/codebaseWikiGuideData';
-import { modelRoutingBinding, readModelRouting, reviewerRunnerRuntime, type ModelRoutingBinding } from '../codex/modelRouting';
+import { modelRoutingBinding, readModelRouting, type ModelRoutingBinding } from '../codex/modelRouting';
+import { saveReviewLaunchRequest, reviewRunnerWritableRoots } from './reviewLaunch';
+import { supportsReviewLaunch } from './reviewLaunchProtocol';
+import { reviewSessionActions } from './reviewSessionProtocol';
 import { canonicalReviewRequestId, canReprepareCodexTask } from '../codex/protocol';
 import { codexRootKey } from '../codex/taskStore';
 import { atomicNetworkJson, networkRuntimeRoot } from '../api/localNetworkLease';
@@ -78,7 +81,7 @@ import type { GroupWorkspaceMatch } from './workspaceEnvironment';
 import { ProjectEnvironmentSnapshotCache } from './projectEnvironmentSnapshotCache';
 import { PROJECT_FOLDER_KEY, PROJECT_ROOT_SETTING, resolveProjectRootContext, selectedProjectFolder, type ProjectFolder, type ProjectRootContext } from './projectRoot';
 import { resolveSkillsContext } from './skillsContext';
-import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCards, resolveReviewerRepository } from '../webview/skillsGuideData';
+import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCards, resolveReviewerRepository, type SkillGuideContext } from '../webview/skillsGuideData';
 import { collectReviewerRepositories } from './reviewerRepositories';
 import { readReviewerBranches } from './reviewerBranches';
 import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewAuth, reviewerAuthScope, defaultReviewRuntime, reviewRuntimeCandidates, resolveReviewRuntime, sharedReviewCacheRoot, sharedReviewCacheV2Root } from './reviewSessions';
@@ -3179,7 +3182,7 @@ export class WorkspacePanel implements vscode.Disposable {
           source.action === 'refresh' ? 'auto' : previous?.routing?.requestedEffort,
           skills.installed.capabilities?.includes('model-routing-model-selection'), source.action === 'resume' ? previous?.routing : undefined) : undefined;
       prepared = await this.codexSpec(source, `${source.action === 'resume' ? '恢復' : '重新同步'}${source.tool === 'merge-reviewer' ? '合併審查' : '上版檢查'}`,
-        skills.root, source.tool, result.prompt, [executionRuntime, ...(routing ? [reviewerRunnerRuntime(executionRuntime)] : []), await sharedReviewCacheRoot(executionRuntime), sharedReviewCacheV2Root()],
+        skills.root, source.tool, result.prompt, [executionRuntime, ...reviewRunnerWritableRoots(executionRuntime, binding.workflow_kit_runner), await sharedReviewCacheRoot(executionRuntime), sharedReviewCacheV2Root()],
         { tool: source.tool, requestId: previous?.review?.requestId ?? result.reviewRequestId, revision: skills.revision }, JSON.stringify(binding), routing);
     } else throw new Error('不支援此 Codex 工作。');
     if (prepared.skill) await access(prepared.skill.path);
@@ -3237,7 +3240,7 @@ export class WorkspacePanel implements vscode.Disposable {
       current.workspaceRoot ?? current.root!) : undefined;
     if (reviewer && this.getSkillsContext().revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認提示詞。');
     const inputs = selectedRepository ? { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path } : request.inputs;
-    const context = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
+    const context: SkillGuideContext = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
       reviewRuntimeRoot: current.reviewRuntimeRoot, releaseReviewRuntimeRoot: current.releaseReviewRuntimeRoot, reviewAuthScope: current.reviewAuthScope,
         reviewerBinding, reviewerCapabilities, workflowKitRunner, modelRouting: current.installed.capabilities?.includes('model-routing') === true,
       reviewerRequestId: reviewer ? canonicalReviewRequestId(requestId ?? randomUUID()) : undefined,
@@ -3246,13 +3249,20 @@ export class WorkspacePanel implements vscode.Disposable {
       workspaceRootAmbiguous: current.workspaceRootAmbiguous,
       repositories, repositoryScanStatus: 'ready' as const };
     if (!current.root) throw new Error('請先選擇專案根目錄。');
-    const prompt = `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`;
     const runtime = card.tool === 'merge-reviewer' ? current.reviewRuntimeRoot : card.tool === 'release-reviewer' ? current.releaseReviewRuntimeRoot : undefined;
+    if (runtime && selectedRepository && supportsReviewLaunch(reviewerBinding, reviewerCapabilities)) {
+      context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: 'merge-reviewer',
+        request_id: context.reviewerRequestId!, workspace: current.workspaceRoot ?? current.root, project: selectedRepository.path,
+        base: inputs[`${card.id}.base`].trim(), head: inputs[`${card.id}.head`].trim(), runtime_root: runtime,
+        ...(current.workspaceFile ? { workspace_file: current.workspaceFile } : {}),
+        ...(current.reviewAuthScope ? { auth_scope: current.reviewAuthScope } : {}), binding: reviewerBinding!, draft_format: 'compact' });
+    }
+    const prompt = `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`;
     const routing = reviewer && context.modelRouting && runtime && context.reviewerRequestId
       ? await modelRoutingBinding(current.root, card.tool as ReviewerToolId, runtime, context.reviewerRequestId, inputs[`${card.id}.effort`] ?? 'auto',
         current.installed.capabilities?.includes('model-routing-model-selection')) : undefined;
     return this.codexSpec({ kind: 'skill', ...request }, card.title, current.root, card.tool, prompt,
-      runtime ? [runtime, ...(routing ? [reviewerRunnerRuntime(runtime)] : []), await sharedReviewCacheRoot(runtime), sharedReviewCacheV2Root()] : [],
+      runtime ? [runtime, ...reviewRunnerWritableRoots(runtime, workflowKitRunner), await sharedReviewCacheRoot(runtime), sharedReviewCacheV2Root()] : [],
       context.reviewerRequestId ? { tool: card.tool as ReviewerToolId, requestId: context.reviewerRequestId, revision: current.revision } : undefined,
       JSON.stringify([reviewerBinding, workflowKitRunner]), routing);
   }
@@ -5412,6 +5422,12 @@ export class WorkspacePanel implements vscode.Disposable {
     const paths = repositories.map(repo => repo.path);
     const root = await resolveReviewRuntime(preferred, request.requestId, workspace, paths, request.tool);
     const job = await readReviewJob(root, request.requestId, workspace, paths, request.tool);
+    const actions = reviewSessionActions({ state: job.state, cleanupPending: job.cleanup_pending, reportPath: job.report_path,
+      retainedContext: job.context_retained, recovery: { terminal: job.terminal === true, recoverable: job.recoverable === true } });
+    if (action === 'resume' && !actions.resume) throw new Error(job.state === 'published'
+      ? '這份審查已發布；請開啟既有報告。需要新證據時使用重新同步。'
+      : '這份審查已終止；請檢視診斷。重新同步會建立新的 request，不恢復已終止的審查。');
+    if (action === 'cancel' && !actions.cancel) throw new Error('這份審查已結束，沒有可取消的工作。');
     if (action === 'cancel') {
       if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
       const python = await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python'));
@@ -5441,6 +5457,16 @@ export class WorkspacePanel implements vscode.Disposable {
         'input-repair／draft-repair 須依 status/errors 實際指向修正操作檔、operation 欄位或草稿的讀取／JSON 錯誤，再沿用同一 request_id 與成功的 operation IDs 繼續；依 recoverable/terminal 與 job.state 判斷 exit 3。' +
         'owned evidence 損壞須遵守 helper 的終止判斷，不得從業務 Repo 補回或重新 capture 掩蓋。' +
         '已發布時依 review_outcome 區分發布成功與審查完整性；摘要缺失應明示未知，不推測報告內容。若 cleanup_pending，使用 finish 重試清理並回傳既有報告；其他已發布狀態回傳收據中的報告連結及原有審查缺口，不把發布成功視為審查完整。';
+      if (supportsReviewLaunch(binding, capabilities)) {
+        const launch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: 'merge-reviewer', request_id: request.requestId,
+          workspace, project: job.inputs.project, base: job.inputs.base, head: job.inputs.head, runtime_root: root,
+          ...(job.inputs.workspace_file ? { workspace_file: job.inputs.workspace_file } : {}), binding, draft_format: 'compact' },
+        job.cleanup_pending ? 'finish' : 'status', true);
+        const card = getSkillGuideCards().find(item => item.id === 'merge-repo')!;
+        prompt = buildSkillGuidePrompt(card, { 'merge-repo.repo': job.inputs.project, 'merge-repo.base': job.inputs.base,
+          'merge-repo.head': job.inputs.head }, { root: skills.root, workspaceRoot: workspace, repositories,
+          reviewerRequestId: request.requestId, reviewLaunch: launch });
+      }
       if (skills.installed.capabilities?.includes('model-routing') && job.state !== 'published') {
         const routing = await modelRoutingBinding(skills.root, request.tool, root, canonicalReviewRequestId(request.requestId));
         const state = await readModelRouting(routing);
@@ -5457,14 +5483,21 @@ export class WorkspacePanel implements vscode.Disposable {
       const reviewerCapabilities = binding ? await readReviewerCapabilities(binding,
         await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')), workspace) : undefined;
       const nextRequestId = canonicalReviewRequestId(preparedRequestId ?? randomUUID());
-      const prompt = buildSkillGuidePrompt(card, {
-        [`${cardId}.repo`]: job.inputs.project, [`${cardId}.base`]: job.inputs.base, [`${cardId}.head`]: job.inputs.head,
-      }, { profile: skills.mode === 'group' ? 'group' : 'repository', root: skills.root,
+      const context: SkillGuideContext = { profile: skills.mode === 'group' ? 'group' : 'repository', root: skills.root,
         workspaceRoot: workspace, workspaceFile: skills.workspaceFile, repositories,
         reviewRuntimeRoot: skills.reviewRuntimeRoot, releaseReviewRuntimeRoot: skills.releaseReviewRuntimeRoot, reviewAuthScope: skills.reviewAuthScope,
         reviewerBinding: binding, workflowKitRunner: binding?.workflow_kit_runner, reviewerCapabilities, reviewerRequestId: nextRequestId,
-        modelRouting: skills.installed.capabilities?.includes('model-routing') === true });
-      const refreshPrompt = prompt.replace(' start ', ' start --refresh ') + '\n建立新的 request_id，保留既有審查的固定版本與報告。';
+        modelRouting: skills.installed.capabilities?.includes('model-routing') === true };
+      if (supportsReviewLaunch(binding, reviewerCapabilities)) {
+        context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: 'merge-reviewer', request_id: nextRequestId,
+          workspace, project: job.inputs.project, base: job.inputs.base, head: job.inputs.head, runtime_root: preferred,
+          ...(skills.workspaceFile ? { workspace_file: skills.workspaceFile } : {}),
+          ...(skills.reviewAuthScope ? { auth_scope: skills.reviewAuthScope } : {}), binding: binding!, draft_format: 'compact', refresh: true });
+      }
+      const prompt = buildSkillGuidePrompt(card, {
+        [`${cardId}.repo`]: job.inputs.project, [`${cardId}.base`]: job.inputs.base, [`${cardId}.head`]: job.inputs.head,
+      }, context);
+      const refreshPrompt = (context.reviewLaunch ? prompt : prompt.replace(' start ', ' start --refresh ')) + '\n使用已準備的新 request_id，保留既有審查的固定版本與報告。';
       if (execution) return { prompt: refreshPrompt, reviewRequestId: nextRequestId, runtimeRoot: preferred };
       await vscode.env.clipboard.writeText(refreshPrompt);
       this.post({ type: 'message', message: '已複製重新同步審查指令；貼入 Codex 執行後才會取得新版本。' });

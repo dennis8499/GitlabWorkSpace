@@ -7,6 +7,17 @@ import { readSyntaxAnalysisBinding, verifySyntaxAnalysisBinding } from './syntax
 
 const RUNNER_RELATIVE_PATH = '.agents/gitlab-workspace-kit/run.py';
 const RUNNER_FILE = RUNNER_RELATIVE_PATH.split('/').join(path.sep);
+const CAPABILITIES_FILE = '.agents/gitlab-workspace-kit/runner-capabilities.json';
+const LAUNCH_FILE = '.agents/gitlab-workspace-kit/review_launch.py';
+
+async function verifiedAsset(root: string, relative: string, expected: unknown): Promise<Buffer> {
+  if (typeof expected !== 'string' || !/^[a-f0-9]{64}$/.test(expected)) throw new Error('WorkflowKit runner 能力缺少受管理摘要。');
+  const file = path.join(root, relative), info = await fs.lstat(file);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 4 * 1024 * 1024) throw new Error('WorkflowKit runner 能力檔案無效。');
+  const bytes = await fs.readFile(file);
+  if (createHash('sha256').update(bytes).digest('hex') !== expected) throw new Error('WorkflowKit runner 能力與安裝紀錄不符。');
+  return bytes;
+}
 
 /** The installer status API authenticates the marker before a caller requests this binding. */
 export async function readWorkflowKitRunnerBinding(root: string): Promise<WorkflowKitRunnerBinding | undefined> {
@@ -64,12 +75,22 @@ export async function readWorkflowKitRunnerBinding(root: string): Promise<Workfl
   const actual = createHash('sha256').update(await fs.readFile(runnerPath)).digest('hex');
   if (actual !== expected.toLowerCase()) throw new Error('WorkflowKit runner 與已驗證的安裝紀錄不符；請重新安裝工作流程包。');
   const syntax_analysis = await readSyntaxAnalysisBinding(root);
-  return { script_path: runnerPath, script_sha256: actual, ...(syntax_analysis ? { syntax_analysis } : {}) };
+  const managed = files as Record<string, unknown>;
+  let launch: Pick<WorkflowKitRunnerBinding, 'review_launch_request' | 'review_launch_sha256' | 'read_only_inspection'> = {};
+  if (managed[CAPABILITIES_FILE] !== undefined) {
+    const capabilities = JSON.parse((await verifiedAsset(root, CAPABILITIES_FILE, managed[CAPABILITIES_FILE])).toString('utf8'));
+    if (capabilities.schema !== 'WorkflowKitRunnerCapabilities/v1' || capabilities.review_launch_request !== 1 || capabilities.read_only_inspection !== true) {
+      throw new Error('WorkflowKit runner 能力格式不相容。');
+    }
+    await verifiedAsset(root, LAUNCH_FILE, managed[LAUNCH_FILE]);
+    launch = { review_launch_request: 1, read_only_inspection: true, review_launch_sha256: managed[LAUNCH_FILE] as string };
+  }
+  return { script_path: runnerPath, script_sha256: actual, ...(syntax_analysis ? { syntax_analysis } : {}), ...launch };
 }
 
 /** Recheck the runner before launch and preserve Python launcher arguments for both processes. */
 export async function workflowKitPythonCommand(python: PythonRuntime,
-  runner: WorkflowKitRunnerBinding | undefined, helperArgs: readonly string[]): Promise<{ executable: string; args: string[] }> {
+  runner: WorkflowKitRunnerBinding | undefined, helperArgs: readonly string[], options: { readOnly?: boolean } = {}): Promise<{ executable: string; args: string[] }> {
   if (!runner) return { executable: python.executable, args: [...python.args, ...helperArgs] };
   if (runner.syntax_analysis) await verifySyntaxAnalysisBinding(runner.syntax_analysis);
   if (!/^[a-f0-9]{64}$/i.test(runner.script_sha256)) throw new Error('WorkflowKit runner 摘要格式無效。');
@@ -85,6 +106,13 @@ export async function workflowKitPythonCommand(python: PythonRuntime,
   if (!info.isFile() || info.isSymbolicLink()) throw new Error('WorkflowKit runner 路徑無效；請重新檢查安裝。');
   const actual = createHash('sha256').update(await fs.readFile(runner.script_path)).digest('hex');
   if (actual !== runner.script_sha256.toLowerCase()) throw new Error('WorkflowKit runner 在複製提示詞後已變更；請重新檢查安裝。');
+  if (runner.review_launch_request === 1) {
+    const current = await readWorkflowKitRunnerBinding(path.dirname(agentsDirectory));
+    if (current?.review_launch_request !== 1 || current.review_launch_sha256 !== runner.review_launch_sha256 || current.script_sha256 !== runner.script_sha256) {
+      throw new Error('WorkflowKit launcher 在建立任務後已變更；請重新檢查安裝。');
+    }
+  }
   return { executable: python.executable,
-    args: [...python.args, '-X', 'utf8', '-B', runner.script_path, '--', python.executable, ...python.args, ...helperArgs] };
+    args: [...python.args, '-X', 'utf8', '-B', runner.script_path,
+      ...(options.readOnly && runner.read_only_inspection ? ['--read-only'] : []), '--', python.executable, ...python.args, ...helperArgs] };
 }

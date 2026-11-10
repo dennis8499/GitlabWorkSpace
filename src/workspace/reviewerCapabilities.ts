@@ -22,14 +22,15 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
   workspace: string): Promise<ReviewerCapabilities | undefined> {
   const key = JSON.stringify([binding.script_path, binding.payload_sha256, python.executable, python.args,
     workspace, python.env.GITLAB_WORKSPACE_RUNTIME_DIR, python.env.REVIEW_SHARED_CACHE_DIR,
-    binding.workflow_kit_runner?.script_sha256, binding.workflow_kit_runner?.syntax_analysis?.engine_sha256]);
+    binding.workflow_kit_runner?.script_sha256, binding.workflow_kit_runner?.syntax_analysis?.engine_sha256,
+    binding.workflow_kit_runner?.review_launch_sha256, binding.workflow_kit_runner?.read_only_inspection]);
   const existing = cache.get(key);
   if (existing) return existing;
   const task = (async () => {
     const options = { env: python.env, encoding: 'utf8' as const,
       windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 };
     const run = async (helperArgs: readonly string[]) => {
-      const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner, helperArgs);
+      const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner, helperArgs, { readOnly: binding.tool === 'merge-reviewer' });
       return exec(command.executable, command.args, options);
     };
     let result;

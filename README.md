@@ -2,7 +2,7 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
-0.47.0 將 Codex 的任務準備、執行、成果檢閱及交接整合為同一個工作台。Issue 預設使用隔離 worktree，模型改在準備頁選擇；草稿、回答與發布結果可核對恢復，執行階段與阻塞原因也更清楚。詳見 [版本說明](docs/releases/v0.47.0.md)及 [Codex 操作說明](docs/codex-bridge.md)。
+0.48.0 將分支審查的輸入保存為固定啟動檔，避免重抄路徑；審查進度與可恢復操作依本機紀錄呈現。已終止的 request 保留診斷，已發布報告與審查完整性分開顯示。詳見 [版本說明](docs/releases/v0.48.0.md)及 [Codex 操作說明](docs/codex-bridge.md)。
 
 ## 目錄
 

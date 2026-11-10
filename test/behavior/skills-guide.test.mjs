@@ -334,8 +334,16 @@ test('Release local controls keep same-ID Merge sessions separate and resume the
   button('複製恢復審查指令').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type === 'copyReviewResume').tool, 'release-reviewer');
   assert.equal(button('取消審查'), undefined);
+  assert.ok(button('使用 Codex 重試清理'));
   await view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'release-reviewer', sessions: [{ ...row, state: 'failed', phase: 'terminal' }] });
   assert.equal(button('複製恢復審查指令'), undefined);
+  assert.equal(button('使用 Codex 恢復審查'), undefined);
+  assert.ok(button('使用 Codex 重新同步'));
+  await view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'release-reviewer', sessions: [{ ...row, state: 'cancelled', phase: 'terminal' }] });
+  assert.equal(button('使用 Codex 恢復審查'), undefined);
+  await view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'release-reviewer', sessions: [{ ...row, state: 'published', phase: 'complete', reportPath: 'C:/report.md' }] });
+  assert.equal(button('使用 Codex 恢復審查'), undefined);
+  assert.ok(button('開啟報告'));
   assert.ok(button('複製重新同步指令'));
   assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
 });
@@ -360,6 +368,25 @@ test('both reviewer cards keep input repair resumable and route controls to the 
     assert.equal(cancel.tool, tool); assert.equal(cancel.requestId, id);
   }
   assert.equal(view.requests.some(request => ['refresh', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
+});
+
+test('review cards retire a completed operation while retaining checked semantic work and terminal diagnostics', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo']);
+  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  const row = { tool: 'merge-reviewer', requestId: 'f'.repeat(32), repository: 'service', repositoryPath: 'C:/service',
+    base: 'main', head: 'topic', state: 'reviewing', phase: 'review', updatedAt: '2026-11-10T00:00:00Z', fetchCount: 0, packCacheHits: 0,
+    remaining: { changes: 1, boundaries: 2, repositories: 3 }, lastCheckAt: '2026-11-10T00:00:00Z' };
+  const send = value => view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'merge-reviewer', sessions: [value] });
+  await send({ ...row, progress: { completed: 1, total: 2, operationId: 'read-consumer' } });
+  const card = () => view.document.querySelector('.review-session-list article');
+  assert.match(card().textContent, /證據操作 1\/2 · read-consumer/);
+  await send({ ...row, progress: { completed: 2, total: 2 } });
+  assert.match(card().textContent, /證據操作 2\/2 · 目前沒有執行中的操作/);
+  assert.doesNotMatch(card().textContent, /read-consumer/); assert.match(card().textContent, /變更 1 · 邊界 2 · Repo 3/);
+  await send({ ...row, state: 'failed', phase: 'terminal', retainedContext: true,
+    recovery: { terminal: true, recoverable: false, nextAction: 'inspect-render-error' }, error: 'Report rendering failed.' });
+  assert.match(card().textContent, /Report rendering failed/); assert.match(card().textContent, /清理診斷暫存/);
+  assert.doesNotMatch(card().textContent, /使用 Codex 恢復審查/);
 });
 
 test('both published reviewer cards distinguish publication from incomplete, complete and unknown review coverage', async t => {

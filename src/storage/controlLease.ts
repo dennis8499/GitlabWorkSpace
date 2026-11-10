@@ -8,7 +8,7 @@ import { missingFile, ownedStoragePath } from './ownedStorage';
 // may briefly deny reads while another owner opens or removes it. An inconclusive
 // recovery read must leave metadata alone and defer to the authoritative lease.
 const inconclusiveRecovery = (error: unknown): boolean => error instanceof SyntaxError || missingFile(error) ||
-  process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes((error as NodeJS.ErrnoException)?.code ?? '');
+  process.platform === 'win32' && ['EBADF', 'EPERM', 'EACCES', 'EBUSY'].includes((error as NodeJS.ErrnoException)?.code ?? '');
 
 /** Known JS control gates own no subprocesses; resource/process leases remain authoritative. */
 export async function acquireStorageControl(directory: string, kind: string, options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<LocalNetworkLease> {

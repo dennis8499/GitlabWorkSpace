@@ -27,7 +27,7 @@ export function validStoredCodexProjection(value: unknown): boolean {
     optional(item.tests, tests => array(tests, entry => object(entry) && string(entry.command) && Number.isSafeInteger(entry.exitCode))) &&
     optional(item.replyDrafts, drafts => array(drafts, entry => object(entry) && string(entry.discussionId) && string(entry.body))) &&
     optional(item.evidence, evidence => object(evidence) && ['sourceSha', 'branch', 'digest', 'verifiedAt'].every(key => string(evidence[key]))))) return false;
-  if (!optional(value.modelRouting, item => object(item) && ['assessing', 'reviewing', 'complete'].includes(String(item.phase)) &&
+  if (!optional(value.modelRouting, item => object(item) && ['assessing', 'reviewing', 'complete', 'stopped'].includes(String(item.phase)) &&
     array(item.history, entry => object(entry) && string(entry.reason) && fields(entry, ['effort'])) &&
     fields(item, ['model', 'reason', 'effort', 'recommendedEffort', 'reportPath']) && optional(item.capped, flag => typeof flag === 'boolean'))) return false;
   if (!optional(value.goal, item => object(item) && string(item.objective) && fields(item, ['status', 'startedAt']) &&

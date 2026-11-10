@@ -133,6 +133,11 @@ rl.on('line', line => {
           state.effort = config.escalate; state.phase = 'reviewing'; state.reason = 'New frozen consumer risk.';
           state.checkpoint = 'Recheck the affected contract before continuing.';
           state.history.push({ effort: state.effort, reason: state.reason, kind: 'escalate' }); state.revision++;
+        } else if (mode === 'routing-checkpoint-stalled') {
+          state.execution_checkpoint ??= { schema: 'ReviewExecutionCheckpoint/v1', request_id: config.requestId,
+            snapshot_hash: state.snapshot_hash, draft_sha256: 'd'.repeat(64), completed_operation_ids: ['read-one'],
+            unread_evidence: ['consumer'], open_questions: ['contract'], next_action: 'Read the frozen consumer.' };
+          state.revision++;
         } else if (mode !== 'routing-incomplete') {
           state.effort ??= config.requestedEffort;
           if (!state.history.length) state.history.push({ effort: state.effort, reason: 'User-selected effort.', kind: 'manual' });
