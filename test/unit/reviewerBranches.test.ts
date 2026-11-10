@@ -23,7 +23,8 @@ moduleLoader._load = (name, parent, main) => {
   if (name === './installedReviewer') return { readInstalledReviewerBinding: async (root: string, tool: string) => ({
     schema: 'InstalledReviewerBinding/v1',tool,version:'0.22.0',script_path:path.join(root,'.agents/skills',tool,'scripts/review_session.py'),
     script_sha256:'a'.repeat(64),skill_sha256:'b'.repeat(64),payload_sha256:'c'.repeat(64),payload_files:30 }) };
-  if (name === './pythonRuntime') return { resolvePythonRuntime: async () => ({executable:'python',args:[],env:{}}) };
+  if (name === './pythonRuntime') return { ...originalLoad(name, parent, main) as typeof import('../../src/workspace/pythonRuntime'),
+    resolvePythonRuntime: async () => ({executable:'python',args:[],env:{}}) };
   if (name === './reviewerCapabilities') return { readReviewerCapabilities: async (binding: {tool:string;version:string;payload_sha256:string}, _python: unknown, workspace: string) => ({
     schema:'ReviewCapabilities/v1',tool:binding.tool,skill_version:binding.version,prepare_evidence:true,
     updates_schema:binding.tool==='release-reviewer'?'ReleaseReviewUpdates/v1':'ReviewUpdates/v1',shared_cache_schema:'ReviewerSharedCache/v2',payload_sha256:binding.payload_sha256,

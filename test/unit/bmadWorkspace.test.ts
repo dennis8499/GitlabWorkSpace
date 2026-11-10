@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { buildBmadCommand } from '../../src/workspace/bmadCommand';
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
+import { readBmadWorkflow } from '../../src/workspace/bmadWorkflow';
 import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath, toString: () => `file:${fsPath}` });
@@ -170,6 +171,22 @@ test('copy validates observed work and rejects the retired installation command'
   await assert.rejects(f.host.copyBmadCommand({ revision: missing.revision, command: 'install' }), /不支援/);
   assert.equal(copied.length, 0);
   assert.equal(f.checks().runtime, 0);
+});
+
+test('BMAD action validation prepares its context and reads the final workflow only once', async t => {
+  const f = await fixture(t); await f.refresh(); await waitForBmadRegistration(f.host);
+  const snapshot = await f.refresh();
+  let reads = 0;
+  f.host.bmad.options.read = async (options: Parameters<typeof readBmadWorkflow>[0]) => {
+    reads++; return readBmadWorkflow(options);
+  };
+  const before = f.checks().kit;
+  assert.equal((await f.host.requireBmadSnapshot(snapshot.revision)).revision, snapshot.revision);
+  assert.equal(reads, 1, 'Validation must not perform a cached refresh before its uncached final read');
+  assert.equal(f.checks().kit, before + 1, 'The selected WorkflowKit is still rechecked');
+  reads = 0;
+  assert.equal((await f.host.requireBmadSnapshot(snapshot.revision, true)).revision, snapshot.revision);
+  assert.equal(reads, 1, 'Guidance also refreshes its snapshot once');
 });
 
 test('task copy rechecks bundled integrity and writes a root-bound prompt', async t => {

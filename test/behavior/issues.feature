@@ -176,6 +176,12 @@ Feature: GitLab CE Issue work inside VS Code
     When I enter another comment and child title while their requests are pending
     Then the later comment and child title remain after GitLab responds
 
+  @automated @SCN-031
+  Scenario: A successful child Task clears its submitted title
+    Given the Issue Webview is ready with an editable issue
+    When I create a child Task and GitLab confirms it
+    Then the submitted child title is cleared and a new title can be entered
+
   @automated @SCN-028
   Scenario: A field changed while an issue save is pending remains editable
     Given the Issue Webview is ready with an editable issue

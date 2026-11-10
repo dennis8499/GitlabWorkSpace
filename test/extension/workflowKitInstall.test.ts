@@ -30,6 +30,9 @@ suite('Online workflow kit installation', () => {
     }
   });
 
+});
+
+suite('WorkflowKit compatibility installation', () => {
   for (const kitVersion of ['1.0.0', '1.3.1', '1.3.4', '1.3.5', '1.5.0']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
     this.timeout(kitVersion === '1.5.0' ? 480_000 : 240_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_KIT_TEST_TMP;

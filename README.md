@@ -2,7 +2,7 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
-0.44.0 可搭配 WorkflowKit 1.6.0 的離線 Tree-sitter，讓 Wiki 與 Reviewer 使用 C#、Java、JS／TS 結構導航。工作台會核對共用引擎的完整身分，並保留舊版套件流程。加速功能在模型品質與整體耗時驗收前預設關閉；解析資產由 WorkflowKit 安裝，VSIX 不重複內附。
+0.46.0 減少 BMAD 與 Python 環境的重複檢查，改善 Codex 啟動及長對話顯示，並保留 Issue 請求等待期間輸入的新草稿。開發驗證新增依變更範圍選用的快速流程，完整發行檢查仍保留；詳見 [版本說明](docs/releases/v0.46.0.md)。
 
 ## 目錄
 
@@ -322,7 +322,7 @@ Extension 建置只產生 VSIX，並驗證其線上安裝橋接及狀態檢查�
 - Each page loads its own data once on entry or re-entry and on manual refresh; Issue relations, time data, discussions, and the graph load when their page or tab is opened. GitLab projects, assigned Issues, Boards, and Merge Requests share the selected Group; local Git, Skills, BMAD, and logs work without one.
 - Each connection runs at most six concurrent reads with a 30-second timeout. Dynamic data is cached for 60 seconds; project lists, field options and verified fixed-version Diffs use five minutes. All share the existing 256-entry / 32 MiB limit, and identical in-flight reads are shared. Page entry reuses valid data, expired data reloads on demand, and manual refresh requests fresh data; cache expiry and native Git events do not start background reads. The sidebar Repo list refreshes on entry or its Update button.
 - Repo, Issue, Merge Request, and diff lists virtualize rows above 200 items. Local Repo status work is limited to four concurrent operations; graph changes are coalesced and sent as deltas every 100 ms.
-- Validation commands: npm test, npm run typecheck:webview, and npm run benchmark:performance. The benchmark uses production helpers and synthetic data; it does not represent a live GitLab instance or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
+- Validation commands: `npm run test:quick` for daily type/unit/tooling checks, `npm run test:ui` for current UI/native-core checks and a verified VSIX, `npm run test:compatibility` for installer integration, and `npm test` for the full release gate. `npm run test:legacy` is reserved for the retired Webview sidebar. See CONTRIBUTING.md for conservative PR routing and prepared-build reuse. `npm run benchmark:performance` uses production helpers and synthetic data; it does not represent live GitLab or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
 
 查詢後續的一次確認、全量 Ingest 使用方式見[Wiki 工作流程](docs/wiki-workflows.md)。
 

@@ -24,7 +24,7 @@ import { cloneProjects, createScopedGitEnvironment, prepareOperationLayout, proj
 import { isTrustedGitLabRemote } from '../git/gitRemotePolicy';
 import { resolveLocalRepositoryLayout } from './localRepositoryLayout';
 import { groupRepositoryPath, inspectWorkflowKitInstallRoot, localRepositoryStateAsync, resolveWorkflowKitInstallRoot, sameLocalPath, sameRealLocalPathAsync, scanLocalGroupRepositories, type LocalGroupRepository, type WorkspaceRootResolution } from './workspacePaths';
-import { resolvePythonRuntime } from './pythonRuntime';
+import { resolvePythonRuntime, withPythonRuntimeScope } from './pythonRuntime';
 import { workflowKitFailure } from './workflowKitResult';
 import type { BmadWorkflowController } from './bmadWorkflowController';
 import { buildBmadCommand } from './bmadCommand';
@@ -1043,7 +1043,7 @@ export class WorkspacePanel implements vscode.Disposable {
         ? this.operations.get(request.targetOperationId)?.action : undefined;
       assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), originalAction ? { type: originalAction } : request);
     };
-    if (policy.kind === 'control' || policy.kind === 'local') { checkCapability(); await task(); return; }
+    if (policy.kind === 'control' || policy.kind === 'local') { checkCapability(); await withPythonRuntimeScope(task); return; }
     const requestId = request.operationId ?? randomUUID();
     const state: WorkspaceOperationState = {
       requestId, scopeRevision: request.operationScope ?? scopeRevision, resourceKey: policy.resourceKey,
@@ -1053,7 +1053,7 @@ export class WorkspacePanel implements vscode.Disposable {
         ? String(request.request.requestId) : typeof request.requestId === 'string' ? request.requestId : undefined,
       phase: '正在準備…', status: 'queued', startedAt: Date.now()
     };
-    const execute = () => withReadObservation(event => {
+    const execute = () => withPythonRuntimeScope(() => withReadObservation(event => {
       if (event.transportStage) this.operations.update(requestId, { transportStage: event.transportStage, retryAt: event.retryAt });
     }, () => this.operationContext.run(requestId, async () => {
       try {
@@ -1079,7 +1079,7 @@ export class WorkspacePanel implements vscode.Disposable {
       } finally {
         if (guardedWrite) this.writesInFlight--;
       }
-    }));
+    })));
     const tracked = () => this.operations.run(state, execute);
     const logged = () => this.runLogged(policy.action, tracked, {
       projectId: typeof request.projectId === 'number' ? request.projectId : undefined,
@@ -4101,6 +4101,11 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async refreshBmadWorkflow(recheckEnvironment = false): Promise<void> {
+    const bmad = await this.prepareBmadWorkflow(recheckEnvironment);
+    await bmad?.refresh();
+  }
+
+  private async prepareBmadWorkflow(recheckEnvironment = false): Promise<BmadWorkflowController | undefined> {
     if (this.disposed || this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) return;
     const signature = this.projectContextSignature();
     await this.refreshWorkflowKitInstallState();
@@ -4124,7 +4129,7 @@ export class WorkspacePanel implements vscode.Disposable {
     });
     this.bmad.setContext(context.root, context.revision, true);
     void this.refreshBmadEnvironment(context.root, recheckEnvironment);
-    await this.bmad.refresh();
+    return this.bmad;
   }
 
   private async refreshBmadEnvironment(root?: string, force = false): Promise<void> {
@@ -4140,8 +4145,9 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async requireBmadSnapshot(revision: string, guidanceOnly = false) {
     const signature = this.projectContextSignature();
-    await this.refreshBmadWorkflow();
-    const snapshot = guidanceOnly ? this.bmad?.snapshot : await this.bmad?.requireSnapshot(revision);
+    const bmad = await this.prepareBmadWorkflow();
+    if (guidanceOnly) await bmad?.refresh();
+    const snapshot = guidanceOnly ? bmad?.snapshot : await bmad?.requireSnapshot(revision);
     if (signature !== this.projectContextSignature() || snapshot?.root !== this.projectContext?.root ||
       this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) throw new Error('專案或頁面已變更，請重新確認 BMAD 步驟。');
     if (!snapshot || snapshot.revision !== revision) throw new Error('BMAD 狀態已變更，請重新偵測。');

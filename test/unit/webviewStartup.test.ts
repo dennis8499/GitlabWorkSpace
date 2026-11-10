@@ -42,9 +42,7 @@ function fixture(read: () => Promise<string>) {
   const host = Object.create(WorkspacePanel.prototype);
   Object.assign(host, { context: { extensionUri: uri('extension') }, activeMode: 'dashboard', disposed: false,
     suspendViewReads() {}, scheduleGitRepositoryListSend() {} });
-  const { QuickActionsViewProvider } = load('quickActionsView.js', vscode, read);
-  const sidebar = new QuickActionsViewProvider(uri('extension'), {}, () => {});
-  return { host, panels, sidebar };
+  return { host, panels };
 }
 
 test('a missing Dashboard asset disposes its panel and a repaired build can be opened', async () => {
@@ -68,17 +66,4 @@ test('closing a Dashboard while its asset is loading cannot restore a dead panel
   await pending;
   assert.equal(f.host.panel, undefined);
   assert.equal(f.panels[0].webview.html, '');
-});
-
-test('a failed sidebar asset load releases listeners and permits resolving the view again', async () => {
-  let missing = true;
-  const f = fixture(async () => { if (missing) throw new Error('ENOENT'); return html; });
-  const view = surface();
-  await assert.rejects(f.sidebar.resolveWebviewView(view), /無法載入工作台導覽/);
-  assert.equal(view.listeners.size, 0);
-  missing = false;
-  await f.sidebar.resolveWebviewView(view);
-  assert.match(view.webview.html, /app.js/);
-  f.sidebar.dispose();
-  assert.equal(view.listeners.size, 0);
 });

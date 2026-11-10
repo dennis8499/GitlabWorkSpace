@@ -1,11 +1,21 @@
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const receiptPath = '.gitlab-workspace-validation/prepared.json';
 const ignored = new Set(['.git', 'node_modules', '__pycache__']);
+
+function distinctRoots(paths) {
+  const normalized = [...new Set(paths.map(relative => {
+    if (typeof relative !== 'string' || !relative || path.isAbsolute(relative)) throw new Error('Expected a relative build path.');
+    const value = path.normalize(relative).replaceAll('\\', '/');
+    if (value === '..' || value.startsWith('../') || value === '.') throw new Error('Build paths must stay inside the repository.');
+    return value;
+  }))].sort();
+  return normalized.filter(relative => !normalized.some(parent => relative !== parent && relative.startsWith(`${parent}/`)));
+}
 
 export async function fingerprint(root, paths) {
   const files = [];
@@ -23,12 +33,12 @@ export async function fingerprint(root, paths) {
       files.push([relative.replaceAll('\\', '/'), createHash('sha256').update(await readFile(full)).digest('hex')]);
     }
   }
-  for (const relative of [...paths].sort()) await visit(relative);
+  for (const relative of distinctRoots(paths)) await visit(relative);
   return createHash('sha256').update(JSON.stringify(files)).digest('hex');
 }
 
 export function preparationInputs() {
-  return ['package.json', 'package-lock.json', '.gitattributes', 'eslint.config.mjs', 'src', 'test', 'scripts', 'docs',
+  return ['package.json', 'package-lock.json', '.gitattributes', '.github', 'eslint.config.mjs', 'src', 'test', 'scripts', 'docs',
     'tsconfig.json', 'tsconfig.webview.json', 'vite.dashboard.config.mjs',
     'vite.sidebar.config.mjs', 'vite.issue-test.config.mjs', '.vscode-test.mjs',
     '.vscodeignore', 'README.md', 'CONTRIBUTING.md', 'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1',
@@ -37,7 +47,10 @@ export function preparationInputs() {
 }
 
 export async function savePreparation(root, stages, outputs) {
-  const receipt = { schema: 'gitlab-workspace-prepared/v1', stages, outputs,
+  // Keep required-file checks even when the enclosing directory is hashed once.
+  distinctRoots(outputs);
+  for (const relative of outputs) await lstat(path.join(root, relative));
+  const receipt = { schema: 'gitlab-workspace-prepared/v2', stages, outputs: distinctRoots(outputs),
     inputs: await fingerprint(root, preparationInputs()),
     outputSha256: await fingerprint(root, outputs) };
   const filename = path.join(root, receiptPath);
@@ -50,7 +63,7 @@ export async function assertPrepared(root, requiredStages) {
   let receipt;
   try {
     receipt = JSON.parse(await readFile(path.join(root, receiptPath), 'utf8'));
-    if (receipt.schema !== 'gitlab-workspace-prepared/v1' ||
+    if (receipt.schema !== 'gitlab-workspace-prepared/v2' ||
         !receipt.stages.includes('lint') || requiredStages.some(stage => !receipt.stages.includes(stage)) ||
         receipt.inputs !== await fingerprint(root, preparationInputs()) ||
         receipt.outputSha256 !== await fingerprint(root, receipt.outputs)) throw new Error('stale preparation');
@@ -58,6 +71,40 @@ export async function assertPrepared(root, requiredStages) {
     throw new Error('Prepared build is missing, changed, or incomplete. Run npm run prepare:validation first.', { cause: error });
   }
   return receipt;
+}
+
+const lockPath = '.gitlab-workspace-validation/runner.lock';
+
+export async function acquireValidationLock(root, details) {
+  const lock = path.join(root, lockPath);
+  await mkdir(path.dirname(lock), { recursive: true });
+  try { await mkdir(lock); } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    throw new Error(`Another validation command owns ${lock}. If its process has stopped, remove that directory and retry.`, { cause: error });
+  }
+  const token = randomUUID();
+  try {
+    await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ ...details, pid: process.pid, token }));
+  } catch (error) {
+    await rm(lock, { recursive: true, force: true });
+    throw error;
+  }
+  return { token, async release() {
+    await rm(lock, { recursive: true, force: true });
+  } };
+}
+
+// Only nested packaging/prepublish may borrow the current runner's lock. The
+// ordinary --prepared entry point must acquire its own lock before hashing.
+export async function hasValidationLease(root, environment = process.env) {
+  const token = environment.GITLAB_WORKSPACE_VALIDATION_LOCK_TOKEN;
+  if (!token) return false;
+  try {
+    const owner = JSON.parse(await readFile(path.join(root, lockPath, 'owner.json'), 'utf8'));
+    if (owner.token !== token || !Number.isSafeInteger(owner.pid) || owner.pid <= 0) return false;
+    process.kill(owner.pid, 0);
+    return true;
+  } catch { return false; }
 }
 
 export function workerCount(value = '2') {

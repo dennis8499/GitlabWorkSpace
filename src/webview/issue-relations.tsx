@@ -32,7 +32,7 @@ export function IssueRelationsEditor({ issue, data, projects, busy = false, erro
   const [targetProjectId, setTargetProjectId] = useState(String(issue.project_id));
   const [targetIssueIid, setTargetIssueIid] = useState('');
   const [linkType, setLinkType] = useState<LinkType>('relates_to');
-  const pendingClear = useRef<PendingInput | undefined>();
+  const pendingClear = useRef<{ input: PendingInput; value: string } | undefined>();
   const observedBusy = useRef(false);
 
   useEffect(() => {
@@ -52,9 +52,10 @@ export function IssueRelationsEditor({ issue, data, projects, busy = false, erro
     if (!observedBusy.current) return;
     observedBusy.current = false;
     if (error && !mutationApplied) return;
-    if (pendingClear.current === 'childTitle') setChildTitle('');
-    if (pendingClear.current === 'childIid') setChildIid('');
-    if (pendingClear.current === 'targetIssueIid') setTargetIssueIid('');
+    const submitted = pendingClear.current;
+    if (submitted?.input === 'childTitle') setChildTitle(current => current === submitted.value ? '' : current);
+    if (submitted?.input === 'childIid') setChildIid(current => current === submitted.value ? '' : current);
+    if (submitted?.input === 'targetIssueIid') setTargetIssueIid(current => current === submitted.value ? '' : current);
     pendingClear.current = undefined;
   }, [busy, error, mutationApplied]);
 
@@ -63,7 +64,7 @@ export function IssueRelationsEditor({ issue, data, projects, busy = false, erro
   const duplicateLink = !!data?.links.some((linked) => linked.project_id === Number(targetProjectId) && linked.iid === Number(targetIssueIid));
   const duplicateTask = !!data?.tasks.some((task) => task.iid === childIid.trim());
   const submit = (action: IssueRelationAction, input: PendingInput) => {
-    pendingClear.current = input;
+    pendingClear.current = { input, value: input === 'childTitle' ? childTitle : input === 'childIid' ? childIid : targetIssueIid };
     onAction(action);
   };
 

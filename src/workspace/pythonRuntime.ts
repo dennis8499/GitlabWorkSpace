@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -15,6 +17,29 @@ export interface PythonRuntime extends PythonCommand {
 }
 
 export type PythonVersionProbe = (command: PythonCommand, env: NodeJS.ProcessEnv) => Promise<string>;
+
+type PythonSelection = PythonCommand & { version: string };
+type PythonResolutions = WeakMap<PythonVersionProbe, Map<string, Promise<PythonSelection>>>;
+const inFlightResolutions: PythonResolutions = new WeakMap();
+const resolutionScope = new AsyncLocalStorage<{ active: boolean; resolutions: PythonResolutions }>();
+
+/** Share interpreter discovery only while one host action is still executing. */
+export function withPythonRuntimeScope<T>(task: () => Promise<T>): Promise<T> {
+  const scope = { active: true, resolutions: new WeakMap() as PythonResolutions };
+  return resolutionScope.run(scope, async () => {
+    try { return await task(); }
+    finally {
+      scope.active = false;
+      scope.resolutions = new WeakMap();
+    }
+  });
+}
+
+function resolutionsFor(cache: PythonResolutions, probe: PythonVersionProbe): Map<string, Promise<PythonSelection>> {
+  let values = cache.get(probe);
+  if (!values) { values = new Map(); cache.set(probe, values); }
+  return values;
+}
 
 export function pythonCommandCandidates(configuredPath: string, platform = process.platform): PythonCommand[] {
   const requested = configuredPath.trim() || 'python';
@@ -55,12 +80,36 @@ export async function resolvePythonRuntime(
   versionProbe: PythonVersionProbe = probePythonVersion
 ): Promise<PythonRuntime> {
   const env = pythonUtf8Environment(environment);
+  const key = createHash('sha256').update(JSON.stringify([configuredPath.trim(), platform,
+    Object.entries(env).sort(([first], [second]) => first.localeCompare(second))])).digest('hex');
+  const scope = resolutionScope.getStore();
+  const scoped = scope?.active ? resolutionsFor(scope.resolutions, versionProbe) : undefined;
+  const pending = resolutionsFor(inFlightResolutions, versionProbe);
+  let task = scoped?.get(key) ?? pending.get(key);
+  if (!task) {
+    task = discoverPythonRuntime(configuredPath, platform, env, versionProbe);
+    pending.set(key, task);
+    const current = task;
+    const remove = () => { if (pending.get(key) === current) pending.delete(key); };
+    void task.then(remove, remove);
+  }
+  if (scoped && !scoped.has(key)) {
+    scoped.set(key, task);
+    const current = task;
+    void task.catch(() => { if (scoped.get(key) === current) scoped.delete(key); });
+  }
+  const selected = await task;
+  return { ...selected, args: [...selected.args], env };
+}
+
+async function discoverPythonRuntime(configuredPath: string, platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv, versionProbe: PythonVersionProbe): Promise<PythonSelection> {
   for (const command of pythonCommandCandidates(configuredPath, platform)) {
     try {
       const version = await versionProbe(command, env);
       const parsed = /Python\s+(\d+)\.(\d+)/.exec(version);
       if (!parsed || Number(parsed[1]) < 3 || (Number(parsed[1]) === 3 && Number(parsed[2]) < 11)) continue;
-      return { ...command, env, version: `Python ${parsed[1]}.${parsed[2]}` };
+      return { ...command, version: `Python ${parsed[1]}.${parsed[2]}` };
     } catch {
       // Try the next supported Windows launcher only when the default command is unavailable.
     }

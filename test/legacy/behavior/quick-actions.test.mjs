@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { describeAction } from '../../out/src/workspace/actionPolicy.js';
+import { describeAction } from '../../../out/src/workspace/actionPolicy.js';
 
-import { webviewBundle } from './webview-bundle.mjs';
+import { webviewBundle } from '../../behavior/webview-bundle.mjs';
 const { html, script } = await webviewBundle('sidebar');
 const hostValues = (value) => JSON.parse(JSON.stringify(value));
 const requestShape = ({ operationId, operationScope, hostSessionId, scopeEpoch, ...request }) => hostValues(request);

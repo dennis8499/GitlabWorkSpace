@@ -351,7 +351,13 @@ class WorkflowContractTests(unittest.TestCase):
             self.skipTest("Standalone helper fixture has no product workflow")
         spec = ci.SPECS[name]
         text = (root / ".github/workflows" / spec["workflow"]).read_text(encoding="utf-8")
-        cells = re.findall(r"^\s+- cell: (\S+)$", text, flags=re.M)
+        if name == "GitlabWorkSpace":
+            matrix = re.search(r"^\s+FULL_MATRIX: '([^']+)'$", text, flags=re.M)
+            self.assertIsNotNone(matrix, "Scoped validation must retain an explicit complete release matrix")
+            cells = [cell["cell"] for cell in json.loads(matrix[1])["include"]]
+            self.assertIn("matrix: ${{ fromJSON(needs.route.outputs.matrix) }}", text)
+        else:
+            cells = re.findall(r"^\s+- cell: (\S+)$", text, flags=re.M)
         self.assertEqual(set(cells), set(spec["cells"]))
         self.assertEqual(len(cells), len(spec["cells"]))
         for token in ("workflow_dispatch:", "pull_request:", "      - main", "release_ci.py select",

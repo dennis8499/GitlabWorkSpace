@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+from functools import cache
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -16,6 +17,20 @@ import zipfile
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
+@cache
+def verified_fixture(version):
+    """Pinned fixtures are read-only; verify each version once per test process."""
+    directory = FIXTURES / f"workflowkit-release-{version}"
+    descriptor = json.loads((directory / "release.json").read_text(encoding="utf-8"))
+    if descriptor.get("version") != version:
+        raise AssertionError(f"Pinned WorkflowKit descriptor version differs: {version}")
+    for asset in descriptor["assets"].values():
+        data = (directory / asset["name"]).read_bytes()
+        if len(data) != asset["size"] or hashlib.sha256(data).hexdigest() != asset["sha256"]:
+            raise AssertionError(f"Pinned WorkflowKit {version} asset differs: {asset['name']}")
+    return directory, descriptor
+
+
 class WorkflowKitIntegrationTests(unittest.TestCase):
     KIT_VERSION = "1.3.1"
     def setUp(self):
@@ -28,13 +43,7 @@ class WorkflowKitIntegrationTests(unittest.TestCase):
         self.env.update({"TMP": str(self.base), "TEMP": str(self.base), "TMPDIR": str(self.base)})
 
     def fixture(self, version):
-        directory = FIXTURES / f"workflowkit-release-{version}"
-        descriptor = json.loads((directory / "release.json").read_text(encoding="utf-8"))
-        for asset in descriptor["assets"].values():
-            data = (directory / asset["name"]).read_bytes()
-            self.assertEqual(len(data), asset["size"])
-            self.assertEqual(hashlib.sha256(data).hexdigest(), asset["sha256"])
-        return directory, descriptor
+        return verified_fixture(version)
 
     def target(self, profile, label):
         root = self.base / label

@@ -3,7 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { releaseAssetName } from './release-policy.mjs';
-import { assertPrepared } from './validation-runtime.mjs';
+import { assertPrepared, hasValidationLease } from './validation-runtime.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'));
@@ -22,6 +22,13 @@ function runPython(script) {
 }
 
 const prepared = process.argv.slice(2).includes('--prepared');
+// Direct invocations use the same lock/preparation path as npm run package.
+if (!await hasValidationLease(repositoryRoot)) {
+  const validation = spawnSync(process.execPath, [join(repositoryRoot, 'scripts/run-validation.mjs'), 'package', ...(prepared ? ['--prepared'] : [])],
+    { cwd: repositoryRoot, stdio: 'inherit', windowsHide: true });
+  if (validation.error) throw validation.error;
+  process.exit(validation.status ?? 1);
+}
 if (prepared) await assertPrepared(repositoryRoot, ['compile', 'webview']);
 await mkdir(join(repositoryRoot, 'dist'), { recursive: true });
 

@@ -36,6 +36,7 @@ const vscode = {
 const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const originalLoad = moduleLoader._load;
 moduleLoader._load = (name, parent, main) => name === 'vscode' ? vscode : name === './pythonRuntime' ? {
+  ...originalLoad(name, parent, main) as typeof import('../../src/workspace/pythonRuntime'),
   resolvePythonRuntime: async () => { resolvingPython?.(); return { executable: process.execPath, args: [], env: process.env }; }
 } : originalLoad(name, parent, main);
 let WorkspacePanel: typeof import('../../src/workspace/workspacePanel').WorkspacePanel;

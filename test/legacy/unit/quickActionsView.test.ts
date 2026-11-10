@@ -4,17 +4,17 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import vm from 'node:vm';
-import { NotificationCenter } from '../../src/notifications/notificationCenter';
-import { OperationTracker } from '../../src/workspace/operations';
+import { NotificationCenter } from '../../../src/notifications/notificationCenter';
+import { OperationTracker } from '../../../src/workspace/operations';
 
 const id = 'a'.repeat(32);
 const flush = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
 
 async function fixture(tracked = false) {
-  const modulePath = path.resolve(__dirname, '../../src/quickActionsView.js');
+  const modulePath = path.resolve(__dirname, '../../../src/quickActionsView.js');
   const nativeRequire = createRequire(modulePath);
   const exports: Record<string, any> = {};
-  const root = path.resolve(__dirname, '../../..');
+  const root = path.resolve(__dirname, '../../../..');
   const uri = (fsPath: string) => ({ fsPath, toString: () => fsPath.replaceAll('\\', '/') });
   vm.runInNewContext(readFileSync(modulePath, 'utf8'), { exports, Buffer, process, Error, AbortController,
     require: (name: string) => name === 'vscode' ? { Uri: { joinPath: (base: { fsPath: string }, ...parts: string[]) => uri(path.join(base.fsPath, ...parts)) } } : nativeRequire(name)

@@ -3,12 +3,12 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { assertPrepared, preparationInputs, runLogged, runPool, savePreparation, workerCount } from './validation-runtime.mjs';
+import { assertPrepared, fingerprint, preparationInputs, runLogged, runPool, savePreparation, workerCount } from './validation-runtime.mjs';
 
 test('prepared execution rejects source drift, missing output, and an unprepared stage', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glw-prepared-proof-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const directories = new Set(['src', 'test', 'scripts', 'docs', 'resources/workflow-kit', 'resources/offline-tools/sources', 'resources/bmad', 'resources/codicons']);
+  const directories = new Set(['.github', 'src', 'test', 'scripts', 'docs', 'resources/bmad', 'resources/codicons']);
   for (const name of preparationInputs()) {
     await mkdir(path.dirname(path.join(root, name)), { recursive: true });
     if (directories.has(name)) await mkdir(path.join(root, name), { recursive: true });
@@ -18,6 +18,9 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await writeFile(path.join(root, 'out/extension.js'), 'compiled');
   await savePreparation(root, ['lint', 'compile'], ['out']);
   await assertPrepared(root, ['compile']);
+  await writeFile(path.join(root, '.github/release.yml'), 'changed CI');
+  await assert.rejects(assertPrepared(root, ['compile']), /changed/);
+  await rm(path.join(root, '.github/release.yml'));
   await writeFile(path.join(root, 'resources/codicons/codicon.ttf'), 'changed font');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await rm(path.join(root, 'resources/codicons/codicon.ttf'));
@@ -41,6 +44,19 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await savePreparation(root, ['lint', 'compile'], ['out']);
   await rm(path.join(root, 'out/extension.js'));
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
+});
+
+test('fingerprints hash overlapping roots once while preserving drift and path boundaries', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'glw-fingerprint-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, 'out/nested'), { recursive: true });
+  await writeFile(path.join(root, 'out/nested/file.js'), 'compiled');
+  const original = await fingerprint(root, ['out']);
+  assert.equal(await fingerprint(root, ['out/nested/file.js', 'out', 'out/nested', 'out']), original);
+  await writeFile(path.join(root, 'out/nested/file.js'), 'changed');
+  assert.notEqual(await fingerprint(root, ['out']), original);
+  await assert.rejects(fingerprint(root, ['../outside']), /inside the repository/);
+  await assert.rejects(savePreparation(root, [], ['out', 'out/missing.js']), { code: 'ENOENT' });
 });
 
 test('bounded child processes retain all failures, stdout and stderr in separate logs', async t => {

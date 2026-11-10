@@ -5,7 +5,9 @@ const { JSDOM } = require('jsdom');
 const { After, Given, When, Then, setWorldConstructor } = require('@cucumber/cucumber');
 const { operationResource } = require('../../out/src/workspace/operations');
 
-const bundle = readFileSync(resolve(__dirname, '../../resources/issue-webview/issue-test.js'), 'utf8');
+const bundle = readFileSync(process.env.GITLAB_WORKSPACE_ISSUE_TEST_BUNDLE
+  ? resolve(process.env.GITLAB_WORKSPACE_ISSUE_TEST_BUNDLE)
+  : resolve(__dirname, '../../resources/issue-webview/issue-test.js'), 'utf8');
 const project = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project' };
 const target = { ...project, id: 43, name: 'Target', path: 'target', path_with_namespace: 'group/target' };
 const user = { id: 9, name: 'Test User', username: 'tester' };
@@ -22,13 +24,54 @@ class IssueWorld {
     this.dom.window.addEventListener('workspaceIssueRequest', (event) => this.messages.push(event.detail));
     this.dom.window.addEventListener('workspaceAction', (event) => this.workspaceActions.push(event.detail));
     this.dom.window.eval(bundle);
-    await this.tick();
+    await this.waitFor(() => this.messages.some(message => message.type === 'ready'), 'Issue readiness message');
     assert.equal(this.messages.filter(message => message.type === 'ready').length, 1, 'the standalone Issue view announces readiness by default');
   }
-  async tick() { await new Promise((done) => setTimeout(done, 120)); }
-  async send(data) {
+  async waitFor(predicate, label) {
+    // Cross the queued render and its after-paint effects before checking DOM
+    // properties that the test itself may already have changed (for example input.value).
+    await new Promise(done => setImmediate(done));
+    await this.afterPaint();
+    if (predicate()) return;
+    await new Promise((done, reject) => {
+      const check = () => {
+        try { if (predicate()) { cleanup(); done(); } }
+        catch (error) { cleanup(); reject(error); }
+      };
+      const observer = new this.dom.window.MutationObserver(check);
+      const timer = setTimeout(() => { cleanup(); reject(new Error(`Timed out waiting for ${label}`)); }, 3000);
+      const cleanup = () => {
+        clearTimeout(timer); observer.disconnect();
+        this.dom.window.removeEventListener('workspaceIssueRequest', check);
+        this.dom.window.removeEventListener('workspaceAction', check);
+      };
+      observer.observe(this.root.body, { subtree: true, childList: true, attributes: true, characterData: true });
+      this.dom.window.addEventListener('workspaceIssueRequest', check);
+      this.dom.window.addEventListener('workspaceAction', check);
+      check();
+    });
+  }
+  async afterPaint() {
+    await new Promise(done => this.dom.window.requestAnimationFrame(() => this.dom.window.setTimeout(done, 0)));
+    await new Promise(done => setImmediate(done));
+  }
+  async send(data, expected) {
     this.dom.window.dispatchEvent(new this.dom.window.MessageEvent('message', { data }));
-    await this.tick();
+    const visible = expected ?? (() => {
+      if (data.type === 'createData') return this.root.querySelector('select')?.value === String(data.selectedProjectId);
+      if (data.type === 'detailData') return this.root.querySelector('h1')?.textContent.includes(data.data.issue.title) && !this.root.querySelector('.loading');
+      if (data.type === 'error' || data.type === 'issueRelations' && data.error) {
+        return this.root.querySelector('[role="alert"]')?.textContent.includes(data.message ?? data.error);
+      }
+      if (data.type === 'cancelled') return !this.root.querySelector('.loading');
+      if (data.type === 'issueRelations') return !!this.root.querySelector('input[aria-label="新子工作標題"]') && !this.root.querySelector('.issue-relation-editor > [role="status"]');
+      if (data.type === 'snapshot') return this.root.getElementById('app').childElementCount > 0;
+      throw new Error(`Supply a rendered-result predicate for ${data.type}`);
+    });
+    await this.waitFor(visible, `${data.type} rendered result`);
+    // The parent consumes the correlated reply in an effect. Once its busy
+    // indicator disappears, let the child's completion effect and render finish.
+    if (data.type === 'issueRelations') await this.afterPaint();
   }
   get root() { return this.dom.window.document; }
   button(label) {
@@ -38,24 +81,44 @@ class IssueWorld {
     if (menu) menu.open = true;
     return button;
   }
-  async click(label) { this.button(label).click(); await this.tick(); }
+  async click(label) {
+    const button = this.button(label);
+    assert.equal(button.disabled, false, `${label} must be available: ${this.root.getElementById(button.getAttribute('aria-describedby'))?.textContent ?? ''}`);
+    const before = this.root.body.innerHTML, messages = this.messages.length, actions = this.workspaceActions.length;
+    button.click();
+    await this.waitFor(() => this.messages.length > messages || this.workspaceActions.length > actions || this.root.body.innerHTML !== before,
+      `${label} action message or rendered state`);
+  }
   async tab(label) {
     const tab = [...this.root.querySelectorAll('[role="tab"]')].find((item) => item.textContent.trim() === label);
     assert.ok(tab, `Missing tab: ${label}`);
     tab.click();
-    await this.tick();
+    await this.waitFor(() => tab.getAttribute('aria-selected') === 'true', `${label} selected tab`);
     return tab;
   }
   async input(selector, value) {
     const element = this.root.querySelector(selector);
     assert.ok(element, `Missing field: ${selector}`);
+    await this.change(element, value);
+  }
+  async change(element, value, event = 'input') {
     element.value = value;
-    element.dispatchEvent(new this.dom.window.Event('input', { bubbles: true }));
-    await this.tick();
+    element.dispatchEvent(new this.dom.window.Event(event, { bubbles: true }));
+    await this.waitFor(() => element.value === value, `${element.getAttribute('aria-label') ?? element.tagName} field value`);
   }
   async detail(canEdit = true) {
     this.data = { issue, project, projects: [project, target], user, options, discussions: [discussion], links: [], mergeRequests: [], reactions: [], noteReactions: {}, todos: [], tasks: [{ id: 'gid://gitlab/WorkItem/99', iid: '3', title: 'Child task', description: 'Task details', state: 'OPEN', canEdit }], timelogs: [], startDate: null, parentWorkItemId: 'gid://gitlab/WorkItem/401', taskTypeId: 'gid://gitlab/WorkItems::Type/5', warnings: [], canEdit, canDelete: canEdit, deleteAvailability: canEdit ? { status: 'allowed' } : { status: 'denied', reason: '刪除 Issue 需要專案 Owner 權限。' }, canMove: canEdit, canClone: canEdit, canComment: canEdit, canInternalComment: canEdit, canLink: canEdit, canManageChildren: canEdit, canTrackTime: canEdit, canResolveThreads: canEdit, canSetStartDate: canEdit, hasStartDate: true, canLogTime: canEdit, canDeleteTimelog: canEdit };
     await this.send({ type: 'detailData', data: this.data });
+  }
+  async scopedRelations(connectedScope) {
+    await this.send({ type: 'snapshot', snapshot: {
+      connected: true, connectedScope, instanceUserScope: connectedScope, timerVersion: 0, timers: [], issues: [issue], projects: [project],
+      localRepositories: {}, workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
+    } });
+    await this.tab('關聯與子工作');
+    await this.waitFor(() => this.workspaceActions.some(item => item.type === 'loadIssueRelations' && item.connectedScope === connectedScope), 'scoped relations load');
+    const load = this.workspaceActions.filter(item => item.type === 'loadIssueRelations').at(-1);
+    await this.send({ type: 'issueRelations', requestId: load.requestId, connectedScope, projectId: 42, issueIid: 7, data: this.data });
   }
 }
 setWorldConstructor(IssueWorld);
@@ -82,12 +145,10 @@ When('I create an unassigned confidential issue with Markdown', async function (
   await this.input('input[placeholder="簡要描述工作內容"]', 'New issue');
   await this.input('textarea[placeholder]', '# Description');
   const startDate = this.root.querySelectorAll('input[type="date"]')[1];
-  startDate.value = '2026-10-02';
-  startDate.dispatchEvent(new this.dom.window.Event('input', { bubbles: true }));
-  await this.tick();
+  await this.change(startDate, '2026-10-02');
   const confidential = this.root.querySelector('input[type="checkbox"]');
   confidential.click();
-  await this.tick();
+  await this.waitFor(() => confidential.checked, 'confidential checkbox selected');
   await this.click('建立 Issue');
 });
 Then('a typed create request contains the CE fields and no token', function () {
@@ -109,9 +170,7 @@ When('I fill the template and every project metadata field', async function () {
   const select = (labelText) => [...this.root.querySelectorAll('label')].find((label) => label.querySelector('span')?.textContent.trim() === labelText)?.querySelector('select');
   const choose = async (element, value) => {
     assert.ok(element);
-    element.value = value;
-    element.dispatchEvent(new this.dom.window.Event('change', { bubbles: true }));
-    await this.tick();
+    await this.change(element, value, 'change');
   };
   await this.input('input[placeholder="簡要描述工作內容"]', 'Complete issue');
   await choose(select('描述範本'), 'gitlab:Bug');
@@ -121,9 +180,7 @@ When('I fill the template and every project metadata field', async function () {
   const setDate = async (labelText, value) => {
     const input = [...this.root.querySelectorAll('label')].find((label) => label.querySelector('span')?.textContent.trim() === labelText)?.querySelector('input[type="date"]');
     assert.ok(input);
-    input.value = value;
-    input.dispatchEvent(new this.dom.window.Event('input', { bubbles: true }));
-    await this.tick();
+    await this.change(input, value);
   };
   await setDate('到期日', '2026-10-05');
   await setDate('開始日期', '2026-10-01');
@@ -143,7 +200,7 @@ When('I choose another project but GitLab rejects its form options', async funct
   const select = this.root.querySelector('select');
   select.value = '43';
   select.dispatchEvent(new this.dom.window.Event('change', { bubbles: true }));
-  await this.tick();
+  await this.waitFor(() => this.messages.at(-1)?.type === 'selectProject', 'project selection request');
   assert.equal(this.messages.at(-1).type, 'selectProject');
   assert.equal(this.messages.at(-1).projectId, 43);
   await this.send({ type: 'error', message: 'Could not load project options.' });
@@ -175,7 +232,8 @@ Given('the Issue Webview is ready with an editable issue', async function () { a
 When('GitLab renders Markdown containing an unsafe script', async function () {
   const preview = this.messages.find((item) => item.type === 'preview');
   assert.ok(preview);
-  await this.send({ type: 'reply', requestId: preview.requestId, result: { html: '<strong>Safe Markdown</strong><script>window.bad = 1</script><img src="/group/project/uploads/hash/image.png" onerror=alert(1)>' } });
+  await this.send({ type: 'reply', requestId: preview.requestId, result: { html: '<strong>Safe Markdown</strong><script>window.bad = 1</script><img src="/group/project/uploads/hash/image.png" onerror=alert(1)>' } },
+    () => this.root.querySelector('.description strong')?.textContent === 'Safe Markdown' && this.messages.some(item => item.type === 'image'));
 });
 Then('the rendered description contains safe Markdown without script', function () {
   const description = this.root.querySelector('.description');
@@ -185,12 +243,14 @@ Then('the rendered description contains safe Markdown without script', function 
 Then('a private upload image is requested through the host', async function () {
   const request = this.messages.find((item) => item.type === 'image');
   assert.equal(request.url, 'https://gitlab.example.test/group/project/uploads/hash/image.png');
-  await this.send({ type: 'reply', requestId: request.requestId, result: { dataUrl: 'data:image/png;base64,iVBORw0KGgo=' } });
+  await this.send({ type: 'reply', requestId: request.requestId, result: { dataUrl: 'data:image/png;base64,iVBORw0KGgo=' } },
+    () => this.root.querySelector('.description img')?.src.startsWith('data:image/png;base64,'));
   assert.match(this.root.querySelector('.description img').src, /^data:image\/png;base64,/);
 });
 When('GitLab cannot render the description Markdown', async function () {
   const preview = this.messages.find((item) => item.type === 'preview');
-  await this.send({ type: 'reply', requestId: preview.requestId, error: 'Markdown renderer unavailable.' });
+  await this.send({ type: 'reply', requestId: preview.requestId, error: 'Markdown renderer unavailable.' },
+    () => this.root.querySelector('.description pre')?.textContent.includes('Safe description'));
 });
 Then('the original Markdown text remains readable', function () {
   assert.match(this.root.querySelector('.description pre').textContent, /Safe description/);
@@ -205,15 +265,17 @@ When('I preview and attach a file to a comment', async function () {
   await this.input('.card textarea:not([placeholder])', '**Comment draft**');
   const previews = [...this.root.querySelectorAll('button')].filter((button) => button.textContent.trim() === '預覽 Markdown');
   previews.at(-1).click();
-  await this.tick();
+  await this.waitFor(() => this.messages.some(item => item.type === 'preview' && item.markdown === '**Comment draft**'), 'comment preview request');
   const preview = this.messages.find((item) => item.type === 'preview' && item.markdown === '**Comment draft**');
   assert.ok(preview);
-  await this.send({ type: 'reply', requestId: preview.requestId, result: { html: '<strong>Comment draft</strong>' } });
+  await this.send({ type: 'reply', requestId: preview.requestId, result: { html: '<strong>Comment draft</strong>' } },
+    () => this.root.body.innerHTML.includes('<strong>Comment draft</strong>'));
   const uploads = [...this.root.querySelectorAll('button')].filter((button) => button.textContent.trim() === '上傳附件');
   uploads.at(-1).click();
-  await this.tick();
+  await this.waitFor(() => this.messages.some(item => item.type === 'upload'), 'comment upload request');
   this.commentUpload = this.messages.filter((item) => item.type === 'upload').at(-1);
-  await this.send({ type: 'reply', requestId: this.commentUpload.requestId, result: { markdown: '![file](/group/project/uploads/hash/file.png)' } });
+  await this.send({ type: 'reply', requestId: this.commentUpload.requestId, result: { markdown: '![file](/group/project/uploads/hash/file.png)' } },
+    () => this.root.querySelector('.card textarea:not([placeholder])')?.value.includes('![file]'));
 });
 Then('the comment preview and attachment remain in the comment editor', function () {
   assert.match(this.root.body.innerHTML, /<strong>Comment draft<\/strong>/);
@@ -224,7 +286,7 @@ When('I mark a comment as internal', async function () {
   await this.input('.card textarea:not([placeholder])', 'Private note');
   const checkbox = [...this.root.querySelectorAll('label')].find((label) => label.textContent.includes('內部留言')).querySelector('input');
   checkbox.click();
-  await this.tick();
+  await this.waitFor(() => this.button('開始討論').disabled, 'internal comment disables public thread');
 });
 Then('starting a public thread is disabled', function () {
   assert.equal(this.button('開始討論').disabled, true);
@@ -238,8 +300,10 @@ When('I open another issue before the old Markdown reply arrives', async functio
   await this.send({ type: 'detailData', data: { ...this.data, issue: next } });
   const newPreview = this.messages.find((item) => item.type === 'preview' && item.markdown === 'New description');
   assert.ok(newPreview);
-  await this.send({ type: 'reply', requestId: newPreview.requestId, result: { html: '<em>New content</em>' } });
-  await this.send({ type: 'reply', requestId: oldPreview.requestId, result: { html: '<em>Old content</em>' } });
+  await this.send({ type: 'reply', requestId: newPreview.requestId, result: { html: '<em>New content</em>' } },
+    () => this.root.querySelector('.description em')?.textContent === 'New content');
+  await this.send({ type: 'reply', requestId: oldPreview.requestId, result: { html: '<em>Old content</em>' } },
+    () => this.root.querySelector('.description em')?.textContent === 'New content');
 });
 Then('only the new issue Markdown remains visible', function () {
   const description = this.root.querySelector('.description').innerHTML;
@@ -304,11 +368,10 @@ Then('the relationship, child task, time, move, clone, and delete controls are a
 });
 When('I request a clone with comments', async function () {
   const targetSelect = this.root.querySelector('.sidebar .card:last-child select');
-  targetSelect.value = '43';
-  targetSelect.dispatchEvent(new this.dom.window.Event('change', { bubbles: true }));
-  await this.tick();
-  this.root.querySelector('.sidebar .card:last-child input[type="checkbox"]').click();
-  await this.tick();
+  await this.change(targetSelect, '43', 'change');
+  const withNotes = this.root.querySelector('.sidebar .card:last-child input[type="checkbox"]');
+  withNotes.click();
+  await this.waitFor(() => withNotes.checked, 'clone includes comments');
   await this.click('複製 Issue');
 });
 Then('the typed clone request includes comments and the target project', function () {
@@ -321,7 +384,8 @@ When('I search for a target project in another group', async function () {
   await this.click('搜尋專案');
   const request = this.messages.find((item) => item.type === 'searchProjects');
   assert.equal(request.query, 'external');
-  await this.send({ type: 'reply', requestId: request.requestId, result: [{ ...target, id: 99, path_with_namespace: 'other-group/external' }] });
+  await this.send({ type: 'reply', requestId: request.requestId, result: [{ ...target, id: 99, path_with_namespace: 'other-group/external' }] },
+    () => !!this.root.querySelector('.sidebar option[value="99"]'));
 });
 Then('the other group project can be selected for moving or cloning', function () {
   assert.ok(this.root.querySelector('.sidebar option[value="99"]'));
@@ -330,9 +394,7 @@ When('GitLab supplies a time report and I log time on a chosen date', async func
   await this.send({ type: 'detailData', data: { ...this.data, timelogs: [{ id: 'gid://gitlab/Timelog/1', timeSpent: 3600, spentAt: '2026-09-24T12:00:00Z', summary: 'Investigated', user, userPermissions: { adminTimelog: true } }] } });
   await this.tab('工時');
   const date = [...this.root.querySelectorAll('label')].find((label) => label.textContent.includes('登錄日期')).querySelector('input');
-  date.value = '2026-09-23';
-  date.dispatchEvent(new this.dom.window.Event('input', { bubbles: true }));
-  await this.tick();
+  await this.change(date, '2026-09-23');
   assert.equal(this.root.querySelector('input[aria-label="工時日期"]').value, '2026-09-23');
   await this.input('input[aria-label="工時長度"]', '1h');
   await this.click('新增待送出工時');
@@ -375,7 +437,7 @@ When('I start, pause, resume, and stop its timer', async function () {
     this.dom.window.dispatchEvent(new this.dom.window.CustomEvent('workspaceTimersChanged', { detail: {
       instanceUserScope: 'timer-scope', version, timers: phase ? [{ ...timer, phase }] : []
     } }));
-    await this.tick();
+    await this.waitFor(() => this.root.body.textContent.includes(({ running: '計時中', paused: '已暫停', ready: '待送出' })[phase]), `${phase} timer state`);
   };
   await sendTimers(1, 'running');
   assert.ok(this.root.body.textContent.includes('計時中'));
@@ -479,7 +541,7 @@ When('I edit my comment and GitLab rejects the save', async function () {
   const editButton = [...this.root.querySelectorAll('.note button')].find((button) => button.textContent.trim() === '編輯');
   assert.ok(editButton);
   editButton.click();
-  await this.tick();
+  await this.waitFor(() => !!this.root.querySelector('textarea[aria-label="編輯留言"]'), 'comment edit form');
   await this.input('textarea[aria-label="編輯留言"]', 'Updated comment draft');
   await this.click('儲存');
   const edit = this.messages.filter((item) => item.type === 'invoke' && item.action === 'editNote').at(-1);
@@ -517,13 +579,13 @@ When('I visit each Issue task tab', async function () {
     const selected = this.root.querySelector('.issue-tabs[role="tablist"] [role="tab"][aria-selected="true"]');
     selected.focus();
     selected.dispatchEvent(new this.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    await this.tick();
+    await this.waitFor(() => this.root.activeElement?.textContent.trim() === label, `${label} tab focus`);
     assert.equal(this.root.querySelector('.issue-tabs[role="tablist"] [role="tab"][aria-selected="true"]'), selected, 'moving focus must not activate or fetch another panel');
     const focused = this.dom.window.document.activeElement;
     assert.equal(focused.textContent.trim(), label);
     // JSDOM does not synthesize a button's native Enter/Space click default.
     focused.click();
-    await this.tick();
+    await this.waitFor(() => this.root.querySelector('.issue-tabs [aria-selected="true"]')?.textContent.trim() === label, `${label} tab activation`);
     assert.equal(this.root.querySelector('.issue-tabs[role="tablist"] [role="tab"][aria-selected="true"]').textContent.trim(), label);
   }
 });
@@ -575,14 +637,12 @@ When('I draft replies in two threads and post the first', async function () {
   const editors = this.root.querySelectorAll('textarea[aria-label="回覆內容"]');
   assert.equal(editors.length, 2);
   for (const [index, body] of ['First reply draft', 'Second reply draft'].entries()) {
-    editors[index].value = body;
-    editors[index].dispatchEvent(new this.dom.window.Event('input', { bubbles: true }));
-    await this.tick();
+    await this.change(editors[index], body);
   }
   const firstReply = this.root.querySelector('.discussion .reply-row button:last-of-type');
   assert.ok(firstReply);
   firstReply.click();
-  await this.tick();
+  await this.waitFor(() => this.messages.some(item => item.type === 'invoke' && item.action === 'reply'), 'thread reply request');
   const request = this.messages.filter((item) => item.type === 'invoke' && item.action === 'reply').at(-1);
   assert.equal(request.payload.discussionId, 'thread-1');
   await this.send({ type: 'detailData', data: { ...this.data, discussions } });
@@ -596,13 +656,15 @@ Then('only the posted thread reply draft is cleared', function () {
 When('a previously rendered comment changes and its new preview fails', async function () {
   const originalPreview = this.messages.find((item) => item.type === 'preview' && item.markdown === 'First comment');
   assert.ok(originalPreview);
-  await this.send({ type: 'reply', requestId: originalPreview.requestId, result: { html: '<strong>Old rendered comment</strong>' } });
+  await this.send({ type: 'reply', requestId: originalPreview.requestId, result: { html: '<strong>Old rendered comment</strong>' } },
+    () => this.root.querySelector('.note')?.innerHTML.includes('<strong>Old rendered comment</strong>'));
   assert.match(this.root.querySelector('.note').innerHTML, /Old rendered comment/);
   const changed = { ...discussion, notes: [{ ...discussion.notes[0], body: 'New **raw** comment', updated_at: '2026-09-24T01:00:00Z' }] };
   await this.send({ type: 'detailData', data: { ...this.data, discussions: [changed] } });
   const newPreview = this.messages.find((item) => item.type === 'preview' && item.markdown === 'New **raw** comment');
   assert.ok(newPreview);
-  await this.send({ type: 'reply', requestId: newPreview.requestId, error: 'Markdown renderer unavailable.' });
+  await this.send({ type: 'reply', requestId: newPreview.requestId, error: 'Markdown renderer unavailable.' },
+    () => this.root.querySelector('.note')?.textContent.includes('New **raw** comment'));
 });
 Then('the changed comment source remains visible without stale HTML', function () {
   const note = this.root.querySelector('.note');
@@ -625,22 +687,34 @@ When('I enter another comment and child title while their requests are pending',
   const comment = this.root.querySelector('.card textarea:not([placeholder])');
   await this.input('.card textarea:not([placeholder])', 'Posted comment');
   await this.click('送出留言');
-  comment.value = 'Next comment draft';
-  comment.dispatchEvent(new this.dom.window.Event('input', { bubbles: true }));
-  await this.tick();
+  await this.change(comment, 'Next comment draft');
   await this.send({ type: 'detailData', data: this.data });
-  await this.tab('關聯與子工作');
+  await this.scopedRelations('draft-scope');
   await this.input('input[aria-label="新子工作標題"]', 'Posted task');
   await this.click('建立子工作');
+  const child = this.workspaceActions.filter(item => item.type === 'mutateIssueRelations').at(-1);
+  assert.equal(child?.action.title, 'Posted task');
   const next = this.root.querySelector('input[aria-label="新子工作標題"]');
-  next.value = 'Next task draft';
-  next.dispatchEvent(new this.dom.window.Event('input', { bubbles: true }));
-  await this.tick();
-  await this.send({ type: 'detailData', data: this.data });
+  await this.change(next, 'Next task draft');
+  await this.send({ type: 'issueRelations', requestId: child.requestId, connectedScope: 'draft-scope', projectId: 42, issueIid: 7, data: this.data, mutationApplied: true });
 });
 Then('the later comment and child title remain after GitLab responds', function () {
   assert.equal(this.root.querySelector('.card textarea:not([placeholder])').value, 'Next comment draft');
   assert.equal(this.root.querySelector('input[aria-label="新子工作標題"]').value, 'Next task draft');
+});
+
+When('I create a child Task and GitLab confirms it', async function () {
+  await this.scopedRelations('submitted-scope');
+  await this.input('input[aria-label="新子工作標題"]', 'Submitted task');
+  await this.click('建立子工作');
+  const child = this.workspaceActions.filter(item => item.type === 'mutateIssueRelations').at(-1);
+  assert.equal(child?.action.title, 'Submitted task');
+  await this.send({ type: 'issueRelations', requestId: child.requestId, connectedScope: 'submitted-scope', projectId: 42, issueIid: 7, data: this.data, mutationApplied: true });
+});
+Then('the submitted child title is cleared and a new title can be entered', async function () {
+  assert.equal(this.root.querySelector('input[aria-label="新子工作標題"]').value, '');
+  await this.input('input[aria-label="新子工作標題"]', 'Another task');
+  assert.equal(this.button('建立子工作').disabled, false);
 });
 
 When('I change a field again before the prior save completes', async function () {

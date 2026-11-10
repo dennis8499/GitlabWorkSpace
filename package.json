@@ -515,7 +515,7 @@
     "benchmark:live": "npm run package && node scripts/run-live-extension-tests.mjs --benchmark",
     "benchmark:performance": "npm run compile && node --expose-gc scripts/performance-benchmark.cjs",
     "build:dev": "npm run compile && npm run build:webview",
-    "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs",
+    "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs",
     "check:release": "node scripts/check-release.mjs",
     "compile": "node scripts/clean-compiled.mjs && tsc -p .",
     "lint": "eslint . --max-warnings 0",
@@ -523,6 +523,10 @@
     "package:prepared": "node scripts/run-validation.mjs package --prepared",
     "prepare:validation": "node scripts/run-validation.mjs prepare",
     "test": "node scripts/run-validation.mjs all",
+    "test:quick": "node scripts/run-validation.mjs quick",
+    "test:ui": "node scripts/run-validation.mjs ui",
+    "test:compatibility": "node scripts/run-validation.mjs compatibility",
+    "test:legacy": "node scripts/run-validation.mjs legacy",
     "test:codex:live": "node scripts/run-codex-live-tests.mjs",
     "test:behavior": "node scripts/run-validation.mjs behavior",
     "test:behavior:prepared": "node scripts/run-validation.mjs behavior --prepared",
@@ -541,5 +545,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.45.0"
+  "version": "0.46.0"
 }

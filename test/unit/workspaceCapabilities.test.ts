@@ -112,9 +112,9 @@ test('the Host rejects direct local commands and control messages before enterin
   assert.equal(operations.get('remote-note')?.status, 'succeeded');
 });
 
-test('virtual startup and sidebar entry do not activate Git or read repository details', async t => {
+test('virtual startup does not activate Git or read repository details', async t => {
   class Emitter { event = () => ({ dispose() {} }); fire() {} dispose() {} }
-  let gitProbes = 0, detailReads = 0, refreshes = 0;
+  let gitProbes = 0;
   const vscode = { EventEmitter: Emitter, workspace: { workspaceFolders: virtualFolders },
     extensions: { getExtension: () => { gitProbes++; throw new Error('Unexpected Git probe'); } } };
   const { GitRepositoryService } = load('git/gitRepositoryService.js', vscode);
@@ -124,16 +124,4 @@ test('virtual startup and sidebar entry do not activate Git or read repository d
   assert.equal((await service.getSummaryState()).available, false);
   assert.equal(gitProbes, 0);
   await assert.rejects(service.openRepositoryPath('C:/stale-root'), /磁碟/);
-  const { QuickActionsViewProvider } = load('quickActionsView.js', vscode);
-  const sidebar = new QuickActionsViewProvider({}, { connectionEpoch: 1 }, () => {}, undefined,
-    async () => { detailReads++; }, undefined, undefined, () => 'scope', () => ({}), async () => { refreshes++; });
-  const messages: any[] = [];
-  const view = { visible: true, webview: { postMessage: async (message: unknown) => { messages.push(message); return true; } } };
-  sidebar.view = view;
-  await sidebar.refreshRepositories();
-  await sidebar.loadRepositoryDetails('repo', 'detail');
-  assert.equal(refreshes, 0); assert.equal(detailReads, 0);
-  assert.equal(messages.find(message => message.type === 'state').state.workspaceCapabilities.isVirtualWorkspace, true);
-  assert.match(messages.find(message => message.type === 'repositoryDetails').error, /磁碟/);
-  sidebar.dispose();
 });

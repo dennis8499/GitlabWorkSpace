@@ -17,7 +17,7 @@ cd GitlabWorkSpace
 npm ci
 ```
 
-在 VS Code 開啟專案後按 `F5`，啟動擴充功能開發主機。前置工作會執行 `npm run build:dev`，依序編譯 TypeScript 並建置主畫面與側欄 Webview，成功後才在新的 Extension Development Host 視窗中載入擴充功能。修改前端來源後，重新啟動偵錯即可載入新介面。
+在 VS Code 開啟專案後按 `F5`，啟動擴充功能開發主機。前置工作會執行 `npm run build:dev`，編譯 TypeScript 並建置主畫面 Webview，成功後才在新的 Extension Development Host 視窗中載入擴充功能。側欄使用原生 TreeView。修改前端來源後，重新啟動偵錯即可載入新介面。
 
 Windows PowerShell 若無法執行 `npm` 指令，可將指令中的 `npm` 改為 `npm.cmd`。
 
@@ -25,23 +25,21 @@ Windows PowerShell 若無法執行 `npm` 指令，可將指令中的 `npm` 改�
 
 ```sh
 npm run build:dev
-npm run lint
-npm run compile
-npm run typecheck:webview
-npm run build:webview
-npm run test:unit
-npm run test:behavior
-npm run test:release
-npm run test:extension
-npm run test:trust
+npm run test:quick
+npm run test:ui
+npm run test:compatibility
 npm test
 ```
 
-`npm test` 先執行 ESLint（零警告），再檢查 Extension Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Webview 各一次；先執行真實 Extension Host 測試，確認桌面宿主能啟動，再執行單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔。CI 可直接上傳這次測試的 `dist` 附件，不必再次打包。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
+以上命令是按需要選用的入口，不必全部依序執行。`test:quick` 執行零警告 lint、Host 編譯、Webview 型別、現行單元與 Node 發行工具測試，不建置 Webview、不啟動 VS Code 或安裝器。`test:ui` 再加入正式 Dashboard、行為／Cucumber、原生 Host 核心及 Trust，全部成功後才打包與驗證。`test:compatibility` 執行五個固定版本的真實 Host 安裝與全部 Python 整合案例，適合 WorkflowKit、Python 或 reviewer 橋接變更。
 
-各獨立測試與 `npm run package` 仍會自動準備必要建置。要在同一份來源重複檢查，可先執行 `npm run prepare:validation`，再使用 `test:unit:prepared`、`test:behavior:prepared`、`test:release:prepared`、`test:extension:prepared` 或 `package:prepared`。這些命令核對成功的 lint 階段、來源與產物的 SHA-256；ESLint 設定變更或舊收據缺少 lint 時，必須重新準備。來源、測試、建置腳本或產物改變後，須重新準備。多個命令不可共用目錄同時建置；驗證器使用工作目錄鎖避免互相刪除產物。
+`npm test` 保留完整驗證：先檢查 Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Dashboard 與 Issue 測試入口各一次；先執行真實 Extension Host，再執行 Trust、單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔，CI 直接上傳這份 `dist` 附件。舊側欄已退出產品，僅 `npm run test:legacy` 另行建置及測試，完整驗證不包含這些歷史案例。
 
-發行流程的 Python 測試預設使用兩個獨立 process，個別保留暫存夾與日誌；可透過 `GITLAB_WORKSPACE_TEST_WORKERS=1` 改為串行（接受 1–16）。每次執行的命令、退出碼、耗時及日誌位置寫入 `.gitlab-workspace-validation/runs/<時間>-<PID>/timings.json`；`GITLAB_WORKSPACE_VALIDATION_DIR` 可指定本次尚未使用的證據目錄。`test/release/*_test.py` 與 `scripts/*.test.mjs` 會自動納入，新增測試須遵循這些命名。
+各獨立測試與 `npm run package` 仍會自動準備必要建置；單獨 `test:unit` 只準備 lint 與 Host 編譯。要在同一份來源重複檢查，可先執行 `npm run prepare:validation`，再使用 `test:unit:prepared`、`test:behavior:prepared`、`test:release:prepared`、`test:extension:prepared` 或 `package:prepared`。這些命令先取得工作目錄鎖，再核對成功的階段、來源與產物 SHA-256；舊版收據、來源、設定、測試、腳本或產物改變後，都須重新準備。快檢查的 ESLint 使用內容快取並按 lockfile 隔離；完整驗證仍跑不使用快取的 lint。多個命令不可共用目錄同時建置。
+
+發行流程的 Python 測試預設使用兩個獨立 process，WorkflowKit 的三個 unittest class 分成三個工作，個別保留暫存夾與日誌，完整保留原有 16 個案例；固定附件在每個程序首次使用時驗證摘要。可透過 `GITLAB_WORKSPACE_TEST_WORKERS=1` 改為串行（接受 1–16）。每次執行的命令、退出碼、耗時及日誌位置寫入 `.gitlab-workspace-validation/runs/<時間>-<PID>/timings.json`；`GITLAB_WORKSPACE_VALIDATION_DIR` 必須指定本次尚未使用的證據目錄。`test/release/*_test.py` 與 `scripts/*.test.mjs` 會自動納入，新增測試須遵循這些命名。
+
+PR 的檢查由受信任 base commit 的分類器決定：只有 Webview／行為測試變更使用 `ui`，只有 unit 變更使用 `quick`，兩者混合使用 `ui`；只有公開文件使用 `package`，只有 `docs/work` 證據更新不跑產品回歸。其他程式、設定、依賴、未知或無法取得的變更一律完整驗證。重新命名會檢查前後兩個路徑。輕量 PR 使用 Windows／Python 3.11／VS Code stable，不能產生正式發行證據。main、版本標籤、手動及重用 workflow 仍使用完整三組矩陣。儲存庫若有 branch protection，請將穩定的 `Validation gate` 設為必要檢查，避免要求快 PR 不會產生的非 canonical 矩陣 job。
 
 Extension Host 每次建立全新的使用者、擴充功能與日誌目錄，移除繼承的 Electron／VS Code 宿主執行環境，並保留明確指定的 `VSCODE_EXECUTABLE_PATH` 與 `VSCODE_TEST_VERSION`。`extension-host.json` 記錄實際執行檔、版本及移除的環境變數名稱；缺少安裝或指定版本不符會在長時間回歸前失敗。
 
@@ -97,7 +95,7 @@ npm run package
 
 ## 發行流程
 
-GitHub Actions 只會在推送 `v` 開頭的版本標籤時啟動發行流程。標籤版本必須與 `package.json`、`package-lock.json` 相同，且標籤所指提交必須已包含在 `main`。
+GitHub Actions 在 PR、main 更新及手動觸發時執行驗證，只有推送 `v` 開頭的版本標籤會發布 Release。標籤版本必須與 `package.json`、`package-lock.json` 相同，且標籤所指提交必須已包含在 `main`。
 
 以 `0.4.0` 為例：
 

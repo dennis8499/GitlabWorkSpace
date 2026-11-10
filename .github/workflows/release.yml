@@ -19,6 +19,61 @@ permissions:
   actions: read
 
 jobs:
+  route:
+    name: Select validation coverage
+    runs-on: windows-2022
+    outputs:
+      mode: ${{ steps.coverage.outputs.mode }}
+      matrix: ${{ steps.coverage.outputs.matrix }}
+    env:
+      FULL_MATRIX: '{"include":[{"cell":"windows-py3.11-1.90.0","os":"windows-2022","python-version":"3.11","vscode-version":"1.90.0"},{"cell":"windows-py3.11-stable","os":"windows-2022","python-version":"3.11","vscode-version":"stable"},{"cell":"windows-py3.14-stable","os":"windows-2022","python-version":"3.14","vscode-version":"stable"}]}'
+    steps:
+      - name: Check out source for a complete merge-base diff
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out the trusted pull-request base selector
+        id: trusted
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .validation-base
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Select conservatively using only trusted routing code
+        id: coverage
+        shell: pwsh
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TRUSTED_BASE_OUTCOME: ${{ steps.trusted.outcome }}
+        run: |
+          $mode = 'all'
+          $selector = '.validation-base/scripts/validation-selection.mjs'
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request' -and $env:TRUSTED_BASE_OUTCOME -eq 'success' -and (Test-Path -LiteralPath $selector -PathType Leaf)) {
+            try {
+              $selected = (& node $selector) | ConvertFrom-Json
+              if ($LASTEXITCODE -eq 0 -and $selected.mode -in @('all', 'ui', 'quick', 'package', 'none')) {
+                $mode = $selected.mode
+              }
+            } catch {
+              Write-Warning 'Coverage selection failed; running complete validation.'
+            }
+          }
+          $matrix = $env:FULL_MATRIX | ConvertFrom-Json
+          if ($mode -ne 'all') {
+            $matrix.include = @($matrix.include | Where-Object cell -eq 'windows-py3.11-stable')
+          }
+          "mode=$mode" >> $env:GITHUB_OUTPUT
+          "matrix=$($matrix | ConvertTo-Json -Depth 5 -Compress)" >> $env:GITHUB_OUTPUT
+          Write-Output "Selected validation profile: $mode"
+          exit 0
+
   select:
     name: Select exact main CI proof
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -39,27 +94,14 @@ jobs:
         run: python -X utf8 -B scripts/release_ci.py select --output "$env:GITHUB_OUTPUT"
 
   build:
-    needs: select
-    if: ${{ always() && (needs.select.result == 'skipped' || (needs.select.result == 'success' && needs.select.outputs.reuse_run_id == '')) }}
+    needs: [route, select]
+    if: ${{ always() && needs.route.result == 'success' && needs.route.outputs.mode != 'none' && (needs.select.result == 'skipped' || (needs.select.result == 'success' && needs.select.outputs.reuse_run_id == '')) }}
     name: Validate [${{ matrix.cell }}]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - cell: windows-py3.11-1.90.0
-            os: windows-2022
-            python-version: '3.11'
-            vscode-version: '1.90.0'
-          - cell: windows-py3.11-stable
-            os: windows-2022
-            python-version: '3.11'
-            vscode-version: 'stable'
-          - cell: windows-py3.14-stable
-            os: windows-2022
-            python-version: '3.14'
-            vscode-version: 'stable'
+      matrix: ${{ fromJSON(needs.route.outputs.matrix) }}
     env:
       VSCODE_TEST_VERSION: ${{ matrix.vscode-version }}
       GITLAB_WORKSPACE_VALIDATION_DIR: .gitlab-workspace-validation/ci
@@ -83,8 +125,13 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: npm run check:release
       - name: Run full tests and package once on Windows
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && needs.route.outputs.mode == 'all'
         run: npm test
+      - name: Run the scoped pull-request profile
+        if: needs.route.outputs.mode != 'all'
+        env:
+          VALIDATION_MODE: ${{ needs.route.outputs.mode }}
+        run: node scripts/run-validation.mjs "$env:VALIDATION_MODE"
       - name: Print captured validation diagnostics on failure
         if: failure()
         shell: bash
@@ -96,10 +143,13 @@ jobs:
               print(path.read_text(encoding='utf-8', errors='replace')[-20000:])
           PY
       - name: Test release provenance and publication contracts
+        if: needs.route.outputs.mode == 'all'
         run: python -X utf8 -B scripts/test_release_ci.py -v
       - name: Record complete cell and canonical asset provenance
+        if: needs.route.outputs.mode == 'all'
         run: python -X utf8 -B scripts/release_ci.py record --cell "${{ matrix.cell }}" --artifact-dir ".release-ci/${{ matrix.cell }}"
       - name: Save exact validated proof and assets for fourteen days
+        if: needs.route.outputs.mode == 'all'
         uses: actions/upload-artifact@v7
         with:
           name: release-ci-${{ github.sha }}-${{ matrix.cell }}-${{ github.run_attempt }}
@@ -107,6 +157,26 @@ jobs:
           retention-days: 14
           include-hidden-files: true
           if-no-files-found: error
+
+  validation:
+    name: Validation gate
+    needs: [route, select, build]
+    if: always()
+    runs-on: windows-2022
+    steps:
+      - name: Require the selected coverage to succeed
+        env:
+          ROUTE_RESULT: ${{ needs.route.result }}
+          MODE: ${{ needs.route.outputs.mode }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          SELECT_RESULT: ${{ needs.select.result }}
+          REUSE_RUN_ID: ${{ needs.select.outputs.reuse_run_id }}
+        run: |
+          if ($env:ROUTE_RESULT -ne 'success') { throw 'Validation routing failed.' }
+          if ($env:BUILD_RESULT -eq 'success') { exit 0 }
+          if ($env:BUILD_RESULT -eq 'skipped' -and $env:MODE -eq 'none') { exit 0 }
+          if ($env:BUILD_RESULT -eq 'skipped' -and $env:SELECT_RESULT -eq 'success' -and $env:REUSE_RUN_ID) { exit 0 }
+          throw 'The selected validation coverage did not succeed.'
 
   publish:
     name: Promote verified bytes to formal Release
