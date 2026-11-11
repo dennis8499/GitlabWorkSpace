@@ -17,6 +17,7 @@ test('all executable guide prompts route optional output style once and preserve
           : field.id === 'base' ? 'main' : field.id === 'head' ? 'feature/change' : field.defaultValue ?? 'fixture']));
       const prompt = buildSkillGuidePrompt(card, inputs, { ...context, profile, root: context.repositories[0].path });
       assert.equal(prompt.split('載入 $output-style').length - 1, 1, `${profile}/${card.id}`);
+      if (['merge-reviewer', 'release-reviewer'].includes(card.tool)) assert.match(prompt, /撰寫報告時才在/);
       assert.match(prompt, /未安裝時沿用原 Skill 的 output style/);
       assert.match(prompt, /保留原 Skill 的必要欄位、證據、審查狀態/);
     }
@@ -131,9 +132,10 @@ test('routing effort is optional, included in copied prompts and gated by kit ca
     const inputs = { [`${card.id}.repo`]: 'service', [`${card.id}.base`]: 'main', [`${card.id}.head`]: 'feature', [`${card.id}.effort`]: 'max' };
     assert.equal(canCopySkillPrompt(card, inputs), true);
     const routed = buildSkillGuidePrompt(card, inputs, { ...context, modelRouting: true });
-    assert.match(routed, /\$model-routing effort=max/);
-    assert.ok(!routed.includes('不建立子 Agent'));
-    assert.throws(() => buildSkillGuidePrompt(card, inputs, context), /尚未提供 Model Routing/);
+    assert.doesNotMatch(routed, /\$model-routing|routing_phase/);
+    assert.match(routed, /CLI/);
+    assert.ok(routed.includes('不建立路由子 Agent'));
+    assert.doesNotThrow(() => buildSkillGuidePrompt(card, inputs, context));
     assert.equal(canCopySkillPrompt(card, { ...inputs, [`${card.id}.effort`]: 'ultra' }), false);
     const restored = restoreSkillGuideState({ tool, selections: { [tool]: card.id }, inputs });
     assert.equal(restored.inputs[`${card.id}.effort`], 'max');

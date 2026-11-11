@@ -2,7 +2,7 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
-0.48.0 將分支審查的輸入保存為固定啟動檔，避免重抄路徑；審查進度與可恢復操作依本機紀錄呈現。已終止的 request 保留診斷，已發布報告與審查完整性分開顯示。詳見 [版本說明](docs/releases/v0.48.0.md)及 [Codex 操作說明](docs/codex-bridge.md)。
+0.49.0 移除 Reviewer Auto、前置判級與路由子代理，由目前 agent 使用手動選定的模型與強度完成審查。工作台核對原生發布收據後才交付成果；暫停保留同 request 的快照、草稿與續作紀錄。詳見 [版本說明](docs/releases/v0.49.0.md)及 [Codex 操作說明](docs/codex-bridge.md)。
 
 ## 目錄
 

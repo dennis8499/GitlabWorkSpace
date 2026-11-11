@@ -44,7 +44,7 @@ import { ProjectWikiStore } from '../codex/projectWiki';
 import { CodexWorkflowService } from '../codex/workflowService';
 import { isAbortedRead } from '../api/gitLabReadCache';
 import { buildWikiGuideContext, buildWikiGuidePrompt } from '../webview/codebaseWikiGuideData';
-import { modelRoutingBinding, readModelRouting, type ModelRoutingBinding } from '../codex/modelRouting';
+import { type ModelRoutingBinding } from '../codex/modelRouting';
 import { saveReviewLaunchRequest, reviewRunnerWritableRoots } from './reviewLaunch';
 import { supportsReviewLaunch } from './reviewLaunchProtocol';
 import { reviewSessionActions } from './reviewSessionProtocol';
@@ -87,7 +87,7 @@ import { readReviewerBranches } from './reviewerBranches';
 import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewAuth, reviewerAuthScope, defaultReviewRuntime, reviewRuntimeCandidates, resolveReviewRuntime, sharedReviewCacheRoot, sharedReviewCacheV2Root } from './reviewSessions';
 import { isReviewerTool, type ReviewerToolId } from './reviewSessionProtocol';
 import { readInstalledReviewerBinding } from './installedReviewer';
-import { readWorkflowKitRunnerBinding } from './workflowKitRunner';
+import { readWorkflowKitRunnerBinding, workflowKitPythonCommand } from './workflowKitRunner';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { isGitPanelRequest, isGitWriteAction } from '../git/gitProtocol';
@@ -2802,6 +2802,17 @@ export class WorkspacePanel implements vscode.Disposable {
           readReviewSessions(candidate, workspace, paths, spec.review!.tool)))).flat();
         if (sessions.some(session => session.requestId === spec.review!.requestId)) await this.controlReviewSession({ ...spec.review, revision: skills.revision }, 'cancel');
       },
+      cleanupReview: async (spec, signal) => {
+        if (!spec.review) return;
+        const runtime = spec.review.runtimeRoot ?? spec.writableRoots[1];
+        if (!runtime || !spec.writableRoots.some(root => sameLocalPath(root, runtime))) throw new Error('清理 runtime 不在原授權範圍。');
+        const binding = await readInstalledReviewerBinding(spec.root, spec.review.tool);
+        const python = await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python'));
+        const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner,
+          ['-X', 'utf8', '-B', binding.script_path, 'finish', '--runtime-root', runtime, '--request-id', spec.review.requestId]);
+        await execFileAsync(command.executable, command.args, { cwd: spec.root, env: python.env, windowsHide: true,
+          encoding: 'utf8', signal, timeout: 60_000, maxBuffer: 128 * 1024 });
+      },
       started: async (spec, signal) => {
         if (!spec.origin || !spec.workflow) return;
         const check = this.checkLinkedCodexAccess(spec); check();
@@ -3177,13 +3188,10 @@ export class WorkspacePanel implements vscode.Disposable {
       if (!runtime) throw new Error('請先設定審查 runtime。');
       const binding = await readInstalledReviewerBinding(skills.root, source.tool);
       const executionRuntime = result.runtimeRoot;
-      const routing = skills.installed.capabilities?.includes('model-routing') && (!result.published || previous?.routing)
-        ? await modelRoutingBinding(skills.root, source.tool, executionRuntime, previous?.review?.requestId ?? result.reviewRequestId,
-          source.action === 'refresh' ? 'auto' : previous?.routing?.requestedEffort,
-          skills.installed.capabilities?.includes('model-routing-model-selection'), source.action === 'resume' ? previous?.routing : undefined) : undefined;
+      const routing = undefined;
       prepared = await this.codexSpec(source, `${source.action === 'resume' ? '恢復' : '重新同步'}${source.tool === 'merge-reviewer' ? '合併審查' : '上版檢查'}`,
         skills.root, source.tool, result.prompt, [executionRuntime, ...reviewRunnerWritableRoots(executionRuntime, binding.workflow_kit_runner), await sharedReviewCacheRoot(executionRuntime), sharedReviewCacheV2Root()],
-        { tool: source.tool, requestId: previous?.review?.requestId ?? result.reviewRequestId, revision: skills.revision }, JSON.stringify(binding), routing);
+        { tool: source.tool, requestId: previous?.review?.requestId ?? result.reviewRequestId, revision: skills.revision, runtimeRoot: executionRuntime, workspaceRoot: skills.workspaceRoot ?? skills.root, repositoryPath: (await readReviewJob(executionRuntime, source.requestId, skills.workspaceRoot ?? skills.root, (skills.reviewerRepositories ?? []).map(repo => repo.path), source.tool)).inputs.project }, JSON.stringify(binding), routing);
     } else throw new Error('不支援此 Codex 工作。');
     if (prepared.skill) await access(prepared.skill.path);
     if (prepared.review) {
@@ -3242,7 +3250,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const inputs = selectedRepository ? { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path } : request.inputs;
     const context: SkillGuideContext = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
       reviewRuntimeRoot: current.reviewRuntimeRoot, releaseReviewRuntimeRoot: current.releaseReviewRuntimeRoot, reviewAuthScope: current.reviewAuthScope,
-        reviewerBinding, reviewerCapabilities, workflowKitRunner, modelRouting: current.installed.capabilities?.includes('model-routing') === true,
+        reviewerBinding, reviewerCapabilities, workflowKitRunner, modelRouting: false,
       reviewerRequestId: reviewer ? canonicalReviewRequestId(requestId ?? randomUUID()) : undefined,
       groupRoot: current.mode === 'group' ? current.root : undefined, workflowKitVersion: current.installed.version,
       workspaceFile: current.workspaceFile, workspaceRoot: current.workspaceRoot,
@@ -3255,15 +3263,13 @@ export class WorkspacePanel implements vscode.Disposable {
         request_id: context.reviewerRequestId!, workspace: current.workspaceRoot ?? current.root, project: selectedRepository.path,
         base: inputs[`${card.id}.base`].trim(), head: inputs[`${card.id}.head`].trim(), runtime_root: runtime,
         ...(current.workspaceFile ? { workspace_file: current.workspaceFile } : {}),
-        ...(current.reviewAuthScope ? { auth_scope: current.reviewAuthScope } : {}), binding: reviewerBinding!, draft_format: 'compact' });
+        ...(current.reviewAuthScope ? { auth_scope: current.reviewAuthScope } : {}), binding: reviewerBinding!, draft_format: 'compact' }, 'start', !!requestId);
     }
     const prompt = `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`;
-    const routing = reviewer && context.modelRouting && runtime && context.reviewerRequestId
-      ? await modelRoutingBinding(current.root, card.tool as ReviewerToolId, runtime, context.reviewerRequestId, inputs[`${card.id}.effort`] ?? 'auto',
-        current.installed.capabilities?.includes('model-routing-model-selection')) : undefined;
+    const routing = undefined;
     return this.codexSpec({ kind: 'skill', ...request }, card.title, current.root, card.tool, prompt,
       runtime ? [runtime, ...reviewRunnerWritableRoots(runtime, workflowKitRunner), await sharedReviewCacheRoot(runtime), sharedReviewCacheV2Root()] : [],
-      context.reviewerRequestId ? { tool: card.tool as ReviewerToolId, requestId: context.reviewerRequestId, revision: current.revision } : undefined,
+      context.reviewerRequestId ? { tool: card.tool as ReviewerToolId, requestId: context.reviewerRequestId, revision: current.revision, runtimeRoot: runtime, workspaceRoot: current.workspaceRoot ?? current.root, repositoryPath: selectedRepository?.path } : undefined,
       JSON.stringify([reviewerBinding, workflowKitRunner]), routing);
   }
 
@@ -5467,12 +5473,7 @@ export class WorkspacePanel implements vscode.Disposable {
           'merge-repo.head': job.inputs.head }, { root: skills.root, workspaceRoot: workspace, repositories,
           reviewerRequestId: request.requestId, reviewLaunch: launch });
       }
-      if (skills.installed.capabilities?.includes('model-routing') && job.state !== 'published') {
-        const routing = await modelRoutingBinding(skills.root, request.tool, root, canonicalReviewRequestId(request.requestId));
-        const state = await readModelRouting(routing);
-        prompt = `$model-routing effort=${state?.requested_effort ?? 'auto'} 恢復原 request ${request.requestId}，runtime_root=${JSON.stringify(root)}。先讀已安裝 Routing 協定，沿用原決策與 checkpoint。\n` +
-          prompt.replace('此工作流程使用單一 Agent；不建立子 Agent。', '已路由 reviewer 在目前 Agent 完成原生審查；交接由 Routing adapter 管理。');
-      }
+      prompt = '本次停用 Model Routing，由目前 Agent 沿原 request 完成原生審查，沿用目前模型與強度。\n' + prompt;
       if (execution) return { prompt, reviewRequestId: request.requestId, runtimeRoot: root, published: job.state === 'published' };
       await vscode.env.clipboard.writeText(prompt);
       this.post({ type: 'message', message: '已複製恢復審查指令；貼入 Codex 後沿用同份固定證據。' });
@@ -5487,7 +5488,7 @@ export class WorkspacePanel implements vscode.Disposable {
         workspaceRoot: workspace, workspaceFile: skills.workspaceFile, repositories,
         reviewRuntimeRoot: skills.reviewRuntimeRoot, releaseReviewRuntimeRoot: skills.releaseReviewRuntimeRoot, reviewAuthScope: skills.reviewAuthScope,
         reviewerBinding: binding, workflowKitRunner: binding?.workflow_kit_runner, reviewerCapabilities, reviewerRequestId: nextRequestId,
-        modelRouting: skills.installed.capabilities?.includes('model-routing') === true };
+        modelRouting: false };
       if (supportsReviewLaunch(binding, reviewerCapabilities)) {
         context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: 'merge-reviewer', request_id: nextRequestId,
           workspace, project: job.inputs.project, base: job.inputs.base, head: job.inputs.head, runtime_root: preferred,

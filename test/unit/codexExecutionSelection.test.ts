@@ -10,11 +10,10 @@ import { describeAction } from '../../src/workspace/actionPolicy';
 
 const model = (name: string, efforts = ['low', 'high', 'xhigh'], preferred = 'high') => ({ id: name, model: name, displayName: name,
   defaultReasoningEffort: preferred, supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) }) as Model;
-function spec(routed = false): CodexTaskSpec {
+function spec(review = false): CodexTaskSpec {
   return { root: 'repo', title: 'Task', prompt: 'Work', source: { kind: 'bmad', request: { command: 'task', revision: 'r' } },
-    writableRoots: ['repo'], workspaceKey: 'repo', environmentKey: 'base', ...(routed ? { routing: {
-      tool: 'merge-reviewer' as const, requestId: 'a'.repeat(32), runtimeRoot: 'runtime', requestedEffort: 'auto',
-      skillPath: 'skill', payloadHash: 'b'.repeat(64), supportsModelSelection: true } } : {}) };
+    writableRoots: ['repo'], workspaceKey: 'repo', environmentKey: 'base', ...(review ? { review: {
+      tool: 'merge-reviewer' as const, requestId: 'a'.repeat(32), revision: 'r' } } : {}) };
 }
 function picker(select: (items: any[], step: number, options: any) => any) {
   let step = 0;
@@ -28,10 +27,10 @@ test('ordinary default inherits local settings; explicit models use catalog defa
   const previous = { ...spec(), model: 'fixture-two', effort: 'xhigh' };
   assert.deepEqual(await pickExecutionSelection(picker((items, step) => step ? items[0] : items.find(item => item.model?.model === 'fixture-one')), models, previous), selected);
 });
-test('review defaults to Luna and Auto and freezes selected model capabilities', async () => {
+test('review defaults to a fixed catalog effort and offers no Auto', async () => {
   const selection = await pickExecutionSelection(picker(items => items[0]), [model('fixture-other'), model('gpt-6-luna')], spec(true));
-  assert.deepEqual(selection, { model: 'gpt-6-luna', effort: 'auto', modelEfforts: ['low', 'high', 'xhigh'] });
-  const manual = spec(true); manual.routing!.requestedEffort = 'xhigh';
+  assert.deepEqual(selection, { model: 'gpt-6-luna', effort: 'high' });
+  const manual = { ...spec(true), model: 'gpt-6-luna', effort: 'xhigh' };
   assert.equal((await pickExecutionSelection(picker(items => items[0]), [model('gpt-6-luna')], manual))?.effort, 'xhigh');
 });
 test('cancelling either selection step cancels creation and empty catalogs fail', async () => {
@@ -41,19 +40,13 @@ test('cancelling either selection step cancels creation and empty catalogs fail'
 });
 test('unknown effort labels remain manually selectable with Auto unavailable', async () => {
   const selected = await pickExecutionSelection(picker((items, step, options) => {
-    if (step) { assert.equal(items.some(item => item.label === 'auto'), false); assert.match(options.placeHolder, /Auto 不可用/); }
+    if (step) { assert.equal(items.some(item => item.label === 'auto'), false); assert.equal(typeof options.placeHolder, 'string'); }
     return items[0];
   }), [model('custom-model', ['custom'], 'custom')], spec(true));
   assert.equal(selected?.effort, 'custom');
 });
-test('old kit accepts Luna but rejects a different reviewer model before enqueue', async () => {
-  const old = spec(true); delete old.routing!.supportsModelSelection;
-  await assert.rejects(pickExecutionSelection(picker(items => items[0]), [model('other')], old), /更新 WorkflowKit/);
-  assert.equal((await pickExecutionSelection(picker(items => items[0]), [model('gpt-6-luna')], old))?.modelEfforts, undefined);
-  const withoutRouting = spec(); withoutRouting.review = { tool: 'merge-reviewer', requestId: 'a'.repeat(32), revision: 'r' };
-  await assert.rejects(pickExecutionSelection(picker(items => items[0]), [model('other')], withoutRouting), /更新 WorkflowKit/);
-  assert.deepEqual(await pickExecutionSelection(picker(items => items[0]), [model('other'), model('gpt-6-luna')], withoutRouting), { model: 'gpt-6-luna', effort: 'high' });
-  assert.throws(() => applyExecutionSelection(withoutRouting, { ...withoutRouting.source, model: 'other', effort: 'high' }), /更新 WorkflowKit/);
+test('manual reviewer models do not depend on WorkflowKit routing capability', async () => {
+  assert.equal((await pickExecutionSelection(picker(items => items[0]), [model('other')], spec(true)))?.model, 'other');
 });
 test('all task sources preserve selection identity on preparation and reject unsupported routing settings', () => {
   const sources: CodexTaskSource[] = [
@@ -70,10 +63,10 @@ test('all task sources preserve selection identity on preparation and reject uns
     if (source.kind !== 'free') assert.notEqual(first.environmentKey, another.environmentKey);
     assert.equal(first.model, 'one');
   }
-  assert.throws(() => applyExecutionSelection(spec(), { ...sources[0], model: 'one', effort: 'auto' }), /僅適用/);
+  assert.throws(() => applyExecutionSelection(spec(), { ...sources[0], model: 'one', effort: 'auto' }), /Auto/);
   assert.throws(() => validateExecutionSelection({ effort: 'high' }), /設定無效/);
-  const review = applyExecutionSelection(spec(true), { ...sources[1], model: 'one', effort: 'auto', modelEfforts: ['high', 'xhigh'] });
-  assert.equal(review.routing?.model, 'one'); assert.deepEqual(review.routing?.supportedEfforts, ['high', 'xhigh']);
+  const review = applyExecutionSelection(spec(true), { ...sources[1], model: 'one', effort: 'high', modelEfforts: ['high', 'xhigh'] });
+  assert.equal(review.model, 'one'); assert.equal(review.effort, 'high'); assert.equal(review.routing, undefined);
 });
 test('Auto maps sparse model efforts upward and records a cap only above its maximum', () => {
   assert.deepEqual(selectRoutingEffort('medium', ['low', 'high', 'xhigh']), { effort: 'high', capped: false });

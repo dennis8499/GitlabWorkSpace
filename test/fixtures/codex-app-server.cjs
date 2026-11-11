@@ -105,6 +105,18 @@ rl.on('line', line => {
     }
     if (prompt.includes('drop-response')) { process.exit(4); }
     notify('item/agentMessage/delta', { ...active, itemId: 'agent-1', delta: '處理中' });
+    if (mode.startsWith('native-review') && mode !== 'native-review-stall') {
+      const config = JSON.parse(fs.readFileSync(path.join(root, 'fixture-native.json'), 'utf8'));
+      const job = JSON.parse(fs.readFileSync(config.jobPath, 'utf8'));
+      const marker = path.join(root, 'fixture-native-first');
+      if (mode === 'native-review-continue' && !fs.existsSync(marker)) {
+        fs.writeFileSync(marker, '1'); fs.writeFileSync(path.join(config.context, 'draft.json'), '{"summary":"saved semantic progress"}');
+      } else {
+        fs.writeFileSync(config.report, config.body);
+        Object.assign(job, { state: 'published', report_path: config.report, review_outcome: config.outcome });
+        fs.writeFileSync(config.jobPath, JSON.stringify(job));
+      }
+    }
     if (prompt.includes('routing_adapter=workbench')) {
       if (mode === 'routing-hold') return;
       const config = JSON.parse(fs.readFileSync(path.join(root, 'fixture-routing.json'), 'utf8'));

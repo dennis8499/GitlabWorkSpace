@@ -48,6 +48,20 @@ test('linked launch destinations and changed stored bytes are rejected', async t
   const launch = await saveReviewLaunchRequest(f.request); await writeFile(launch.path, '{}');
   await assert.rejects(saveReviewLaunchRequest(f.request, 'status', true), /輸入已變更/);
 });
+test('a verified existing snapshot can upgrade its helper binding without replacing the old launch', async t => {
+  const f = await fixture(t), original = await saveReviewLaunchRequest(f.request), bytes = await readFile(original.path);
+  await mkdir(path.join(f.runtime, 'jobs'), { recursive: true });
+  await writeFile(path.join(f.runtime, '.merge-reviewer-runtime.json'), JSON.stringify({ schema: 'MergeReviewRuntime/v1', directory: f.runtime }));
+  await writeFile(path.join(f.runtime, 'jobs', f.request.request_id + '.json'), JSON.stringify({ schema: 'MergeReviewSession/v1', request_id: f.request.request_id,
+    runtime_root: f.runtime, state: 'reviewing', phase: 'review', updated_at: new Date().toISOString(),
+    inputs: { workspace: f.workspace, project: f.request.project, base: f.request.base, head: f.request.head } }));
+  const request = { ...f.request, binding: { ...f.request.binding, version: '0.22.0', script_sha256: 'f'.repeat(64) } };
+  await assert.rejects(saveReviewLaunchRequest(request), /輸入已變更/);
+  const resumed = await saveReviewLaunchRequest(request, 'status', true);
+  assert.notEqual(resumed.path, original.path); assert.equal(resumed.request.request_id, f.request.request_id);
+  assert.deepEqual(await readFile(original.path), bytes);
+  assert.deepEqual(await saveReviewLaunchRequest(request, 'status', true), resumed);
+});
 test('display and executable request share exact inputs; structured prompt is at least fifty percent shorter', async t => {
   const f = await fixture(t), launch = await saveReviewLaunchRequest(f.request), card = getSkillGuideCard('merge-reviewer');
   const context = { root: f.workspace, workspaceRoot: f.workspace, workspaceFile: f.request.workspace_file,

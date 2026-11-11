@@ -28,7 +28,7 @@ export interface CodexTaskSpec {
   skill?: { name: string; path: string };
   writableRoots: string[];
   environmentKey: string;
-  review?: { tool: ReviewerToolId; requestId: string; revision: string };
+  review?: { tool: ReviewerToolId; requestId: string; revision: string; runtimeRoot?: string; workspaceRoot?: string; repositoryPath?: string };
   commitReview?: { runtimeRoot: string };
   routing?: ModelRoutingBinding;
   executionRoot?: string;
@@ -126,7 +126,11 @@ export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
   routingUserMessages?: string[];
   pendingMessageIsUser?: boolean;
   ownerInstance?: string;
-  dispatch?: { id: string; state: 'prepared' | 'acknowledged' | 'completed'; createdAt: string; turnId?: string };
+  dispatch?: { id: string; state: 'prepared' | 'acknowledged' | 'completed'; createdAt: string; turnId?: string; model?: string; effort?: string; acknowledgedAt?: string };
+  executionHistory?: Array<{ threadId?: string; turnId?: string; model?: string; effort?: string; sentAt: string; acknowledgedAt?: string; completedAt?: string; observedModel?: string; tokens?: CodexProgress['tokens'] }>;
+  legacyRouting?: { binding: ModelRoutingBinding; checkpoint?: unknown; migratedAt: string };
+  nativeReviewTimings?: { firstDraftAt: string | null; capturedAt: string | null; publishedAt: number | null; helperSeconds: Record<string, number> };
+  reviewTimeline?: Array<{ phase: string; status: CodexTaskStatus; waitReason?: CodexProgress['waitReason']; startedAt: string; endedAt?: string }>;
   lease?: { directory: string; nonce?: string; receipt?: { path: string; nonce: string }; released?: boolean; extras?: Array<{ directory: string; nonce: string }> };
   forkedFrom?: { taskId: string; threadId: string; turnId: string };
   approvalSettings?: CodexApprovalSettings;

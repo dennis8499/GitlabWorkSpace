@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { CodexAppServer, type RpcOptions } from '../../src/codex/appServer';
 import { CodexBridge } from '../../src/codex/bridge';
 import { CodexTaskScheduler } from '../../src/codex/scheduler';
-import { modelRoutingBinding } from '../../src/codex/modelRouting';
 import { CodexRpcError } from '../../src/codex/rpcError';
 import type { CodexEvent, CodexTaskSpec } from '../../src/codex/protocol';
 
@@ -24,7 +23,7 @@ async function until(predicate: () => boolean, label = 'startup transition') {
   }
 }
 const optionalMethods = new Set(['account/rateLimits/read', 'mcpServerStatus/list']);
-async function fixture(t: test.TestContext, options: { mode?: string; routed?: boolean; holdReadiness?: boolean } = {}) {
+async function fixture(t: test.TestContext, options: { mode?: string; holdReadiness?: boolean } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'codex-startup-'));
   const events: CodexEvent[] = [], calls: Array<{ method: string; options?: RpcOptions }> = [];
   const optional: Array<{ method: string; options?: RpcOptions; pending: ReturnType<typeof deferred<any>> }> = [];
@@ -32,25 +31,6 @@ async function fixture(t: test.TestContext, options: { mode?: string; routed?: b
   if (options.holdReadiness) for (const method of ['account/read', 'windowsSandbox/readiness', 'configRequirements/read']) readiness.set(method, deferred());
   const spec: CodexTaskSpec = { title: 'Startup test', root, workspaceKey: root, prompt: 'hold',
     source: { kind: 'free', repository: root, prompt: 'hold' }, writableRoots: [root], environmentKey: 'startup' };
-  if (options.routed) {
-    const runtimeRoot = path.join(root, 'runtime'), requestId = 'a'.repeat(32);
-    for (const name of ['merge-reviewer', 'model-routing']) {
-      const skill = path.join(root, '.agents/skills', name, 'SKILL.md');
-      await mkdir(path.dirname(skill), { recursive: true }); await writeFile(skill, 'Offline startup test');
-    }
-    for (const resource of ['scripts/routing.py', 'references/routing-policy.md', 'references/execution.md', 'references/reviewer-execution.md']) {
-      const file = path.join(root, '.agents/skills/model-routing', resource);
-      await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, 'Offline routing resource');
-    }
-    await mkdir(path.join(runtimeRoot, 'jobs'), { recursive: true });
-    await writeFile(path.join(runtimeRoot, 'jobs', requestId + '.json'), JSON.stringify({ schema: 'MergeReviewSession/v1',
-      request_id: requestId, context_dir: path.join(runtimeRoot, 'sessions', requestId), input_digest: 'b'.repeat(64), state: 'ready' }));
-    await writeFile(path.join(root, 'fixture-routing.json'), JSON.stringify({ tool: 'merge-reviewer', requestId, runtimeRoot, requestedEffort: 'auto' }));
-    spec.source = { kind: 'skill', featureId: 'merge-repo', inputs: {}, revision: 'startup' };
-    spec.skill = { name: 'merge-reviewer', path: path.join(root, '.agents/skills/merge-reviewer/SKILL.md') };
-    spec.review = { tool: 'merge-reviewer', requestId, revision: 'startup' };
-    spec.routing = await modelRoutingBinding(root, 'merge-reviewer', runtimeRoot, requestId, 'auto');
-  }
   let native: CodexAppServer | undefined;
   const bridge = new CodexBridge({ scheduler: new CodexTaskScheduler('startup', root), storage: root, version: 'test',
     executable: () => '', trusted: () => true, prepare: async () => spec, openUrl: async () => {}, event: event => events.push(event),
@@ -185,17 +165,4 @@ test('resumed conversations dispatch before optional reads and cancel the previo
   await new Promise(resolve => setImmediate(resolve));
   assert.notEqual(f.bridge.progress('resume')?.quota?.usedPercent, 99);
   await f.bridge.pause('resume');
-});
-
-test('routed reviews start status reads after dispatch once across assessment and review turns', async t => {
-  const f = await fixture(t, { routed: true, mode: 'routing-page' });
-  await f.bridge.enqueue(f.spec, 'routing');
-  await until(() => f.settled() && ['completed', 'failed'].includes(f.bridge.list()[0]?.status));
-  assert.equal(f.bridge.list()[0].status, 'completed', f.bridge.list()[0].error ?? 'Routed startup should complete');
-  assert.equal(f.calls.filter(call => call.method === 'turn/start').length, 2);
-  assert.equal(f.optional.length, 2);
-  assert.ok(f.optional.every(call => call.options?.signal?.aborted));
-  assert.ok(f.calls.findIndex(call => call.method === 'turn/start') < f.calls.findIndex(call => optionalMethods.has(call.method)));
-  const diagnostics = f.bridge.diagnosticSnapshot('routing') as any;
-  assert.equal(typeof diagnostics.startup.firstResponseMs, 'number');
 });

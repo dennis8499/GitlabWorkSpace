@@ -38,7 +38,7 @@ const repoField = () => field('repo', 'Repo', { required: true });
 const releaseFields = (): SkillGuideField[] => [repoField(),
   field('base', '基礎分支', { required: true, placeholder: '例如 main 或 origin/main' }),
   field('head', '比較分支', { required: true, placeholder: '例如 feature/payment 或 origin/feature/payment' }),
-  field('effort', '審查思考強度（建立任務時可調整）', { kind: 'select', defaultValue: 'auto', options: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] })
+  field('effort', '審查思考強度（建立任務時可調整）', { kind: 'select', defaultValue: 'high', options: [ 'low', 'medium', 'high', 'xhigh', 'max'] })
 ];
 
 export const skillGuideCards: readonly SkillGuideCard[] = [
@@ -84,6 +84,7 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
       ? DEFAULT_WIKI_GUIDE_CARD_ID
       : saved?.selections?.[item.id] ?? (item.id === 'codebase-wiki' ? legacySelection : undefined)).id]));
   const inputs = migrateWikiGuideInputs({ ...createDefaultWikiGuideInputs(), ...defaults, ...legacyInputs, ...saved?.inputs });
+  for (const prefix of ['merge-repo', 'release-review']) if (inputs[`${prefix}.effort`] === 'auto') inputs[`${prefix}.effort`] = 'high';
   const removedMode = ['merge-quick', 'merge-group', 'merge-mr'].includes(saved?.selections?.['merge-reviewer'] ?? '')
     || !!inputs['merge-repo.target'] && inputs['merge-repo.target'] !== '分支比較'
     || inputs['merge-repo.mode'] === '直接比較' || inputs['merge-repo.output'] === 'Markdown＋JSON';
@@ -159,7 +160,8 @@ export function isExplicitBranch(input: string): boolean {
 }
 
 export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {
-  return withOutputStyle(buildSkillGuideTaskPrompt(card, inputs, context));
+  return withOutputStyle(buildSkillGuideTaskPrompt(card, inputs, context),
+    ['merge-reviewer', 'release-reviewer'].includes(card.tool) ? 'report' : undefined);
 }
 
 function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {
@@ -177,9 +179,8 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const release = card.tool === 'release-reviewer';
   const reviewer = release || card.tool === 'merge-reviewer';
   const runtime = release ? context.releaseReviewRuntimeRoot : context.reviewRuntimeRoot;
-  const effort = input('effort') || 'auto';
-  if (!['auto', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) throw new Error('Luna 思考強度無效。');
-  if (!context.modelRouting && effort !== 'auto') throw new Error('此工作流程包尚未提供 Model Routing，請先更新。');
+  const effort = input('effort') === 'auto' ? 'high' : input('effort') || 'high';
+  if (!['low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) throw new Error('Luna 思考強度無效。');
   if (context.reviewLaunch) {
     const launch = context.reviewLaunch, request = launch.request;
     if (card.tool !== request.tool || request.project !== selectedRepo?.path || request.base !== input('base') || request.head !== input('head') ||
@@ -193,8 +194,7 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
       reviewLaunchCommand(launch),
       '後續沿用同一命令，只改 --action 為 status、view、check、finish 或 cancel；view 的續讀參數放在 -- 後。status/view 為唯讀。審查 step 依原生 Skill 操作。',
       '使用 compact 草稿。check 的 completion_preview 核對必要缺口與 scope_notes；finish 完整驗證後依收據區分報告發布與審查完整性。終止時檢視診斷，保留原 request。',
-      context.modelRouting ? `$model-routing effort=${effort}；依已安裝 routing 協定固定一次證據、判定強度並完成原生審查。workbench 使用 Host 指定模型；已路由 continuation 沿用 request、SHA、草稿與 checkpoint。`
-        : '由目前 Agent 完成審查。',
+      '執行方式：單一 Agent。由目前 Agent 直接完成原生審查，沿用目前 CLI 模型與強度；Workbench 使用任務設定。本次停用 Model Routing，舊 profile 的 routing 指令不適用；不建立路由子 Agent。',
       '語法輔助沿用安裝驗收模式；結構解析不等於語意覆蓋。'
     ].join('\n');
   }
@@ -246,8 +246,7 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     ...(nativeMergeCapabilities?.features.read_only_artifact_view ? ['For large local artifacts, use the installed Skill documented view command and its continuation offsets.'] : []),
     ...(reviewer ? [`Session controls: status \u6062\u5fa9\u3001cancel \u53d6\u6d88\u3002 ${python(`${JSON.stringify(script)} ${statusCommand}${runtimeArg}${requestIdArg}`)}; ${python(`${JSON.stringify(script)} cancel${runtimeArg}${requestIdArg}`)}.`] : []),
     ...(release && supports('read_only_view') ? ['Use read-only view and its continuation cursor to inspect existing artifacts.'] : []),
-    context.modelRouting ? `$model-routing effort=${effort}：先固定一次證據，再依實際內容選擇思考強度；直接呼叫預設 GPT-6 Luna，workbench adapter 沿用 Host 指定模型與強度。已路由 continuation 沿用同一 request、SHA、草稿與 checkpoint。auto 可提高，手動指定固定。`
-      : '執行方式：單一 Agent。由目前 Agent 完成審查，不建立子 Agent。',
+    '執行方式：單一 Agent。由目前 Agent 直接完成原生審查，沿用目前 CLI 模型與強度；Workbench 使用任務設定。本次停用 Model Routing，舊 profile 的 routing 指令不適用；不建立路由子 Agent。',
     '啟動 helper：' + python(JSON.stringify(script) + (prepared ? ' start --prepare-evidence' : ' start') +
       requestIdArg +
       ' --workspace ' + JSON.stringify(releaseWorkspace) +

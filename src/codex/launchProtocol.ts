@@ -29,6 +29,7 @@ export interface CodexLaunchDraft {
   effort?: string;
   isolated: boolean;
   routed?: boolean;
+  requiresModel?: boolean;
   supportsModelSelection?: boolean;
   root?: string;
   workingDirectory?: string;

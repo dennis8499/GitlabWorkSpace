@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { CodexLaunchDraft, CodexLaunchPatch } from '../codex/protocol';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
 import type { DispatchResult } from '../workspace/actionController';
-import { autoEfforts } from '../codex/modelRoutingProtocol';
 import './codex-launch.css';
 
 type Fields = Required<Pick<CodexLaunchPatch, 'requirement' | 'repositoryId' | 'model' | 'effort' | 'isolated' | 'discussionIds'>>;
@@ -26,7 +25,6 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
   latest.current = draft;
   const busy = ['checking', 'submitting'].includes(draft.state), locked = ['submitted', 'submitting', 'uncertain'].includes(draft.state);
   const model = draft.models.find(model => model.id === value.model);
-  const canAuto = !!model?.efforts.length && autoEfforts(model.efforts).length === model.efforts.length;
   useEffect(() => {
     if (mountedDraft.current !== draft.id) {
       mountedDraft.current = draft.id; const next = { ...fields(draft), ...localDraft };
@@ -114,11 +112,11 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
       </fieldset>
       <fieldset disabled={locked || busy}><legend>模型與思考強度</legend>
         <div class="codex-launch-options"><label>模型<select value={value.model} onChange={event => edit({ model: event.currentTarget.value, effort: '' })}>
-          {!draft.routed && <option value="">沿用本機 Codex 設定</option>}
-          {draft.models.filter(model => !draft.routed || draft.supportsModelSelection || model.id === 'gpt-6-luna').map(model =>
+          {!draft.requiresModel && <option value="">沿用本機 Codex 設定</option>}
+          {draft.models.map(model =>
             <option key={model.id} value={model.id}>{model.label} · {model.id}</option>)}
         </select></label><label>思考強度<select disabled={!value.model} value={value.effort} onChange={event => edit({ effort: event.currentTarget.value })}>
-          <option value="">{draft.routed && canAuto ? 'Auto · 依審查風險決定' : '沿用模型預設'}</option>{draft.routed && canAuto && <option value="auto">Auto · 依審查風險決定</option>}
+          <option value="">沿用模型預設</option>
           {model?.efforts.map(effort => <option key={effort} value={effort}>{effort}</option>)}
         </select></label></div>
       </fieldset>

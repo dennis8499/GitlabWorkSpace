@@ -7,7 +7,7 @@ import os from 'node:os';
 import { watch, type FSWatcher } from 'node:fs';
 import { CodexAppServer, type RpcMessage } from './appServer';
 import { CodexProtocolAdapter, codexCapabilities, invalidateCodexModelCatalog } from './adapter';
-import { autoEfforts, selectRoutingEffort } from './modelRoutingProtocol';
+import { importLegacyReviewCheckpoint, inspectNativeReview, prepareReviewWritableRoots } from './nativeReview';
 import { projectCodexProgress } from './progress';
 import { boundTranscriptCache, codexItemBytes } from './historyBudget';
 import type { CodexApprovalSettings, CodexGoal, CodexTaskSource } from './protocol';
@@ -18,8 +18,7 @@ import { CodexTaskDeletedError, CodexTaskStore, codexRootKey, validTaskId } from
 import { CodexWorkspaceLease } from './workspaceLease';
 import { validateForm } from './forms';
 import { mergeCodexTranscript, projectCodexItem } from './transcript';
-import { readModelRouting, inspectModelRouting, requireRoutingEffort, routingModel, routingEfforts, routingSummary,
-  routingTurnPrompt, routingAssessmentOutputSchema } from './modelRouting';
+import { inspectModelRouting, routingModel } from './modelRouting';
 export { validateForm } from './forms';
 import { codexTaskActive, codexOutputKey, projectCodexTask, type CodexEnvironment, type CodexEvent, type CodexInteraction,
   type CodexInteractionAnswer, type CodexOutputItem, type CodexTaskRecord, type CodexTaskSpec, type CodexTaskState, type CodexTaskResult, type CodexStorageProblem } from './protocol';
@@ -61,6 +60,7 @@ export interface CodexBridgeOptions {
   event(event: CodexEvent): void;
   openUrl(url: string): Promise<void>;
   cancelReview?(spec: CodexTaskSpec): Promise<void>;
+  cleanupReview?(spec: CodexTaskSpec, signal: AbortSignal): Promise<void>;
   cleanupDrafts?(taskId: string): Promise<void>;
   started?(spec: CodexTaskSpec, signal: AbortSignal): Promise<void>;
   completed?(spec: CodexTaskSpec, taskId: string, output: readonly CodexOutputItem[]): Promise<CodexTaskResult | void>;
@@ -366,6 +366,9 @@ export class CodexBridge {
     return { schema: 'GitLabWorkspaceCodexDiagnostics/v1', extensionVersion: this.options.version,
       cliVersion: this.environment.version, capabilities: this.environment.capabilities, taskId: id,
       status: record.status, revision: record.revision, dispatchState: record.dispatch?.state,
+      executions: (record.executionHistory ?? []).map(row => ({ ...row, tokens: row.tokens ?? null, tokenScope: 'thread-cumulative', observedModel: row.observedModel ?? null, observedEffort: null })),
+      nativeReview: record.nativeReviewTimings ?? null,
+      reviewTimeline: record.reviewTimeline ?? [],
       recovery: record.recovery ? { execution: record.recovery.execution, cleanup: record.recovery.cleanup, publication: record.recovery.publication, checkedAt: record.recovery.checkedAt } : undefined,
       launch: openedAt === undefined ? undefined : { openedAt, draftReadyAt, checkedMs: safeTiming(launch?.checkedMs), submittedAt },
       journey: openedAt === undefined ? undefined : { origin: 'launch-open',
@@ -419,7 +422,6 @@ export class CodexBridge {
         publication: pendingPublication(record) ? 'pending' : record.publication?.state ?? (record.result?.state === 'uncertain' ? 'pending' : record.result?.state === 'published' ? 'confirmed' : 'not-published'),
         message: execution === 'unknown' || cleanup === 'unknown' ? '證據尚不足，請保留紀錄及執行鎖；不會自動重送。' : '已核對執行與程序停止結果，可依成果狀態接續。' };
       if (cleanup === 'confirmed' && !['unknown', 'running'].includes(execution)) {
-        if (record.spec.review) await this.options.cancelReview?.(record.spec);
         if (record.lease?.receipt && !record.lease.released) {
           const proof = record.lease.receipt;
           if (record.lease.nonce) await CodexWorkspaceLease.releaseWithProof(record.lease.directory, record.lease.nonce, proof);
@@ -439,6 +441,14 @@ export class CodexBridge {
   }
   private async save(record: CodexTaskRecord, publish = true): Promise<void> {
     record.updatedAt = new Date().toISOString();
+    if (record.spec.review) {
+      const timeline = record.reviewTimeline ??= [], last = timeline.at(-1), phase = record.progress?.phase ?? record.status;
+      const waitReason = ['queued', 'waiting'].includes(record.status) ? record.progress?.waitReason : undefined;
+      if (!last || last.phase !== phase || last.status !== record.status || last.waitReason !== waitReason) {
+        if (last && !last.endedAt) last.endedAt = record.updatedAt;
+        timeline.push({ phase, status: record.status, waitReason, startedAt: record.updatedAt });
+      }
+    }
     record.schema = 'GitLabWorkspaceCodexTask/v2';
     record.revision = (record.revision ?? 0) + 1; record.ownerInstance ??= this.instanceId;
     const state = structuredClone(projectCodexTask(record));
@@ -472,6 +482,7 @@ export class CodexBridge {
     const now = new Date().toISOString();
     const record: CodexTaskRecord = { schema: 'GitLabWorkspaceCodexTask/v2', id: operationId, spec, title: spec.title,
       root: spec.root, review: spec.review, status: 'queued', ownerPid: process.pid, ownerInstance: this.instanceId, revision: 1, createdAt: now, updatedAt: now };
+    if (spec.review) record.reviewTimeline = [{ phase: 'queued', status: 'queued', startedAt: now }];
     await this.store.save(record); this.records.set(record.id, record); this.owned.add(record.id); this.queue.push(record.id); this.queuedAt.set(record.id, Date.now());
     this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
     this.emit({ kind: 'tasks', tasks: this.list() }); this.schedule(); return record.id;
@@ -721,7 +732,8 @@ export class CodexBridge {
       record.status = 'starting'; record.error = undefined;
       record.progress = { ...record.progress, phase: 'preflight', waitReason: undefined }; await this.save(record);
       const prepareStarted = Date.now();
-      const prepared = await this.options.prepare(record.spec.source, record.spec, active.abort.signal);
+      const prepared = record.spec.routing ? await this.prepareManualReview(record, active.abort.signal)
+        : await this.options.prepare(record.spec.source, record.spec, active.abort.signal);
       active.startup.prepareMs = Date.now() - prepareStarted;
       active.abort.signal.throwIfAborted();
       if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root || prepared.executionRoot !== record.spec.executionRoot || JSON.stringify(prepared.writableRoots) !== JSON.stringify(record.spec.writableRoots)) throw new Error('專案或 Skills 環境已變更，請重新確認表單再建立任務。');
@@ -747,7 +759,7 @@ export class CodexBridge {
         const models = await new CodexProtocolAdapter(client, connection.version).models(active.abort.signal);
         active.startup.modelValidationMs = Date.now() - modelValidationStarted;
         const model = models.find(model => model.model === record.spec.model || model.id === record.spec.model);
-        if (!model || !record.spec.routing && record.spec.effort && !model.supportedReasoningEfforts.some(item => item.reasoningEffort === record.spec.effort)) throw new Error('所選模型或思考強度目前不可用，已保留任務。');
+        if (!model || record.spec.effort && !model.supportedReasoningEfforts.some(item => item.reasoningEffort === record.spec.effort)) throw new Error('所選模型或思考強度目前不可用，已保留任務。');
       }
       record.progress = { ...record.progress, model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? routingModel : undefined), effort: record.spec.routing ? undefined : record.spec.effort, updatedAt: new Date().toISOString() };
       if (record.spec.workflow) {
@@ -757,6 +769,7 @@ export class CodexBridge {
       record.progress = { ...record.progress, phase: 'workspace' }; await this.save(record);
       const workspaceStarted = Date.now();
       await this.options.started?.(record.spec, active.abort.signal);
+      if (record.spec.review) await prepareReviewWritableRoots(record.spec);
       active.startup.workspaceMs = Date.now() - workspaceStarted;
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       record.progress = { ...record.progress, phase: 'conversation' }; await this.save(record);
@@ -787,26 +800,32 @@ export class CodexBridge {
       const found = skills.data?.flatMap((entry: any) => entry.skills ?? []).some((skill: any) =>
         skill.name === record.spec.skill!.name && skill.enabled !== false && typeof skill.path === 'string' && path.resolve(skill.path).toLowerCase() === path.resolve(record.spec.skill!.path).toLowerCase());
       if (!found) throw new Error('Codex 尚未載入此專案的對應 Skill；請重新檢查 Skills 安裝。');
-      if (record.spec.routing && !skills.data?.flatMap((entry: any) => entry.skills ?? []).some((skill: any) =>
-        skill.name === 'model-routing' && skill.enabled !== false && typeof skill.path === 'string' &&
-        path.resolve(skill.path).toLowerCase() === path.resolve(record.spec.routing!.skillPath).toLowerCase())) {
-        throw new Error('Codex 尚未載入 Model Routing；請核對工作流程包安裝。');
-      }
       }
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
       active.startup.conversationMs = Date.now() - conversationStarted;
       let message = hasPriorTurns ? record.pendingMessage ?? record.spec.prompt
         : record.spec.prompt + (record.pendingMessage ? `\n\n使用者補充：\n${record.pendingMessage}` : '');
-      if (record.spec.routing) {
-        sent = true;
-        await this.executeRoutedReview(record, client, message);
-      } else {
-      for (let round = 0; round < (implementationTask(record.spec) ? 3 : 1); round++) {
+      let reviewProgress = record.spec.review ? await inspectNativeReview(record.spec) : undefined;
+      if (reviewProgress?.published && reviewProgress.cleanupPending) {
+        if (!this.options.cleanupReview) throw new Error('報告已發布但清理尚未完成，請從審查列表重試清理。');
+        await this.options.cleanupReview(record.spec, active.abort.signal);
+        reviewProgress = await inspectNativeReview(record.spec);
+        if (reviewProgress.cleanupPending) throw new Error('報告已發布，原生清理仍待重試。');
+      }
+      record.nativeReviewTimings = reviewProgress?.timings;
+      if (reviewProgress?.terminal) throw new Error('原生審查已取消或失敗，不能接續。');
+      if (reviewProgress?.published && record.pendingMessageIsUser) message =
+        `原生報告已發布，沿用固定報告回答使用者補充；保留原 request ${record.spec.review!.requestId}、證據與發布收據。\n` + message;
+      if (reviewProgress?.published && !record.pendingMessageIsUser) {
+        record.result = { state: reviewProgress.complete ? 'ready' : 'needs-work', reportPath: reviewProgress.reportPath, summary: reviewProgress.summary };
+        record.status = 'completed';
+      } else for (let round = 0; round < (implementationTask(record.spec) || record.spec.review ? 3 : 1); round++) {
       record.turnId = undefined;
       active.turnStatus = undefined;
       if (record.goal && record.goal.status !== 'complete') record.goal.status = 'active';
       record.status = 'running'; record.dispatchPending = true; record.progress = { ...record.progress, phase: 'executing' };
-      record.dispatch = { id: randomUUID(), state: 'prepared', createdAt: new Date().toISOString() }; await this.save(record);
+      record.dispatch = { id: randomUUID(), state: 'prepared', createdAt: new Date().toISOString(), model: record.spec.model, effort: record.spec.effort };
+      (record.executionHistory ??= []).push({ threadId: record.threadId, model: record.spec.model, effort: record.spec.effort, sentAt: record.dispatch.createdAt }); await this.save(record);
       this.output(record.id, { id: 'dispatch-' + randomUUID(), kind: 'notice', text: record.pendingMessageIsUser ? '接續使用者的要求' : `執行：${record.title}` });
       const finished = new Promise<void>(resolve => { active.finish = resolve; });
       if (active.abort.signal.aborted) throw new Error('任務已停止。');
@@ -822,12 +841,14 @@ export class CodexBridge {
       active.startup.dispatchMs ??= Date.now() - dispatchStarted;
       record.turnId = dispatched.turn.id; if (record.dispatch) { record.dispatch.state = 'acknowledged'; record.dispatch.turnId = record.turnId; } record.dispatchPending = false; record.pendingMessage = undefined;
       record.pendingMessageIsUser = undefined;
+      const execution = record.executionHistory?.at(-1); if (execution) { execution.turnId = record.turnId; execution.acknowledgedAt = new Date().toISOString(); }
       this.startTelemetry(active);
       await this.save(record);
       await this.beginGoal(record, active);
       await this.flushMessages(record.id).catch(() => {});
       await finished;
       await active.steering?.catch(() => {});
+      const executionDone = record.executionHistory?.at(-1); if (executionDone) { executionDone.completedAt = new Date().toISOString(); executionDone.tokens = record.progress?.tokens; }
       if (active.turnStatus !== 'completed' || active.abort.signal.aborted) break;
       record.status = 'running'; record.progress = { ...record.progress, phase: 'verifying', waitReason: undefined }; await this.save(record);
       const verificationStarted = Date.now();
@@ -836,25 +857,36 @@ export class CodexBridge {
       active.startup.verificationMs = (active.startup.verificationMs ?? 0) + Date.now() - verificationStarted;
       if (result) record.result = result;
       if (active.abort.signal.aborted) break;
-      if (!implementationTask(record.spec) || result?.state !== 'needs-work' || round === 2) { record.status = 'completed'; break; }
-      message = `${result.summary}\n請沿用原 Issue 與工作分支，接續 BMAD 的實作及測試。已有規格時直接接續 Build；修正失敗測試並以實際命令驗證。不得自動提交、推送或建立 MR。`;
+      if (record.spec.review) {
+        let inspected = await inspectNativeReview(record.spec);
+        if (inspected.published && inspected.cleanupPending && this.options.cleanupReview) {
+          await this.options.cleanupReview(record.spec, active.abort.signal);
+          inspected = await inspectNativeReview(record.spec);
+        }
+        record.nativeReviewTimings = inspected.timings;
+        record.result = inspected.published && result?.reportPath ? result : { state: inspected.complete ? 'ready' : 'needs-work', reportPath: inspected.reportPath, summary: inspected.summary };
+        if (inspected.published) { record.status = 'completed'; break; }
+        if (inspected.terminal || round === 2 || inspected.fingerprint === reviewProgress?.fingerprint) {
+          record.status = inspected.terminal ? 'failed' : 'paused'; record.error = '原生審查尚未發布；已保存同一 request，請核對剩餘工作後續作。'; break;
+        }
+        reviewProgress = inspected;
+        message = `沿用原 request ${record.spec.review.requestId}、固定 SHA、目前模型與強度。先讀原生 status --summary 與 checkpoint，接續未完成證據、草稿、check、finish；已發布時核對收據後交付。可取得的必要證據需完成，真正缺失才保留缺口。`;
+      } else {
+        if (!implementationTask(record.spec) || result?.state !== 'needs-work' || round === 2) { record.status = 'completed'; break; }
+        message = `${result.summary}\n請沿用原 Issue 與工作分支，接續 BMAD 的實作及測試。已有規格時直接接續 Build；修正失敗測試並以實際命令驗證。不得自動提交、推送或建立 MR。`;
       }
-      }
-      if (record.spec.routing && (record.status as CodexTaskState['status']) === 'completed') {
-        record.status = 'running'; record.progress = { ...record.progress, phase: 'verifying', waitReason: undefined }; await this.save(record);
-        const verificationStarted = Date.now();
-        const result = await this.options.completed?.(record.spec, record.id, this.outputs.get(record.id) ?? []);
-        active.startup.verificationMs = Date.now() - verificationStarted;
-        if (result) record.result = result;
-        record.status = 'completed';
       }
     } catch (error) {
       if (error && typeof error === 'object' && 'workflowCleanupUncertain' in error) active.cleanupFailed = true;
-      if (record.spec.origin && active.turnStatus === 'completed' && !active.abort.signal.aborted && !active.cleanupFailed) {
+      if (record.spec.origin && !record.spec.review && active.turnStatus === 'completed' && !active.abort.signal.aborted && !active.cleanupFailed) {
         record.status = 'completed'; record.error = this.errorText(error);
         record.result = { state: 'needs-work', summary: `成果尚未就緒：${record.error}` };
       }
       else if (record.spec.routing && (record.status as CodexTaskState['status']) === 'failed') record.error = this.errorText(error);
+      else if (record.spec.review && active.turnStatus === 'completed' && !active.abort.signal.aborted && !active.cleanupFailed) {
+        record.status = 'paused'; record.error = this.errorText(error);
+        record.result = { state: 'needs-work', summary: `原生審查結果尚未通過核對：${record.error}` };
+      }
       else if ((record.status as CodexTaskState['status']) === 'completed' || active.turnStatus === 'completed' && !active.abort.signal.aborted && !active.cleanupFailed) {
         record.status = 'completed'; record.error = 'Codex 本輪已完成，但工作台資料更新失敗；請手動更新產物狀態。';
       }
@@ -873,7 +905,7 @@ export class CodexBridge {
           .then(() => { if (record.goal) record.goal.status = 'paused'; }).catch(() => { record.status = 'uncertain'; active.cleanupFailed = true; });
       }
       this.clearInteractions(record.id);
-      if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing || record.spec.workflow ? 30_000 : 5000).catch(() => { active.cleanupFailed = true; record.status = 'uncertain'; record.error = 'Codex 程序停止結果待核對。'; }); }
+      if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.review || record.spec.workflow ? 30_000 : 5000).catch(() => { active.cleanupFailed = true; record.status = 'uncertain'; record.error = 'Codex 程序停止結果待核對。'; }); }
       await active.cancellation?.catch(() => {});
       // A new thread has no durable conversation before its first dispatch.
       // Pausing during setup must allow the original input to start once later.
@@ -903,121 +935,11 @@ export class CodexBridge {
       active.settle();
     }
   }
-  private async executeRoutedReview(record: CodexTaskRecord, client: CodexAppServer, message: string): Promise<void> {
-    const binding = record.spec.routing!;
-    const model = binding.model ?? routingModel, efforts = binding.supportedEfforts ?? [...routingEfforts];
-    const ordered = autoEfforts(efforts);
-    const previousReviewer = record.modelRouting?.phase === 'reviewing' && record.threadId && record.routingThreadIds?.includes(record.threadId)
-      ? { threadId: record.threadId, effort: record.modelRouting.effort } : undefined;
-    try {
-      let state = await readModelRouting(binding);
-      if (record.pendingMessageIsUser) this.output(record.id, { id: 'followup-' + randomUUID(), kind: 'notice', text: '接續使用者的審查要求' });
-      if (state?.phase === 'complete' && record.pendingMessageIsUser) {
-        await requireRoutingEffort(client, state.effort!, model);
-        await this.performRoutingTurn(record, client,
-          `原生審查已發布，沿用現有固定報告回答使用者的後續要求。request_id=${binding.requestId}，報告=${JSON.stringify(state.report_path)}。保留原固定版本與審查結論。\n${message}`, state.effort!);
-        record.modelRouting = routingSummary(binding, state); record.status = 'completed'; return;
-      }
-      if (record.pendingMessageIsUser && record.pendingMessage && !record.routingUserMessages?.includes(record.pendingMessage)) {
-        (record.routingUserMessages ??= []).push(record.pendingMessage);
-      }
-      for (let round = 0; round <= efforts.length; round++) {
-        if (this.active?.abort.signal.aborted) throw new Error('任務已停止。');
-        record.modelRouting = routingSummary(binding, state); await this.save(record);
-        if (state?.phase === 'complete') { record.status = 'completed'; return; }
-        const phase = binding.requestedEffort === 'auto' && !state?.effort ? 'assess' : 'review';
-        const effort = state?.effort ?? (binding.requestedEffort === 'auto' ? selectRoutingEffort('high', efforts).effort : binding.requestedEffort);
-        await requireRoutingEffort(client, effort, model);
-        const before = state;
-        record.modelRouting = { ...routingSummary(binding, state), phase: phase === 'assess' ? 'assessing' : 'reviewing', effort };
-        if (phase === 'review' && !(round === 0 && previousReviewer?.threadId === record.threadId && previousReviewer?.effort === effort)) {
-          // A fresh reviewer context prevents the assessment's stop condition
-          // from carrying into semantic review. A paused reviewer at the same
-          // effort keeps its conversation and the native session identity.
-          const started = await client.request('thread/start', { cwd: record.spec.executionRoot ?? record.root, model,
-            approvalPolicy: 'on-request', approvalsReviewer: 'user', sandbox: 'workspace-write', developerInstructions: binding.reviewerInstructions });
-          if (typeof started.thread?.id !== 'string') throw new Error('Codex 未傳回有效的 reviewer thread 識別。');
-          record.routingThreadIds = [...new Set([...(record.routingThreadIds ?? []), record.threadId!, started.thread.id])];
-          record.threadId = started.thread.id;
-          record.progress = { ...record.progress, tokens: undefined };
-          this.active!.unmaterializedThreadId = record.threadId;
-        }
-        this.output(record.id, { id: 'routing-' + randomUUID(), kind: 'agent',
-          text: `${phase === 'assess' ? '判斷審查風險' : '執行審查'} · ${model} ${effort}${state?.reason ? '\n' + state.reason : ''}` });
-        const original = record.spec.prompt + (record.routingUserMessages?.length ? '\n\n使用者補充：\n' + record.routingUserMessages.join('\n') : '');
-        const prompt = routingTurnPrompt(binding, phase, original, state);
-        await this.performRoutingTurn(record, client, prompt, effort, phase);
-        // A routing turn ending is an internal checkpoint, not task completion.
-        record.status = 'running';
-        state = await readModelRouting(binding);
-        // Recoverable authoring work may span more than one model turn. Resume
-        // the same reviewer at the same effort; never repeat an unknown dispatch.
-        let previousCheckpoint = before?.execution_checkpoint;
-        for (let repair = 0; phase === 'review' && state?.phase === 'reviewing' && state.effort === effort && repair < 2; repair++) {
-          if (before && state.snapshot_hash !== before.snapshot_hash) break;
-          if (state.execution_checkpoint && JSON.stringify(state.execution_checkpoint) === JSON.stringify(previousCheckpoint)) break;
-          previousCheckpoint = state.execution_checkpoint;
-          this.output(record.id, { id: 'repair-' + randomUUID(), kind: 'agent', text: `沿用固定版本繼續修稿與驗證（${repair + 1}/2） · ${model} ${effort}` });
-          await this.performRoutingTurn(record, client, routingTurnPrompt(binding, phase, original, state) + '\n\n上一輪尚未保存完成或升級。先讀原生 status；已發布時驗證收據並 routing complete，保留既有報告。仍在審查時，先依 execution_checkpoint 續查可取得的必要證據，再將實際判斷寫入草稿，執行 check 並修復診斷；可取得的 remaining 尚未完成時繼續追查，確實受阻才保存具體缺口並 finish。若本輪無法完成，保存含未讀範圍、問題與下一步的 checkpoint；回合限制不是證據缺失。\n' +
-            (record.routingUserMessages ?? []).join('\n'), effort, phase);
-          state = await readModelRouting(binding);
-        }
-        if (!state || state.phase === 'routing') throw new Error('本輪未保存有效的路由決策；請沿原 request 核對。');
-        if (before && (state.snapshot_hash !== before.snapshot_hash || state.revision <= before.revision)) {
-          throw new Error(state.snapshot_hash !== before.snapshot_hash ? '固定來源已變更；請核對原始審查。'
-            : '審查仍未完成；已保留同一 request 的草稿與固定證據，請核對缺口後續作。');
-        }
-        if (phase === 'assess' && state.phase !== 'reviewing') throw new Error('路由判斷不能代替正式審查。');
-        if (phase === 'review' && state.phase !== 'complete' &&
-            (binding.requestedEffort !== 'auto' || ordered.indexOf(state.effort!) <= ordered.indexOf(effort))) {
-          throw new Error('正式審查尚未發布，且未保存有效的較高強度交接。');
-        }
-        if (state.phase === 'complete') {
-          record.modelRouting = routingSummary(binding, state); record.status = 'completed'; return;
-        }
-      }
-      throw new Error('Model Routing 超過有限的升級次數，請核對保存的進度。');
-    } catch (error) {
-      const audit = await inspectModelRouting(binding).catch(() => undefined);
-      if (audit?.nativeState) record.modelRouting = routingSummary(binding, audit);
-      if (!this.active?.abort.signal.aborted && record.status !== 'uncertain') record.status = 'failed';
-      throw error;
-    }
-  }
-  private async performRoutingTurn(record: CodexTaskRecord, client: CodexAppServer, message: string,
-    effort: string, phase?: 'assess' | 'review'): Promise<void> {
-    if (this.active?.abort.signal.aborted) throw new Error('任務已停止。');
-    const model = record.spec.routing?.model ?? routingModel;
-    await requireRoutingEffort(client, effort, model);
-    record.progress = { ...record.progress, model, effort, updatedAt: new Date().toISOString() };
-    this.active!.turnStatus = undefined;
-    record.status = 'running'; record.turnId = undefined; record.dispatchPending = true; record.progress = { ...record.progress, phase: 'executing' };
-    record.dispatch = { id: randomUUID(), state: 'prepared', createdAt: new Date().toISOString() }; await this.save(record);
-    const finished = new Promise<void>(resolve => { this.active!.finish = resolve; });
-    const input: Record<string, string>[] = [{ type: 'text', text: message }];
-    if (phase === 'assess') input.push({ type: 'skill', name: 'model-routing', path: record.spec.routing!.skillPath });
-    if (phase === 'review') input.push({ type: 'skill', name: record.spec.skill!.name, path: record.spec.skill!.path });
-    if (this.active?.abort.signal.aborted) throw new Error('任務已停止。');
-    this.active!.unmaterializedThreadId = undefined;
-    const active = this.active!, dispatchStarted = this.dispatchStarted(active);
-    const result = await client.request('turn/start', { threadId: record.threadId, clientUserMessageId: record.dispatch!.id, input,
-      model, effort, ...(phase === 'assess' ? { outputSchema: routingAssessmentOutputSchema } : {}),
-      approvalPolicy: 'on-request', approvalsReviewer: 'user', cwd: record.spec.executionRoot ?? record.root,
-      sandboxPolicy: { type: 'workspaceWrite', writableRoots: record.spec.writableRoots, networkAccess: false,
-        excludeTmpdirEnvVar: false, excludeSlashTmp: false } });
-    if (typeof result.turn?.id !== 'string') throw new Error('Codex 未傳回有效的路由回合識別，請先核對結果。');
-    active.startup.dispatchMs ??= Date.now() - dispatchStarted;
-    record.turnId = result.turn.id; if (record.dispatch) { record.dispatch.state = 'acknowledged'; record.dispatch.turnId = record.turnId; } record.dispatchPending = false; record.pendingMessage = undefined;
-    this.startTelemetry(active);
-    record.pendingMessageIsUser = undefined; await this.save(record);
-    await this.flushMessages(record.id).catch(() => {});
-    await finished; await this.active?.steering?.catch(() => {});
-    if (this.active?.turnStatus !== 'completed') throw new Error(record.error ?? 'Codex 路由回合未完成；已保留審查進度。');
-  }
   private receiveNotification(record: CodexTaskRecord, message: RpcMessage): void {
     const active = this.executions.get(record.id);
     if (!this.records.has(record.id)) return;
     const params = message.params ?? {};
+    if (message.method === 'model/rerouted' && record.executionHistory?.length && typeof params.toModel === 'string') record.executionHistory.at(-1)!.observedModel = params.toModel;
     if (['account/updated', 'model/rerouted'].includes(message.method ?? '') && active?.client) {
       invalidateCodexModelCatalog(active.client); this.modelPages.invalidate();
     }
@@ -1065,7 +987,7 @@ export class CodexBridge {
       // Recheck availability between turns, while sharing repeated reads within one turn.
       if (active?.client) invalidateCodexModelCatalog(active.client);
       if (active) active.turnStatus = params.turn?.status;
-      if (!active?.stopAs) record.status = params.turn?.status === 'completed' ? record.spec.routing || implementationTask(record.spec) || record.goal?.status === 'active' ? 'running' : 'completed' : params.turn?.status === 'interrupted' ? 'interrupted' : 'failed';
+      if (!active?.stopAs) record.status = params.turn?.status === 'completed' ? record.spec.review || implementationTask(record.spec) || record.goal?.status === 'active' ? 'running' : 'completed' : params.turn?.status === 'interrupted' ? 'interrupted' : 'failed';
       for (const item of params.turn?.items ?? []) {
         const output = projectCodexItem(record.threadId, params.turn?.id ?? record.turnId, item, true); if (output) this.output(record.id, output);
       }
@@ -1318,12 +1240,36 @@ export class CodexBridge {
       try { await this.resumeNow(id, pending, signal); } finally { this.controlling.delete(id); }
     });
   }
+  private async prepareManualReview(record: CodexTaskRecord, signal?: AbortSignal): Promise<CodexTaskSpec> {
+    if (!record.spec.routing) return this.options.prepare(record.spec.source, record.spec, signal);
+    if (record.dispatchPending || record.status === 'uncertain') throw new Error('請先核對原回合與程序停止結果，再轉為固定設定。');
+    const binding = record.spec.routing;
+    const saved = await inspectModelRouting(binding);
+    if (!saved || saved.nativeState) throw new Error('原生審查沒有可恢復的固定證據。');
+    const model = saved.model, effort = saved.effort;
+    if (!effort) throw new Error('原任務尚未選定強度，請從審查列表恢復並選擇固定模型與強度。');
+    const source = { ...record.spec.source, model, effort };
+    const prepared = await this.options.prepare(source, record.spec, signal);
+    if (prepared.root !== record.root || prepared.review?.requestId !== binding.requestId ||
+        (prepared.review.runtimeRoot ?? prepared.writableRoots[1]) !== binding.runtimeRoot ||
+        JSON.stringify(prepared.writableRoots) !== JSON.stringify(record.spec.writableRoots)) throw new Error('舊審查身分或授權目錄已變更，無法轉換。');
+    await inspectNativeReview(prepared);
+    await importLegacyReviewCheckpoint(prepared, saved);
+    record.legacyRouting = { binding, checkpoint: saved.execution_checkpoint, migratedAt: new Date().toISOString() };
+    delete record.modelRouting;
+    prepared.prompt = '本次停用 Model Routing，以固定設定沿原 request 完成原生審查。\n' + prepared.prompt;
+    if (saved.execution_checkpoint) prepared.prompt += '\n舊續作導航（先與目前草稿核對）：' + JSON.stringify(saved.execution_checkpoint);
+    record.spec = prepared;
+    await this.save(record);
+    return prepared;
+  }
   private async resumeNow(id: string, pending?: string, signal?: AbortSignal): Promise<void> {
     const record = this.record(id);
     if (pendingPublication(record)) throw new Error('請先核對 MR 發布結果再接續。');
     if (record.result?.state === 'uncertain') throw new Error('請先核對 Wiki 發布結果，再接續修改草稿。');
     if (codexTaskActive(record.status) || record.status === 'queued' || this.executions.has(id)) throw new Error('此任務已在執行、清理或排隊。');
-    const prepared = await this.options.prepare(record.spec.source, record.spec, signal);
+    const prepared = record.spec.routing ? await this.prepareManualReview(record, signal)
+      : await this.options.prepare(record.spec.source, record.spec, signal);
     signal?.throwIfAborted();
     if (prepared.environmentKey !== record.spec.environmentKey || prepared.root !== record.root) throw new Error('原任務的專案或 Skills 已變更，請從功能頁重新確認。');
     if (pending !== undefined) { record.pendingMessage = pending; record.pendingMessageIsUser = true; }
@@ -1359,8 +1305,8 @@ export class CodexBridge {
             catch { record.error = '中斷結果待核對。'; }
           }
           // Keep workspace admission until both the process and helper have stopped.
-          if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.routing || record.spec.workflow ? 30_000 : 5000); }
-          if (record.spec.review) await this.options.cancelReview?.(record.spec);
+          if (active.client) { active.client.onExit = () => {}; await active.client.close(record.spec.review || record.spec.workflow ? 30_000 : 5000); }
+          if (record.spec.review && target === 'interrupted') await this.options.cancelReview?.(record.spec);
         } catch {
           active.cleanupFailed = true;
           record.status = 'uncertain'; record.error = 'Codex 已停止，但審查 helper 的取消結果待核對。';
@@ -1436,7 +1382,9 @@ export class CodexBridge {
     this.autoAcceptErrors.delete(id); this.emit({ kind: 'tasks', tasks: this.list() });
     if (enabled) for (const pending of this.interactions.values()) if (pending.projection.taskId === id) await this.autoAnswer(pending);
   }
-  private async autoAnswer(pending: PendingInteraction): Promise<void> {
+  private async autoAnswer(pending: PendingInteraction | undefined): Promise<void> {
+    // A synchronous UI answer can remove the interaction while it is emitted.
+    if (!pending) return;
     const id = pending.projection.taskId, active = this.executions.get(pending.projection.taskId);
     if (!this.autoAccept.has(id) || !active || active.record.id !== id || active.abort.signal.aborted || pending.responding ||
         !this.interactions.has(pending.projection.id) || !['command', 'file', 'permissions'].includes(pending.projection.kind)) return;

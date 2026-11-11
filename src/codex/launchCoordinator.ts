@@ -7,7 +7,6 @@ import { ownedStoragePath } from '../storage/ownedStorage';
 import { applyExecutionSelection } from './executionSelection';
 import { validTaskId } from './taskStore';
 import { contextHash } from './freeTask';
-import { autoEfforts } from './modelRoutingProtocol';
 import type { CodexLaunchCheck, CodexLaunchDraft, CodexLaunchPatch } from './launchProtocol';
 import type { CodexTaskSource, CodexTaskSpec } from './protocol';
 
@@ -247,12 +246,13 @@ export class CodexLaunchCoordinator {
       }
       draft.title = prepared.title; draft.root = prepared.root; draft.workingDirectory = prepared.executionRoot ?? prepared.root;
       draft.branch = prepared.origin?.branch ?? prepared.origin?.sourceBranch; draft.sourceSha = prepared.origin?.sourceSha; draft.targetSha = prepared.origin?.targetSha;
-      draft.routed = !!prepared.routing; draft.supportsModelSelection = prepared.routing?.supportsModelSelection;
+      draft.routed = false; draft.requiresModel = !!prepared.review; draft.supportsModelSelection = true;
       await progress('workflow', 'ready'); await progress('codex', 'checking');
       await this.options.environment(prepared.root, signal); signal.throwIfAborted();
       draft.models = await this.options.models(prepared.root, signal); signal.throwIfAborted();
       if (!draft.models.length) throw new Error('Codex 未提供可用模型，請核對登入及設定。');
-      if (prepared.routing && !draft.model) { draft.model = prepared.routing.model ?? 'gpt-6-luna'; draft.effort = prepared.routing.requestedEffort ?? 'auto'; }
+      if (prepared.review && !draft.model) draft.model = draft.models.find(model => model.id === 'gpt-6-luna')?.id ?? draft.models[0].id;
+      if (draft.effort === 'auto') draft.effort = undefined;
       draft.preparationId = checkNonce;
       this.prepared.set(id, { spec: prepared, fingerprint: digest(this.source(draft)), generation: checkNonce }); await progress('codex', 'ready');
       this.selection(draft, prepared); await progress('selection', 'ready');
@@ -287,10 +287,9 @@ export class CodexLaunchCoordinator {
   private selection(draft: CodexLaunchDraft, prepared: CodexTaskSpec): CodexTaskSpec {
     const source = this.source(draft), model = draft.models.find(model => model.id === draft.model);
     if (draft.model && !model) throw new Error('所選模型已不可用，請重新選擇模型。');
-    if (prepared.routing && !model) throw new Error('審查任務需要選擇模型。');
-    const canAuto = !!model?.efforts.length && autoEfforts(model.efforts).length === model.efforts.length;
-    const effort = draft.effort ?? (prepared.routing && canAuto ? 'auto' : model?.defaultEffort ?? (prepared.routing ? model?.efforts[0] : undefined));
-    if (effort && effort !== 'auto' && !model?.efforts.includes(effort)) throw new Error('所選模型不支援此思考強度。');
+    if (prepared.review && !model) throw new Error('審查任務需要選擇模型。');
+    const effort = draft.effort ?? model?.defaultEffort ?? model?.efforts[0];
+    if (effort && (effort === 'auto' || !model?.efforts.includes(effort))) throw new Error('所選模型不支援此思考強度。');
     const selected = { ...source, model: model?.id, effort: model ? effort : undefined,
       ...(prepared.routing?.supportsModelSelection && model ? { modelEfforts: model.efforts } : {}) };
     const frozen = applyExecutionSelection(structuredClone(prepared), selected);

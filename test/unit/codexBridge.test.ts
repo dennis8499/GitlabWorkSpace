@@ -317,11 +317,11 @@ test('Pausing before the first dispatch does not retain an unmaterialized thread
 
 test('A failed helper cleanup keeps the task uncertain and prevents deletion', async t => {
   const f = await setup(t, 'hold');
-  const spec = { ...f.spec, review: { tool: 'merge-reviewer' as const, requestId: 'a'.repeat(32), revision: 'r' } };
+  const spec = { ...f.spec, review: { tool: 'merge-reviewer' as const, requestId: 'a'.repeat(32), revision: 'r', runtimeRoot: path.join(f.root, 'runtime'), workspaceRoot: f.root, repositoryPath: f.root } };
   (f.bridge as any).options.cancelReview = async () => { throw new Error('helper cleanup not confirmed'); };
   await f.bridge.enqueue(spec, 'helper-pause');
   await until(() => !!f.bridge.list()[0].turnId);
-  await f.bridge.pause('helper-pause');
+  await f.bridge.cancel('helper-pause');
   assert.equal(f.bridge.list()[0].status, 'uncertain');
   assert.equal(f.bridge.list()[0].controls?.canDelete, false);
   await assert.rejects(f.bridge.delete('helper-pause'), /清理/);
@@ -412,6 +412,23 @@ test('Auto-Accept is off by default, drains pending approvals once, and leaves q
   const observer = new CodexBridge({ ...(f.bridge as any).options, event: () => {} }); t.after(() => observer.shutdown());
   await observer.publish(); assert.equal(observer.list()[0].controls?.autoAccept, false);
   await until(() => f.events.some(event => event.kind === 'output' && event.items.some(item => item.kind === 'notice' && item.text.includes('已自動核准'))));
+});
+
+test('an immediate manual reply during interaction delivery cannot race auto-answer', async t => {
+  const f = await setup(t, 'auto-approvals');
+  const options = (f.bridge as any).options as CodexBridgeOptions;
+  options.event = event => {
+    f.events.push(event);
+    if (event.kind === 'interactions') for (const interaction of event.interactions) {
+      if (interaction.kind === 'command' || interaction.kind === 'file' || interaction.kind === 'permissions') {
+        void f.bridge.answer(interaction.taskId, interaction.id, { decision: 'decline' });
+      }
+    }
+  };
+  await f.bridge.enqueue(f.spec, 'immediate-reply');
+  await until(() => f.responses.length >= 1);
+  assert.equal(f.responses[0].result.decision, 'decline');
+  await f.bridge.pause('immediate-reply');
 });
 
 test('Auto-Accept respects allowed decisions and turns off after a transport response error', async t => {

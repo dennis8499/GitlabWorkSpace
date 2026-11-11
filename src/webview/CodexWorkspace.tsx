@@ -456,8 +456,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
       {c.environment.state === 'ready' && <p class="subtle">CLI {c.environment.version ?? ''} · {c.environment.compatibility === 'basic' ? '基礎協定相容，進階能力依 CLI 支援啟用。' : '已通過協定驗證。'}</p>}
       <p class="subtle codex-root">Repo：{task.origin?.repositoryRoot ?? task.root}</p>
       {task.workingDirectory && task.workingDirectory !== (task.origin?.repositoryRoot ?? task.root) && <p class="subtle codex-root">實際執行目錄：{task.workingDirectory}</p>}
-      {task.modelRouting && <details class="codex-routing"><summary>{task.modelRouting.model} · {task.modelRouting.effort ?? 'auto'} · {{ assessing: '判斷風險', reviewing: '正式審查', complete: '已產生報告', stopped: '審查已終止，保留路由紀錄' }[task.modelRouting.phase]}</summary>
-        {task.modelRouting.capped && <p>建議 {task.modelRouting.recommendedEffort}；已使用此模型最高強度 {task.modelRouting.effort}。</p>}
+      {task.modelRouting && <details class="codex-routing"><summary>歷史路由紀錄（已退役） · {task.modelRouting.model} · {task.modelRouting.effort ?? '尚未選定強度'}</summary>
         <p>{task.modelRouting.reason}</p>{task.modelRouting.history.map((entry, index) => <p key={index}>{entry.effort}：{entry.reason}</p>)}
         {task.modelRouting.reportPath && <p>報告：{task.modelRouting.reportPath}</p>}</details>}
       </div>
