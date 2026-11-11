@@ -32,6 +32,26 @@ test('persisted operation progress and checked semantic counts stay separate, an
   assert.deepEqual(row.progress, { completed: 2, total: 2, updatedAt: '2026-11-10T00:00:00Z' });
   assert.deepEqual(row.remaining, { changes: 1, boundaries: 2, repositories: 3 });
   assert.equal(row.lastCheckAt, '2026-11-10T00:01:00Z'); assert.equal(row.reviewOutcome, undefined);
+  await f.save({ ...f.job, state: 'validating', phase: 'validation', progress: {
+    stage: 'validation', activity: 'search-prefetch', completed: 20, total: 163,
+    at: '2026-11-11T00:00:00Z', validation: {
+      repositories: { completed: 16, total: 16 }, contracts: { completed: 4, total: 4 },
+      searches: { completed: 0, total: 143 }, ignored: { completed: 1, total: 1 },
+    },
+  } });
+  row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.deepEqual(row.progress, {
+    completed: 20, total: 163, updatedAt: '2026-11-11T00:00:00Z', stage: 'validation', activity: 'search-prefetch',
+    validation: { repositories: { completed: 16, total: 16 }, contracts: { completed: 4, total: 4 }, searches: { completed: 0, total: 143 } },
+  });
+  await f.save({ ...f.job, state: 'validating', phase: 'validation', progress: {
+    stage: 'evidence-recheck', activity: 'searches', completed: 30, total: 30,
+    validation: { repositories: { completed: 16, total: 16 }, contracts: { completed: 4, total: 4 }, searches: { completed: 143, total: 143 } },
+  } });
+  row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.equal(row.progress?.stage, 'evidence-recheck');
+  assert.equal(row.progress?.activity, 'searches');
+  assert.equal(row.progress?.validation?.searches?.completed, 143);
   await f.save({ ...f.job, state: 'failed', phase: 'terminal', context_retained: true, recoverable: false, next_action: 'inspect-render-error' });
   row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
   assert.equal(row.progress, undefined); assert.equal(row.remaining, undefined);

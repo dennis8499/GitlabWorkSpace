@@ -383,6 +383,18 @@ test('review cards retire a completed operation while retaining checked semantic
   await send({ ...row, progress: { completed: 2, total: 2 } });
   assert.match(card().textContent, /證據操作 2\/2 · 目前沒有執行中的操作/);
   assert.doesNotMatch(card().textContent, /read-consumer/); assert.match(card().textContent, /變更 1 · 邊界 2 · Repo 3/);
+  await send({ ...row, state: 'validating', phase: 'validation', progress: { stage: 'validation', completed: 0, total: 1 } });
+  assert.match(card().textContent, /固定證據驗證 0\/1/);
+  assert.doesNotMatch(card().textContent, /目前沒有執行中的操作/);
+  await send({ ...row, state: 'validating', phase: 'validation', progress: { stage: 'validation', activity: 'search-prefetch',
+    completed: 20, total: 163, validation: { repositories: { completed: 16, total: 16 },
+      contracts: { completed: 4, total: 4 }, searches: { completed: 0, total: 143 } } } });
+  assert.match(card().textContent, /固定證據驗證 20\/163 · Repo 16\/16 · 契約 4\/4 · 搜尋 0\/143 · 搜尋預讀/);
+  assert.doesNotMatch(card().textContent, /目前沒有執行中的操作/);
+  await send({ ...row, state: 'validating', phase: 'validation', progress: { stage: 'evidence-recheck', activity: 'searches',
+    completed: 30, total: 30, validation: { repositories: { completed: 16, total: 16 },
+      contracts: { completed: 4, total: 4 }, searches: { completed: 143, total: 143 } } } });
+  assert.match(card().textContent, /固定證據重驗 30\/30 · Repo 16\/16 · 契約 4\/4 · 搜尋 143\/143 · 搜尋重驗/);
   await send({ ...row, state: 'failed', phase: 'terminal', retainedContext: true,
     recovery: { terminal: true, recoverable: false, nextAction: 'inspect-render-error' }, error: 'Report rendering failed.' });
   assert.match(card().textContent, /Report rendering failed/); assert.match(card().textContent, /清理診斷暫存/);

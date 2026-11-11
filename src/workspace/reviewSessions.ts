@@ -6,6 +6,7 @@ import { isDeepStrictEqual, promisify } from 'node:util';
 import { atomicNetworkJson, networkRuntimeRoot } from '../api/localNetworkLease';
 import type { PythonRuntime } from './pythonRuntime';
 import { isReviewerTool, reviewSessionActions, type ReviewerToolId, type ReviewOutcomeSummary, type ReviewSessionSummary, type ReviewBudgetSummary,
+  type ReviewProgressSummary,
   type WorkflowKitRunnerBinding } from './reviewSessionProtocol';
 import { workflowKitPythonCommand } from './workflowKitRunner';
 
@@ -56,10 +57,23 @@ interface ReviewJob {
 function inspectionSummary(job: ReviewJob): Pick<ReviewSessionSummary, 'progress' | 'remaining' | 'recovery' | 'lastCheckAt' | 'retainedContext'> {
   const progress = job.progress as Record<string, unknown> | undefined;
   const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  const validationSource = progress?.validation;
+  const validation: ReviewProgressSummary['validation'] = validationSource && typeof validationSource === 'object' && !Array.isArray(validationSource)
+    ? Object.fromEntries(['repositories', 'contracts', 'searches'].flatMap(key => {
+      const value = (validationSource as Record<string, unknown>)[key];
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const pair = value as Record<string, unknown>;
+      if (!count(pair.completed) || !count(pair.total) || pair.completed > pair.total) return [];
+      return [[key, { completed: pair.completed, total: pair.total }]];
+    })) as ReviewProgressSummary['validation']
+    : undefined;
   const current = progress && count(progress.completed) && count(progress.total) && progress.completed <= progress.total ? {
     completed: progress.completed, total: progress.total,
     ...(typeof progress.operation_id === 'string' && progress.completed < progress.total ? { operationId: progress.operation_id } : {}),
-    ...(typeof progress.at === 'string' ? { updatedAt: progress.at } : {})
+    ...(typeof progress.at === 'string' ? { updatedAt: progress.at } : {}),
+    ...(typeof progress.stage === 'string' ? { stage: progress.stage } : {}),
+    ...(typeof progress.activity === 'string' ? { activity: progress.activity } : {}),
+    ...(validation && Object.keys(validation).length ? { validation } : {})
   } : undefined;
   const raw = job.remaining_counts as Record<string, unknown> | undefined;
   const remaining = raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.fromEntries(

@@ -73,6 +73,9 @@ export interface ReviewProgressSummary {
   total: number;
   operationId?: string;
   updatedAt?: string;
+  stage?: string;
+  activity?: string;
+  validation?: Partial<Record<'repositories' | 'contracts' | 'searches', { completed: number; total: number }>>;
 }
 
 /** The same policy drives the buttons and the Host; UI state never authorizes a dispatch. */

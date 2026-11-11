@@ -18,6 +18,11 @@ const budgetLabel: Record<string, string> = {
   'within-budget': '預算內審查', 'extended-investigation': '延長追查', 'wrap-up': '收尾',
   incomplete: '審查未完成', complete: '審查完成', stopped: '已停止',
 };
+const validationCategoryLabel: Record<string, string> = { repositories: 'Repo', contracts: '契約', searches: '搜尋' };
+const validationActivityLabel: Record<string, string> = {
+  'source-prefetch': '來源預讀', 'search-prefetch': '搜尋預讀', repositories: 'Repo 核對',
+  contracts: '契約核對', searches: '搜尋重驗', complete: '驗證完成',
+};
 const duration = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
 export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onCopyRefresh, onCopyResume, onOpenReport, onRun }: {
@@ -34,7 +39,13 @@ export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onC
         <div><strong>{item.repository}</strong><small>{item.requestId.slice(0, 8)}</small></div>
         <p>{item.head} → {item.base}</p>
         <p role="status">{stateLabel[item.state] ?? item.state} · {phaseLabel[item.phase] ?? item.phase}</p>
-        {item.progress && <p class="subtle">證據操作 {item.progress.completed}/{item.progress.total}{item.progress.operationId ? ` · ${item.progress.operationId}` : ' · 目前沒有執行中的操作'}</p>}
+        {item.progress && (item.progress.validation || item.progress.stage === 'validation' || item.progress.stage === 'evidence-recheck') ? <p class="subtle">
+          {item.progress.stage === 'evidence-recheck' ? '固定證據重驗' : '固定證據驗證'} {item.progress.completed}/{item.progress.total}
+          {Object.entries(item.progress.validation ?? {}).map(([key, count]) =>
+            ` · ${validationCategoryLabel[key]} ${count.completed}/${count.total}`).join('')}
+          {item.progress.activity && validationActivityLabel[item.progress.activity]
+            ? ` · ${validationActivityLabel[item.progress.activity]}` : ''}
+        </p> : item.progress && <p class="subtle">證據操作 {item.progress.completed}/{item.progress.total}{item.progress.operationId ? ` · ${item.progress.operationId}` : ' · 目前沒有執行中的操作'}</p>}
         {item.remaining && <p class="subtle">最近檢查待完成：{Object.entries(item.remaining).map(([key, count]) =>
           `${({ changes: '變更', boundaries: '邊界', parents: '合併來源', impacts: '影響節點', repositories: 'Repo' } as Record<string, string>)[key]} ${count}`).join(' · ')}
           {item.lastCheckAt ? `（${new Date(item.lastCheckAt).toLocaleString()}）` : ''}</p>}
