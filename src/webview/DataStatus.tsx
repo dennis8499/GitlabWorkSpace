@@ -26,11 +26,12 @@ export function DataFreshness({ status }: { status: ReadStatus }) {
   if (!status.dataSource && !status.fetchedAt) return null;
   const labels = { cache: '使用快取', network: '已向 GitLab 讀取', mixed: '快取與 GitLab 資料' };
   const expired = !!status.expiresAt && status.expiresAt <= now;
-  return <small class="data-freshness" data-source={status.dataSource}>
-    {status.dataSource && <span>{labels[status.dataSource]}</span>}
-    {status.fetchedAt && <time dateTime={new Date(status.fetchedAt).toISOString()}>資料取得於 {new Date(status.fetchedAt).toLocaleTimeString()}</time>}
-    {expired && <span>下次需要時更新</span>}
-  </small>;
+  return <details class="data-freshness" data-source={status.dataSource}>
+    <summary>{expired ? '資料待更新' : '已更新'}{status.fetchedAt && <time dateTime={new Date(status.fetchedAt).toISOString()}> · {new Date(status.fetchedAt).toLocaleTimeString()}</time>}</summary>
+    <div>{status.dataSource && <span>{labels[status.dataSource]}</span>}
+      {status.fetchedAt && <span> · 資料取得於 {new Date(status.fetchedAt).toLocaleTimeString()}</span>}
+      {expired && <span> · 下次需要時更新</span>}</div>
+  </details>;
 }
 
 export function TransportStatus({ status, service = 'api' }: { status: TransportState; service?: 'api' | 'git' }) {

@@ -74,6 +74,8 @@ export interface GitRebasePlan {
 }
 
 export interface GitRepositorySnapshot extends GitRepositorySummary, GitRepositoryDetails {
+  /** Exact HEAD, branch and staged content displayed by this snapshot. */
+  commitState?: string;
   /** Present only on a Commit action response; cancelling must not clear the draft. */
   commitCompleted?: boolean;
   /** The requested write was confirmed, or was cancelled before its mutation. */
@@ -110,7 +112,7 @@ export type GitAction =
   | { type: 'stageFile'; path: string; staged: boolean }
   | { type: 'stagePatch'; path: string; lines: number[]; basedOnDiff: string; reverse?: boolean }
   | { type: 'history'; ref?: string; skip?: number }
-  | { type: 'commit'; message: string; amend?: boolean }
+  | { type: 'commit'; message: string; amend?: boolean; expectedCommitState?: string }
   | { type: 'branch'; name: string }
   | { type: 'checkout'; name: string }
   | { type: 'deleteBranch'; name: string }
@@ -132,6 +134,9 @@ export type GitPanelRequest =
   | { type: 'gitReady' }
   | { type: 'gitAcknowledgeResult'; requestId: string }
   | { type: 'gitOpenRepository'; path: string }
+  | { type: 'gitPickRepository'; requestId: string }
+  | { type: 'gitPickBranch'; repositoryId: string; requestId: string; create?: boolean }
+  | { type: 'gitPickRemote'; repositoryId: string; requestId: string }
   | { type: 'gitOpenMergeEditor'; repositoryId: string; path: string }
   | { type: 'gitOpenFile'; repositoryId: string; path: string }
   | { type: 'gitOpenDiff'; repositoryId: string; path: string; staged: boolean; ref?: string; parent?: string }
@@ -150,6 +155,9 @@ export interface GitSelectionCursor { hostSessionId: string; sequence: number; }
 export interface GitSelectionIntent extends GitSelectionCursor { repositoryId: string; hostNavigationGeneration?: number; }
 
 export type GitPanelMessage =
+  | { type: 'gitRepositorySelected'; requestId: string; repositoryId?: string }
+  | { type: 'gitRemoteSelected'; repositoryId: string; requestId: string; remote?: string }
+  | { type: 'gitBranchSelected'; repositoryId: string; requestId: string; branch?: string; create?: boolean }
   | { type: 'gitRepositories'; repositories: GitRepositorySummary[]; available: boolean; message?: string; selectedRepositoryId?: string; selectionIntent?: GitSelectionIntent; revision: number }
   | { type: 'gitSnapshot'; snapshot: GitRepositorySnapshot; requestId?: string }
   | { type: 'gitActionResult'; requestId: string; error?: string; commitCompleted?: boolean; write?: boolean; effect?: 'none' | 'applied' | 'partial' | 'unknown'; refreshError?: string }
@@ -175,6 +183,10 @@ export function isGitPanelRequest(value: unknown): value is GitPanelRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const request = value as Record<string, unknown>;
   if (request.type === 'gitReady') return Object.keys(request).length === 1;
+  if (request.type === 'gitPickRepository') return typeof request.requestId === 'string' && request.requestId.length > 0 && request.requestId.length <= 128;
+  if (request.type === 'gitPickBranch' || request.type === 'gitPickRemote') return typeof request.repositoryId === 'string' && /^[a-f0-9]{32}$/i.test(request.repositoryId) &&
+    typeof request.requestId === 'string' && request.requestId.length > 0 && request.requestId.length <= 128 &&
+    (request.type !== 'gitPickBranch' || request.create === undefined || typeof request.create === 'boolean');
   if (request.type === 'gitAcknowledgeResult') return typeof request.requestId === 'string' && request.requestId.length > 0 && request.requestId.length <= 128;
   if (request.type === 'gitOpenRepository') return typeof request.path === 'string' && request.path.length <= 32767;
   if (request.type === 'gitOpenMergeEditor' || request.type === 'gitOpenFile' || request.type === 'gitOpenDiff') {
@@ -216,6 +228,7 @@ export function isGitPanelRequest(value: unknown): value is GitPanelRequest {
         (action.skip === undefined || Number.isSafeInteger(action.skip) && Number(action.skip) >= 0 && Number(action.skip) <= 100_000);
     case 'commit':
       return typeof action.message === 'string' && action.message.length <= 100_000 &&
+        (action.expectedCommitState === undefined || typeof action.expectedCommitState === 'string' && /^[a-f0-9]{64}$/.test(action.expectedCommitState)) &&
         (action.amend === undefined || typeof action.amend === 'boolean');
     case 'branch': case 'checkout': case 'deleteBranch': case 'merge': case 'rebase':
       return typeof (action.name ?? action.ref) === 'string' &&

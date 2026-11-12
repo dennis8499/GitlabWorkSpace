@@ -216,8 +216,14 @@ suite('Native Codex Electron zoom and built-in themes', function () {
       }
       await Promise.all([...persistence]);
       assert.equal(cases.length, 12); assert.deepEqual(unexpectedWrites, []); assert.deepEqual(persistenceErrors, []);
-      const assetHashes = Object.fromEntries(await Promise.all(['dashboard.html', 'dashboard.js', 'dashboard.css', 'codicon.ttf'].map(async name =>
-        [name, createHash('sha256').update(await readFile(vscode.Uri.joinPath(assets, name).fsPath)).digest('hex')])));
+      const manifest = JSON.parse(await readFile(vscode.Uri.joinPath(assets, 'asset-manifest.json').fsPath, 'utf8')) as
+        Record<string, { file: string; css?: string[]; assets?: string[] }>;
+      const assetNames = [...new Set(['dashboard.html', 'codicon.ttf', 'asset-manifest.json',
+        ...Object.values(manifest).flatMap(entry => [entry.file, ...entry.css ?? [], ...entry.assets ?? []])])].sort();
+      assert.ok(assetNames.some(name => name.startsWith('chunks/')), 'native zoom evidence includes lazy renderer chunks');
+      for (const name of assetNames) assert.ok(!path.isAbsolute(name) && !name.split(/[\\/]/).some(part => part === '..'), 'native zoom assets stay in the prepared root');
+      const assetHashes = Object.fromEntries(await Promise.all(assetNames.map(async name =>
+        [name, createHash('sha256').update(await readFile(vscode.Uri.joinPath(assets, ...name.split('/')).fsPath)).digest('hex')])));
       const evidence = { schema: 'GitLabWorkspaceNativeCodexZoom/v1', executedCases: cases.length, baselineDpr: baseline.dpr, assetHashes,
         method: 'VS Code window.zoomLevel, verified by Webview DPR ratio; native viewport, no CSS scaling or theme injection', cases };
       console.log('Native Codex zoom proof', JSON.stringify(evidence));

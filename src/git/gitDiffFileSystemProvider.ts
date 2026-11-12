@@ -54,6 +54,12 @@ export class GitDiffFileSystemProvider implements vscode.FileSystemProvider, vsc
     };
   }
 
+  createDocument(filename: string, bytes: Uint8Array): { uri: vscode.Uri; opened(): void; dispose(): void } {
+    // The empty companion costs no retained bytes and shares tab lifecycle handling.
+    const snapshot = this.createDiff(filename, new Uint8Array(), bytes);
+    return { uri: snapshot.after, opened: snapshot.opened, dispose: snapshot.dispose };
+  }
+
   stat(uri: vscode.Uri): vscode.FileStat {
     const file = this.requireFile(uri);
     return { type: this.host.FileType.File, ctime: file.created, mtime: file.created,

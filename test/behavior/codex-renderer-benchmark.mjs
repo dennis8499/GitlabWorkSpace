@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { chromium } from 'playwright-core';
 import { createWebviewCsp } from '../../out/src/webviewSecurity.js';
+import { readWebviewAssets } from '../../scripts/webview-assets.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const option = (name, fallback) => { const index = process.argv.indexOf(name); return index < 0 ? fallback : process.argv[index + 1]; };
@@ -32,13 +33,12 @@ const task = id => ({ id, title: `Synthetic task ${id}`, root: 'C:/fixture', sta
 const entries = (count, id = 'a') => Array.from({ length: count }, (_, index) => ({ id: String(index), threadId: 'thread-' + id, turnId: 'turn', kind: 'agent', text: `Reply ${index}\n${'Synthetic content '.repeat(index % 4 + 1)}`, final: true }));
 
 async function mount(target, saved = { mode: 'codex' }) {
-  const assets = new Map();
-  for (const name of ['dashboard.html', 'dashboard.js', 'dashboard.css', 'codicon.ttf']) assets.set(name, await readFile(path.join(target.directory, 'resources/issue-webview', name)));
+  const assets = await readWebviewAssets(path.join(target.directory, 'resources/issue-webview'), { allowLegacy: target.label === 'before' });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' }), page = await context.newPage();
   const errors = [], external = [];
   page.on('pageerror', error => errors.push(String(error)));
   await page.route('**/*', async route => {
-    const url = new URL(route.request().url()), name = path.basename(url.pathname);
+    const url = new URL(route.request().url()), name = url.pathname.slice(1);
     if (url.hostname !== '127.0.0.1' || !assets.has(name) && name !== 'theme.css') { external.push(url.origin); await route.abort(); return; }
     let body = name === 'theme.css' ? theme : assets.get(name);
     if (name === 'dashboard.html') body = body.toString().replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${createWebviewCsp("'self'", 'benchmark', 'dashboard')}"><link rel="stylesheet" href="/theme.css">`).replace(/<script\b/g, '<script nonce="benchmark"');
@@ -62,7 +62,9 @@ async function mount(target, saved = { mode: 'codex' }) {
   await send(page, { type: 'codexEvent', event: { kind: 'tasks', tasks: [task('a'), task('b')] } });
   await page.getByRole('button', { name: /Synthetic task a/ }).waitFor();
   await settle(page);
-  return { page, context, errors, external, bundleSha256: createHash('sha256').update(assets.get('dashboard.js')).digest('hex') };
+  const bundleHash = createHash('sha256');
+  for (const [name, bytes] of [...assets].sort(([left], [right]) => left.localeCompare(right))) bundleHash.update(name + '\0').update(bytes);
+  return { page, context, errors, external, bundleSha256: bundleHash.digest('hex') };
 }
 async function geometry(page) {
   return page.evaluate(() => {

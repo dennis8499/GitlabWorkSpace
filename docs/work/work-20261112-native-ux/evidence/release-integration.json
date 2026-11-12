@@ -1,0 +1,37 @@
+{
+  "schema": "GitLabWorkspaceNativeUxReleaseIntegration/v1",
+  "checkedAt": "2026-11-12T14:12:21.040672+00:00",
+  "method": "Four isolated Python jobs through scripts/run-python.mjs using the same classes as the canonical release gate; no service calls or global build writes.",
+  "status": "PASS",
+  "tests": 17,
+  "jobs": [
+    {
+      "suite": "WorkflowKit135IntegrationTests",
+      "tests": 6,
+      "seconds": 490.829,
+      "status": "PASS",
+      "logSha256": "fdb1541ce87f150b3f235a9ef74b91dbcc46457b8f3613a8502c8570855bc1c7"
+    },
+    {
+      "suite": "WorkflowKit134IntegrationTests",
+      "tests": 5,
+      "seconds": 386.716,
+      "status": "PASS",
+      "logSha256": "c45277eb991ebc02c8561207f1e09254c850c0980dac07051ce5cb05bd1b2091"
+    },
+    {
+      "suite": "WorkflowKitIntegrationTests",
+      "tests": 5,
+      "seconds": 334.844,
+      "status": "PASS",
+      "logSha256": "b2cc054a53a533b08c7fb4f258db19bfeda5f5db7482e3f2f37ff644f4a41165"
+    },
+    {
+      "suite": "CommitReviewerReleaseTests",
+      "tests": 1,
+      "seconds": 119.736,
+      "status": "PASS",
+      "logSha256": "d99897a48339ab7e346c3744f64f4cb458458168940cfa99ed17088616a55273"
+    }
+  ]
+}

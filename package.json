@@ -247,6 +247,18 @@
         "command": "gitlabWorkspace.openMergeRequest",
         "icon": "$(git-pull-request)",
         "title": "開啟 MR 詳情"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.loadMoreMyWork",
+        "title": "載入更多工作項目",
+        "icon": "$(add)"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.retryMyWorkSection",
+        "title": "重試工作項目",
+        "icon": "$(refresh)"
       }
     ],
     "configuration": {
@@ -345,6 +357,16 @@
           "command": "gitlabWorkspace.openDeveloperMode",
           "group": "navigation",
           "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.loadMoreMyWork",
+          "group": "navigation",
+          "when": "view == gitlabWorkspace.myWork && viewItem == gitlabWorkspace.workSection"
+        },
+        {
+          "command": "gitlabWorkspace.retryMyWorkSection",
+          "group": "navigation",
+          "when": "view == gitlabWorkspace.myWork && viewItem == gitlabWorkspace.workSection"
         }
       ],
       "view/title": [
@@ -560,5 +582,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.49.0"
+  "version": "0.50.0"
 }

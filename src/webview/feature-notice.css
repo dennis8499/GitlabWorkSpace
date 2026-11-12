@@ -13,3 +13,4 @@
 .feature-notice-details pre { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .feature-notice-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .feature-notice-actions button { max-width: 100%; white-space: normal; }
+.operation-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

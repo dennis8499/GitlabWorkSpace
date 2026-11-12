@@ -59,6 +59,21 @@ test('Wiki remote changes require a new preview before overwriting', async t => 
   assert.equal((await f.store.publish(f.id, f.origin, next.revision, f.client, () => {})).state, 'published');
 });
 
+test('native Wiki documents use a saved revision and refuse unchecked diffs or another account', async t => {
+  const f = await fixture(t), result = await f.store.create(f.id, f.origin, f.source);
+  const initial = await f.store.readPage(f.id, f.origin, result.revision!, 'codebase/index', 'source');
+  assert.match(initial.content, /# Project/);
+  await assert.rejects(f.store.readPage(f.id, f.origin, result.revision!, 'codebase/index', 'diff'), /尚未核對/);
+  f.pages.set('codebase/index', { slug: 'codebase/index', title: 'Index', content: '# Previous', format: 'markdown' });
+  const preview = await f.store.preview(f.id, f.origin, f.client, () => {});
+  const page = await f.store.readPage(f.id, f.origin, preview.revision, 'codebase/index', 'diff');
+  assert.equal(page.previousContent, '# Previous'); assert.match(page.content, /# Project/);
+  await assert.rejects(f.store.readPage(f.id, f.origin, result.revision!, 'codebase/index', 'source'), /預覽已更新/);
+  await assert.rejects(f.store.readPage(f.id, { ...f.origin, accountKey: 'another' }, preview.revision, 'codebase/index', 'source'), /不屬於/);
+  await assert.rejects(f.store.readPage(f.id, f.origin, preview.revision, '../outside', 'source'), /不在目前/);
+  assert.deepEqual(f.writes, []);
+});
+
 test('Wiki accepts an aliased snapshot parent while rejecting a redirected Wiki output directory', async t => {
   const f = await fixture(t), alias = path.join(f.root, 'snapshot-alias');
   await symlink(f.source, alias, process.platform === 'win32' ? 'junction' : 'dir');

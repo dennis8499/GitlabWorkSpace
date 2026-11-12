@@ -7,7 +7,7 @@ import { VirtualRows } from './VirtualRows';
 import { FeatureButton } from './FeatureNotice';
 import { blockedWhen } from './featureAvailability';
 import type { CodexTaskState } from '../codex/protocol';
-import { CodexWorkflowLaunch } from './CodexWorkflow';
+import { CodexWorkflowLaunch } from './CodexWorkflowLaunch';
 const repositoryKey = (repository: ScannedRepository) => repository.path;
 
 export function LocalRepositoriesPanel({ repositories, scan, projects, post, codexTasks = [], connected = false }: {

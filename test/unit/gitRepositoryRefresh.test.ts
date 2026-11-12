@@ -42,6 +42,7 @@ async function fixture() {
   const changes = new Emitter();
   const opened = new Emitter(), closed = new Emitter(), clock = new Clock();
   const counts = { status: 0, branches: 0, config: 0, diff: 0, commands: [] as string[][] };
+  const nativeDiffs: Array<{ filename: string; before: Buffer; after: Buffer }> = [];
   let capture: typeof captureGitProcess | undefined;
   const configuration: Record<string, unknown> = {};
   const root = process.cwd();
@@ -66,6 +67,7 @@ async function fixture() {
       if (name === 'vscode') return { EventEmitter: Emitter, workspace: { textDocuments: [], getConfiguration: (section: string) => ({ get: (key: string, fallback?: unknown) => configuration[section + '.' + key] ?? fallback }) }, extensions: { getExtension: () => ({ isActive: true, exports: { enabled: true, getAPI: () => api, onDidChangeEnablement: new Emitter().event } }) } };
       if (name === './cloneService') return { createScopedGitEnvironment: nativeRequire(name).createScopedGitEnvironment };
       if (name === './gitAskpassUi') return { createGitCredentialPrompt: () => async () => undefined };
+      if (name === './nativeDocuments') return { getNativeDocuments: () => ({ openDiff: async (filename: string, before: Buffer, after: Buffer) => { nativeDiffs.push({ filename, before, after }); } }) };
       if (name === './gitProcess') return { ...nativeRequire(name), captureGitProcess: (...args: Parameters<typeof captureGitProcess>) => capture ? capture(...args) : nativeRequire(name).captureGitProcess(...args) };
       if (name === 'node:child_process') return { execFile: () => { throw new Error('Git processes disabled in fixture'); }, spawn: () => { throw new Error('Git processes disabled in fixture'); } };
       return nativeRequire(name);
@@ -79,6 +81,7 @@ async function fixture() {
   service.operationFor = async () => undefined;
   service.assertObjectId = async () => undefined;
   service.assertRef = async () => undefined;
+  service.readCommitState = async (repo: typeof repository) => repo.state.HEAD.commit.padEnd(64, '0');
   service.runGit = async (_repo: unknown, args: string[]) => {
     counts.commands.push(args);
     if (args[0] === 'diff') {
@@ -90,7 +93,7 @@ async function fixture() {
     return { stdout: args[0] === 'symbolic-ref' ? 'main\n' : args[0] === 'log' || args[0] === 'show' ? history : args[0] === 'diff-tree' ? 'README.md\0' : '', stderr: '', code: 0 };
   };
   service.setActivePanelRepository(id, false);
-  return { service, repository, api, session, id, counts, clock, configuration, setCapture: (callback: typeof captureGitProcess) => { capture = callback; }, emit: () => changes.fire(),
+  return { service, repository, api, session, id, counts, nativeDiffs, clock, configuration, setCapture: (callback: typeof captureGitProcess) => { capture = callback; }, emit: () => changes.fire(),
     open: () => opened.fire(repository), close: () => closed.fire(repository) };
 }
 
@@ -204,6 +207,23 @@ test('native Diff exposes blob read failures instead of inventing an empty file'
   f.service.confirmSavedEditors = async () => true;
   f.service.readBlob = async () => { throw new Error('blob timed out'); };
   await assert.rejects(f.service.openNativeDiff(f.id, 'README.md', true), /blob timed out/);
+});
+
+test('native staged and historical rename Diff reads the old path without prompting for unsaved worktree edits', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const reads: string[] = [];
+  f.service.safeRelativePath = async (_repo: unknown, candidate: string) => candidate;
+  f.service.confirmSavedEditors = async () => { throw new Error('readonly snapshots must not save worktree files'); };
+  f.service.changes = () => [{ section: 'staged', path: 'new.ts', originalPath: 'old.ts' }];
+  f.service.readBlob = async (_repo: unknown, ref: string) => { reads.push(ref); return Buffer.from(ref); };
+  await f.service.openNativeDiff(f.id, 'new.ts', true);
+  assert.deepEqual(reads, ['HEAD:./old.ts', ':./new.ts']);
+  reads.length = 0;
+  const parent = 'b'.repeat(40);
+  f.service.runGit = async (_repo: unknown, args: string[]) => ({ stdout: args[0] === 'show' ? parent : 'R100\0old.ts\0new.ts\0', stderr: '', code: 0 });
+  await f.service.openNativeDiff(f.id, 'new.ts', false, head, parent);
+  assert.deepEqual(reads, [parent + ':./old.ts', head + ':./new.ts']);
+  assert.equal(f.nativeDiffs.length, 2);
 });
 
 test('a missing blob is empty only after a successful tree or index existence check', async t => {
@@ -350,12 +370,12 @@ test('only a completed Commit acknowledges draft submission, even if HEAD change
   let commits = 0;
   (f.repository as any).commit = async () => { commits++; f.repository.state.HEAD.commit = 'e'.repeat(40); };
   f.service.setWarningPromptHandlerForTesting(async () => { f.repository.state.HEAD.commit = 'd'.repeat(40); return undefined; });
-  const cancelled = await f.service.handleAction(f.id, { type: 'commit', message: 'Preserve draft' });
+  const cancelled = await f.service.handleAction(f.id, { type: 'commit', message: 'Preserve draft', amend: true, expectedCommitState: await f.service.readCommitState(f.repository) });
   assert.equal(cancelled.headCommit, 'd'.repeat(40));
   assert.equal(cancelled.commitCompleted, false);
   assert.equal(commits, 0);
   f.service.setWarningPromptHandlerForTesting(async () => 'Commit');
-  const completed = await f.service.handleAction(f.id, { type: 'commit', message: 'Submit draft' });
+  const completed = await f.service.handleAction(f.id, { type: 'commit', message: 'Submit draft', expectedCommitState: await f.service.readCommitState(f.repository) });
   assert.equal(completed.commitCompleted, true);
   assert.equal(commits, 1);
 });
@@ -371,6 +391,20 @@ test('cancelled non-Commit writes report no effect and preserve cancellation thr
   f.service.confirmSavedEditors = async () => false;
   const unsaved = await f.service.handleAction(f.id, { type: 'checkout', name: 'unused' });
   assert.equal(unsaved.actionEffect, 'none'); assert.equal(unsaved.actionCancelled, true);
+});
+
+test('ordinary Commit skips the repeat prompt and refuses a missing or changed displayed state', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  f.repository.state.indexChanges = f.repository.state.workingTreeChanges;
+  let commits = 0, prompts = 0;
+  (f.repository as any).commit = async () => { commits++; };
+  f.service.setWarningPromptHandlerForTesting(async () => { prompts++; return 'Commit'; });
+  const expectedCommitState = await f.service.readCommitState(f.repository);
+  await assert.rejects(f.service.handleAction(f.id, { type: 'commit', message: 'Missing state' }), /重新整理/);
+  await assert.rejects(f.service.handleAction(f.id, { type: 'commit', message: 'Stale state', expectedCommitState: '0'.repeat(64) }), /已變更/);
+  assert.equal(commits, 0); assert.equal(prompts, 0);
+  const result = await f.service.handleAction(f.id, { type: 'commit', message: 'Commit once', expectedCommitState });
+  assert.equal(result.commitCompleted, true); assert.equal(commits, 1); assert.equal(prompts, 0);
 });
 
 test('a confirmed Git write keeps its effect and Commit receipt when status refresh fails', async t => {

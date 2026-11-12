@@ -205,6 +205,8 @@ test('project source and MR role keep pending choices and latest failure rolls b
 test('workflow source remains selected during background updates and an applied choice survives refresh failure', async t => {
   const data = snapshot('dashboard'), view = await mount(t, data, { mode: 'dashboard', scopeKey: 'team-scope' });
   await view.click('.settings-trigger');
+  assert.ok(view.requests.some(request => request.type === 'pickWorkbenchControl' && request.kind === 'tools'));
+  view.send({ type: 'openSettings' }); await view.tick();
   const select = [...view.document.querySelectorAll('.tool-drawer select')].find(item => [...item.options].some(option => option.value === 'gitea'));
   assert.ok(select); select.value = 'gitea'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
   const request = view.requests.findLast(item => item.type === 'setWorkflowKitSource'); assert.ok(request.uiIntentId);

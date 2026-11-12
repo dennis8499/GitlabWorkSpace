@@ -16,7 +16,8 @@ import { createGitCredentialPrompt } from './gitAskpassUi';
 import { gitDirectoryForRepository, withGitDirectoryLock } from './repositoryOperationLock';
 import { makeSelectedPatch } from './gitDiffSelection';
 import { isGitWriteAction } from './gitProtocol';
-import { GitDiffFileSystemProvider } from './gitDiffFileSystemProvider';
+import { getNativeDocuments } from './nativeDocuments';
+import { gitCommitState } from './gitCommitState';
 import { logGitCommand } from './gitCommandLog';
 import { scanWorkspaceRepositories, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from './repositoryScanner';
 import { withReviewSyncInvalidation } from '../workspace/reviewSessions';
@@ -215,7 +216,6 @@ export class GitRepositoryService implements vscode.Disposable {
   private readonly summaryCache = new Map<string, { epoch: number; value: GitRepositorySummary }>();
   private readonly detailsCache = new Map<string, { epoch: number; value: GitRepositoryDetails }>();
   private readonly detailsTasks = new Map<string, Promise<GitRepositoryDetails>>();
-  private diffProvider?: GitDiffFileSystemProvider;
   private readonly pullStrategyCache = new Map<string, { epoch: number; value: GitPullStrategy | 'interactive' }>();
   private readonly historyCache = new Map<string, { epoch: number; pages: Map<string, { history: GitCommitSummary[]; hasMore: boolean }> }>();
   private readonly snapshotTasks = new Map<string, Promise<GitRepositorySnapshot>>();
@@ -465,7 +465,7 @@ export class GitRepositoryService implements vscode.Disposable {
     const repository = await this.requireRepository(repositoryId);
     return withGitDirectoryLock(repository.rootUri.fsPath, async () => {
     const relative = await this.safeRelativePath(repository, candidate);
-    if (!await this.confirmSavedEditors(repository, [relative])) return;
+    if (!ref && !staged && !await this.confirmSavedEditors(repository, [relative])) return;
     let before: Buffer;
     let after: Buffer;
     if (ref) {
@@ -474,11 +474,23 @@ export class GitRepositoryService implements vscode.Disposable {
       const parents = (await this.runGit(repository, ['show', '-s', '--format=%P', ref])).stdout.trim().split(/\s+/).filter(Boolean);
       if (parent && !parents.includes(parent)) throw new Error('選擇的比較 parent 不屬於這筆提交。');
       const selectedParent = parent ?? parents[0];
-      before = selectedParent ? await this.readBlob(repository, selectedParent + ':./' + relative) : Buffer.alloc(0);
+      let original = relative;
+      if (selectedParent) {
+        const names = await this.runGit(repository, ['diff-tree', '--no-commit-id', '--name-status', '-r', '-z', '-M', selectedParent, ref, '--']);
+        if (names.truncated) throw new Error('提交檔案清單超過上限，無法確認重新命名來源。');
+        const fields = names.stdout.split('\0');
+        for (let index = 0; index < fields.length;) {
+          const status = fields[index++], oldPath = fields[index++];
+          if (/^[RC]\d+$/.test(status)) { const newPath = fields[index++]; if (newPath === relative) original = await this.safeRelativePath(repository, oldPath); }
+        }
+      }
+      before = selectedParent ? await this.readBlob(repository, selectedParent + ':./' + original) : Buffer.alloc(0);
       after = await this.readBlob(repository, ref + ':./' + relative);
     } else if (staged) {
+      const previous = this.changes(repository).find(change => change.section === 'staged' && change.path === relative)?.originalPath;
+      const original = previous ? await this.safeRelativePath(repository, previous) : relative;
       before = repository.state.HEAD?.commit
-        ? await this.readBlob(repository, 'HEAD:./' + relative)
+        ? await this.readBlob(repository, 'HEAD:./' + original)
         : Buffer.alloc(0);
       after = await this.readBlob(repository, ':./' + relative);
     } else {
@@ -493,13 +505,8 @@ export class GitRepositoryService implements vscode.Disposable {
       });
     }
     if (this.disposed) return;
-    const provider = this.diffProvider ??= new GitDiffFileSystemProvider(vscode);
-    const comparison = provider.createDiff(relative, before, after);
-    try {
-      await vscode.commands.executeCommand('vscode.diff', comparison.before, comparison.after,
-        relative + (ref ? ' · Commit Diff' : staged ? ' · HEAD / 暫存' : ' · 暫存 / 工作目錄'), { preview: false });
-      comparison.opened();
-    } catch (error) { comparison.dispose(); throw error; }
+    await getNativeDocuments().openDiff(relative, before, after,
+      relative + (ref ? ' · Commit Diff' : staged ? ' · HEAD / 暫存' : ' · 暫存 / 工作目錄'));
     });
   }
 
@@ -546,6 +553,7 @@ export class GitRepositoryService implements vscode.Disposable {
       ...details,
       remotes: repository.state.remotes.map((remote) => remote.name),
       changes: this.changes(repository),
+      commitState: repository.state.indexChanges.length ? await this.readCommitState(repository) : undefined,
       history: page.history,
       historyHasMore: page.hasMore,
       selectedCommit: this.selectedCommits.get(repositoryId)?.commit,
@@ -561,6 +569,13 @@ export class GitRepositoryService implements vscode.Disposable {
       operation: await this.operationFor(repository),
       revision
     };
+  }
+
+  private readCommitState(repository: GitRepository): Promise<string> {
+    return gitCommitState(repository.rootUri.fsPath, {
+      head: repository.state.HEAD?.commit, branch: repository.state.HEAD?.name,
+      staged: this.changes(repository).filter(change => change.section === 'staged')
+    });
   }
 
   async handleAction(repositoryId: string, action: GitAction): Promise<GitRepositorySnapshot | undefined> {
@@ -705,7 +720,6 @@ export class GitRepositoryService implements vscode.Disposable {
     this.readProcessLifetime.abort();
     this.activePanelRepositoryId = undefined;
     this.activePanelGeneration++;
-    this.diffProvider?.dispose();
     this.detailsCache.clear();
     this.detailsTasks.clear();
     this.canonicalPaths.clear();
@@ -1204,17 +1218,26 @@ export class GitRepositoryService implements vscode.Disposable {
         const message = checkedGitText(action.message, 'Commit 訊息');
         if (!this.changes(repository).some((change) => change.section === 'staged')) throw new Error('請先在 GUI 選擇要 Commit 的暫存內容。');
         if (action.amend && !repository.state.HEAD?.commit) throw new Error('目前 Repo 尚無提交，無法 Amend。');
-        const verb = action.amend ? 'Amend 最近一次 Commit' : 'Commit 已暫存的變更';
+        const assertDisplayed = async (): Promise<void> => {
+          if (!action.expectedCommitState || action.expectedCommitState !== await this.readCommitState(repository)) {
+            throw Object.assign(new Error('暫存內容或分支已變更，請重新整理、檢查後再次提交；提交訊息已保留。'), { effect: 'none' as const });
+          }
+        };
+        await assertDisplayed();
+        const verb = 'Amend 最近一次 Commit';
         const stagedPaths = this.changes(repository).filter((change) => change.section === 'staged').map((change) => change.path);
-        const confirmed = await this.showWarningMessage(
+        if (action.amend) {
+          const confirmed = await this.showWarningMessage(
           verb + ' 至 ' + repository.rootUri.fsPath + '？' +
           (action.amend ? '\n原提交：' + (repository.state.HEAD?.commit ?? '').slice(0, 12) + '\n這會改寫目前分支歷史。' : '') +
           '\n暫存檔案：\n' + stagedPaths.join('\n'),
           { modal: true },
           action.amend ? 'Amend Commit' : 'Commit'
         );
-        if (!confirmed) return false;
-        if (action.amend) await this.createRecoveryRef(repository, 'amend');
+          if (!confirmed) return false;
+          await assertDisplayed();
+          await this.createRecoveryRef(repository, 'amend');
+        }
         await repository.commit(message, { all: false, amend: action.amend, useEditor: false });
         return true;
       }

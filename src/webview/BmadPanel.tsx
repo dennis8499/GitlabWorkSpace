@@ -188,11 +188,12 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
         <textarea id="bmad-requirement" rows={5} maxLength={8000} value={ui.requirement ?? ''}
           placeholder="例如：請分析並完成結帳流程的退款功能，確認畫面與測試。" onInput={event => change({ requirement: event.currentTarget.value })} />
         <p>工作根目錄：<code>{snapshot.root ?? '尚未選擇專案資料夾'}</code>；預設產出放在此目錄的 <code>_bmad-output/</code>。</p>
-        <div class="bmad-inline-actions"><button type="button" class="secondary" {...availabilityProps('bmad-actions', taskBlocked)}
-          onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>複製 BMAD 提示詞</button>
-          {onRunCommand && <FeatureButton type="button" class="primary" blocker={taskBlocked} onClick={() => onRunCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>使用 Codex 執行</FeatureButton>}
-          <button type="button" class="secondary" {...availabilityProps('bmad-root', rootBlocked)} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button></div>
-        <FeatureNotices id="bmad-actions" items={bmadBlockers}>{!taskReady && <><button type="button" onClick={onRefresh}>重新偵測</button><button type="button" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></>}</FeatureNotices><p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。</p>
+        <div class="bmad-inline-actions">{onRunCommand && <FeatureButton type="button" class="primary" blocker={taskBlocked} onClick={() => onRunCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>使用 Codex 執行</FeatureButton>}
+          <details class="workflow-alternatives"><summary>其他方式</summary><button type="button" class="secondary" {...availabilityProps('bmad-actions', taskBlocked)}
+            onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>複製 BMAD 提示詞</button>
+            <button type="button" class="secondary" {...availabilityProps('bmad-root', rootBlocked)} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button>
+            <p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞。</p></details></div>
+        <FeatureNotices id="bmad-actions" items={bmadBlockers}>{!taskReady && <><button type="button" onClick={onRefresh}>重新偵測</button><button type="button" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></>}</FeatureNotices><p>確認任務設定後開始；到 Codex 頁回覆問題與檢閱成果，到「目前進度」查看已儲存的產物。</p>
         {!taskReady && <p class="bmad-environment-notice" role="status">請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。</p>}
       </div>
       <div class="bmad-prerequisites"><h3>執行環境</h3><p>使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。</p>

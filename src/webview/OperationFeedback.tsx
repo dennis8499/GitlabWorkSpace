@@ -51,11 +51,15 @@ export function OperationFeedback({ resourceKey, scopeRevision, initialOperation
   }
   const visible = [...latest.values()].filter(item => isActiveOperation(item) || item.effect === 'unknown' || item.status === 'failed' || item.refreshError)
     .sort(recentFeedbackFirst).slice(0, 3);
-  return <div class="operation-feedback" aria-live="polite">{visible.map(item => <div key={item.requestId}
-    class={`operation-status ${item.status}${item.error || item.refreshError ? ' ' + errorClass : ''}`} role={item.status === 'failed' || item.refreshError ? 'alert' : 'status'}>
-    {isActiveOperation(item) && <span class="spinner" />}
+  const announcement = visible.map(item => [item.label, item.phase,
+    item.effect === 'unknown' ? '寫入結果待核對' : item.refreshError ? '操作已完成，更新失敗' : item.error?.split(/\r?\n/, 1)[0],
+    item.total && item.completed !== undefined ? `${Math.min(100, Math.floor(item.completed / item.total * 10) * 10)}%` : undefined]
+    .filter(Boolean).join('，')).join('。');
+  return <div class="operation-feedback"><span class="operation-announcement" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>{visible.map(item => <div key={item.requestId}
+    class={`operation-status ${item.status}${item.error || item.refreshError ? ' ' + errorClass : ''}`}>
+    {isActiveOperation(item) && <span class="spinner" aria-hidden="true" />}
     <strong>{item.label}</strong>{item.error && item.error === displayedError && !item.refreshError ? <span>{item.phase}</span> : item.refreshError || item.error ? <FeatureNotice
-      tone={item.effect === 'unknown' || item.effect === 'applied' || item.effect === 'partial' ? 'warning' : 'error'}
+      announce={false} tone={item.effect === 'unknown' || item.effect === 'applied' || item.effect === 'partial' ? 'warning' : 'error'}
       reason={item.refreshError ? `操作已完成，但更新失敗：${item.refreshError.split(/\r?\n/, 1)[0].slice(0, 180)}`
         : `${item.effect === 'partial' ? '部分操作已完成：' : ''}${item.error!.split(/\r?\n/, 1)[0].slice(0, 180)}`}
       details={/\r|\n/.test(item.refreshError ?? item.error ?? '') || (item.refreshError ?? item.error ?? '').length > 180 ? item.refreshError ?? item.error : undefined} /> : <span>{item.phase}</span>}

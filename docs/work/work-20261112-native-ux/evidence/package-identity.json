@@ -1,0 +1,65 @@
+{
+  "schema": "GitLabWorkspaceNativeUxPackagedEvidence/v1",
+  "checkedAt": "2026-11-12T14:10:03.966059+00:00",
+  "vsix": "dist\\gitlab-workspace-0.49.0.vsix",
+  "bytes": 2958453,
+  "sha256": "4bde6d56a5db14a369873ba51bb9a2e3d85bbabff884f53646c27ded96545c76",
+  "allMeasuredAssetsMatch": true,
+  "assets": [
+    {
+      "path": "asset-manifest.json",
+      "sha256": "79db1acfbafcb2becd07ea03909227ce60008fcb652ba5b8dbde3175c39d5bd1",
+      "matches": true
+    },
+    {
+      "path": "chunks/BmadPanel-Q-ggcFST.js",
+      "sha256": "1df978baa259fe2ea2bd929f2c25ee9d31c0ed39595efa631c16317159092132",
+      "matches": true
+    },
+    {
+      "path": "chunks/CodexWorkspace-BoqbUCtA.js",
+      "sha256": "5a0a95b2c740a9f30385e116241b5522f4c973d8edbebb477d0bd4e001f7a9fd",
+      "matches": true
+    },
+    {
+      "path": "chunks/GitControlPanel-s-w5HuOP.js",
+      "sha256": "5adb555ee8317cece97c143e9c4bc425ce846cf3700dd205f887fc92ed8bf6fb",
+      "matches": true
+    },
+    {
+      "path": "chunks/hooks.module-CG0zIPno.js",
+      "sha256": "654f1dbb8321898f9e9b2cc477fb2afaa4b3b0f920c65ebdf87c927f5b571681",
+      "matches": true
+    },
+    {
+      "path": "chunks/IssueGraph-BCbAWbI_.js",
+      "sha256": "675f55106d993b27f050a4855ddef762948de24a6179643d417bd18315f542e3",
+      "matches": true
+    },
+    {
+      "path": "chunks/SkillsGuide-D1cMhBoy.js",
+      "sha256": "9023432ebf87ac4b309975693374aabbeae571c46ec789291f1d141c9eb8b962",
+      "matches": true
+    },
+    {
+      "path": "codicon.ttf",
+      "sha256": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0",
+      "matches": true
+    },
+    {
+      "path": "dashboard.css",
+      "sha256": "2560466dca92e7ee3d370d097b7157755e608af0eccd2e2b6ef64ef2d2a43779",
+      "matches": true
+    },
+    {
+      "path": "dashboard.html",
+      "sha256": "873a70958519c9d715e73a434b4b62765992199c246bcfdf1cf970d493781b8c",
+      "matches": true
+    },
+    {
+      "path": "dashboard.js",
+      "sha256": "72ab5b4638d941c4435507b2e9f2e966d5e58c07f0006e610c8e09d8d1047494",
+      "matches": true
+    }
+  ]
+}

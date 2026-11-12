@@ -187,7 +187,7 @@ test('Issue preview and detail launch development by identity and reopen the act
   const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   document.querySelector('.issue-detail .codex-workflow-launch button').click(); await view.tick();
-  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'issue', projectId: 1, issueIid: 1, isolated: true });
+  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'issue', projectId: 1, issueIid: 1 });
   const task = linkedWorkflowTask('issue', { status: 'running' });
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
   const launch = document.querySelector('.issue-detail .codex-workflow-launch button'); assert.equal(launch.textContent, '查看開發任務');
@@ -202,22 +202,30 @@ test('Issue preview and detail launch development by identity and reopen the act
   assert.match(document.querySelector('.issue-embed .codex-workflow-launch details').textContent, /npm test.*exit 0/);
 });
 
-test('Issue launch preserves explicitly disabled worktree isolation in preview and detail', async t => {
-  const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] };
-  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const launchWithoutIsolation = async selector => {
-    const panel = document.querySelector(selector), checkbox = panel.querySelector('input[type="checkbox"]');
-    assert.equal(checkbox.checked, true); checkbox.click(); await view.tick();
+test('Issue preview and detail configure worktree isolation in the shared preparation step', async t => {
+  for (const location of ['preview', 'detail']) await t.test(location, async t => {
+    const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] };
+    const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+    const document = view.dom.window.document;
+    if (location === 'detail') {
+      view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+      view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
+    }
+    const panel = document.querySelector(`${location === 'preview' ? '.issue-detail' : '.issue-embed'} .codex-workflow-launch`);
+    assert.equal(panel.querySelector('input[type="checkbox"]'), null, 'preparation options have one authoritative editor');
     panel.querySelector('button').click(); await view.tick();
     const source = view.requests.findLast(request => request.type === 'startCodexTask').source;
-    assert.deepEqual(JSON.parse(JSON.stringify(source)), { kind: 'issue', projectId: 1, issueIid: 1, isolated: false });
-  };
-  await launchWithoutIsolation('.issue-detail .codex-workflow-launch');
-  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
-  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
-  await launchWithoutIsolation('.issue-embed .codex-workflow-launch');
-  assert.equal(view.requests.filter(request => request.type === 'startCodexTask').length, 2);
+    assert.deepEqual(JSON.parse(JSON.stringify(source)), { kind: 'issue', projectId: 1, issueIid: 1 });
+    const draft = codexLaunchFixture({ source });
+    view.send({ type: 'codexLaunchDraft', draft, open: true }); await view.tick();
+    const checkbox = document.querySelector('.codex-launch-checkbox input');
+    assert.equal(checkbox.checked, true); checkbox.click(); await view.tick();
+    document.querySelector('.codex-launch-actions button[type="button"]').click(); await view.tick();
+    const check = view.rawRequests.findLast(request => request.type === 'checkCodexLaunch');
+    assert.equal(check.draftId, draft.id); assert.equal(check.revision, draft.revision); assert.equal(check.patch.isolated, false);
+    assert.equal(view.requests.filter(request => request.type === 'startCodexTask').length, 1);
+    assert.equal(view.requests.some(request => request.type === 'submitCodexLaunch'), false, 'changing isolation never starts execution');
+  });
 });
 
 test('Project Wiki shows a safe preview and sends publication only after the explicit publish action', async t => {
@@ -253,7 +261,7 @@ test('Project Wiki shows a safe preview and sends publication only after the exp
   assert.equal(document.querySelector('.codex-wiki-preview'), null, 'another account cannot see the previous draft');
 });
 
-test('Wiki offers readable, source and exact change previews while filtering unchanged pages locally', async t => {
+test('Wiki opens native source and diff documents with scoped identity while filtering unchanged pages locally', async t => {
   const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
   const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'initial', summary: 'Ready' } });
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
@@ -263,11 +271,21 @@ test('Wiki offers readable, source and exact change previews while filtering unc
   ] } }); await view.tick();
   const document = view.dom.window.document, button = text => [...document.querySelectorAll('.codex-wiki-preview button')].find(item => item.textContent === text);
   assert.equal(document.querySelector('.codex-wiki-content h1').textContent, 'Overview');
-  button('Markdown 原文').click(); await view.tick(); assert.equal(document.querySelector('.codex-wiki-content pre').textContent, '# Overview\nnew');
-  button('檢視變更').click(); await view.tick();
-  assert.match(document.querySelector('.codex-diff-added').textContent, /new/); assert.match(document.querySelector('.codex-diff-removed').textContent, /old/);
+  for (const [label, mode] of [['在編輯器開啟 Markdown', 'source'], ['開啟差異', 'diff']]) {
+    button(label).click(); await view.tick();
+    assert.deepEqual(view.requests.findLast(item => item.type === 'openProjectWikiDocument'),
+      { type: 'openProjectWikiDocument', taskId: task.id, revision: 'preview', slug: 'codebase/index', mode });
+  }
+  const pages = () => [...document.querySelectorAll('.codex-wiki-pages button')];
+  assert.equal(pages().length, 2); pages()[1].click(); await view.tick();
+  assert.equal(document.querySelector('.codex-wiki-content h1').textContent, 'Same');
+  button('開啟差異').click(); await view.tick();
+  assert.equal(view.requests.findLast(item => item.type === 'openProjectWikiDocument').slug, 'codebase/same');
+  const requestCount = view.requests.length;
   document.querySelector('.codex-wiki-preview input[type="checkbox"]').click(); await view.tick();
-  assert.equal(document.querySelectorAll('.codex-wiki-preview select option').length, 1);
+  assert.equal(pages().length, 1); assert.match(pages()[0].textContent, /Overview/);
+  assert.equal(document.querySelector('.codex-wiki-content h1').textContent, 'Overview');
+  assert.equal(view.requests.length, requestCount, 'filtering pages is local');
   assert.equal(view.requests.some(item => item.type === 'publishProjectWiki'), false);
 });
 
@@ -394,7 +412,7 @@ test('persistent navigation exposes all eight modes, follows host navigation and
   const view = await mount({ mode: 'developer' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document, buttons = [...document.querySelectorAll('.mode-navigation button')];
-  assert.deepEqual(buttons.map(button => button.textContent), ['總覽', '我的工作', '專案', 'Skills', 'BMAD', '待審查', '版控', 'Codex']);
+  assert.deepEqual(buttons.map(button => button.textContent), ['總覽', '專案', '我的工作', '待審查', '版控', 'Codex', '工作流程']);
   const search = document.querySelector('input[aria-label="搜尋 Issue"]');
   search.value = 'Alpha'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   const before = view.requests.length;
@@ -434,11 +452,14 @@ test('persistent navigation stays outside Issue details and retains the comment 
   assert.equal(JSON.stringify(view.savedState.issueEditorDrafts), drafts);
 });
 
-test('the global scan sends one request, follows the host local destination and preserves its progress and retry', async t => {
+test('the project scan sends one request, follows the host local destination and preserves its progress and retry', async t => {
   const data = { ...snapshot('reviewer'), localOperationScope: 'local-scan', projectSource: 'gitlab' };
   const view = await mount({ mode: 'reviewer', projectSource: 'gitlab' }, data, {}, () => {}, { autoOperations: false });
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document, scan = () => document.querySelector('.repository-scan-trigger');
+  assert.equal(scan(), null, 'repository scans belong to the project page');
+  document.querySelector('.mode-navigation [data-mode="clone"]').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'setMode').mode, 'clone');
   assert.ok(scan().querySelector('.codicon-search'));
   const before = view.requests.length;
   scan().click(); scan().click(); await view.tick();
@@ -464,10 +485,10 @@ test('the global scan sends one request, follows the host local destination and 
   assert.equal(view.savedState.projectSource, 'local');
 });
 
-test('the global scan explains missing local folders while offline navigation remains available', async t => {
-  const data = { ...snapshot('dashboard'), connected: false, group: undefined, groupRoot: undefined, cloneRoot: undefined,
+test('the project scan explains missing local folders while offline navigation remains available', async t => {
+  const data = { ...snapshot('clone'), connected: false, group: undefined, groupRoot: undefined, cloneRoot: undefined,
     projectContext: { folders: [], revision: 'empty', manual: false, error: '請先開啟專案資料夾。' } };
-  const view = await mount({ mode: 'dashboard' }, data); t.after(() => view.dom.window.close());
+  const view = await mount({ mode: 'clone' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document, scan = document.querySelector('.repository-scan-trigger');
   assert.equal(scan.disabled, true);
   assert.match(document.getElementById(scan.getAttribute('aria-describedby')).textContent, /開啟專案資料夾/);
@@ -659,7 +680,7 @@ test('page entry describes its source and local refresh keeps Group controls and
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   assert.deepEqual(view.requests[0], { type: 'ready', projectSource: 'local', developerView: 'graph' });
-  assert.equal(document.querySelector('[aria-label="目前 Group"]'), null);
+  assert.equal(document.querySelector('.group-picker'), null);
   assert.equal(document.querySelector('.eyebrow').textContent, '本機工作區');
   assert.equal(view.requests.some(request => request.type === 'selectIssueBoard' || request.type === 'loadIssueGraph'), false);
   [...document.querySelectorAll('.heading-actions button')].find(button => button.textContent === '更新資料').click();
@@ -669,12 +690,15 @@ test('page entry describes its source and local refresh keeps Group controls and
   [...document.querySelectorAll('.project-tabs button')].find(button => button.textContent === 'GitLab 專案').click();
   await view.tick();
   assert.deepEqual(view.requests.findLast(request => request.type === 'setProjectSource'), { type: 'setProjectSource', source: 'gitlab' });
-  assert.ok(document.querySelector('[aria-label="目前 Group"]'));
+  const groupPicker = document.querySelector('button.group-picker');
+  assert.equal(groupPicker.textContent, data.group.full_path);
+  groupPicker.click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'selectGroup'), { type: 'selectGroup' });
   [...document.querySelectorAll('.project-tabs button')].find(button => button.textContent === '本機 Repo').click();
   await view.tick();
   view.sendSnapshot({ ...data, connectedScope: 'another-group', group: data.groups[1] }); await view.tick();
   assert.equal(view.savedState.projectSource, 'local');
-  assert.equal(document.querySelector('[aria-label="目前 Group"]'), null);
+  assert.equal(document.querySelector('.group-picker'), null);
 });
 
 test('local tools remain independent of Group and do not lazily read hidden remote content', async t => {
@@ -684,7 +708,7 @@ test('local tools remain independent of Group and do not lazily read hidden remo
     data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } } };
     const view = await mount({ mode, developerView: 'graph', issueBoardId: 31 }, data);
     t.after(() => view.dom.window.close());
-    assert.equal(view.dom.window.document.querySelector('[aria-label="目前 Group"]'), null, mode);
+    assert.equal(view.dom.window.document.querySelector('.group-picker'), null, mode);
     assert.equal(view.requests.some(request => ['selectIssueBoard', 'loadIssueGraph', 'loadMergeRequestSection', 'loadIssueRelations'].includes(request.type)), false, mode);
   }
 });
@@ -959,7 +983,7 @@ test('responsiveness: large Git refs, changed files and short-line diffs keep bo
   const document = view.dom.window.document;
   assert.ok(document.querySelectorAll('.git-ref-row').length < 100);
   assert.ok(document.querySelectorAll('.git-change-row').length < 100);
-  document.querySelector('.git-change-name').click(); await view.tick();
+  document.querySelector('[aria-label^="部分暫存預覽 "]').click(); await view.tick();
   const read = gitActions(view, 'readDiff').at(-1);
   await finishGit(view, read, { revision: 2, branches, changes, diffPath: read.action.path, diffStaged: false, diffText: '+short\n context\n'.repeat(2500) });
   assert.ok(document.querySelectorAll('.git-diff-line').length < 100);
@@ -1061,7 +1085,7 @@ test('Issue and MR selections respond before host data and ignore old busy clear
   const document = view.dom.window.document;
   const rows = document.querySelectorAll('.work-row'); rows[0].click(); rows[1].click(); await view.tick();
   assert.match(document.querySelector('.work-row.selected').textContent, /Beta milestone/);
-  assert.equal(view.requests.filter(request => request.type === 'selectIssue').length, 2);
+  assert.equal(view.requests.filter(request => request.type === 'openIssue').length, 2);
   const refresh = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === '更新資料');
   refresh.click(); await view.tick();
   assert.match(document.querySelector('.workspace-operation-area').textContent, /更新目前頁面/);
@@ -1441,7 +1465,7 @@ function gitSnapshot(id = 'repo-a', patch = {}) {
     stashes: [], recoveryRefs: [], remotes: ['origin'],
     changes: [{ path: 'service.ts', section: 'unstaged', kind: '已修改' }, { path: 'service.ts', section: 'staged', kind: '已修改' }],
     history: [{ hash: gitHead, parents: [gitParent, gitSide], subject: 'Merge feature', author: 'Dennis', date: '2026-10-08T00:00:00Z' }, { hash: gitSide, parents: [gitParent], subject: 'Add feature', author: 'Tester', date: '2026-10-07T00:00:00Z' }, { hash: gitParent, parents: [], subject: 'Initial commit', author: 'Dennis', date: '2026-10-06T00:00:00Z' }],
-    historyHasMore: false, configuredPullStrategy: 'merge', revision: 1, ...patch
+    historyHasMore: false, configuredPullStrategy: 'merge', commitState: 'd'.repeat(64), revision: 1, ...patch
   };
 }
 async function mountGit(t, storage = {}, data = gitSnapshot(), beforeMount = () => {}) {
@@ -1459,6 +1483,39 @@ async function mountGit(t, storage = {}, data = gitSnapshot(), beforeMount = () 
   return view;
 }
 function gitActions(view, type) { return view.requests.filter((request) => request.type === 'gitAction' && (!type || request.action.type === type)); }
+
+test('Git primary files open native Diff and Fetch runs immediately for one explicit remote', async t => {
+  const view = await mountGit(t), document = view.dom.window.document;
+  document.querySelector('.git-change-name').click(); await view.tick();
+  const diff = view.requests.findLast(request => request.type === 'gitOpenDiff');
+  assert.equal(diff.repositoryId, 'repo-a'); assert.equal(diff.path, 'service.ts'); assert.equal(diff.staged, false);
+  assert.equal(gitActions(view, 'readDiff').length, 0);
+  document.querySelector('.git-fetch').click(); await view.tick();
+  assert.equal(gitActions(view, 'fetch').length, 1); assert.equal(gitActions(view, 'fetch')[0].action.remote, 'origin');
+  assert.equal(view.requests.filter(request => request.type === 'gitPickRemote').length, 0);
+  assert.equal(document.querySelector('.git-dialog'), null);
+});
+
+test('Git multiple-remotes Fetch uses a correlated native picker and cancellation does not write', async t => {
+  const view = await mountGit(t, {}, gitSnapshot('repo-a', { remotes: ['origin', 'upstream'] })), document = view.dom.window.document;
+  document.querySelector('.git-fetch').click(); await view.tick();
+  const first = view.requests.findLast(request => request.type === 'gitPickRemote'); assert.ok(first.requestId);
+  assert.equal(gitActions(view, 'fetch').length, 0);
+  view.send({ type: 'gitRemoteSelected', repositoryId: 'repo-a', requestId: first.requestId }); await view.tick();
+  assert.equal(gitActions(view, 'fetch').length, 0);
+  document.querySelector('.git-fetch').click(); await view.tick();
+  const current = view.requests.findLast(request => request.type === 'gitPickRemote');
+  view.send({ type: 'gitRemoteSelected', repositoryId: 'repo-a', requestId: first.requestId, remote: 'origin' }); await view.tick();
+  assert.equal(gitActions(view, 'fetch').length, 0);
+  view.send({ type: 'gitRemoteSelected', repositoryId: 'repo-a', requestId: current.requestId, remote: 'upstream' }); await view.tick();
+  assert.equal(gitActions(view, 'fetch').length, 1); assert.equal(gitActions(view, 'fetch')[0].action.remote, 'upstream');
+});
+function selectGitRepository(view, repositoryId) {
+  view.dom.window.document.querySelector('.git-repo-picker').click();
+  const request = view.requests.findLast(item => item.type === 'gitPickRepository');
+  assert.ok(request, 'Repo uses native Quick Pick');
+  view.send({ type: 'gitRepositorySelected', requestId: request.requestId, repositoryId });
+}
 async function finishGit(view, request, patch = {}) {
   view.send({ type: 'gitSnapshot', requestId: request.requestId, snapshot: gitSnapshot(request.repoId, patch) });
   view.send({ type: 'gitActionResult', requestId: request.requestId, commitCompleted: patch.commitCompleted });
@@ -1493,11 +1550,11 @@ test('Git synchronous Host replies settle initial open, refresh and confirmed wr
   for (let attempt = 0; attempt < 40 && !gitActions(view, 'open').length; attempt++) await view.tick();
   await view.tick();
   assert.equal(gitActions(view, 'open').length, 1);
-  assert.equal(document.querySelector('.git-branch-picker select').value, 'main', 'the initial synchronous snapshot is accepted');
+  assert.equal(document.querySelector('.git-branch-picker span:last-child').textContent.replace(' ▾', ''), 'main', 'the initial synchronous snapshot is accepted');
   assert.equal(document.querySelector('.git-refresh').disabled, false, 'initial open does not restore stale reading state');
   document.querySelector('.git-refresh').click(); await view.tick();
   assert.equal(gitActions(view, 'refresh').length, 1);
-  assert.equal(document.querySelector('.git-branch-picker select').value, 'refreshed');
+  assert.equal(document.querySelector('.git-branch-picker span:last-child').textContent.replace(' ▾', ''), 'refreshed');
   assert.equal(document.querySelector('.git-refresh').disabled, false, 'a synchronous refresh finishes reading');
   failNext = 'refresh'; document.querySelector('.git-refresh').click(); await view.tick();
   assert.match(document.querySelector('.git-error').textContent, /Synchronous bridge unavailable/);
@@ -1604,7 +1661,7 @@ for (const status of ['failed', 'cancelled']) test(`Git initial open ${status} s
   await finishGit(view, retry, { revision: 3, branch: 'current-branch' });
   view.receipt(retry, { status: 'succeeded', effect: 'none', correlationId: retry.requestId }); await view.tick();
   assert.equal(document.querySelector('.git-empty-state'), null);
-  assert.equal(document.querySelector('.git-branch-picker select').value, 'current-branch');
+  assert.equal(document.querySelector('.git-branch-picker span:last-child').textContent.replace(' ▾', ''), 'current-branch');
   assert.equal(document.querySelector('.git-refresh').disabled, false);
   assert.equal(document.querySelector('.git-status-message .spinner'), null);
   assert.equal(document.querySelector('.git-error'), null);
@@ -1640,13 +1697,13 @@ for (const action of ['open', 'refresh']) test(`Git global retry rebuilds the ${
     'the earlier terminal cannot release the retry owner');
   await finishGit(view, retry, { revision: 3, branch: 'recovered-through-global-retry' });
   view.receipt(retry, { status: 'succeeded', effect: 'none', correlationId: retry.requestId }); await view.tick();
-  assert.equal(document.querySelector('.git-branch-picker select').value, 'recovered-through-global-retry', 'the retried snapshot reaches its domain consumer');
+  assert.equal(document.querySelector('.git-branch-picker span:last-child').textContent.replace(' ▾', ''), 'recovered-through-global-retry', 'the retried snapshot reaches its domain consumer');
   assert.equal(document.querySelector('.git-refresh').disabled, false);
   assert.equal(document.querySelector('.git-status-message .spinner'), null);
   assert.equal(document.querySelector('.git-error'), null);
 });
 
-test('Git refs read commit details; historical files open central Diff and merge parents remain explicit', async (t) => {
+test('Git refs read commit details; historical files open native Diff and merge parents remain explicit', async (t) => {
   const view = await mountGit(t);
   const document = view.dom.window.document;
   [...document.querySelectorAll('.git-ref-name')].find((button) => button.textContent.includes('feature')).click();
@@ -1658,13 +1715,10 @@ test('Git refs read commit details; historical files open central Diff and merge
   assert.ok(document.querySelector('.git-commit-list'));
   document.querySelector('.git-commit-files button').click();
   await view.tick();
-  const diffRequest = gitActions(view, 'readDiff').at(-1);
-  assert.equal(diffRequest.action.ref, gitSide);
-  await finishGit(view, diffRequest, { revision: 3, selectedCommit: selected, selectedCommitParent: gitParent, commitFiles: ['service.ts'], diffPath: 'service.ts', diffStaged: false, diffRef: gitSide, diffParent: gitParent, diffText: 'diff --git a/service.ts b/service.ts\n+feature' });
-  assert.ok(document.querySelector('.git-center .git-diff-view'));
-  assert.equal(document.querySelector('.git-commit-list'), null);
-  assert.equal(document.querySelectorAll('.git-diff-line input').length, 0, 'historical Diff cannot be staged');
-  document.querySelector('.git-back-graph').click(); await view.tick();
+  const diffRequest = view.requests.findLast(item => item.type === 'gitOpenDiff');
+  assert.equal(diffRequest.ref, gitSide); assert.equal(diffRequest.parent, gitParent);
+  assert.equal(document.querySelector('.git-center .git-diff-view'), null);
+  assert.ok(document.querySelector('.git-commit-list'), 'native editor preserves graph context');
   document.querySelector('.git-commit-row:not(.git-wip-row)').click(); await view.tick();
   await finishGit(view, gitActions(view, 'readCommit').at(-1), { revision: 4, selectedCommit: gitSnapshot().history[0], selectedCommitParent: gitParent, commitFiles: ['service.ts'] });
   const parent = document.querySelector('select[aria-label="比較 Parent"]');
@@ -1684,18 +1738,18 @@ test('Git refs read commit details; historical files open central Diff and merge
 test('Git repeated selection shares reads, staged/unstaged paths differ, and stale replies cannot replace the latest selection', async (t) => {
   const view = await mountGit(t);
   const document = view.dom.window.document;
-  for (let i = 0; i < 20; i++) document.querySelectorAll('.git-change-name')[0].click();
+  for (let i = 0; i < 20; i++) document.querySelectorAll('[aria-label^="部分暫存預覽 "]')[0].click();
   await view.tick();
   assert.equal(gitActions(view, 'readDiff').length, 1);
   const first = gitActions(view, 'readDiff').at(-1);
-  document.querySelectorAll('.git-change-name')[1].click(); await view.tick();
+  document.querySelectorAll('[aria-label^="部分暫存預覽 "]')[1].click(); await view.tick();
   const second = gitActions(view, 'readDiff').at(-1);
   assert.equal(second.action.staged, true);
   await finishGit(view, first, { revision: 2, diffPath: 'service.ts', diffStaged: false, diffText: '+obsolete' });
   assert.doesNotMatch(document.querySelector('.git-center').textContent, /obsolete/);
   await finishGit(view, second, { revision: 3, diffPath: 'service.ts', diffStaged: true, diffText: '+current' });
   assert.match(document.querySelector('.git-diff-view').textContent, /current/);
-  for (let i = 0; i < 20; i++) document.querySelectorAll('.git-change-name')[1].click();
+  for (let i = 0; i < 20; i++) document.querySelectorAll('[aria-label^="部分暫存預覽 "]')[1].click();
   await view.tick();
   assert.equal(gitActions(view, 'readDiff').length, 2, 'resolved same selection also uses its result');
   document.querySelector('.git-back-graph').click(); await view.tick();
@@ -1744,8 +1798,7 @@ test('interactive Rebase preserves edited order, actions and messages until its 
 test('Git Repo reopening sends a fresh request after switching away from a pending open', async (t) => {
   const view = await mountGit(t);
   const document = view.dom.window.document;
-  const picker = document.querySelector('.git-repo-picker select');
-  const select = async (id) => { picker.value = id; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick(); };
+  const select = async (id) => { selectGitRepository(view, id); await view.tick(); };
   await select('repo-b');
   const cancelled = gitActions(view, 'open').at(-1);
   await select('repo-a'); await select('repo-b');
@@ -1753,7 +1806,7 @@ test('Git Repo reopening sends a fresh request after switching away from a pendi
   assert.notEqual(reopened.requestId, cancelled.requestId, 'a pending open from an earlier panel lifetime must not suppress reopening');
   await finishGit(view, cancelled, { revision: 2, branch: 'obsolete' });
   await finishGit(view, reopened, { revision: 3, branch: 'fresh', branches: [{ name: 'fresh', kind: 'local', current: true, commit: gitHead }] });
-  assert.equal(document.querySelector('.git-branch-picker select').value, 'fresh');
+  assert.equal(document.querySelector('.git-branch-picker span:last-child').textContent.replace(' ▾', ''), 'fresh');
   assert.equal(document.querySelector('.git-progress'), null);
 });
 
@@ -1771,11 +1824,10 @@ test('Git drafts migrate and remain per Repo; failed or cancelled commits preser
   submit(); await view.tick();
   await finishGit(view, gitActions(view, 'commit').at(-1), { revision: 2, headCommit: 'c'.repeat(40), commitCompleted: false });
   assert.equal(text().value, 'Migrated draft', 'cancelled confirmation preserves the draft even if another process changes HEAD');
-  const picker = document.querySelector('.git-repo-picker select');
-  picker.value = 'repo-b'; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  selectGitRepository(view, 'repo-b'); await view.tick();
   await finishGit(view, gitActions(view, 'open').at(-1));
   text().value = 'Tools draft'; text().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  picker.value = 'repo-a'; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  selectGitRepository(view, 'repo-a'); await view.tick();
   await finishGit(view, gitActions(view, 'open').at(-1), { revision: 3 });
   assert.equal(text().value, 'Migrated draft');
   submit(); await view.tick();
@@ -1803,7 +1855,7 @@ test('Git restores historical file context, paginates with bounded rows, and han
   document.querySelector('.git-back-graph').click(); await view.tick();
   const many = Array.from({ length: 200 }, (_, i) => ({ hash: i.toString(16).padStart(40, '0'), parents: i < 199 ? [(i + 1).toString(16).padStart(40, '0')] : [], author: 'Tester', date: '2026-10-08T00:00:00Z', subject: `Commit ${i}` }));
   view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 4, history: many, historyHasMore: true, branch: undefined, headCommit: many[0].hash, branches: [] }) }); await view.tick();
-  assert.equal(document.querySelector('.git-branch-picker select').textContent, 'Detached HEAD');
+  assert.equal(document.querySelector('.git-branch-picker span:last-child').textContent.replace(' ▾', ''), 'Detached HEAD');
   assert.match(document.querySelector('.git-commit-row:not(.git-wip-row) .git-commit-refs').textContent, /HEAD/);
   assert.ok(document.querySelectorAll('.git-commit-row').length < 40, 'history is virtualized');
   document.querySelector('.git-load-more').click(); await view.tick();
@@ -1887,7 +1939,7 @@ test('offline Dashboard keeps local Repo and tool entry points available without
     workflowKit: { status: 'missing' }, workflowKitInstallTarget: { root: 'C:/workspace/team', manual: false, state: { status: 'missing' } } });
   const view = await mount({ mode: 'dashboard' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  assert.match(document.querySelector('.page-heading h1').textContent, /Dashboard/);
+  assert.equal(document.querySelector('.page-heading h1').textContent, '總覽');
   assert.match(document.querySelector('.local-projects-card').textContent, /service/);
   assert.match(document.querySelector('.home-tool-card').textContent, /Git 版控.*Skills.*BMAD/s);
   assert.match(document.querySelector('.home-gitlab-card').textContent, /尚未連線/);
@@ -2618,6 +2670,10 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
     postMessage: (message) => {
       const { operationId, operationScope, uiIntentId, hostNavigationGeneration, ...payload } = message;
       requests.push(payload); rawRequests.push(message);
+      // The native picker is outside this DOM fixture; choose its tools item explicitly.
+      if (message.type === 'pickWorkbenchControl' && message.kind === 'tools') queueMicrotask(() => {
+        dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'openSettings' } }));
+      });
       if (['loadCodexUiDrafts', 'saveCodexUiDrafts'].includes(message.type) && options.autoDrafts !== false) queueMicrotask(() => {
         const scope = draftScope(), entries = draftStores.get(scope) ?? new Map(), conflicts = draftConflicts.get(scope) ?? [];
         draftStores.set(scope, entries); draftConflicts.set(scope, conflicts);
@@ -2706,7 +2762,7 @@ test('Git defaults to VS Code when layout storage is missing, invalid or unavail
     t.after(() => view.dom.window.close());
     const document = view.dom.window.document;
     assert.equal(document.querySelector('.git-workbench').dataset.theme, 'vscode');
-    assert.equal(document.querySelector('.git-theme-picker').value, 'vscode');
+    assert.equal(document.querySelector('.git-theme-picker'), null);
     await view.tick();
     assert.equal(view.savedState.gitUi.layout.theme, 'vscode');
     if (item.name === 'invalid restored theme') {
@@ -2716,23 +2772,19 @@ test('Git defaults to VS Code when layout storage is missing, invalid or unavail
   });
 });
 
-test('Git preserves saved themes and restores a manual choice after reopening', async (t) => {
+test('Git migrates saved themes to VS Code while retaining pane widths after reopening', async (t) => {
   const key = 'gitlab-workspace.git-layout.v1';
   for (const theme of ['dark', 'vscode']) {
     const view = await mount({ mode: 'git' }, snapshot('git'), { [key]: { theme, left: 240, right: 350 } });
     t.after(() => view.dom.window.close());
     const document = view.dom.window.document;
-    const picker = document.querySelector('.git-theme-picker');
-    assert.equal(picker.value, theme);
-    const next = theme === 'dark' ? 'vscode' : 'dark';
-    picker.value = next;
-    picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+    assert.equal(document.querySelector('.git-theme-picker'), null);
     await view.tick();
-    assert.equal(document.querySelector('.git-workbench').dataset.theme, next);
-    assert.equal(JSON.parse(view.dom.window.localStorage.getItem(key)).theme, next);
+    assert.equal(document.querySelector('.git-workbench').dataset.theme, 'vscode');
+    assert.equal(JSON.parse(view.dom.window.localStorage.getItem(key)).theme, 'vscode');
     const reopened = await mount(view.savedState, snapshot('git'), { [key]: { theme } });
     t.after(() => reopened.dom.window.close());
-    assert.equal(reopened.dom.window.document.querySelector('.git-theme-picker').value, next, 'restored view state takes precedence over older local storage');
+    assert.equal(reopened.dom.window.document.querySelector('.git-workbench').dataset.theme, 'vscode');
     assert.equal(reopened.savedState.gitUi.layout.left, 240);
     assert.equal(reopened.savedState.gitUi.layout.right, 350);
   }
@@ -2797,7 +2849,7 @@ test('partial graphs expose escaped failure details, force both retry paths and 
   assert.equal(document.querySelectorAll('.graph-edge').length, 1);
 });
 
-test('account menu supports selecting saved identities, logging in, adding and removing accounts', async (t) => {
+test('account header delegates to the native picker and account management preserves identity actions', async (t) => {
   const data = snapshot();
   data.activeAccountId = 'first';
   data.accounts = [
@@ -2808,23 +2860,25 @@ test('account menu supports selecting saved identities, logging in, adding and r
   const view = await mount({ mode: 'developer' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const buttons = [...document.querySelectorAll('.saved-account-select')];
+  document.querySelector('button.account-menu').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'pickWorkbenchControl'), { type: 'pickWorkbenchControl', kind: 'account' });
+  assert.equal(document.querySelector('.account-card'), null, 'the header does not duplicate native account choices');
+  view.send({ type: 'openAccountManager', intent: { id: 'manage', startLogin: false } }); await view.tick();
+  assert.equal(document.querySelectorAll('.account-card').length, 3);
+  const buttons = [...document.querySelectorAll('.account-card .button-row button:first-child')];
   assert.equal(buttons[0].disabled, true);
-  assert.match(buttons[1].textContent, /second-user.*gitlab.example.test.*已保存/s);
-  assert.match(buttons[2].textContent, /other.example.test.*需重新登入/s);
+  assert.match(document.querySelectorAll('.account-card')[1].textContent, /second-user.*gitlab.example.test/s);
+  assert.match(document.querySelectorAll('.account-card')[2].textContent, /other.example.test.*需重新登入/s);
   buttons[1].click();
   assert.equal(view.requests.at(-1).type, 'switchAccount');
   assert.equal(view.requests.at(-1).accountId, 'second');
   await view.tick(); buttons[2].click();
   assert.equal(view.requests.at(-1).type, 'addAccount');
   assert.equal(view.requests.at(-1).accountId, 'third');
-  await view.tick(); [...document.querySelectorAll('.account-manager button')].find(button => button.textContent.includes('新增 GitLab 帳號')).click();
+  await view.tick(); document.querySelector('.accounts-heading button').click();
   assert.equal(view.requests.at(-1).type, 'addAccount');
   assert.equal(view.requests.at(-1).accountId, undefined);
-  [...document.querySelectorAll('.account-manager button')].find(button => button.textContent === '管理帳號與連線').click();
-  assert.equal(view.requests.at(-1).type, 'openAccountManager');
-  view.send({ type: 'openAccountManager', intent: { id: 'manage', startLogin: false } }); await view.tick();
-  assert.equal(document.querySelectorAll('.account-card').length, 3);
+  await view.tick();
   document.querySelector('button[aria-label="移除 Second 帳號"]').click();
   assert.equal(view.requests.at(-1).type, 'removeAccount');
   await view.tick(); document.querySelector('button[aria-label="登出 First 帳號"]').click();
@@ -2852,7 +2906,7 @@ test('opening Output keeps the active Repo, selected file and commit draft', asy
   const document = view.dom.window.document;
   const draft = document.querySelector('.git-commit-composer textarea');
   draft.value = 'Keep this commit draft'; draft.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  document.querySelector('.git-change-name').click(); await view.tick();
+  document.querySelector('[aria-label^="部分暫存預覽 "]').click(); await view.tick();
   const before = structuredClone(view.savedState.gitUi);
   const requestCount = view.requests.length;
   document.querySelector('.notifications-trigger').click(); await view.tick();
@@ -2910,8 +2964,8 @@ test('Issue preview reports loading and retry states while the work list stays v
   const view = await mount({ mode: 'developer' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  document.querySelectorAll('.work-row')[0].click();
-  document.querySelectorAll('.work-row')[1].click();
+  document.querySelectorAll('.quick-issue-preview')[0].click();
+  document.querySelectorAll('.quick-issue-preview')[1].click();
   assert.equal(view.requests.filter(request => request.type === 'selectIssue').at(-1).issueIid, 2);
   assert.equal(view.requests.some(request => request.type === 'openIssue'), false);
   const selected = { issue: { ...data.issues[1], description: 'Preview body', assignees: [{ id: 7, name: 'Test User', username: 'test-user' }] }, project: data.projects[1] };
@@ -3025,7 +3079,8 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   const view = await mount({ mode: 'sa' }, selectedGroup);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  assert.equal(document.querySelector('.page-heading h1').textContent, 'Skills 功能指引');
+  assert.equal(document.querySelector('.page-heading h1').textContent, '工作流程');
+  assert.equal(document.querySelector('#workflow-tab-sa').getAttribute('aria-selected'), 'true');
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-query');
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
@@ -3390,106 +3445,33 @@ test('release guide retains multiple field inputs dispatched before the next rep
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
 });
 
-test('reviewer branch replies correlate requests across Repo switches, retries and workspace revisions', async t => {
-  for (const [tool, card] of [['merge-reviewer', 'merge-repo'], ['release-reviewer', 'release-review']]) {
-    await t.test(tool, async t => {
-      const data = snapshot('sa');
-      data.connected = false;
-      data.group = undefined;
-      setSkillsContext(data);
-      const repositories = [
-        { name: 'alpha', path: 'C:/workspace/team/alpha' },
-        { name: 'beta', path: 'C:/workspace/team/beta' }
-      ];
-      data.skillsContext.reviewerRepositories = repositories;
-      const view = await mount({ mode: 'sa' }, data); t.after(() => view.dom.window.close());
-      const document = view.dom.window.document;
-      selectSkillTool(document, tool); await view.tick();
-      const reads = () => view.requests.filter(request => request.type === 'loadSkillBranches');
-      const choose = async repo => {
-        const select = document.getElementById(`wiki-input-${card}.repo`);
-        assert.equal(select.tagName, 'SELECT');
-        select.value = repo;
-        select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-        await view.tick();
-        return reads().at(-1);
-      };
-      const reply = async (request, branches, patch = {}) => {
-        view.send({ ...request, type: 'skillBranches', branches, ...patch });
-        await view.tick();
-      };
-      const branchOptions = async () => {
-        const input = document.getElementById(`wiki-input-${card}.base`);
-        input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
-        await view.tick();
-        return [...document.querySelectorAll('[role="listbox"] [role="option"]')].map(option => option.textContent);
-      };
-      assert.equal(reads().length, 0, 'multiple Repo candidates require an explicit selection');
-      const firstA = await choose(repositories[0].path);
-      const firstB = await choose(repositories[1].path);
-      const currentA = await choose(repositories[0].path);
-      assert.equal(reads().length, 3, 'each actual Repo change starts a fresh read without GitLab connectivity');
-      for (const request of [firstA, firstB, currentA]) {
-        assert.ok(request.requestId, 'each read has a correlation ID');
-        assert.equal(request.revision, data.skillsContext.revision);
-      }
-      assert.equal(new Set([firstA.requestId, firstB.requestId, currentA.requestId]).size, 3);
-      await reply(firstA, ['stale/first-a']);
-      await reply(firstB, ['stale/first-b']);
-      assert.deepEqual(await branchOptions(), [], 'A → B → A cannot accept either earlier reply');
-      await reply(currentA, ['origin/current-a', 'feature/current-a']);
-      assert.deepEqual(await branchOptions(), ['origin/current-a', 'feature/current-a']);
-      await reply(currentA, ['stale/wrong-repo'], { repo: repositories[1].path });
-      await reply(currentA, ['stale/wrong-revision'], { revision: 'obsolete-workspace-revision' });
-      assert.deepEqual(await branchOptions(), ['origin/current-a', 'feature/current-a'], 'matching request ID also requires its Repo and workspace revision');
-
-      const base = document.getElementById(`wiki-input-${card}.base`);
-      const head = document.getElementById(`wiki-input-${card}.head`);
-      for (const [input, value] of [[base, 'origin/main'], [head, 'feature/manual']]) {
-        input.value = value;
-        input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-      }
-      await view.tick();
-      document.querySelector('.skills-branch-refresh').click(); await view.tick();
-      const retryA = reads().at(-1);
-      assert.notEqual(retryA.requestId, currentA.requestId, 'same-Repo refresh starts a distinct request');
-      assert.equal(base.value, 'origin/main');
-      assert.equal(head.value, 'feature/manual');
-      await reply(currentA, ['stale/before-refresh']);
-      assert.equal(document.querySelector('.skills-branch-refresh').disabled, true, 'an older response cannot finish the refresh');
-      await reply(retryA, [], { error: 'Branch read failed' });
-      assert.match(document.querySelector('.skills-branch-status').textContent, /Branch read failed/);
-      assert.equal(document.querySelector('.wiki-copy-button').disabled, false, 'manual branches remain usable after a list error');
-      document.querySelector('.skills-branch-refresh').click(); await view.tick();
-      const recoveryA = reads().at(-1);
-      assert.notEqual(recoveryA.requestId, retryA.requestId);
-      await reply(recoveryA, ['origin/recovered']);
-      assert.doesNotMatch(document.querySelector('.skills-branch-status')?.textContent ?? '', /Branch read failed/);
-
-      const nextData = structuredClone(data);
-      nextData.skillsContext.revision += '-next';
-      view.sendSnapshot(nextData); await view.tick();
-      const nextRevision = reads().at(-1);
-      assert.equal(nextRevision.revision, nextData.skillsContext.revision);
-      assert.notEqual(nextRevision.requestId, recoveryA.requestId);
-      await reply(recoveryA, ['stale/old-workspace']);
-      assert.equal(document.querySelector('.skills-branch-refresh').disabled, true, 'old-workspace replies cannot complete the new read');
-      await reply(nextRevision, ['origin/next-workspace']);
-      assert.equal(document.querySelector('.skills-branch-refresh').disabled, false);
-      assert.equal(document.getElementById(`wiki-input-${card}.base`).value, 'origin/main', 'workspace refresh retains the draft branches');
-      assert.equal(document.getElementById(`wiki-input-${card}.head`).value, 'feature/manual');
-      assert.ok(!document.querySelector('.wiki-guide-card').textContent.includes('stale/'));
-      const nextScope = { ...nextData, operationScope: 'reconnected-same-skills' };
-      view.sendSnapshot(nextScope); await view.tick();
-      const scopeRead = reads().at(-1);
-      assert.equal(scopeRead.revision, nextRevision.revision);
-      assert.notEqual(scopeRead.requestId, nextRevision.requestId, 'changing only operation scope reloads the retained Repo');
-      await reply(nextRevision, ['stale/old-operation-scope']);
-      assert.equal(document.querySelector('.skills-branch-refresh').disabled, true);
-      await reply(scopeRead, ['origin/reconnected']);
-      assert.equal(document.querySelector('.skills-branch-refresh').disabled, false);
-    });
-  }
+test('reviewer native branch picks preserve manual edits and correlate field, Repo and workspace revision', async t => {
+  for (const [tool, card] of [['merge-reviewer', 'merge-repo'], ['release-reviewer', 'release-review']]) await t.test(tool, async t => {
+    const data = snapshot('sa'); data.connected = false; data.group = undefined; setSkillsContext(data);
+    const repos = [{ name: 'alpha', path: 'C:/workspace/team/alpha' }, { name: 'beta', path: 'C:/workspace/team/beta' }];
+    data.skillsContext.reviewerRepositories = repos;
+    const view = await mount({ mode: 'sa' }, data); t.after(() => view.dom.window.close());
+    const document = view.dom.window.document; selectSkillTool(document, tool); await view.tick();
+    const input = field => document.getElementById('wiki-input-' + card + '.' + field);
+    const chooseRepo = async repo => { input('repo').value = repo; input('repo').dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick(); };
+    const pick = async (field = 'base') => { input(field).closest('.skills-branch-input').querySelector('button').click(); await view.tick(); return view.requests.findLast(r => r.type === 'pickSkillBranch'); };
+    const reply = async (request, branch, patch = {}) => { view.send({ ...request, type: 'skillBranchSelected', branch, ...patch }); await view.tick(); };
+    const type = async (field, value) => { input(field).value = value; input(field).dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
+    await chooseRepo(repos[0].path); const first = await pick();
+    await chooseRepo(repos[1].path); const second = await pick();
+    await chooseRepo(repos[0].path); const current = await pick();
+    assert.equal(view.requests.filter(r => r.type === 'loadSkillBranches').length, 0, 'form navigation never reads a full branch list');
+    assert.equal(document.querySelector('[role="listbox"]'), null);
+    await reply(first, 'stale-first'); await reply(second, 'stale-second'); assert.equal(input('base').value, '');
+    await reply(current, 'wrong-field', { field: card + '.head' });
+    await reply(current, 'wrong-repo', { repo: repos[1].path }); await reply(current, 'wrong-root', { revision: 'obsolete' }); assert.equal(input('base').value, '');
+    await reply(current, 'origin/main'); assert.equal(input('base').value, 'origin/main');
+    const edited = await pick(); await type('base', 'typed-new'); await reply(edited, 'stale-edited'); assert.equal(input('base').value, 'typed-new');
+    const cancelled = await pick(); await reply(cancelled, undefined); assert.equal(input('base').value, 'typed-new');
+    const old = await pick(), nextData = structuredClone(data); nextData.skillsContext.revision += '-next';
+    view.sendSnapshot(nextData); await view.tick(); await reply(old, 'stale-revision'); assert.equal(input('base').value, 'typed-new');
+    const fresh = await pick('head'); await reply(fresh, 'feature/current'); assert.equal(input('head').value, 'feature/current'); assert.equal(input('base').value, 'typed-new');
+  });
 });
 
 test('MR branch review keeps the selected workspace Repo and carried branches in preview and copy inputs', async t => {
@@ -3513,7 +3495,7 @@ test('MR branch review keeps the selected workspace Repo and carried branches in
   view.send({ type: 'branchReviewReady', revision: data.skillsContext.revision, inputs }); await view.tick();
   assert.equal(selectedSkillTool(document), 'merge-reviewer');
   for (const [key, value] of Object.entries(inputs)) assert.equal(document.getElementById(`wiki-input-${key}`).value, value);
-  assert.equal(view.requests.findLast(request => request.type === 'loadSkillBranches').repo, inputs['merge-repo.repo']);
+  assert.equal(view.requests.filter(request => request.type === 'loadSkillBranches').length, 0, 'carried branches need no background list read');
   assert.ok(document.querySelector('.wiki-prompt-preview').textContent.includes('--project "C:/workspace/team/beta"'));
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true, 'MR branches still require the existing explicit confirmation');
   [...document.querySelectorAll('.wiki-guide-card button')].find(button => button.textContent === '確認使用分支審查').click(); await view.tick();
@@ -3525,36 +3507,17 @@ test('MR branch review keeps the selected workspace Repo and carried branches in
   for (const [key, value] of Object.entries(inputs)) assert.equal(copy.inputs[key], value);
 });
 
-test('reviewer branch preflight failures settle only the current read and expose retry', async t => {
-  for (const status of ['failed', 'cancelled']) await t.test(status, async t => {
-    const data = snapshot('sa');
-    setSkillsContext(data);
-    data.skillsContext.reviewerRepositories = [{ name: 'alpha', path: 'C:/workspace/team/alpha' }];
-    const view = await mount({ mode: 'sa' }, data, {}, () => {}, { autoOperations: false });
-    t.after(() => view.dom.window.close());
-    const document = view.dom.window.document;
-    selectSkillTool(document, 'release-reviewer'); await view.tick();
-    const reads = () => view.rawRequests.filter(request => request.type === 'loadSkillBranches');
-    const first = reads().at(-1);
-    assert.ok(first?.operationId);
-    const refresh = () => document.querySelector('.skills-branch-refresh');
-    view.receipt({ ...first, operationId: 'unrelated-branch-operation' }, { status, error: 'Unrelated failure' }); await view.tick();
-    assert.equal(refresh().disabled, true, 'an unrelated terminal receipt cannot finish the active read');
-    view.receipt({ ...first, operationScope: 'obsolete-operation-scope' }, { status, correlationId: first.requestId, error: 'Old scope failure' }); await view.tick();
-    assert.equal(refresh().disabled, true, 'even matching correlation cannot settle a read from another operation scope');
-    view.receipt(first, { status, correlationId: first.requestId, error: 'Preflight rejected' }); await view.tick();
-    assert.equal(refresh().disabled, false, 'a matching failure releases the branch retry control without a domain reply');
-    assert.match(document.querySelector('.skills-branch-status').textContent, /Preflight rejected/);
-    refresh().click(); await view.tick();
-    const retry = reads().at(-1);
-    assert.notEqual(retry.operationId, first.operationId);
-    assert.notEqual(retry.requestId, first.requestId);
-    view.receipt(first, { status, correlationId: first.requestId, error: 'Delayed old failure' }); await view.tick();
-    assert.equal(refresh().disabled, true, 'an old read receipt cannot cancel its replacement');
-    view.send({ type: 'skillBranches', repo: retry.repo, requestId: retry.requestId, revision: retry.revision, branches: ['main'] }); await view.tick();
-    assert.equal(refresh().disabled, false);
-    assert.doesNotMatch(document.querySelector('.skills-branch-status').textContent, /Preflight rejected|Delayed old failure|Unrelated failure/);
-  });
+test('reviewer branch picker failures keep free-form input and a new explicit retry available', async t => {
+  const data = snapshot('sa'); setSkillsContext(data); data.skillsContext.reviewerRepositories = [{ name: 'alpha', path: 'C:/workspace/team/alpha' }];
+  const view = await mount({ mode: 'sa' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; selectSkillTool(document, 'release-reviewer'); await view.tick();
+  const input = document.getElementById('wiki-input-release-review.base'), button = input.closest('.skills-branch-input').querySelector('button');
+  button.click(); await view.tick(); const first = view.rawRequests.findLast(r => r.type === 'pickSkillBranch'); assert.ok(first.operationId);
+  view.receipt(first, { status: 'failed', error: 'Git unavailable' }); await view.tick(); assert.equal(button.disabled, false);
+  input.value = 'manual/ref'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  button.click(); await view.tick(); const retry = view.rawRequests.findLast(r => r.type === 'pickSkillBranch'); assert.notEqual(first.requestId, retry.requestId);
+  view.send({ ...first, type: 'skillBranchSelected', branch: 'stale' }); await view.tick(); assert.equal(input.value, 'manual/ref');
+  view.send({ ...retry, type: 'skillBranchSelected', branch: 'recovered' }); await view.tick(); assert.equal(input.value, 'recovered');
 });
 
 
@@ -3608,7 +3571,8 @@ test('unresolved project locations open the common root settings and disable dow
   const view = await mount({ mode: 'clone' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; assert.equal(document.querySelector('.clone-submit').disabled, true);
   document.querySelector('.clone-select-root').click(); await view.tick();
-  assert.ok(document.querySelector('[aria-label="共用專案根目錄"]'));
+  assert.deepEqual(view.requests.findLast(request => request.type === 'selectProjectRoot'), { type: 'selectProjectRoot', projectRevision: state.projectContext.revision });
+  assert.equal(document.querySelector('.tool-drawer'), null, 'root selection opens the native picker directly');
   assert.equal(view.requests.some(request => request.type === 'selectCloneRoot'), false);
 });
 
@@ -3622,7 +3586,11 @@ test('mixed workspaces use the common root for downloads, sync and settings', as
   const sync = [...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent === '更新全部本機預設分支');
   await view.tick(); sync.click(); assert.equal(view.requests.at(-1).type, 'syncRepos');
   assert.equal(Object.hasOwn(view.requests.at(-1), 'projectIds'), false);
+  await view.tick();
   document.querySelector('.clone-select-root').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'selectProjectRoot'), { type: 'selectProjectRoot', projectRevision: state.projectContext.revision });
+  assert.equal(document.querySelector('.tool-drawer'), null, 'root selection opens the native picker directly');
+  view.send({ type: 'openSettings' }); await view.tick();
   const configure = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '開啟根目錄設定');
   configure.click(); assert.equal(view.requests.at(-1).type, 'openConfiguration');
   assert.equal(view.requests.at(-1).setting, 'gitlabWorkspace.projectRoot');
@@ -3678,12 +3646,8 @@ test('returning from Issue details preserves list filters and scroll, and drops 
   assert.equal(document.querySelectorAll('.work-row').length, 1);
   document.querySelector('.work-row').click();
   await view.tick();
-  assert.equal(view.requests.filter((request) => request.type === 'selectIssue').at(-1)?.issueIid, 2);
-  assert.equal(view.requests.filter((request) => request.type === 'openIssue').length, 0);
-  view.sendSnapshot({ ...data, selectedIssue: { issue: data.issues[1], project: data.projects[1] }, issuePreview: { projectId: 2, issueIid: 2, status: 'ready' } });
-  await view.tick();
-  [...document.querySelectorAll('.issue-detail button')].find(button => button.textContent === '開啟 Issue 詳情').click();
-  await view.tick();
+  assert.equal(view.requests.filter((request) => request.type === 'selectIssue').length, 0, 'opening a row skips the optional preview request');
+  assert.equal(view.requests.filter((request) => request.type === 'openIssue').length, 1);
   assert.equal(view.requests.filter((request) => request.type === 'openIssue').at(-1)?.issueIid, 2);
 
   const navigation = { mode: 'detail', projectId: 2, issueIid: 2, revision: 10 };
@@ -4465,7 +4429,7 @@ test('Webview reconstruction restores Git drafts and selections and acknowledges
   textarea.value = 'Saved commit draft';
   textarea.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
-  document.querySelector('.git-change-name').click(); await view.tick();
+  document.querySelector('[aria-label^="部分暫存預覽 "]').click(); await view.tick();
   const read = gitActions(view, 'readDiff').at(-1);
   await finishGit(view, read, { revision: 2, diffPath: 'service.ts', diffStaged: false, diffText: '+Large diff content' });
   document.querySelector('.git-commit-composer form')?.dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
@@ -4857,11 +4821,11 @@ test('MR discussion replies retain failed and uncertain drafts and clear only co
 test('Git dialog cancellation restores its trigger and focus stays inside until closure', async t => {
   const view = await mountGit(t);
   const document = view.dom.window.document;
-  const trigger = document.querySelector('.git-fetch');
+  const trigger = document.querySelector('.git-pull');
   trigger.focus(); trigger.click(); await view.tick();
   const dialog = document.querySelector('.git-dialog');
   assert.ok(dialog.contains(document.activeElement));
-  document.querySelector('.git-branch-picker select').focus();
+  document.querySelector('.git-branch-picker').focus();
   assert.ok(dialog.contains(document.activeElement), 'programmatic focus cannot escape the modal');
   const controls = [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
   controls.at(-1).focus();
@@ -4871,7 +4835,7 @@ test('Git dialog cancellation restores its trigger and focus stays inside until 
   await view.tick();
   assert.equal(document.querySelector('.git-dialog'), null);
   assert.equal(document.activeElement, trigger);
-  assert.equal(gitActions(view, 'fetch').length, 0);
+  assert.equal(gitActions(view, 'pull').length, 0);
   assert.match(document.querySelector('.git-statusbar').textContent, /本機追蹤分支資訊.*工作台最近成功 Fetch：尚未執行/);
   view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 2, lastSuccessfulFetchAt: 1_800_000_000_000 }) });
   await view.tick();
@@ -4884,7 +4848,7 @@ test('Git dialog exit animation blocks submit, preserves focus return and suppor
     Object.defineProperty(window.HTMLElement.prototype, 'onanimationend', { configurable: true, writable: true, value: null });
   });
   const document = view.dom.window.document;
-  const trigger = document.querySelector('.git-fetch');
+  const trigger = document.querySelector('.git-pull');
   trigger.focus(); trigger.click(); await view.tick();
   let overlay = document.querySelector('.git-dialog-backdrop');
   overlay.dispatchEvent(new view.dom.window.Event('animationend', { bubbles: true })); await view.tick();
@@ -4892,7 +4856,7 @@ test('Git dialog exit animation blocks submit, preserves focus return and suppor
   document.querySelector('.git-dialog button[aria-label="關閉"]').click(); await view.tick();
   assert.equal(overlay.dataset.presence, 'exiting');
   document.querySelector('.git-dialog').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
-  await view.tick(); assert.equal(gitActions(view, 'fetch').length, 0);
+  await view.tick(); assert.equal(gitActions(view, 'pull').length, 0);
   // A quick reopen must cancel the old exit callback without losing its form.
   trigger.click(); await view.tick();
   overlay = document.querySelector('.git-dialog-backdrop');
@@ -4902,7 +4866,7 @@ test('Git dialog exit animation blocks submit, preserves focus return and suppor
   overlay.dispatchEvent(new view.dom.window.Event('animationend', { bubbles: true })); await view.tick();
   assert.equal(document.querySelector('.git-dialog'), null);
   assert.equal(document.activeElement, trigger);
-  assert.equal(gitActions(view, 'fetch').length, 0);
+  assert.equal(gitActions(view, 'pull').length, 0);
 });
 
 test('changing Git Repo immediately removes the previous Repo dialog without an exit animation', async t => {
@@ -4911,13 +4875,12 @@ test('changing Git Repo immediately removes the previous Repo dialog without an 
     Object.defineProperty(window.HTMLElement.prototype, 'onanimationend', { configurable: true, writable: true, value: null });
   });
   const document = view.dom.window.document;
-  const trigger = document.querySelector('.git-fetch');
+  const trigger = document.querySelector('.git-pull');
   trigger.focus(); trigger.click(); await view.tick();
   assert.ok(document.querySelector('.git-dialog'));
-  const picker = document.querySelector('.git-repo-picker select');
-  picker.value = 'repo-b'; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  selectGitRepository(view, 'repo-b');
   view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-b', { revision: 2 }) });
   await view.tick();
   assert.equal(document.querySelector('.git-dialog'), null, 'old-scope form must not remain against the next Repo snapshot');
-  assert.equal(gitActions(view, 'fetch').length, 0);
+  assert.equal(gitActions(view, 'pull').length, 0);
 });

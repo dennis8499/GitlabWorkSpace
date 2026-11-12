@@ -10,7 +10,9 @@ import { codexRootKey } from '../../src/codex/taskStore';
 import { networkRuntimeRoot } from '../../src/api/localNetworkLease';
 
 const clipboard: string[] = [];
+let selectBranch: (branches: readonly string[]) => Promise<string | undefined> = async branches => branches[0];
 const vscode = {
+  window: { showQuickPick: (branches: readonly string[]) => selectBranch(branches) },
   workspace: { isTrusted: true, workspaceFolders: [] as Array<{ uri: { scheme: string; fsPath: string } }>,
     workspaceFile: undefined as { scheme: string; fsPath: string } | undefined,
     getConfiguration: () => ({ get: <T>(_key: string, fallback: T) => fallback }) },
@@ -49,6 +51,7 @@ function branchHost(root: string) {
   let revision = 'current';
   const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {
     disposed: false, skillBranchReads: new Map(),
+    getLocalOperationScope: () => 'local-root',
     getSkillsContext: () => ({ revision, reviewerRepositories: [{ name: 'service', path: root }], availableFeatures: [] }),
     post: (message: typeof messages[number]) => messages.push(message)
   });
@@ -105,6 +108,23 @@ test('host reports Git errors, allows retry, rejects foreign Repos, and drops st
   const pending = fixture.host.loadSkillBranches(root, 'current', 'obsolete'); fixture.invalidate();
   await pending;
   assert.equal(fixture.messages.length, count); assert.equal(fixture.host.skillBranchReads.size, 0);
+});
+
+test('native Skills branch picker verifies the current local Repo and drops responses after root changes', async t => {
+  const root = await repository(t), fixture = branchHost(root);
+  const request = { type: 'pickSkillBranch', repo: root, revision: 'current', requestId: 'native-branch', field: 'merge-repo.base' };
+  let calls = 0;
+  selectBranch = async branches => { calls++; assert.deepEqual(branches, ['main']); return 'main'; };
+  t.after(() => { selectBranch = async branches => branches[0]; });
+  await fixture.host.pickSkillBranch(request);
+  assert.deepEqual(fixture.messages[0], { type: 'skillBranchSelected', repo: root, revision: 'current', requestId: request.requestId, field: request.field, branch: 'main' });
+  await assert.rejects(fixture.host.pickSkillBranch({ ...request, repo: path.dirname(root) }), /VS Code/);
+  await fixture.host.pickSkillBranch({ ...request, revision: 'obsolete' }); assert.equal(calls, 1);
+  selectBranch = async () => { fixture.invalidate(); return 'main'; };
+  await fixture.host.pickSkillBranch({ ...request, requestId: 'obsolete-on-close' }); assert.equal(fixture.messages.length, 1);
+  const changed = branchHost(root);
+  selectBranch = async () => { changed.host.getLocalOperationScope = () => 'different-root'; return 'main'; };
+  await changed.host.pickSkillBranch(request); assert.equal(changed.messages.length, 0);
 });
 
 test('host reviewer inventory excludes stale scans, changes context revision, and retains Wiki scope', async t => {

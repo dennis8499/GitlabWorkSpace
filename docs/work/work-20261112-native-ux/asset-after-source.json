@@ -1,0 +1,73 @@
+{
+  "schema": "GitLabWorkspaceNativeUxSourceAssets/v1",
+  "measuredAt": "2026-11-12T13:26:25.113Z",
+  "method": "Vite production config with write:false; in-memory emitted bytes, static import closure excludes dynamicImports.",
+  "initialJavaScriptBytes": 367467,
+  "initialJavaScriptFiles": [
+    "dashboard.js",
+    "chunks/hooks.module-CG0zIPno.js"
+  ],
+  "totalJavaScriptBytes": 639206,
+  "assets": [
+    {
+      "path": "asset-manifest.json",
+      "bytes": 1919,
+      "sha256": "687c00f9809f2208c506460f56e3ced901d61d8613b88bef5d27b53eebdc1aa4"
+    },
+    {
+      "path": "chunks/BmadPanel-Q-ggcFST.js",
+      "bytes": 34215,
+      "sha256": "1df978baa259fe2ea2bd929f2c25ee9d31c0ed39595efa631c16317159092132"
+    },
+    {
+      "path": "chunks/CodexWorkspace-BoqbUCtA.js",
+      "bytes": 101903,
+      "sha256": "5a0a95b2c740a9f30385e116241b5522f4c973d8edbebb477d0bd4e001f7a9fd"
+    },
+    {
+      "path": "chunks/GitControlPanel-s-w5HuOP.js",
+      "bytes": 62050,
+      "sha256": "5adb555ee8317cece97c143e9c4bc425ce846cf3700dd205f887fc92ed8bf6fb"
+    },
+    {
+      "path": "chunks/hooks.module-CG0zIPno.js",
+      "bytes": 14310,
+      "sha256": "654f1dbb8321898f9e9b2cc477fb2afaa4b3b0f920c65ebdf87c927f5b571681"
+    },
+    {
+      "path": "chunks/IssueGraph-BCbAWbI_.js",
+      "bytes": 53579,
+      "sha256": "675f55106d993b27f050a4855ddef762948de24a6179643d417bd18315f542e3"
+    },
+    {
+      "path": "chunks/SkillsGuide-DVNJ51Dz.js",
+      "bytes": 19992,
+      "sha256": "4abda5fefb62f9093928258d25e618825b22f291cdb6b091f381dbc2d8a2608b"
+    },
+    {
+      "path": "codicon.ttf",
+      "bytes": 80188,
+      "sha256": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+    },
+    {
+      "path": "dashboard.css",
+      "bytes": 128602,
+      "sha256": "d8ae3091ea29c4bad353a18834d8dc57b7b302e508b7ebf37b11283937f64511"
+    },
+    {
+      "path": "dashboard.html",
+      "bytes": 540,
+      "sha256": "873a70958519c9d715e73a434b4b62765992199c246bcfdf1cf970d493781b8c"
+    },
+    {
+      "path": "dashboard.js",
+      "bytes": 353157,
+      "sha256": "3cc543fdbd02d6f742b6fcf2c7e879c4133487d8e88056a2f26317162cf296f0"
+    }
+  ],
+  "limitations": [
+    "Source was measured during implementation, not from the final packaged VSIX.",
+    "Byte counts are not page-load or input-latency measurements.",
+    "Baseline captures pre-existing assets without proving their source commit."
+  ]
+}

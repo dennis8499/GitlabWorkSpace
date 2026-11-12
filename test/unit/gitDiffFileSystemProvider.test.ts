@@ -51,6 +51,20 @@ test('native Diff snapshots preserve binary bytes, original extensions and read-
   } finally { f.provider.dispose(); }
 });
 
+test('standalone native documents share readonly snapshots and release their bytes on tab close', () => {
+  const f = fixture(16);
+  try {
+    const document = f.provider.createDocument('wiki.md', Buffer.from('# Wiki'));
+    const tab = { input: { uri: document.uri } };
+    f.tabGroups.all = [{ tabs: [tab] }]; document.opened();
+    assert.equal(Buffer.from(f.provider.readFile(document.uri)).toString(), '# Wiki');
+    assert.throws(() => f.provider.writeFile(document.uri), /NoPermissions/);
+    f.tabGroups.all = []; f.changed([tab]);
+    assert.throws(() => f.provider.readFile(document.uri), /FileNotFound/);
+    assert.doesNotThrow(() => f.provider.createDocument('next.md', Buffer.alloc(16)));
+  } finally { f.provider.dispose(); }
+});
+
 test('the shared byte budget preserves open comparisons and releases capacity when their final tab closes', () => {
   const f = fixture(20);
   try {

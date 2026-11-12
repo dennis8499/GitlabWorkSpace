@@ -117,6 +117,15 @@ export class ProjectWikiStore {
     await this.assertPresent(id);
     return this.loadFile(this.file(id), id, origin);
   }
+  /** Read only the exact saved preview; opening an editor never refreshes GitLab. */
+  async readPage(id: string, origin: CodexTaskOrigin, revision: string, slug: string, mode: 'source' | 'diff'): Promise<{ title: string; content: string; previousContent: string }> {
+    const draft = await this.load(id, origin);
+    if (draft.revision !== revision) throw new Error('Wiki 預覽已更新，請從目前預覽重新開啟。');
+    const page = draft.pages.find(item => item.slug === slug);
+    if (!page || typeof page.content !== 'string') throw new Error('這個頁面不在目前 Wiki 草稿。');
+    if (mode === 'diff' && (page.baseline === undefined || draft.preview?.remaining.includes(slug))) throw new Error('這頁尚未核對遠端內容，請先完成預覽。');
+    return { title: page.title, content: page.content, previousContent: page.previousContent ?? '' };
+  }
   private async loadFile(file: string, id: string, origin: CodexTaskOrigin): Promise<WikiDraft> {
     const info = await lstat(file);
     if (!info.isFile() || info.isSymbolicLink() || info.size > 8 * 1024 * 1024) throw new Error('Wiki 草稿格式無效。');

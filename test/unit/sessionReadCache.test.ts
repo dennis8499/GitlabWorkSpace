@@ -32,6 +32,17 @@ const page = (ids: number[], nextCursor?: string): GitLabPage<GitLabProject> => 
   updatedAt: new Date().toISOString() });
 const unexpected = async (): Promise<GitLabProject[]> => { throw new Error('The legacy full-collection loader must not run.'); };
 
+test('immutable MR file bytes reuse a SHA-bound cache and never alias a different version', async () => {
+  const { session } = fixture();
+  let reads = 0;
+  const key = (sha: string) => `project/1/immutable-file/${sha}/src%2Fservice.ts`;
+  const read = (sha: string) => session.cachedRead(key(sha), async () => { reads++; return new Uint8Array([0, 255, 13, 10]); });
+  assert.equal(gitLabReadLifetimeMs(key('a'.repeat(40))), 300_000);
+  assert.deepEqual(await read('a'.repeat(40)), new Uint8Array([0, 255, 13, 10]));
+  await read('a'.repeat(40)); assert.equal(reads, 1);
+  await read('b'.repeat(40)); assert.equal(reads, 2);
+});
+
 test('low-churn resources share a five-minute policy while dynamic resources remain one minute', async () => {
   for (const key of ['group/42/projects', 'group/42/projects/pages/opened/first', 'group/42/milestones', 'project/1/members', 'project/1/labels',
     'project/1/milestones', 'project/1/templates', 'project/1/template-names']) assert.equal(gitLabReadLifetimeMs(key), 300_000, key);

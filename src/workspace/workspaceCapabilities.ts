@@ -17,18 +17,20 @@ export function getWorkspaceCapabilities(folders: readonly { uri: { scheme: stri
 // This is a filesystem capability, independent of read/write classification and
 // operation scopes. Clipboard, logs, navigation and remote writes remain usable.
 const localProjectActions = new Set([
+  'pickSkillBranch',
   'loadCodexUiDrafts', 'saveCodexUiDrafts',
   'codexCommand',
   'scanRepositories', 'repositoryDetails', 'refreshRepositories', 'clone', 'syncRepos',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'openLocalWorkspace',
   'gitReady', 'gitOpenRepository', 'gitOpenFile', 'gitOpenDiff', 'gitOpenMergeEditor', 'gitAction',
+  'gitPickRepository', 'gitPickBranch', 'gitPickRemote',
   'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'installWorkflowKit',
   'prepareCommitReview', 'loadSkillBranches', 'copySkillGuidePrompt', 'openBranchReview', 'loadReviewerCapabilities',
   'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask',
-  'createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch',
+  'createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch', 'pickCodexLaunch', 'openProjectWikiDocument',
   'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
   'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex'
 ]);

@@ -2,14 +2,13 @@
 import type { CodexTaskState, CodexApprovalSettings } from '../codex/protocol';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
 
-const waits = { approval: '等待回覆或核准', resource: '等待其他任務釋放共用資源', capacity: '等待本機執行槽位', quota: '等待額度可用', tool: '等待外部工具', storage: '等待儲存區修復' };
+export const codexWaitLabels = { approval: '等待回覆或核准', resource: '等待其他任務釋放共用資源', capacity: '等待本機執行槽位', quota: '等待額度可用', tool: '等待外部工具', storage: '等待儲存區修復' };
 export function CodexTaskDetails({ task, post }: { task: CodexTaskState; post(request: WorkspaceRequest): unknown }) {
   const progress = task.progress, approvals = task.controls?.approvals ?? { command: true, file: true, permissions: true };
   const update = (key: keyof CodexApprovalSettings, value: boolean) => post({ type: 'codexCommand', command: { action: 'approvals', taskId: task.id, settings: { ...approvals, [key]: value } } });
   return <div class="codex-task-details">
     {task.queuePosition !== undefined && <p>排隊位置：{task.queuePosition}</p>}
     {task.publication && <p role="status">MR 發布：{({ pending: '結果待核對', confirmed: '已確認發布', 'not-published': '尚未發布' })[task.publication.state]}</p>}
-    {progress?.waitReason && <p role="status">{waits[progress.waitReason]}</p>}
     {progress?.plan?.length ? <details open><summary>執行計畫</summary><ol>{progress.plan.map((step, index) => <li key={index}>
       <span>{({ pending: '待處理', inProgress: '進行中', completed: '已完成' })[step.status]}：</span>{step.step}</li>)}</ol></details> : null}
     <details><summary>模型與使用量{progress?.model ? ` · ${progress.model}` : ''}</summary>

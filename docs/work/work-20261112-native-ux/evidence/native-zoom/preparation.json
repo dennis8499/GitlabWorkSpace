@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-11-12T13:53:48.901Z",
+  "testSourceSha256": "e80c48d594772406e5c2e3ec9952f11e75fced70ac8c81bfcac31b890dc2196e",
+  "assetHashes": {
+    "dashboard.js": "72ab5b4638d941c4435507b2e9f2e966d5e58c07f0006e610c8e09d8d1047494",
+    "chunks/BmadPanel-Q-ggcFST.js": "1df978baa259fe2ea2bd929f2c25ee9d31c0ed39595efa631c16317159092132",
+    "chunks/CodexWorkspace-BoqbUCtA.js": "5a0a95b2c740a9f30385e116241b5522f4c973d8edbebb477d0bd4e001f7a9fd",
+    "chunks/GitControlPanel-s-w5HuOP.js": "5adb555ee8317cece97c143e9c4bc425ce846cf3700dd205f887fc92ed8bf6fb",
+    "chunks/IssueGraph-BCbAWbI_.js": "675f55106d993b27f050a4855ddef762948de24a6179643d417bd18315f542e3",
+    "chunks/SkillsGuide-D1cMhBoy.js": "9023432ebf87ac4b309975693374aabbeae571c46ec789291f1d141c9eb8b962",
+    "chunks/hooks.module-CG0zIPno.js": "654f1dbb8321898f9e9b2cc477fb2afaa4b3b0f920c65ebdf87c927f5b571681",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0",
+    "dashboard.css": "2560466dca92e7ee3d370d097b7157755e608af0eccd2e2b6ef64ef2d2a43779",
+    "dashboard.html": "873a70958519c9d715e73a434b4b62765992199c246bcfdf1cf970d493781b8c",
+    "asset-manifest.json": "79db1acfbafcb2becd07ea03909227ce60008fcb652ba5b8dbde3175c39d5bd1"
+  }
+}

@@ -3,6 +3,17 @@ import test from 'node:test';
 import { NotificationCenter } from '../../src/notifications/notificationCenter';
 import { withNativeCommandFeedback } from '../../src/notifications/nativeCommandFeedback';
 
+test('a native failure opens the Host-owned destination once, without reopening messages', async () => {
+  const center = new NotificationCenter(), opened: string[] = [];
+  await withNativeCommandFeedback(() => center.runCommand({ operationId: 'task-error', title: 'Task', target: { kind: 'task', taskId: 'task-1' } }, async () => { throw new Error('Task failed'); }), {
+    operationId: 'task-error', snapshot: () => center.snapshot(), workbenchVisible: () => false,
+    show: async (_level, _message, action) => { assert.equal(action, '開啟任務'); return action; },
+    openTarget: async id => { opened.push(id); }, openMessages: async () => assert.fail('Destination action is direct')
+  });
+  await Promise.resolve();
+  assert.deepEqual(opened, ['operation:task-error']);
+});
+
 test('a failed native command remains visible without a Webview and only the explicit action opens messages', async () => {
   const center = new NotificationCenter(), shown: string[] = []; let opened = 0;
   center.setSanitizer(message => message.replaceAll('private-token', '[redacted]'));

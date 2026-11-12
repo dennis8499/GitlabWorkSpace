@@ -51,9 +51,11 @@ async function mount(t, saved, navigationState) {
     await tick();
   };
   const choose = id => {
-    const select = dom.window.document.querySelector('.git-repo-picker select');
-    assert.ok(select, 'Repo selection is visible');
-    select.value = id; select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    const picker = dom.window.document.querySelector('.git-repo-picker');
+    assert.ok(picker, 'Repo selection is visible'); picker.click();
+    const request = requests.findLast(item => item.type === 'gitPickRepository');
+    assert.ok(request, 'Repo selection uses native Quick Pick');
+    send({ type: 'gitRepositorySelected', requestId: request.requestId, repositoryId: id });
   };
   return { dom, document: dom.window.document, requests, list, open, choose, tick, send,
     get state() { return state; } };

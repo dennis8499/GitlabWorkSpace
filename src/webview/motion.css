@@ -1,4 +1,11 @@
 :root { --motion-fast: 120ms; --motion-content: 160ms; --motion-overlay: 200ms; --motion-ease: cubic-bezier(.2,0,0,1); }
+.lazy-feature { padding: 12px; color: var(--vscode-descriptionForeground); }
+.data-freshness summary { cursor: pointer; }
+.data-freshness[open] { display: inline-block; }
+.native-dialog { margin: 0; padding: 0; border: 0; width: 100%; height: 100%; max-width: 100%; max-height: 100%; color: var(--vscode-foreground); }
+.native-dialog::backdrop { background: transparent; }
+.native-dialog:not([open]) { display: none; }
+body.vscode-reduce-motion *, body.vscode-reduce-motion *::before, body.vscode-reduce-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 button, summary { transition: background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease; }
 .motion-overlay[data-presence="entering"] { animation: overlay-enter var(--motion-overlay) var(--motion-ease) both; }
 .motion-overlay[data-presence="exiting"] { animation: overlay-exit var(--motion-overlay) var(--motion-ease) both; }

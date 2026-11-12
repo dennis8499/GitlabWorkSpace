@@ -193,9 +193,12 @@ for (const profile of ['group', 'repository']) test(`${profile} unknown saved se
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'saved question');
   const tabs = [...document.querySelectorAll('.skills-tool-tabs [role="tab"]')];
   assert.equal(tabs.length, 4);
+  const readsBeforeNavigation = view.requests.filter(request => ['loadSkillBranches', 'loadReviewSessions', 'loadReviewerCapabilities'].includes(request.type)).length;
   tabs[0].dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
   await view.tick();
-  assert.equal(document.getElementById('skill-tool-commit-reviewer').getAttribute('aria-selected'), 'true');
+  assert.equal(document.activeElement.id, 'skill-tool-commit-reviewer');
+  assert.equal(document.getElementById('skill-tool-codebase-wiki').getAttribute('aria-selected'), 'true');
+  assert.equal(view.requests.filter(request => ['loadSkillBranches', 'loadReviewSessions', 'loadReviewerCapabilities'].includes(request.type)).length, readsBeforeNavigation);
   tabs[3].dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
   await view.tick();
   assert.equal(document.getElementById('skill-tool-codebase-wiki').getAttribute('aria-selected'), 'true');
@@ -268,7 +271,7 @@ for (const profile of ['group', 'repository']) test(`${profile} branch review pr
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');
   assert.equal(document.querySelector('.skills-codex-button'),null);
-  assert.match(document.querySelector('.skills-next-step').textContent,/也可複製提示詞自行執行/);
+  assert.match(document.querySelector('.skills-action-bar .workflow-alternatives').textContent,/複製提示詞.*在相同專案根目錄/);
   assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false, 'copying does not start a task');
   const run = [...document.querySelectorAll('.skills-action-bar button')].find(button => button.textContent === '使用 Codex 執行');
   assert.ok(run); assert.equal(run.disabled, false); run.click(); await view.tick();
@@ -465,6 +468,7 @@ test('copy feedback blocks duplicate clicks, allows retry and ignores obsolete e
   for (const [field,value] of [['base','main'],['head','feature/review']]) await view.change(`[id="wiki-input-merge-repo.${field}"]`,value,'input');
   view.holdOperations(); const button=view.document.querySelector('.wiki-copy-button'); button.click(); button.click(); await view.tick();
   assert.equal(view.requests.filter(request => request.type==='copySkillGuidePrompt').length,1); assert.equal(button.disabled,true);
+  assert.equal(view.document.querySelector('.skills-action-bar > button.primary').disabled, false, 'clipboard work never blocks preparing a Codex task');
   const request=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message',{data:{type:'operationChanged',operation:{requestId:request.operationId,
     scopeRevision:request.operationScope,resourceKey:'skill:merge-repo',action:'copySkillGuidePrompt',label:'複製提示詞',phase:'處理失敗',status:'failed',error:'套件已變更',startedAt:Date.now()}}}));
@@ -485,66 +489,39 @@ test('copy feedback blocks duplicate clicks, allows retry and ignores obsolete e
 });
 
 for (const profile of ['group', 'repository']) for (const [tool, card] of [['merge-reviewer', 'merge-repo'], ['release-reviewer', 'release-review']]) {
-  test(`${profile} ${tool} offers searchable branch choices in both fields and accepts manual branches`, async t => {
+  test(profile + ' ' + tool + ' chooses native branch suggestions and accepts manual branches', async t => {
     const view = await mount(t, profile, undefined, ['merge-repo', 'release-review']);
-    view.document.getElementById(`skill-tool-${tool}`).click(); await view.tick();
-    const repo = 'C:/工作區 with spaces/service';
-    assert.equal(view.requests.findLast(request => request.type === 'loadSkillBranches').repo, repo);
-    const control = field => view.document.getElementById(`wiki-input-${card}.${field}`);
-    assert.equal(control('repo').tagName, 'SELECT');
-    assert.equal(control('repo').value, repo);
-    assert.equal(control('base').getAttribute('role'), 'combobox');
-    assert.equal(control('head').getAttribute('role'), 'combobox');
-    assert.match(view.document.querySelector('.skills-branch-status').textContent, /正在讀取/);
-    await view.sendBranches(['main', 'origin/main', 'feature/payment', 'origin/feature/payment']);
-    const options = () => [...view.document.querySelectorAll('[role="listbox"] [role="option"]')];
-    control('base').closest('.skills-branch-input').querySelector('button').click(); await view.tick();
-    assert.equal(control('base').getAttribute('aria-expanded'), 'true');
-    assert.deepEqual(options().map(option => option.textContent), ['main', 'origin/main', 'feature/payment', 'origin/feature/payment']);
-    await view.change(`[id="${control('base').id}"]`, 'PAY', 'input');
-    assert.deepEqual(options().map(option => option.textContent), ['feature/payment', 'origin/feature/payment']);
-    control('base').dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await view.tick();
-    const activeId = control('base').getAttribute('aria-activedescendant');
-    assert.equal(view.document.getElementById(activeId).textContent, 'feature/payment');
-    control('base').dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await view.tick();
-    assert.equal(control('base').value, 'feature/payment');
-    assert.equal(control('base').getAttribute('aria-expanded'), 'false');
-    control('head').closest('.skills-branch-input').querySelector('button').click(); await view.tick();
-    assert.equal(options().length, 4);
-    options().find(option => option.textContent === 'origin/main').click(); await view.tick();
-    assert.equal(control('head').value, 'origin/main');
+    view.document.getElementById('skill-tool-' + tool).click(); await view.tick();
+    const control = field => view.document.getElementById('wiki-input-' + card + '.' + field);
+    assert.equal(view.requests.some(request => request.type === 'loadSkillBranches'), false);
+    assert.equal(control('repo').tagName, 'SELECT'); assert.equal(control('base').getAttribute('role'), null);
+    for (const [field, branch] of [['base', 'origin/main'], ['head', 'feature/current']]) {
+      control(field).closest('.skills-branch-input').querySelector('button').click(); await view.tick();
+      const request = view.requests.findLast(request => request.type === 'pickSkillBranch');
+      assert.equal(request.repo, control('repo').value); assert.equal(request.field, card + '.' + field);
+      assert.equal(request.revision, profile + '-revision'); assert.ok(request.requestId);
+      assert.equal(view.document.querySelector('[role="listbox"]'), null, 'native choices do not allocate webview rows');
+      await view.send({ ...request, type: 'skillBranchSelected', branch }); assert.equal(control(field).value, branch);
+    }
     assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
-    await view.change(`[id="${control('head').id}"]`, 'feature/not-in-local-list', 'input');
-    assert.match(view.document.querySelector('.skills-branch-empty').textContent, /可直接使用輸入/);
-    control('head').dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await view.tick();
-    assert.equal(control('head').value, 'feature/not-in-local-list');
-    assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
+    await view.change('[id="' + control('head').id + '"]', 'feature/not-in-local-list', 'input');
     view.document.querySelector('.wiki-copy-button').click(); await view.tick();
     const copy = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
-    assert.equal(copy.inputs[`${card}.repo`], repo);
-    assert.equal(copy.inputs[`${card}.head`], 'feature/not-in-local-list');
-    await view.change(`[id="${control('head').id}"]`, 'HEAD', 'input');
-    assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
+    assert.equal(copy.inputs[card + '.repo'], control('repo').value);
+    assert.equal(copy.inputs[card + '.head'], 'feature/not-in-local-list');
+    await view.change('[id="' + control('head').id + '"]', 'HEAD', 'input'); assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
   });
 }
 
-test('branch loading, failure, retry and empty refs preserve manually entered choices', async t => {
-  const view = await mount(t, 'group');
-  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+test('native branch picker cancellation preserves manual fields and remains keyboard accessible', async t => {
+  const view = await mount(t, 'group'); view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
   await view.change('[id="wiki-input-merge-repo.base"]', 'manual/base', 'input');
   await view.change('[id="wiki-input-merge-repo.head"]', 'manual/head', 'input');
-  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false, 'loading does not block manual branches');
-  await view.sendBranches([], 'Git unavailable');
-  assert.match(view.document.querySelector('.skills-branch-status [role="status"]').textContent, /Git unavailable.*仍可輸入/);
-  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
-  const count = view.requests.filter(request => request.type === 'loadSkillBranches').length;
-  const retry = view.document.querySelector('.skills-branch-refresh');
-  assert.equal(retry.textContent, '重試讀取分支'); retry.click(); await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'loadSkillBranches').length, count + 1);
-  assert.equal(view.document.querySelector('.skills-branch-refresh').disabled, true);
-  await view.sendBranches([]);
-  assert.match(view.document.querySelector('.skills-branch-status [role="status"]').textContent, /尚無本機或遠端追蹤分支/);
-  assert.equal(view.document.getElementById('wiki-input-merge-repo.base').value, 'manual/base');
+  const input = view.document.getElementById('wiki-input-merge-repo.base'), toggle = input.closest('.skills-branch-input').querySelector('button');
+  assert.notEqual(toggle.getAttribute('tabindex'), '-1'); toggle.click(); await view.tick();
+  const request = view.requests.findLast(request => request.type === 'pickSkillBranch');
+  await view.send({ ...request, type: 'skillBranchSelected' });
+  assert.equal(input.value, 'manual/base'); assert.equal(view.document.activeElement, input);
   assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, 'manual/head');
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
 });
@@ -577,7 +554,7 @@ test('workspace Repo selector distinguishes duplicate names and resets only the 
   await view.change('[id="wiki-input-merge-repo.repo"]', 'D:/other-root/service');
   assert.equal(view.document.getElementById('wiki-input-merge-repo.base').value, '');
   assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, '');
-  assert.equal(view.requests.findLast(request => request.type === 'loadSkillBranches').repo, 'D:/other-root/service');
+  assert.equal(view.requests.some(request => request.type === 'loadSkillBranches'), false);
   assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /專案名稱："D:\/other-root\/service"/);
   view.document.getElementById('skill-tool-release-reviewer').click(); await view.tick();
   assert.equal(view.document.getElementById('wiki-input-release-review.base').value, 'release/base');
@@ -601,13 +578,13 @@ test('legacy unique Repo names migrate without clearing drafts while removed Rep
   assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, 'saved/head');
 });
 
-test('branch browsing remains available without the installed review capability', async t => {
-  const view = await mount(t, 'group', undefined, []);
-  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
-  assert.ok(view.requests.findLast(request => request.type === 'loadSkillBranches'));
-  await view.sendBranches(['main', 'origin/main']);
+test('native branch browsing remains available without the installed review capability', async t => {
+  const view = await mount(t, 'group', undefined, []); view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  assert.equal(view.requests.some(request => request.type === 'loadSkillBranches'), false);
   view.document.querySelector('.skills-branch-toggle').click(); await view.tick();
-  assert.equal(view.document.querySelectorAll('[role="option"]').length, 2);
+  const request = view.requests.findLast(request => request.type === 'pickSkillBranch'); assert.ok(request);
+  await view.send({ ...request, type: 'skillBranchSelected', branch: 'main' });
+  assert.equal(view.document.getElementById('wiki-input-merge-repo.base').value, 'main');
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
 });
 
@@ -620,7 +597,7 @@ test('MR branch inputs arrive together without the Repo change handler clearing 
   assert.equal(view.document.getElementById('wiki-input-merge-repo.repo').value, 'C:/工作區 with spaces/service');
   assert.equal(view.document.getElementById('wiki-input-merge-repo.base').value, 'origin/main');
   assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, 'origin/feature/from-mr');
-  await view.sendBranches(['main']);
+  assert.equal(view.requests.some(request => request.type === 'loadSkillBranches'), false);
   assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, 'origin/feature/from-mr',
     'refreshing candidates does not discard a branch missing from the local list');
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true, 'existing MR confirmation still applies');
@@ -628,26 +605,17 @@ test('MR branch inputs arrive together without the Repo change handler clearing 
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
 });
 
-test('branch list handles reverse keyboard navigation, Tab and outside pointer dismissal', async t => {
-  const view = await mount(t, 'group');
-  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
-  await view.sendBranches(['main', 'origin/main']);
+test('Alt+Down opens a native branch picker while normal arrow keys preserve text editing', async t => {
+  const view = await mount(t, 'group'); view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
   const input = view.document.getElementById('wiki-input-merge-repo.base');
-  input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })); await view.tick();
-  assert.equal(view.document.getElementById(input.getAttribute('aria-activedescendant')).textContent, 'origin/main');
-  input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await view.tick();
-  assert.equal(input.value, 'origin/main');
-  input.focus(); await view.tick();
-  input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true })); await view.tick();
-  assert.equal(input.getAttribute('aria-expanded'), 'false');
-  input.closest('.skills-branch-input').querySelector('button').click(); await view.tick();
-  view.document.body.dispatchEvent(new view.dom.window.Event('pointerdown', { bubbles: true })); await view.tick();
-  assert.equal(input.getAttribute('aria-expanded'), 'false');
-  assert.equal(input.value, 'origin/main');
-  await view.change('[id="wiki-input-merge-repo.base"]', 'manual/unmatched', 'input');
-  input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await view.tick();
   input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await view.tick();
-  assert.equal(view.document.getElementById(input.getAttribute('aria-activedescendant')).textContent, 'main');
-  input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await view.tick();
-  assert.equal(input.value, 'main', 'the first ArrowDown after reopening clears the filter and selects the first candidate');
+  assert.equal(view.requests.some(r => r.type === 'pickSkillBranch'), false);
+  input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true })); await view.tick();
+  const request = view.requests.findLast(r => r.type === 'pickSkillBranch'); assert.ok(request);
+  await view.send({ ...request, type: 'skillBranchSelected', branch: 'origin/main' }); assert.equal(input.value, 'origin/main');
+  const next = new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true });
+  input.dispatchEvent(next); await view.tick();
+  const stale = view.requests.findLast(r => r.type === 'pickSkillBranch');
+  await view.change('[id="wiki-input-merge-repo.base"]', 'new/edit', 'input');
+  await view.send({ ...stale, type: 'skillBranchSelected', branch: 'old/value' }); assert.equal(input.value, 'new/edit');
 });

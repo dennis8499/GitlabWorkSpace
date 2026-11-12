@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
 import type { usePresence } from './motion';
+import { NativeDialog } from './NativeDialog';
 
 export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRequest, open = true, presence }: {
   snapshot?: NotificationSnapshot; post: (request: NotificationRequest) => void; onClose: () => void;
@@ -24,23 +25,6 @@ export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRe
     post({ type: 'markNotificationsRead', ids: [id], revision: snapshot?.revision ?? 0 });
   };
   useEffect(() => {
-    close.current?.focus();
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
-      if (event.key !== 'Tab') return;
-      const elements = [...(drawer.current?.querySelectorAll<HTMLElement>('button:not(:disabled), summary, [tabindex="0"]') ?? [])];
-      const first = elements[0], last = elements.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    };
-    const containFocus = (event: FocusEvent) => {
-      if (event.target instanceof Node && drawer.current && !drawer.current.contains(event.target)) close.current?.focus();
-    };
-    document.addEventListener('keydown', keydown);
-    document.addEventListener('focusin', containFocus);
-    return () => { document.removeEventListener('keydown', keydown); document.removeEventListener('focusin', containFocus); };
-  }, []);
-  useEffect(() => {
     const key = `${targetId}:${targetRequest}`;
     if (!open || !targetId || targetHandled.current === key || !snapshot?.items.some(item => item.id === targetId)) return;
     targetHandled.current = key;
@@ -51,8 +35,8 @@ export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRe
   }, [targetId, targetRequest, snapshot, open]);
   const items = (snapshot?.items ?? []).filter(item => filter === 'all' || !item.read || expanded.has(item.id));
   const chooseFilter = (next: 'all' | 'unread') => { if (next !== filter) { setExpanded(new Set()); setFilter(next); } };
-  return <div class="drawer-scrim notification-scrim motion-overlay" data-presence={presence?.phase ?? 'entered'} onAnimationEnd={presence?.onAnimationEnd} role="presentation" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside ref={drawer} class="tool-drawer notification-drawer motion-surface" role="dialog" aria-modal="true" aria-labelledby="notification-title" onClickCapture={event => { if (!open) { event.preventDefault(); event.stopPropagation(); } }} onKeyDownCapture={event => { if (!open && !['Tab', 'Escape'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); } }}>
+  return <NativeDialog open={open} presence={presence} onClose={onClose} labelledBy="notification-title" surfaceRef={drawer}
+    initialFocus={close} surfaceClass="tool-drawer notification-drawer" scrimClass="notification-scrim">
       <div class="drawer-heading"><div><h2 id="notification-title">訊息中心</h2><p class="subtle">本次 VS Code 工作階段 · {snapshot?.unreadCount ?? 0} 筆未讀</p></div><button ref={close} class="quiet" type="button" onClick={onClose}>關閉</button></div>
       <div class="notification-controls"><div role="group" aria-label="訊息篩選"><button type="button" aria-pressed={filter === 'all'} onClick={() => chooseFilter('all')}>全部</button><button type="button" aria-pressed={filter === 'unread'} onClick={() => chooseFilter('unread')}>未讀</button></div>
         <button class="quiet" type="button" disabled={!snapshot?.unreadCount} onClick={() => snapshot && post({ type: 'markAllNotificationsRead', revision: snapshot.revision })}>全部已讀</button>
@@ -66,10 +50,13 @@ export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRe
         }}>
           <summary ref={element => { if (element) summaries.current.set(item.id, element); else summaries.current.delete(item.id); }}><span class="notification-level">{item.level === 'error' ? '錯誤' : item.level === 'warn' ? '警告' : '資訊'}</span><strong>{item.title}</strong>{!item.read && <span class="notification-unread">未讀</span>}<time dateTime={new Date(item.updatedAt).toISOString()}>{new Date(item.updatedAt).toLocaleTimeString()}</time><span class="notification-preview">{item.messages.at(-1)}</span></summary>
           <div class="notification-detail">{item.messages.map((message, index) => <p key={index}>{message}</p>)}
+            <div class="button-row">
+              <button type="button" onClick={() => { post({ type: 'openNotificationTarget', id: item.id, destination: 'origin' }); onClose(); }}>{item.target?.kind === 'task' ? '開啟任務' : item.target?.kind === 'issue' ? '返回 Issue' : item.target?.kind === 'mergeRequest' ? '開啟 MR' : item.target?.kind === 'tools' ? '修復環境' : '查看 Log'}</button>
+              {item.target && item.target.kind !== 'logs' && <button class="quiet" type="button" onClick={() => post({ type: 'openNotificationTarget', id: item.id, destination: 'logs' })}>查看 Log</button>}
+            </div>
             {item.origin && <p class="subtle notification-origin">{[item.origin.baseUrl, item.origin.accountId && `帳號 ${item.origin.accountId}`, item.origin.groupId && `Group ${item.origin.groupId}`, item.origin.root].filter(Boolean).join(' · ')}</p>}
           </div>
         </details><button class="quiet notification-remove" type="button" aria-label={`移除訊息：${item.title}`} onClick={() => post({ type: 'removeNotification', id: item.id })}>移除</button>
       </li>)}</ul>
-    </aside>
-  </div>;
+  </NativeDialog>;
 }

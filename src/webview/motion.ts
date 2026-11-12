@@ -5,18 +5,20 @@ type PresencePhase = 'entering' | 'entered' | 'exiting' | 'exited';
 
 /** Missing media-query support uses the static path, including lightweight test DOMs. */
 function reducedMotion(): boolean {
-  return typeof window.matchMedia !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return document.body.classList.contains('vscode-reduce-motion') || typeof window.matchMedia !== 'function'
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(reducedMotion);
   useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const changed = () => setReduced(query.matches);
-    query.addEventListener?.('change', changed);
+    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const changed = () => setReduced(reducedMotion());
+    query?.addEventListener?.('change', changed);
+    const observer = new MutationObserver(changed);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     changed();
-    return () => query.removeEventListener?.('change', changed);
+    return () => { query?.removeEventListener?.('change', changed); observer.disconnect(); };
   }, []);
   return reduced;
 }
