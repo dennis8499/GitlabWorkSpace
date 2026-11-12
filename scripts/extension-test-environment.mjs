@@ -1,5 +1,6 @@
 import { access, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
 
 export function isolatedHostEnvironment(environment = process.env) {
@@ -45,10 +46,27 @@ export async function inspectHostExecutable(executable, requested = 'stable') {
   return { executable: filename, version, requested };
 }
 
+export async function downloadTestHost(requested, { download = downloadAndUnzipVSCode, wait = delay, warn = console.warn } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      // Hosted Windows runners can exceed the upstream 15-second default while
+      // resolving the release metadata. This is the library's idle timeout.
+      return await download({ version: requested, timeout: 60_000 });
+    } catch (error) {
+      const transient = [error, error?.cause].some(cause =>
+        ['ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN'].includes(cause?.code) ||
+        /^@vscode\/test-electron request timeout out after \d+ms$/.test(cause?.message ?? ''));
+      if (!transient || attempt >= 3) throw error;
+      warn(`VS Code test host download had a temporary network failure; retrying (${attempt}/3).`);
+      await wait(attempt * 1_000);
+    }
+  }
+}
+
 export async function prepareHost(environment = process.env) {
   const { env, removed } = isolatedHostEnvironment(environment);
   const requested = env.VSCODE_TEST_VERSION ?? 'stable';
-  const executable = env.VSCODE_EXECUTABLE_PATH ?? await downloadAndUnzipVSCode(requested);
+  const executable = env.VSCODE_EXECUTABLE_PATH ?? await downloadTestHost(requested);
   return { schema: 'gitlab-workspace-extension-host/v1', ...await inspectHostExecutable(executable, requested),
     removedEnvironmentKeys: removed };
 }
