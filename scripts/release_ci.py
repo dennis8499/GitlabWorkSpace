@@ -96,7 +96,10 @@ def runtime_details(root, repository):
             except importlib.metadata.PackageNotFoundError:
                 details["packages"][package] = None
     if name == "GitlabWorkSpace":
-        filename = root / ".gitlab-workspace-validation/ci/extension-host.json"
+        validation_dir = Path(os.environ.get("GITLAB_WORKSPACE_VALIDATION_DIR", ".gitlab-workspace-validation/ci"))
+        if not validation_dir.is_absolute():
+            validation_dir = root / validation_dir
+        filename = validation_dir / "extension-host.json"
         require(filename.is_file(), "Missing actual VS Code host preflight metadata")
         host = json.loads(filename.read_text(encoding="utf-8"))
         require(host.get("schema") == "gitlab-workspace-extension-host/v1", "Invalid VS Code host metadata")

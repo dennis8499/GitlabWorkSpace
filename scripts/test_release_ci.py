@@ -4,6 +4,7 @@ import datetime as dt
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import re
 import tempfile
@@ -190,6 +191,28 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(details["packages"], {"behave": "1.2.3", "PyYAML": "1.2.3"})
         self.assertEqual(set(details), {"git", "node", "python", "packages", "fixed_dependencies"})
 
+    def test_workspace_runtime_uses_the_actual_external_validation_host_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repository"
+            validation = Path(temporary) / "runner-temp" / "actual-cell"
+            validation.mkdir(parents=True)
+            legacy = root / ".gitlab-workspace-validation/ci/extension-host.json"
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text('{"schema":"stale-checkout-metadata"}', encoding="utf-8")
+            filename = validation / "extension-host.json"
+            filename.write_text(json.dumps({"schema": "gitlab-workspace-extension-host/v1",
+                "requested": "stable", "version": "1.100.0"}), encoding="utf-8")
+            with mock.patch.dict(os.environ, {"GITLAB_WORKSPACE_VALIDATION_DIR": str(validation),
+                    "VSCODE_TEST_VERSION": "stable"}), mock.patch.object(ci, "tool_version", return_value="selected tool"):
+                details = ci.runtime_details(root, "owner/GitlabWorkSpace")
+                self.assertEqual({"requested": "stable", "version": "1.100.0"}, details["vscode"])
+                with mock.patch.dict(os.environ, {"VSCODE_TEST_VERSION": "1.90.0"}):
+                    with self.assertRaisesRegex(ci.ProofError, "differs from matrix"):
+                        ci.runtime_details(root, "owner/GitlabWorkSpace")
+                filename.unlink()
+                with self.assertRaisesRegex(ci.ProofError, "Missing actual VS Code"):
+                    ci.runtime_details(root, "owner/GitlabWorkSpace")
+
     def test_workspace_lock_names_and_versions_must_match_manifest(self):
         manifest = {"name": "gitlab-workspace", "version": "1.2.3"}
         locked = dict(manifest, packages={"": dict(manifest)})
@@ -357,7 +380,10 @@ class WorkflowContractTests(unittest.TestCase):
             cells = [cell["cell"] for cell in json.loads(matrix[1])["include"]]
             self.assertIn("matrix: ${{ fromJSON(needs.route.outputs.matrix) }}", text)
             evidence_dir = "${{ runner.temp }}/gitlab-workspace-validation/${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cell }}"
-            self.assertEqual(text.count("GITLAB_WORKSPACE_VALIDATION_DIR: " + evidence_dir), 3)
+            self.assertEqual(text.count("GITLAB_WORKSPACE_VALIDATION_DIR: " + evidence_dir), 4)
+            record_step = re.search(r"(?ms)^      - name: Record complete cell and canonical asset provenance\n(.*?)^      - name:", text)
+            self.assertIsNotNone(record_step, "Provenance must receive the actual validation directory")
+            self.assertIn("GITLAB_WORKSPACE_VALIDATION_DIR: " + evidence_dir, record_step[1])
             self.assertNotIn("GITLAB_WORKSPACE_VALIDATION_DIR: .gitlab-workspace-validation/ci", text)
             self.assertIn("root = Path(os.environ['GITLAB_WORKSPACE_VALIDATION_DIR'])", text)
             self.assertIn("summary = os.environ.get('GITHUB_STEP_SUMMARY')", text)

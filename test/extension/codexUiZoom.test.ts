@@ -101,6 +101,15 @@ suite('Native Codex Electron zoom and built-in themes', function () {
     const priorDetect = windowConfig.inspect<boolean>('autoDetectColorScheme')?.globalValue;
     const priorContrast = windowConfig.inspect<boolean>('autoDetectHighContrast')?.globalValue;
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace'); assert.ok(extension);
+    const nativeThemes = vscode.extensions.getExtension('vscode.theme-defaults')?.packageJSON.contributes?.themes as
+      Array<{ id: string; path: string }> | undefined;
+    assert.ok(Array.isArray(nativeThemes), 'the selected VS Code installation provides its built-in themes');
+    const themeCases = [['dark_plus.json', 'vscode-dark'], ['light_plus.json', 'vscode-light'],
+      ['hc_black.json', 'vscode-high-contrast'], ['hc_light.json', 'vscode-high-contrast-light']].map(([filename, themeClass]) => {
+      const theme = nativeThemes.find(item => item.path.replaceAll('\\', '/').endsWith('/' + filename));
+      assert.ok(theme?.id, `built-in theme is available: ${filename}`);
+      return [theme.id, themeClass] as const;
+    });
     let assets = vscode.Uri.joinPath(extension.extensionUri, 'resources', 'issue-webview');
     if (process.env.GITLAB_WORKSPACE_ZOOM_ASSET_ROOT) {
       const temporary = await realpath(path.join(extension.extensionUri.fsPath, '.tmp'));
@@ -174,15 +183,14 @@ suite('Native Codex Electron zoom and built-in themes', function () {
       await windowConfig.update('autoDetectColorScheme', false, vscode.ConfigurationTarget.Global);
       await windowConfig.update('autoDetectHighContrast', false, vscode.ConfigurationTarget.Global);
       await windowConfig.update('zoomLevel', 0, vscode.ConfigurationTarget.Global);
-      await workbenchConfig.update('colorTheme', 'Dark+', vscode.ConfigurationTarget.Global);
+      await workbenchConfig.update('colorTheme', themeCases[0][0], vscode.ConfigurationTarget.Global);
       const nonce = randomBytes(16).toString('base64');
       panel.webview.html = prepareWebviewHtml(await readFile(vscode.Uri.joinPath(assets, 'dashboard.html').fsPath, 'utf8'), panel.webview, assets, 'dashboard', nonce)
         .replace('</head>', `<script nonce="${nonce}">${instrumentation}</script></head>`);
       await wait(() => ready, 'production bundle readiness');
       const baseline = await inspect('vscode-dark', undefined, true); assert.equal(baseline.error, undefined, JSON.stringify(baseline));
       assert.ok(Number.isFinite(baseline.dpr) && baseline.dpr > 0);
-      for (const [theme, themeClass] of [['Dark+', 'vscode-dark'], ['Light+', 'vscode-light'],
-        ['Default High Contrast', 'vscode-high-contrast'], ['Default High Contrast Light', 'vscode-high-contrast-light']]) {
+      for (const [theme, themeClass] of themeCases) {
         await workbenchConfig.update('colorTheme', theme, vscode.ConfigurationTarget.Global);
         for (const scale of [1, 1.25, 2]) {
           await windowConfig.update('zoomLevel', Math.log(scale) / Math.log(1.2), vscode.ConfigurationTarget.Global);
