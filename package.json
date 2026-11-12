@@ -26,252 +26,258 @@
     "onView:gitlabWorkspace.repositories",
     "onView:gitlabWorkspace.myWork"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "description": "本機 Git、Skills 與 Codex 會讀寫專案或執行工具，需要受信任的工作區。",
+      "supported": false
+    },
+    "virtualWorkspaces": {
+      "description": "可使用 GitLab 帳號、Issue 與 Merge Request；Repo 掃描、Git、Clone／同步、Skills、本機審查與 Codex 需要磁碟上的專案資料夾。",
+      "supported": "limited"
+    }
+  },
   "categories": [
     "Other"
   ],
-  "capabilities": {
-    "untrustedWorkspaces": {
-      "supported": false,
-      "description": "本機 Git、Skills 與 Codex 會讀寫專案或執行工具，需要受信任的工作區。"
-    },
-    "virtualWorkspaces": {
-      "supported": "limited",
-      "description": "可使用 GitLab 帳號、Issue 與 Merge Request；Repo 掃描、Git、Clone／同步、Skills、本機審查與 Codex 需要磁碟上的專案資料夾。"
-    }
-  },
   "contributes": {
     "commands": [
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.createCodexTask",
-        "title": "建立 Codex 任務",
-        "category": "GitLab Workspace",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "title": "建立 Codex 任務"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.createCodexTaskFromSelection",
-        "title": "將選取文字帶入 Codex 任務",
-        "category": "GitLab Workspace"
+        "title": "將選取文字帶入 Codex 任務"
       },
       {
-        "command": "gitlabWorkspace.openNotifications",
-        "title": "訊息中心",
-        "category": "GitLab Workspace"
-      },
-      {
-        "command": "gitlabWorkspace.openSettings",
-        "title": "設定",
         "category": "GitLab Workspace",
-        "icon": "$(settings-gear)"
+        "command": "gitlabWorkspace.openNotifications",
+        "title": "訊息中心"
       },
       {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.openSettings",
+        "icon": "$(settings-gear)",
+        "title": "設定"
+      },
+      {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openTools",
-        "title": "工具與環境",
-        "category": "GitLab Workspace"
+        "title": "工具與環境"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openWorkspace",
         "icon": "$(layout)",
         "shortTitle": "開啟工作台",
-        "title": "開啟工作台",
-        "category": "GitLab Workspace"
+        "title": "開啟工作台"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openCloneMode",
-        "title": "專案",
-        "category": "GitLab Workspace"
+        "title": "專案"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openSaMode",
-        "title": "Skills 功能指引",
-        "category": "GitLab Workspace"
+        "title": "Skills 功能指引"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openBmadMode",
-        "title": "BMAD 開發流程",
-        "category": "GitLab Workspace"
+        "title": "BMAD 開發流程"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openDeveloperMode",
-        "title": "我的工作",
-        "category": "GitLab Workspace"
+        "title": "我的工作"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openReviewerMode",
-        "title": "待審查",
-        "category": "GitLab Workspace"
+        "title": "待審查"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openCodexMode",
-        "title": "開啟 Codex",
-        "category": "GitLab Workspace"
+        "title": "開啟 Codex"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openGitMode",
-        "title": "開啟版控",
-        "category": "GitLab Workspace"
+        "title": "開啟版控"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openRepository",
-        "title": "開啟 Repo 版控",
-        "category": "GitLab Workspace"
+        "title": "開啟 Repo 版控"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.connect",
         "icon": "$(plug)",
         "shortTitle": "連線 GitLab",
-        "title": "連線 GitLab",
-        "category": "GitLab Workspace"
+        "title": "連線 GitLab"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.selectGroup",
         "icon": "$(organization)",
         "shortTitle": "選擇 Group",
-        "title": "選擇 Group",
-        "category": "GitLab Workspace"
+        "title": "選擇 Group"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.refresh",
         "icon": "$(refresh)",
         "shortTitle": "重新整理",
-        "title": "重新整理工作台",
-        "category": "GitLab Workspace"
+        "title": "重新整理工作台"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.cloneRepositories",
-        "title": "選擇要下載或更新的專案",
-        "category": "GitLab Workspace"
+        "title": "選擇要下載或更新的專案"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.cloneAllRepositories",
         "icon": "$(cloud-download)",
-        "title": "下載或更新全部專案",
-        "category": "GitLab Workspace"
+        "title": "下載或更新全部專案"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.cloneSelectedRepositories",
         "icon": "$(checklist)",
-        "title": "下載或更新選取專案",
-        "category": "GitLab Workspace"
+        "title": "下載或更新選取專案"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.syncLocalDefaultBranches",
         "icon": "$(sync)",
-        "title": "更新全部本機預設分支",
-        "category": "GitLab Workspace"
+        "title": "更新全部本機預設分支"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.createIssue",
-        "title": "新增 Issue",
-        "category": "GitLab Workspace"
+        "title": "新增 Issue"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.disconnect",
-        "title": "中斷連線",
-        "category": "GitLab Workspace"
+        "title": "中斷連線"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openIssue",
-        "title": "開啟 Issue 詳情",
-        "category": "GitLab Workspace"
+        "title": "開啟 Issue 詳情"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.addAccount",
-        "title": "新增 GitLab 帳號",
-        "category": "GitLab Workspace"
+        "title": "新增 GitLab 帳號"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.manageAccounts",
-        "title": "管理 GitLab 帳號",
-        "category": "GitLab Workspace"
+        "title": "管理 GitLab 帳號"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.switchAccount",
-        "title": "切換 GitLab 帳號",
-        "category": "GitLab Workspace"
+        "title": "切換 GitLab 帳號"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.removeAccount",
-        "title": "移除 GitLab 帳號",
-        "category": "GitLab Workspace"
+        "title": "移除 GitLab 帳號"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openAdmin",
-        "title": "開啟 Log（相容命令）",
-        "category": "GitLab Workspace"
+        "title": "開啟 Log（相容命令）"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.showLogs",
-        "title": "開啟 Log",
-        "category": "GitLab Workspace"
+        "title": "開啟 Log"
       },
       {
+        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.scanRepositories",
-        "title": "一鍵掃描工作區 Repo",
-        "category": "GitLab Workspace",
-        "icon": "$(search)"
-      },
-      {
-        "command": "gitlabWorkspace.selectWorkflow",
-        "title": "切換工作流程…",
-        "category": "GitLab Workspace",
-        "icon": "$(list-selection)"
-      },
-      {
-        "command": "gitlabWorkspace.refreshRepositories",
-        "title": "重新整理儲存庫",
-        "category": "GitLab Workspace",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "gitlabWorkspace.refreshMyWork",
-        "title": "重新整理我的工作",
-        "category": "GitLab Workspace",
-        "icon": "$(refresh)",
-        "enablement": "gitlabWorkspace.connected && gitlabWorkspace.hasGroup"
-      },
-      {
-        "command": "gitlabWorkspace.findRepositories",
-        "title": "尋找儲存庫…",
-        "category": "GitLab Workspace",
-        "icon": "$(search)"
-      },
-      {
-        "command": "gitlabWorkspace.findMyWork",
-        "title": "尋找 Issue 或 MR…",
-        "category": "GitLab Workspace",
         "icon": "$(search)",
-        "enablement": "gitlabWorkspace.connected && gitlabWorkspace.hasGroup"
+        "title": "一鍵掃描工作區 Repo"
       },
       {
-        "command": "gitlabWorkspace.openMergeRequest",
-        "title": "開啟 MR 詳情",
         "category": "GitLab Workspace",
-        "icon": "$(git-pull-request)"
+        "command": "gitlabWorkspace.selectWorkflow",
+        "icon": "$(list-selection)",
+        "title": "切換工作流程…"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.refreshRepositories",
+        "icon": "$(refresh)",
+        "title": "重新整理儲存庫"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.refreshMyWork",
+        "enablement": "gitlabWorkspace.connected && gitlabWorkspace.hasGroup",
+        "icon": "$(refresh)",
+        "title": "重新整理我的工作"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.findRepositories",
+        "icon": "$(search)",
+        "title": "尋找儲存庫…"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.findMyWork",
+        "enablement": "gitlabWorkspace.connected && gitlabWorkspace.hasGroup",
+        "icon": "$(search)",
+        "title": "尋找 Issue 或 MR…"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.openMergeRequest",
+        "icon": "$(git-pull-request)",
+        "title": "開啟 MR 詳情"
       }
     ],
     "configuration": {
       "properties": {
-        "gitlabWorkspace.codex.workspaceLayout": {
-          "type": "string",
-          "enum": ["workspace", "classic"],
-          "enumDescriptions": ["任務工作台：執行與成果分頁。", "傳統版面：執行與成果同頁，詳情於頁內展開。"],
-          "default": "workspace",
-          "scope": "window",
-          "description": "Codex 版面回退開關。切換立即生效並保留草稿；只改變排列，沿用相同任務準備、執行、收據與安全限制，不恢復舊版後端或自動重送任務。"
+        "gitlabWorkspace.codex.executablePath": {
+          "default": "",
+          "description": "Codex CLI 執行檔的完整路徑；留白從 PATH 偵測。只讀取使用者設定，支援官方 npm 安裝入口。需要 Codex CLI 0.165.0 或更新版本。",
+          "scope": "machine",
+          "type": "string"
         },
         "gitlabWorkspace.codex.maxConcurrentTasks": {
-          "type": "integer",
           "default": 1,
-          "minimum": 1,
+          "description": "本機所有視窗共用的 Codex 任務上限。預設 1；設為 2 時，只有沒有共用寫入資源的任務才會同時執行。",
           "maximum": 2,
+          "minimum": 1,
           "scope": "machine",
-          "description": "本機所有視窗共用的 Codex 任務上限。預設 1；設為 2 時，只有沒有共用寫入資源的任務才會同時執行。"
+          "type": "integer"
         },
-        "gitlabWorkspace.codex.executablePath": {
-          "type": "string",
-          "default": "",
-          "scope": "machine",
-          "description": "Codex CLI 執行檔的完整路徑；留白從 PATH 偵測。只讀取使用者設定，支援官方 npm 安裝入口。需要 Codex CLI 0.165.0 或更新版本。"
+        "gitlabWorkspace.codex.workspaceLayout": {
+          "default": "workspace",
+          "description": "Codex 版面回退開關。切換立即生效並保留草稿；只改變排列，沿用相同任務準備、執行、收據與安全限制，不恢復舊版後端或自動重送任務。",
+          "enum": [
+            "workspace",
+            "classic"
+          ],
+          "enumDescriptions": [
+            "任務工作台：執行與成果分頁。",
+            "傳統版面：執行與成果同頁，詳情於頁內展開。"
+          ],
+          "scope": "window",
+          "type": "string"
         },
         "gitlabWorkspace.projectRoot": {
           "default": "",
@@ -319,128 +325,128 @@
           "when": "false"
         }
       ],
-      "view/title": [
-        {
-          "command": "gitlabWorkspace.scanRepositories",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gitlabWorkspace.openWorkspace",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gitlabWorkspace.refreshRepositories",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "repositories@1"
-        },
-        {
-          "command": "gitlabWorkspace.findRepositories",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "repositories@2"
-        },
-        {
-          "command": "gitlabWorkspace.selectWorkflow",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "workspace@1"
-        },
-        {
-          "command": "gitlabWorkspace.openSettings",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "workspace"
-        },
-        {
-          "command": "gitlabWorkspace.openTools",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "workspace"
-        },
-        {
-          "command": "gitlabWorkspace.manageAccounts",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "workspace"
-        },
-        {
-          "command": "gitlabWorkspace.selectGroup",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "workspace"
-        },
-        {
-          "command": "gitlabWorkspace.openWorkspace",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gitlabWorkspace.refreshMyWork",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gitlabWorkspace.findMyWork",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "work@1"
-        },
-        {
-          "command": "gitlabWorkspace.selectWorkflow",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "workspace@1"
-        },
-        {
-          "command": "gitlabWorkspace.openSettings",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "workspace"
-        },
-        {
-          "command": "gitlabWorkspace.openTools",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "workspace"
-        },
-        {
-          "command": "gitlabWorkspace.manageAccounts",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "workspace"
-        },
-        {
-          "command": "gitlabWorkspace.selectGroup",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "workspace"
-        }
-      ],
       "view/item/context": [
         {
           "command": "gitlabWorkspace.openRepository",
-          "when": "view == gitlabWorkspace.repositories && viewItem == gitlabWorkspace.repository",
-          "group": "inline"
+          "group": "inline",
+          "when": "view == gitlabWorkspace.repositories && viewItem == gitlabWorkspace.repository"
         },
         {
           "command": "gitlabWorkspace.openIssue",
-          "when": "view == gitlabWorkspace.myWork && viewItem == gitlabWorkspace.issue",
-          "group": "inline"
+          "group": "inline",
+          "when": "view == gitlabWorkspace.myWork && viewItem == gitlabWorkspace.issue"
         },
         {
           "command": "gitlabWorkspace.openMergeRequest",
-          "when": "view == gitlabWorkspace.myWork && viewItem == gitlabWorkspace.mergeRequest",
-          "group": "inline"
+          "group": "inline",
+          "when": "view == gitlabWorkspace.myWork && viewItem == gitlabWorkspace.mergeRequest"
         },
         {
           "command": "gitlabWorkspace.openDeveloperMode",
-          "when": "view == gitlabWorkspace.myWork",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "view == gitlabWorkspace.myWork"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "gitlabWorkspace.scanRepositories",
+          "group": "navigation@1",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.openWorkspace",
+          "group": "navigation@2",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.refreshRepositories",
+          "group": "repositories@1",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.findRepositories",
+          "group": "repositories@2",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.selectWorkflow",
+          "group": "workspace@1",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.openSettings",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.openTools",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.manageAccounts",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.selectGroup",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.repositories"
+        },
+        {
+          "command": "gitlabWorkspace.openWorkspace",
+          "group": "navigation@1",
+          "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.refreshMyWork",
+          "group": "navigation@2",
+          "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.findMyWork",
+          "group": "work@1",
+          "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.selectWorkflow",
+          "group": "workspace@1",
+          "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.openSettings",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.openTools",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.manageAccounts",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.myWork"
+        },
+        {
+          "command": "gitlabWorkspace.selectGroup",
+          "group": "workspace",
+          "when": "view == gitlabWorkspace.myWork"
         }
       ]
     },
     "views": {
       "gitlabWorkspace": [
         {
+          "contextualTitle": "GitLab Workspace 儲存庫",
           "id": "gitlabWorkspace.repositories",
           "name": "儲存庫",
-          "contextualTitle": "GitLab Workspace 儲存庫",
           "visibility": "visible"
         },
         {
+          "contextualTitle": "GitLab Workspace 我的工作",
           "id": "gitlabWorkspace.myWork",
           "name": "我的工作",
-          "contextualTitle": "GitLab Workspace 我的工作",
           "visibility": "visible"
         }
       ]
@@ -456,18 +462,18 @@
     },
     "viewsWelcome": [
       {
-        "view": "gitlabWorkspace.repositories",
-        "contents": "目前沒有已登錄的本機 Repo。\n[掃描工作區 Repo](command:gitlabWorkspace.scanRepositories)\n[開啟工作台](command:gitlabWorkspace.openWorkspace)"
+        "contents": "目前沒有已登錄的本機 Repo。\n[掃描工作區 Repo](command:gitlabWorkspace.scanRepositories)\n[開啟工作台](command:gitlabWorkspace.openWorkspace)",
+        "view": "gitlabWorkspace.repositories"
       },
       {
+        "contents": "登入 GitLab 後可瀏覽指派給我的 Issue 與 Group 的 MR。\n[連線 GitLab](command:gitlabWorkspace.connect)",
         "view": "gitlabWorkspace.myWork",
-        "when": "!gitlabWorkspace.connected",
-        "contents": "登入 GitLab 後可瀏覽指派給我的 Issue 與 Group 的 MR。\n[連線 GitLab](command:gitlabWorkspace.connect)"
+        "when": "!gitlabWorkspace.connected"
       },
       {
+        "contents": "選擇 Group 以載入工作項目。\n[選擇 Group](command:gitlabWorkspace.selectGroup)",
         "view": "gitlabWorkspace.myWork",
-        "when": "gitlabWorkspace.connected && !gitlabWorkspace.hasGroup",
-        "contents": "選擇 Group 以載入工作項目。\n[選擇 Group](command:gitlabWorkspace.selectGroup)"
+        "when": "gitlabWorkspace.connected && !gitlabWorkspace.hasGroup"
       }
     ]
   },
@@ -532,22 +538,22 @@
     "package:prepared": "node scripts/run-validation.mjs package --prepared",
     "prepare:validation": "node scripts/run-validation.mjs prepare",
     "test": "node scripts/run-validation.mjs all",
-    "test:quick": "node scripts/run-validation.mjs quick",
-    "test:ui": "node scripts/run-validation.mjs ui",
-    "test:compatibility": "node scripts/run-validation.mjs compatibility",
-    "test:legacy": "node scripts/run-validation.mjs legacy",
-    "test:codex:live": "node scripts/run-codex-live-tests.mjs",
     "test:behavior": "node scripts/run-validation.mjs behavior",
     "test:behavior:prepared": "node scripts/run-validation.mjs behavior --prepared",
+    "test:codex:live": "node scripts/run-codex-live-tests.mjs",
+    "test:compatibility": "node scripts/run-validation.mjs compatibility",
     "test:extension": "node scripts/run-validation.mjs extension",
     "test:extension:prepared": "node scripts/run-validation.mjs extension --prepared",
     "test:git-gui": "npm run package && node scripts/run-live-extension-tests.mjs --git-gui",
     "test:git-gui:local": "npm run package && node scripts/run-live-extension-tests.mjs --local-git-gui",
+    "test:legacy": "node scripts/run-validation.mjs legacy",
     "test:live": "npm run package && node scripts/run-live-extension-tests.mjs",
+    "test:quick": "node scripts/run-validation.mjs quick",
     "test:release": "node scripts/run-validation.mjs release",
     "test:release:prepared": "node scripts/run-validation.mjs release --prepared",
-    "test:unit": "node scripts/run-validation.mjs unit",
     "test:trust": "node scripts/run-validation.mjs trust",
+    "test:ui": "node scripts/run-validation.mjs ui",
+    "test:unit": "node scripts/run-validation.mjs unit",
     "test:unit:prepared": "node scripts/run-validation.mjs unit --prepared",
     "typecheck:webview": "tsc -p tsconfig.webview.json",
     "verify:package": "node scripts/run-python.mjs scripts/verify-vsix.py",
