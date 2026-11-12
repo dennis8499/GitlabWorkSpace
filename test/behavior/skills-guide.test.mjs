@@ -157,7 +157,7 @@ for (const tool of ['merge-reviewer', 'release-reviewer']) for (const advertised
   assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 推理強度"]'), null);
   const preview = view.document.querySelector('.wiki-prompt-preview').textContent;
   assert.match(preview, /執行方式：單一 Agent/);
-  assert.match(preview, /不建立子 Agent/);
+  assert.match(preview, /由目前 Agent 直接完成原生審查/);
   assert.doesNotMatch(preview, /stale-workspace-model|ReviewExecutionPolicy|subagent|平行/);
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
   view.document.querySelector('.wiki-copy-button').click(); await view.tick();

@@ -6,18 +6,19 @@ export function isReviewerTool(value: unknown): value is ReviewerToolId {
 export interface WorkflowKitRunnerBinding {
   script_path: string;
   script_sha256: string;
-  syntax_analysis?: SyntaxAnalysisBinding;
   review_launch_request?: 1;
   review_launch_sha256?: string;
   read_only_inspection?: true;
 }
 
-export interface SyntaxAnalysisBinding {
-  schema: 'SyntaxAnalysisBinding/v1';
-  script_path: string;
-  engine_sha256: string;
-  languages: string[];
-  default_mode: 'auto' | 'off';
+/** Project saved runner data onto the capabilities supported by current tasks. */
+export function workflowKitRunnerIdentity(binding: WorkflowKitRunnerBinding): WorkflowKitRunnerBinding {
+  return {
+    script_path: binding.script_path, script_sha256: binding.script_sha256,
+    ...(binding.review_launch_request !== undefined ? { review_launch_request: binding.review_launch_request } : {}),
+    ...(binding.review_launch_sha256 !== undefined ? { review_launch_sha256: binding.review_launch_sha256 } : {}),
+    ...(binding.read_only_inspection !== undefined ? { read_only_inspection: binding.read_only_inspection } : {})
+  };
 }
 
 /** Identity and local integrity measurements for an installed Reviewer payload. */
@@ -31,6 +32,11 @@ export interface InstalledReviewerBinding {
   payload_sha256: string;
   payload_files: number;
   workflow_kit_runner?: WorkflowKitRunnerBinding;
+}
+
+export function installedReviewerIdentity(binding: InstalledReviewerBinding): InstalledReviewerBinding {
+  return { ...binding, ...(binding.workflow_kit_runner
+    ? { workflow_kit_runner: workflowKitRunnerIdentity(binding.workflow_kit_runner) } : {}) };
 }
 
 /** The helper's persisted initial review decision, independent of publication or cleanup. */

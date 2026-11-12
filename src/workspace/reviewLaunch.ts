@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ReviewLaunchBinding, ReviewLaunchRequest } from './reviewLaunchProtocol';
-import type { WorkflowKitRunnerBinding } from './reviewSessionProtocol';
+import { installedReviewerIdentity, type WorkflowKitRunnerBinding } from './reviewSessionProtocol';
 import { readReviewJob } from './reviewSessions';
 
 export function reviewRunnerRuntime(nativeRuntime: string): string {
@@ -22,6 +22,7 @@ async function plainPath(file: string): Promise<void> {
 
 /** Persist the complete argv input outside the native ownership directory, before dispatch. */
 export async function saveReviewLaunchRequest(request: ReviewLaunchRequest, action: ReviewLaunchBinding['action'] = 'start', reuseExisting = false): Promise<ReviewLaunchBinding> {
+  request = { ...request, binding: installedReviewerIdentity(request.binding) };
   if (!/^[a-f0-9]{32}$/.test(request.request_id) || request.tool !== 'merge-reviewer' || request.binding.tool !== request.tool ||
       ![request.workspace, request.project, request.runtime_root].every(value => path.isAbsolute(value)) ||
       [request.base, request.head].some(value => !value || /[\r\n\0]/.test(value))) throw new Error('審查啟動輸入無效。');

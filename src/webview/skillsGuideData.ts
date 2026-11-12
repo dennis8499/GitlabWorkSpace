@@ -2,7 +2,7 @@ import type { ReviewerCapabilities, ReviewerSessionCapabilities } from '../works
 import { buildCommitGuidePrompt, commitGuideCards, validCommitInputs, type CommitGuideContext } from './commitGuideData';
 import { withOutputStyle } from '../workspace/outputStyle';
 import { normalizeProjectRoot } from './projectUiState';
-import type { InstalledReviewerBinding } from '../workspace/reviewSessionProtocol';
+import { installedReviewerIdentity, workflowKitRunnerIdentity, type InstalledReviewerBinding } from '../workspace/reviewSessionProtocol';
 import { reviewLaunchCommand, type ReviewLaunchBinding } from '../workspace/reviewLaunchProtocol';
 import {
   buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
@@ -123,7 +123,7 @@ export function buildSkillGuideContext(card: SkillGuideCard, context: SkillGuide
   return [
     `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '尚未安裝'}`,
     `Skills 專案根目錄：${context.root ?? context.groupRoot ?? '尚未選擇'}`,
-    ...(context.workflowKitRunner ? [`WorkflowKit helper runner：${JSON.stringify(context.workflowKitRunner)}。`] : []),
+    ...(context.workflowKitRunner ? [`WorkflowKit helper runner：${JSON.stringify(workflowKitRunnerIdentity(context.workflowKitRunner))}。`] : []),
     `VSCode 工作區根目錄：${context.workspaceRoot ?? context.groupRoot ?? context.root ?? '尚未辨識'}`,
     '本機實際 Git Repo：',
     ...(context.repositories.length ? context.repositories.map(repo => `- ${repo.name} → ${repo.path}`) : ['（目前工作區尚未找到 Git Repo）'])
@@ -195,7 +195,6 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
       '後續沿用同一命令，只改 --action 為 status、view、check、finish 或 cancel；view 的續讀參數放在 -- 後。status/view 為唯讀。審查 step 依原生 Skill 操作。',
       '使用 compact 草稿。check 的 completion_preview 核對必要缺口與 scope_notes；finish 完整驗證後依收據區分報告發布與審查完整性。終止時檢視診斷，保留原 request。',
       '執行方式：單一 Agent。由目前 Agent 直接完成原生審查，沿用目前 CLI 模型與強度；Workbench 使用任務設定。本次停用 Model Routing，舊 profile 的 routing 指令不適用；不建立路由子 Agent。',
-      '語法輔助沿用安裝驗收模式；結構解析不等於語意覆蓋。'
     ].join('\n');
   }
   const sessionCapabilities = context.reviewerCapabilities?.schema === 'ReviewCapabilities/v1'
@@ -229,16 +228,11 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     `$${card.tool} 請依下列明確輸入執行${release ? '上版檢查' : '分支合併審查'}。`,
     '專案名稱：' + project, '基礎分支：' + quoted('base'), '比較分支：' + quoted('head'),
     (prepared ? '先讀上述已安裝 Skill 的 SKILL.md 與 references/fast-session.md；' : '先讀上述已安裝 Skill 的 SKILL.md 與 references/session-workflow.md；') + '審查準則、固定證據、報告與完成門檻以該 Skill 為準。依情境載入 Group、部署依賴或恢復文件。',
-    ...(context.reviewerBinding ? ['已安裝入口：' + JSON.stringify(context.reviewerBinding),
+    ...(context.reviewerBinding ? ['已安裝入口：' + JSON.stringify(installedReviewerIdentity(context.reviewerBinding)),
       prepared ? 'helper 啟動前自動核對上述整套 payload SHA-256；不符時停止，請重新複製提示詞。'
         : nativeMergeCapabilities ? '使用 MergeReviewer 原生 session 介面；只呼叫其宣告的命令，不傳入新版 preparation、payload 或預算參數。'
           : sessionCapabilities ? '沿用已安裝 session 介面宣告的能力及選項。'
             : '入口未宣告 capabilities；依已安裝 Skill 驗證現有 CLI，不傳入新版選項。'] : []),
-    ...(workflowKitRunner?.syntax_analysis ? [
-      'WorkflowKit 語法分析綁定：' + JSON.stringify(workflowKitRunner.syntax_analysis),
-      '依 .agents/gitlab-workspace-kit/references/syntax-context.md 使用安裝版初始讀取計畫；保留全部 Diff、必要版本與未讀範圍，結構解析不代表語意審查完成。',
-      '先以已綁定語法入口 capabilities --expected-engine-sha256 核對引擎；沿用驗收預設模式，不為本次審查自行開啟尚未驗收的功能。'
-    ] : []),
     ...(context.reviewerRequestId && supportsRequestId ? [`Review request ID: ${context.reviewerRequestId}. Reuse this ID for retries.`] : []),
     ...(release && supports('read_window') ? ['For large evidence, use read-window with a starting line and count, then follow next cursor.'] : []),
     ...(release && supports('literal_search_batch') ? ['Batch consecutive case-sensitive literal searches for the same Repo; keep one result record per query.'] : []),
