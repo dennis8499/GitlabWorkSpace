@@ -54,8 +54,21 @@ test('dashboard directs BMAD installation to WorkflowKit before GitLab login', a
   assert.deepEqual(requestShape(view.requests.findLast(item => item.type === 'openBmadTerminal')),
     { type: 'openBmadTerminal', revision: data.bmad.revision });
   await view.click('開啟 WorkflowKit 設定');
+  assert.equal(view.document.activeElement?.getAttribute('data-settings-section'), 'workflowkit');
+  assert.equal(view.document.querySelector('details.tool-settings').open, true);
   assert.ok(view.document.querySelector('.tool-drawer'));
   assert.equal(view.requests.some(item => ['connect', 'installWorkflowKit', 'copyBmadPrompt', 'openCodexTerminal'].includes(item.type)), false);
+});
+
+test('tool repair focuses its environment section and returns to the same preparation without starting work', async t => {
+  const view = await mount(t);
+  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data: { type: 'openSettings', focusSection: 'codex', draftId: 'saved-draft' } }));
+  await view.tick();
+  assert.equal(view.document.activeElement?.getAttribute('data-settings-section'), 'codex');
+  const button = [...view.document.querySelectorAll('.tool-drawer button')].find(item => item.textContent === '返回任務準備');
+  assert.ok(button); button.click(); await view.tick();
+  assert.equal(view.requests.findLast(item => item.type === 'showCodexLaunch')?.draftId, 'saved-draft');
+  assert.equal(view.requests.some(item => item.type === 'submitCodexLaunch' || item.type === 'startCodexTask'), false);
 });
 
 test('task drafts and copy requests stay associated with the selected root', async t => {

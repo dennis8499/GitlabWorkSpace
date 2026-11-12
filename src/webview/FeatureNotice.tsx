@@ -4,10 +4,10 @@ import { useId } from 'preact/hooks';
 import { featureNoticeId, groupFeatureBlockers, type FeatureBlocker } from './featureAvailability';
 import './feature-notice.css';
 
-export function FeatureNotice({ id, reason, tone = 'hint', details, children }: {
-  id?: string; reason: string; tone?: FeatureBlocker['tone']; details?: string; children?: ComponentChildren;
+export function FeatureNotice({ id, reason, tone = 'hint', details, children, announce = tone !== 'hint' }: {
+  id?: string; reason: string; tone?: FeatureBlocker['tone']; details?: string; children?: ComponentChildren; announce?: boolean;
 }) {
-  return <div id={id} class={`feature-notice feature-notice-${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
+  return <div id={id} class={`feature-notice feature-notice-${tone}`} role={announce ? tone === 'error' ? 'alert' : 'status' : undefined}>
     <span class="feature-notice-reason">{reason}</span>
     {details && <details class="feature-notice-details"><summary>技術細節</summary><pre>{details}</pre></details>}
     {children && <div class="feature-notice-actions">{children}</div>}

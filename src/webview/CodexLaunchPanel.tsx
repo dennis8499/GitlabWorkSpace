@@ -25,6 +25,8 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
   latest.current = draft;
   const busy = ['checking', 'submitting'].includes(draft.state), locked = ['submitted', 'submitting', 'uncertain'].includes(draft.state);
   const model = draft.models.find(model => model.id === value.model);
+  const checksReady = draft.checks.every(check => check.state === 'ready');
+  const modelBlocked = draft.checks.some(check => check.id === 'selection' && check.state === 'blocked');
   useEffect(() => {
     if (mountedDraft.current !== draft.id) {
       mountedDraft.current = draft.id; const next = { ...fields(draft), ...localDraft };
@@ -110,7 +112,8 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
             <span>{item.summary}</span></label>)}
         </fieldset>}
       </fieldset>
-      <fieldset disabled={locked || busy}><legend>模型與思考強度</legend>
+      <details class="codex-launch-advanced" open={modelBlocked}><summary>模型與思考強度 · {model?.label ?? (value.model || '沿用本機 Codex 設定')}{value.effort ? ` · ${value.effort}` : ''}</summary>
+      <fieldset disabled={locked || busy}><legend>執行設定</legend>
         <div class="codex-launch-options"><label>模型<select value={value.model} onChange={event => edit({ model: event.currentTarget.value, effort: '' })}>
           {!draft.requiresModel && <option value="">沿用本機 Codex 設定</option>}
           {draft.models.map(model =>
@@ -119,7 +122,7 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
           <option value="">沿用模型預設</option>
           {model?.efforts.map(effort => <option key={effort} value={effort}>{effort}</option>)}
         </select></label></div>
-      </fieldset>
+      </fieldset></details>
       {(draft.sourceSha || draft.branch || draft.workingDirectory) && <dl class="codex-launch-summary">
         {draft.branch && <><dt>工作分支</dt><dd>{draft.branch}</dd></>}
         {draft.sourceSha && <><dt>來源版本</dt><dd><code>{draft.sourceSha.slice(0, 12)}</code>{draft.targetSha && <> → <code>{draft.targetSha.slice(0, 12)}</code></>}</dd></>}
@@ -137,7 +140,7 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
         <button type="button" disabled={draft.sourceChange.acknowledged || saving || locked || busy || conflict} onClick={acknowledgeSource}>
           {draft.sourceChange.acknowledged ? '已核對更新的來源' : '我已核對更新的來源'}</button>
       </section>}
-      <section class="codex-launch-checks" aria-label="環境檢查"><h3>開始前檢查</h3>
+      <details class="codex-launch-checks" aria-label="環境檢查" open={!checksReady}><summary>開始前檢查 · {draft.checks.filter(check => check.state === 'ready').length}/{draft.checks.length} 通過</summary>
         <ol>{draft.checks.map(check => <li key={check.id} data-state={check.state}>
           <span aria-hidden="true">{{ pending: '○', checking: '◌', ready: '✓', blocked: '!' }[check.state]}</span>
           <div><strong>{check.label}</strong><span> · {{ pending: '尚未檢查', checking: '檢查中…', ready: '已確認', blocked: '需要處理' }[check.state]}</span>
@@ -146,7 +149,7 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
             {{ login: '登入 GitLab', clone: '前往 Clone', scan: '掃描 Repo', tools: '工具與環境', 'codex-login': '登入 Codex', sandbox: '設定 sandbox', executable: '設定 Codex' }[check.repair]}</button>}
           {check.repair === 'scan' && <button type="button" onClick={() => post({ type: 'repairCodexLaunch', draftId: draft.id, action: 'clone' })}>前往 Clone</button>}
         </li>)}</ol>
-      </section>
+      </details>
       {draft.error && <p class="warning" role="status">{draft.error}</p>}
       {conflict && <section class="warning" role="alert"><p>保存的設定與這份尚未同步的輸入不同。你的輸入保留在此畫面，請選擇要使用的設定。</p>
         <button type="button" disabled={locked || busy} onClick={() => { editBase.current = latest.current.revision; persist.current?.(local.current, editBase.current); setConflict(false); dirty.current = true; }}>套用我的設定</button>

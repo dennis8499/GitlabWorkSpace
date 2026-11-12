@@ -68,3 +68,20 @@ test('duplicate asset entries are rejected and CLI writes a failing report with 
   await assert.rejects(promisify(execFile)(process.execPath, [command, '--reference', f.reference, '--candidate', f.candidate, '--output', output]), error => error.code === 1);
   assert.equal(JSON.parse(await readFile(output, 'utf8')).status, 'FAIL');
 });
+
+test('lazy chunk bytes and missing chunks prevent a provenance PASS', async t => {
+  const manifest = { 'dashboard.html': { file: 'dashboard.js', isEntry: true, dynamicImports: ['feature'] },
+    feature: { file: 'chunks/feature-123.js' } };
+  const entries = [...assets(), ['extension/resources/issue-webview/asset-manifest.json', JSON.stringify(manifest)],
+    ['extension/resources/issue-webview/chunks/feature-123.js', 'feature module']];
+  const f = await fixture(t, entries);
+  await writeFile(f.reference, zip(entries));
+  assert.equal((await compareUiArtifactIdentity(f.reference, f.candidate)).status, 'PASS');
+  const changed = entries.map(([name, content]) => [name, name.endsWith('feature-123.js') ? 'changed module' : content]);
+  await writeFile(f.candidate, zip(changed));
+  assert.equal((await compareUiArtifactIdentity(f.reference, f.candidate)).status, 'FAIL');
+  await writeFile(f.candidate, zip(entries.slice(0, -1)));
+  const missing = await compareUiArtifactIdentity(f.reference, f.candidate);
+  assert.equal(missing.status, 'FAIL');
+  assert.equal(missing.assets.find(asset => asset.path.endsWith('feature-123.js')).candidate, null);
+});

@@ -96,7 +96,7 @@ suite('Live GitLab Workspace Webview validation', function () {
       const discoveredRepository = initialGitState.repositories.find((repository) => path.resolve(repository.path).toLocaleLowerCase('en-US') === path.resolve(workspaceRoot).toLocaleLowerCase('en-US'));
       assert.ok(discoveredRepository,
         `VS Code Git discovers the isolated demonstration Repo (${JSON.stringify(initialGitState)})`);
-      await ui.waitUntil(`document.querySelector('.git-repo-picker select')?.value === ${JSON.stringify(discoveredRepository.id)}
+      await ui.waitUntil(`document.querySelector('button.git-repo-picker')?.title === ${JSON.stringify(discoveredRepository.path)}
         && document.querySelector('.git-repo-heading strong')?.textContent === 'service'
         && document.querySelector('.git-refresh')?.disabled === false && !document.querySelector('.git-status-message .spinner')`, 20_000,
       'The initial Git GUI open finishes before bootstrap branch details are read.');
@@ -119,7 +119,7 @@ suite('Live GitLab Workspace Webview validation', function () {
       remoteBranchNames = discoveredDetails.branches?.filter((branch) => branch.kind === 'remote').map((branch) => branch.name) ?? [];
       assert.ok(remoteBranchNames.includes('origin/main'), `the branch list uses canonical remote names (${remoteBranchNames.join(', ')})`);
       assert.ok(!remoteBranchNames.some((name) => name.startsWith('origin/origin/')), `remote names are not prefixed twice (${remoteBranchNames.join(', ')})`);
-      await ui.waitUntil(`([...document.querySelectorAll('.git-repo-picker select option')].some((option) => option.textContent?.toLocaleLowerCase('en-US').includes('service')))`, 20_000,
+      await ui.waitUntil(`document.querySelector('button.git-repo-picker span')?.textContent?.toLocaleLowerCase('en-US').includes('service')`, 20_000,
         'The open Git GUI receives the Repo after VS Code Git finishes asynchronous repository discovery.');
       const nativeCommandCount = (): number => {
         const root = process.env.GLW_LOCAL_GIT_GUI_LOG_ROOT!;
@@ -179,7 +179,7 @@ suite('Live GitLab Workspace Webview validation', function () {
         execFileSync('git', ['checkout', '--detach', 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
       });
       await refreshGitGui(ui);
-      await ui.waitUntil(`document.querySelector('.git-branch-picker select')?.value === '' && document.querySelector('.git-branch-picker select')?.textContent?.includes('Detached HEAD')`, 15_000, 'Detached HEAD is shown without inventing a local branch.');
+      await ui.waitUntil(`document.querySelector('button.git-branch-picker span')?.textContent?.trim() === 'Detached HEAD ▾'`, 15_000, 'Detached HEAD is shown without inventing a local branch.');
       await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
       assert.ok(await ui.count('.git-wip-row .git-commit-graph path'), 'working changes connect to the detached HEAD commit');
       compatibility.detachedHead = 'PASS';
@@ -189,25 +189,23 @@ suite('Live GitLab Workspace Webview validation', function () {
       execFileSync('git', ['init', '-b', 'main'], { cwd: emptyRepo, stdio: 'ignore', windowsHide: true });
       const nativeGitExtension = await vscode.extensions.getExtension('vscode.git')!.activate() as { getAPI(version: number): { openRepository(root: vscode.Uri): Promise<unknown> } };
       assert.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(emptyRepo)));
-      await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some((option) => option.textContent?.includes('empty-repo'))`, 15_000, 'The isolated empty Repo is discovered.');
-      await ui.selectOptionContaining('.git-repo-picker select', 'empty-repo');
+      await nativeSelectGitRepository(ui, page, 'empty-repo');
       await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'empty-repo' && document.querySelector('.git-center .git-empty-list')?.textContent?.includes('尚無提交歷史')`, 15_000, 'An unborn Repo opens its empty graph.');
       assert.equal(await ui.count('.git-wip-row'), 1);
       assert.equal(await ui.evaluate(`document.querySelector('.git-commit-launch')?.disabled`), true);
       compatibility.emptyRepo = 'PASS';
       for (let index = 0; index < 4; index++) {
-        await ui.selectOptionContaining('.git-repo-picker select', 'service');
-        await ui.selectOptionContaining('.git-repo-picker select', 'empty-repo');
+        await nativeSelectGitRepository(ui, page, 'service');
+        await nativeSelectGitRepository(ui, page, 'empty-repo');
       }
-      await ui.selectOptionContaining('.git-repo-picker select', 'service');
-      await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && document.querySelector('.git-branch-picker select')?.value === ${JSON.stringify(currentBranch)} && !document.querySelector('.git-progress') && !document.querySelector('.dashboard-error')`, 15_000, 'Rapid switching completes the latest open and renders its actual current branch without stale replies.');
+      await nativeSelectGitRepository(ui, page, 'service');
+      await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && document.querySelector('button.git-branch-picker span')?.textContent?.trim() === ${JSON.stringify(currentBranch + ' ▾')} && !document.querySelector('.git-progress') && !document.querySelector('.dashboard-error')`, 15_000, 'Rapid switching completes the latest open and renders its actual current branch without stale replies.');
       compatibility.rapidRepoSwitching = 'PASS';
       const worktreeRoot = path.join(path.dirname(workspaceRoot), 'validation-worktree');
       execFileSync('git', ['worktree', 'add', '-b', 'validation/worktree', worktreeRoot, 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
       assert.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(worktreeRoot)));
-      await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some(option => option.textContent?.includes('validation-worktree'))`, 15_000, 'A real linked Worktree appears after native repository discovery.');
-      await ui.selectOptionContaining('.git-repo-picker select', 'validation-worktree');
-      await ui.waitUntil(`document.querySelector('.git-branch-picker select')?.value === 'validation/worktree' && !!document.querySelector('.git-commit-row:not(.git-wip-row)')`, 15_000, 'The linked Worktree shows its own branch and shared commit history.');
+      await nativeSelectGitRepository(ui, page, 'validation-worktree');
+      await ui.waitUntil(`document.querySelector('button.git-branch-picker span')?.textContent?.trim() === 'validation/worktree ▾' && !!document.querySelector('.git-commit-row:not(.git-wip-row)')`, 15_000, 'The linked Worktree shows its own branch and shared commit history.');
       compatibility.worktree = 'PASS';
       const moduleSource = path.join(path.dirname(workspaceRoot), 'module-source');
       mkdirSync(moduleSource, { recursive: true });
@@ -218,11 +216,10 @@ suite('Live GitLab Workspace Webview validation', function () {
       execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', moduleSource, 'validation-module'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
       const submoduleRoot = path.join(workspaceRoot, 'validation-module');
       assert.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(submoduleRoot)));
-      await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some(option => option.textContent?.includes('validation-module'))`, 15_000, 'A real Submodule appears after native repository discovery.');
-      await ui.selectOptionContaining('.git-repo-picker select', 'validation-module');
+      await nativeSelectGitRepository(ui, page, 'validation-module');
       await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'validation-module' && document.querySelector('.git-commit-list')?.textContent?.includes('Submodule fixture')`, 15_000, 'The Submodule resolves its gitdir file and shows its own commit history.');
       compatibility.submodule = 'PASS';
-      await ui.selectOptionContaining('.git-repo-picker select', 'service');
+      await nativeSelectGitRepository(ui, page, 'service');
       await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && !document.querySelector('.git-progress')`, 15_000, 'The main Repo is selected before hiding the panel.');
       const lifecycleDraft = 'Hidden panel draft ' + runId;
       await ui.evaluate(`(() => { globalThis.__glwLifecycleProbe = true; const input = document.querySelector('.git-commit-composer textarea'); if (!input) throw new Error('Commit composer missing'); input.value = ${JSON.stringify(lifecycleDraft)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -247,8 +244,8 @@ suite('Live GitLab Workspace Webview validation', function () {
         testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
         repository: workspaceRoot, remoteKind: 'isolated-local-bare-repository', status, gitDiscoveryMs, gitDetailsStaleRetries, initialGitState, remoteBranchNames,
         interactiveConfirmationUI: status !== 'PASS' ? 'NOT_COMPLETE' :
-          gitGui.commitConfirmation === 'workbench-dom' && gitGui.pushConfirmation === 'workbench-dom' ? 'PASS: both native VS Code modal confirmations were presented and clicked through the Workbench DOM.' :
-          'BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable.',
+          gitGui.commitConfirmation === 'not-required-staged-commit' && gitGui.pushConfirmation === 'workbench-dom' ? 'PASS: the staged Commit completed directly and the native Push confirmation was presented and clicked through the Workbench DOM.' :
+          'BLOCKED: the Push decision used the Extension Host test adapter because the isolated VS Code modal was unavailable.',
         warningPrompts, actionTrace, idleChecks, externalChangeChecks, compatibility, gitGui
       }, null, 2)}\n`, 'utf8');
     } catch (error) {
@@ -469,8 +466,13 @@ suite('Live GitLab Workspace Webview validation', function () {
     const gitWarmupStarted = performance.now();
     await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
     await ui.waitForVisible('.git-workbench', 120_000);
-    await ui.waitUntil(`document.querySelectorAll('.git-repo-picker select option').length >= ${expectedRepoCount + 1}`, 120_000,
-      `The Git panel has loaded all ${expectedRepoCount} fixture Repos and the workspace Repo before warm navigation.`);
+    const gitInventoryDeadline = performance.now() + 120_000;
+    while ((await api.getGitRepositoryState()).repositories.length < expectedRepoCount + 1) {
+      assert.ok(performance.now() < gitInventoryDeadline, `Native Git discovers all ${expectedRepoCount} fixture Repos and the workspace Repo before warm navigation.`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    await ui.waitUntil(`!!document.querySelector('button.git-repo-picker') && document.querySelector('.git-refresh')?.disabled === false`,
+      20_000, 'The native Repo picker is available after repository discovery.');
     let lastGitCommandCount = measuredApi.getGitCommandCountForTesting?.() ?? null;
     let quietGitMs = 0;
     const quietGitStarted = performance.now();
@@ -998,6 +1000,15 @@ function percentile(values: number[], fraction: number): number {
   return sorted.length ? Number(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)].toFixed(2)) : 0;
 }
 
+async function nativeSelectGitRepository(ui: WebviewCdp, page: Page, name: string): Promise<void> {
+  await ui.waitForVisible('button.git-repo-picker', 20_000);
+  await ui.click('button.git-repo-picker');
+  const choice = page.locator('.quick-input-widget .quick-input-list-entry').filter({ hasText: name }).first();
+  await choice.waitFor({ state: 'visible', timeout: 25_000 });
+  await choice.click();
+  await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
+}
+
 async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string, runId: string, warningPrompts: TestWarningPrompt[] = [], openWorkspace = true,
   checkIdle?: (phase: string) => Promise<void>, checkExternalChange?: ExternalGitChangeCheck): Promise<Record<string, unknown>> {
   const confirmationDialogs: string[] = [];
@@ -1009,9 +1020,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   });
   if (openWorkspace) await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
   await ui.waitForVisible('.git-workbench', 20_000);
-  await ui.waitForVisible('.git-repo-picker select', 20_000);
-  await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some((option) => option.textContent?.toLowerCase().includes('service'))`, 25_000, 'VS Code did not discover the isolated service Repo for the Git GUI.');
-  await ui.selectOptionContaining('.git-repo-picker select', 'service');
+  await nativeSelectGitRepository(ui, page, 'service');
   await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent?.toLowerCase().includes('service')`, 15_000, 'The Git GUI did not activate the service Repo.');
   await ui.waitForVisible('.git-toolbar > button.secondary', 20_000);
   await ui.waitForProperty('.git-toolbar > button.secondary', 'disabled', false, 20_000);
@@ -1025,15 +1034,16 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   const branch = `validation/${runId}/${Date.now().toString(36)}`;
 
   await ui.click('.git-toolbar > button.secondary');
-  await ui.waitForVisible('.git-dialog input[name="name"]', 5_000);
-  await ui.fill('.git-dialog input[name="name"]', branch);
-  await ui.waitUntil(`document.querySelector('.git-dialog input[name="name"]')?.value === ${JSON.stringify(branch)}`, 5_000, 'The Git GUI did not retain the new branch name.');
-  assert.equal(await ui.evaluate<string | null>(`new FormData(document.querySelector('.git-dialog')).get('name')`), branch, 'the branch form contains the exact value entered through the real Webview keyboard input path');
-  await ui.click('.git-dialog button[type="submit"]');
+  const branchInput = page.locator('.quick-input-widget input[placeholder="新分支名稱"]');
+  await branchInput.waitFor({ state: 'visible', timeout: 5_000 });
+  await branchInput.fill(branch);
+  assert.equal(await branchInput.inputValue(), branch, 'the native InputBox contains the exact branch entered through the Workbench keyboard input path');
+  await branchInput.press('Enter');
+  await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
   try {
-    await ui.waitUntil(`(() => { const select = document.querySelector('.git-branch-picker select'); return !!select && [...select.options].some((option) => option.value === ${JSON.stringify(branch)}) && select.value === ${JSON.stringify(branch)}; })()`, 15_000, 'The Git GUI did not switch to the new branch.');
+    await ui.waitUntil(`document.querySelector('button.git-branch-picker span')?.textContent?.trim() === ${JSON.stringify(`${branch} ▾`)}`, 15_000, 'The Git GUI did not switch to the new branch.');
   } catch {
-    const picker = await ui.evaluate(`(() => { const select = document.querySelector('.git-branch-picker select'); return { value: select?.value, options: [...(select?.options ?? [])].map((option) => option.value), current: document.querySelector('.git-branch-chip')?.textContent }; })()`);
+    const picker = await ui.evaluate(`({ current: document.querySelector('button.git-branch-picker')?.textContent, error: document.querySelector('.git-error')?.textContent })`);
     assert.fail(`The Git GUI did not reflect the checked-out branch from the Git repository (${JSON.stringify(picker)}).`);
   }
   await waitForGitState(repoPath, ['branch', '--show-current'], (output) => output.trim() === branch, 'The branch is checked out in the actual local Git repository.');
@@ -1049,7 +1059,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   } else changeWorktree();
   await refreshGitGui(ui);
   await ui.waitUntil(`Boolean(document.querySelector('.git-change-name')?.textContent?.includes('service.ts'))`, 15_000, 'Manual refresh did not load the externally changed working tree.');
-  await ui.click('.git-change-name');
+  await ui.click('[aria-label="部分暫存預覽 service.ts"]');
   await ui.waitForVisible('.git-diff-line.add input[type="checkbox"]');
   assert.equal(await ui.count('.git-diff-line.add input[type="checkbox"]'), 2, 'the real Git diff exposes both added lines for line-level staging');
   await checkIdle?.('select-file');
@@ -1090,21 +1100,6 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   await page.bringToFront();
   await playwrightWebview.locator('.git-commit-composer button[type="submit"]').click();
   await ui.waitForVisible('.git-progress', 10_000);
-  const commitDomConfirmed = await confirmWorkbenchDialog(page, ui, 'Commit');
-  const commitBrowserDialog = confirmationDialogs.find((message) => /commit/i.test(message));
-  const commitTestAdapter = warningPrompts.some((prompt) => prompt.modal && prompt.items.includes('Commit') && prompt.result === 'Commit');
-  if (!commitDomConfirmed && !commitBrowserDialog && !commitTestAdapter) {
-    const commitUi = await ui.evaluate(`(() => ({
-      pending: document.querySelector('.git-progress')?.textContent ?? null,
-      error: document.querySelector('.dashboard-error')?.textContent ?? null,
-      dialog: document.querySelector('.git-dialog')?.textContent ?? null,
-      staged: [...document.querySelectorAll('.git-change-section')].map((section) => ({ title: section.querySelector('h3')?.textContent, files: [...section.querySelectorAll('.git-change-name')].map((file) => file.textContent) }))
-    }))()`);
-    return { branch, previousBranch: currentBranch, stagedPartialLines: 1, stagedWholeFileLines: 2,
-      indexAfterPartial: indexAfterPartial.trim(), indexAfterWholeFile: indexAfterWholeFile.trim(),
-      commitConfirmation: 'BLOCKED: VS Code did not expose the Commit confirmation to the isolated test host.',
-      committed: false, push: 'NOT_RUN', warningPrompts, confirmationDialogs, commitUi };
-  }
   await ui.waitForHidden('.git-progress', 30_000);
   const commitSubject = await waitForGitState(repoPath, ['log', '-1', '--format=%s'], (output) => output.includes(`GUI validation ${runId}`), 'The staged changes appear in the committed Git history.');
   await checkIdle?.('commit');
@@ -1141,7 +1136,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   const advancedActions = localGitGuiEnabled ? await exerciseAdvancedGitGui(ui, repoPath, runId, playwrightWebview, checkExternalChange) : undefined;
   return { branch, previousBranch: currentBranch, stagedPartialLines: 1, stagedWholeFileLines: 2,
     indexAfterPartial: indexAfterPartial.trim(), indexAfterWholeFile: indexAfterWholeFile.trim(),
-    commitMessage: commitSubject.trim(), committed: true, commitConfirmation: commitDomConfirmed ? 'workbench-dom' : commitBrowserDialog ? 'browser-dialog' : 'test-adapter',
+    commitMessage: commitSubject.trim(), committed: true, commitConfirmation: 'not-required-staged-commit',
     pushConfirmation: pushDomConfirmed ? 'workbench-dom' : pushBrowserDialog ? 'browser-dialog' : 'test-adapter', upstream: upstream.trim(), pushedWithUpstream: true, historyRows: commits,
     warningPrompts, confirmationDialogs, ...(advancedActions ? { advancedActions } : {}) };
 }
@@ -1225,8 +1220,8 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   execFileSync('git', ['push', 'origin', 'main'], { cwd: peerPath, stdio: 'ignore', windowsHide: true });
   const expectedRemoteMain = runGit(['--git-dir', bareRemote, 'rev-parse', 'refs/heads/main']);
 
-  await openMenuAction(0);
-  await submitGuiAction();
+  await ui.click('.git-fetch');
+  await waitForGitUiAction(ui);
   const fetchedMain = runGit(['rev-parse', 'refs/remotes/origin/main']);
   assert.equal(fetchedMain, expectedRemoteMain, 'Fetch updates the remote-tracking ref from the isolated bare remote.');
 

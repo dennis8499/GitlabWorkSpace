@@ -1,0 +1,24 @@
+{
+  "commit": "7058e42",
+  "version": "0.49.0",
+  "method": "git archive HEAD, isolated TypeScript and Vite rebuild, shared installed dependencies",
+  "node": "24.21.0",
+  "assets": {
+    "dashboard.js": {
+      "bytes": 631836,
+      "sha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185"
+    },
+    "dashboard.css": {
+      "bytes": 126379,
+      "sha256": "236281508460bb3fc9c71235d1203442f428932a03fff072bd356c825ed8e383"
+    },
+    "dashboard.html": {
+      "bytes": 456,
+      "sha256": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428"
+    },
+    "codicon.ttf": {
+      "bytes": 80188,
+      "sha256": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+    }
+  }
+}

@@ -10,6 +10,8 @@ import { GitRepositoryService } from './git/gitRepositoryService';
 import { OperationLog } from './logging/operationLog';
 import { NotificationCenter } from './notifications/notificationCenter';
 import { randomUUID } from 'node:crypto';
+import { workflowChoices } from './workspace/workflowNavigation';
+import { disposeNativeDocuments } from './git/nativeDocuments';
 import { OperationTracker, operationLabels } from './workspace/operations';
 import { OperationReceiptFileStore } from './workspace/operationReceiptStore';
 import { cleanupLegacyLogs } from './storage/legacyLogs';
@@ -18,6 +20,7 @@ let activeOperations: OperationTracker | undefined;
 let shutdownCodex: (() => Promise<void>) | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
+  context.subscriptions.push({ dispose: disposeNativeDocuments });
   const testMode = context.extensionMode === vscode.ExtensionMode.Test;
   const notifications = new NotificationCenter();
   const operations = new OperationTracker(operation => notifications.recordOperation(operation), {
@@ -78,8 +81,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       return withNativeCommandFeedback(() => notifications.runCommand({ operationId, title: operationLabels[aliases[action] ?? action] ?? 'GitLab Workspace',
         origin: workspacePanel?.getNotificationOrigin() }, task, false), {
         operationId, snapshot: () => notifications.snapshot(), workbenchVisible: () => getWorkspace().isWorkbenchVisible(),
-        show: (level, message) => level === 'error' ? vscode.window.showErrorMessage(message, '開啟訊息中心') : vscode.window.showWarningMessage(message, '開啟訊息中心'),
-        openMessages: () => getWorkspace().openNotifications()
+        show: (level, message, action) => level === 'error' ? vscode.window.showErrorMessage(message, ...(action ? [action] : []), '開啟訊息中心') : vscode.window.showWarningMessage(message, ...(action ? [action] : []), '開啟訊息中心'),
+        openMessages: () => getWorkspace().openNotifications(),
+        openTarget: async id => {
+          try { await getWorkspace().openNotificationTarget(id); }
+          catch (error) { await vscode.window.showWarningMessage(log.sanitize(readableError(error))); }
+        }
       });
     });
   context.subscriptions.push(gitRepositories, navigation, issuePanels, workspacePanel);
@@ -129,6 +136,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     }),
     registerLoggedCommand('gitlabWorkspace.refreshRepositories', () => navigation?.refreshRepositories()),
     registerLoggedCommand('gitlabWorkspace.refreshMyWork', () => navigation?.refreshMyWork()),
+    registerLoggedCommand('gitlabWorkspace.loadMoreMyWork', (node?: WorkNode) => navigation?.loadMore(node)),
+    registerLoggedCommand('gitlabWorkspace.retryMyWorkSection', (node?: WorkNode) => navigation?.loadMore(node, true)),
     registerLoggedCommand('gitlabWorkspace.findRepositories', async () => {
       const id = await navigation?.findRepository(); if (id) await getWorkspace().navigateTo('git', id);
     }),
@@ -139,11 +148,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     }),
     registerLoggedCommand('gitlabWorkspace.openMergeRequest', (node: WorkNode) => node?.kind === 'mergeRequest' ? getWorkspace().openMergeRequestFromCommand(node.mergeRequest, node.scope) : undefined),
     registerLoggedCommand('gitlabWorkspace.selectWorkflow', async () => {
-      const choices = [
-        ['工作台總覽', 'openWorkspace'], ['專案與批次操作', 'openCloneMode'], ['我的工作', 'openDeveloperMode'],
-        ['待審查', 'openReviewerMode'], ['Skills 功能指引與分析', 'openSaMode'], ['BMAD 開發流程', 'openBmadMode'],
-        ['Git 工作台', 'openGitMode'], ['工具與環境', 'openTools'], ['帳號與連線', 'manageAccounts'], ['設定', 'openSettings']
-      ].map(([label, command]) => ({ label, command }));
+      const choices = [...workflowChoices.map(item => ({ label: item.name, description: item.aliases, command: item.command })),
+        { label: '工具與環境', command: 'openTools' }, { label: '帳號與連線', command: 'manageAccounts' }, { label: '設定', command: 'openSettings' }];
       const selected = await vscode.window.showQuickPick(choices, { title: '切換工作流程', placeHolder: '選擇要開啟的工作流程' });
       if (selected) await vscode.commands.executeCommand('gitlabWorkspace.' + selected.command);
     })

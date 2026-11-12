@@ -1,0 +1,438 @@
+{
+  "generatedAt": "2026-11-12T13:55:01.195Z",
+  "sourceMode": true,
+  "zoomMethod": "effective viewport / scale + deviceScaleFactor; not native Electron zoom",
+  "assetHashes": {
+    "dashboard.js": "72ab5b4638d941c4435507b2e9f2e966d5e58c07f0006e610c8e09d8d1047494",
+    "chunks/BmadPanel-Q-ggcFST.js": "1df978baa259fe2ea2bd929f2c25ee9d31c0ed39595efa631c16317159092132",
+    "chunks/CodexWorkspace-BoqbUCtA.js": "5a0a95b2c740a9f30385e116241b5522f4c973d8edbebb477d0bd4e001f7a9fd",
+    "chunks/GitControlPanel-s-w5HuOP.js": "5adb555ee8317cece97c143e9c4bc425ce846cf3700dd205f887fc92ed8bf6fb",
+    "chunks/IssueGraph-BCbAWbI_.js": "675f55106d993b27f050a4855ddef762948de24a6179643d417bd18315f542e3",
+    "chunks/SkillsGuide-D1cMhBoy.js": "9023432ebf87ac4b309975693374aabbeae571c46ec789291f1d141c9eb8b962",
+    "chunks/hooks.module-CG0zIPno.js": "654f1dbb8321898f9e9b2cc477fb2afaa4b3b0f920c65ebdf87c927f5b571681",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0",
+    "dashboard.css": "2560466dca92e7ee3d370d097b7157755e608af0eccd2e2b6ef64ef2d2a43779",
+    "dashboard.html": "873a70958519c9d715e73a434b4b62765992199c246bcfdf1cf970d493781b8c",
+    "asset-manifest.json": "79db1acfbafcb2becd07ea03909227ce60008fcb652ba5b8dbde3175c39d5bd1"
+  },
+  "cases": 8,
+  "failures": 0,
+  "results": [
+    {
+      "key": "light-320-header",
+      "scene": "repositories",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 125
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 323
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具專案總覽專案我的工作待審查版控Codex工作流程一鍵掃描 Repo     ",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 180.984375,
+          "y": 130,
+          "width": 129.015625,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "一鍵掃描 Repo"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-320-header",
+      "scene": "issue",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 126
+        },
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 281,
+          "height": 261
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 322
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具我的工作總覽專案我的工作待審查版控Codex工作流程Issue Bo",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 34,
+          "y": 421.796875,
+          "width": 74,
+          "height": 33.5
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "返回清單"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-320-header",
+      "scene": "repositories",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 125
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 323
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具專案總覽專案我的工作待審查版控Codex工作流程一鍵掃描 Repo     ",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 180.984375,
+          "y": 130,
+          "width": 129.015625,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "一鍵掃描 Repo"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-320-header",
+      "scene": "issue",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 126
+        },
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 281,
+          "height": 261
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 322
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具我的工作總覽專案我的工作待審查版控Codex工作流程Issue Bo",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 34,
+          "y": 421.796875,
+          "width": 74,
+          "height": 33.5
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "返回清單"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-320-header",
+      "scene": "repositories",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 125
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 323
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具專案總覽專案我的工作待審查版控Codex工作流程一鍵掃描 Repo     ",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 180.984375,
+          "y": 130,
+          "width": 129.015625,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "一鍵掃描 Repo"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-320-header",
+      "scene": "issue",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 126
+        },
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 281,
+          "height": 261
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 322
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具我的工作總覽專案我的工作待審查版控Codex工作流程Issue Bo",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 34,
+          "y": 421.796875,
+          "width": 74,
+          "height": 33.5
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "返回清單"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-320-header",
+      "scene": "repositories",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 125
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 323
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具專案總覽專案我的工作待審查版控Codex工作流程一鍵掃描 Repo     ",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 180.984375,
+          "y": 130,
+          "width": 129.015625,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "一鍵掃描 Repo"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-320-header",
+      "scene": "issue",
+      "viewport": {
+        "width": 320,
+        "height": 520
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 320,
+          "height": 126
+        },
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 281,
+          "height": 261
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 320,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 305,
+          "height": 322
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具我的工作總覽專案我的工作待審查版控Codex工作流程Issue Bo",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 34,
+          "y": 421.796875,
+          "width": 74,
+          "height": 33.5
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "返回清單"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    }
+  ]
+}

@@ -4,6 +4,9 @@
 .codex-launch header p { color: var(--vscode-descriptionForeground); }
 .codex-launch fieldset { min-width: 0; border: 1px solid var(--vscode-panel-border); padding: 16px; margin: 16px 0; }
 .codex-launch legend { padding: 0 6px; font-weight: 600; }
+.codex-launch-advanced, .codex-launch-checks { margin: 16px 0; border: 1px solid var(--vscode-panel-border); padding: 12px; }
+.codex-launch-advanced > summary, .codex-launch-checks > summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.codex-launch-advanced > fieldset { border: 0; padding: 0; margin-bottom: 0; }
 .codex-launch label:not(.codex-launch-checkbox):not(.codex-launch-discussion) { display: grid; gap: 6px; margin: 8px 0; }
 .codex-launch textarea, .codex-launch select { width: 100%; box-sizing: border-box; min-width: 0; }
 .codex-launch textarea { resize: vertical; min-height: 110px; }

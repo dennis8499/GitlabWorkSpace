@@ -2,7 +2,7 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
-0.49.0 移除 Reviewer Auto、前置判級與路由子代理，由目前 agent 使用手動選定的模型與強度完成審查。工作台核對原生發布收據後才交付成果；暫停保留同 request 的快照、草稿與續作紀錄。詳見 [版本說明](docs/releases/v0.49.0.md)及 [Codex 操作說明](docs/codex-bridge.md)。
+0.50.0 整合原生選擇器與 Git／MR／Wiki 差異檢視，精簡導覽、Issue 與 Codex／Skills 操作，並統一主題、鍵盤與動畫。大型功能按需載入，首屏 JavaScript 減少 41.8%；任務、草稿與背景事件仍由常駐控制器接收。詳見 [版本說明](docs/releases/v0.50.0.md)及 [介面操作說明](docs/ui-navigation.md)。
 
 ## 目錄
 
@@ -21,7 +21,7 @@
 - 瀏覽 GitLab 群組及其子群組中的專案。
 - 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
 - 管理多個 GitLab 站台與同站台的多個帳號；可新增、切換、重新登入、登出及移除，並記住各帳號的 Group。
-- 工作台頂部常駐「總覽、我的工作、專案、Skills、BMAD、待審查、版控、Codex」導覽及「一鍵掃描 Repo」，Issue 詳情頁也能直接切換；窄視窗自動換行。掃描會開啟「專案 → 本機 Repo」，呈現進度、結果與取消／續掃入口。VS Code 原生側欄保留「儲存庫」與「我的工作」：開啟本機 Repo、Issue、MR，多根工作區依 Folder 分組。「儲存庫」標題列提供掃描與開啟工作台，搜尋、更新與「切換工作流程…」保留於更多操作。「工具與環境」提供安裝、診斷與 Log，持久設定使用原生 Settings。
+- 工作台頂部常駐「總覽、專案、我的工作、待審查、版控、Codex、工作流程」，Skills／BMAD 在工作流程內切換；窄視窗使用原生 Quick Pick。「一鍵掃描 Repo」位於專案頁及原生側欄，呈現進度、結果與取消／續掃入口。VS Code 原生側欄保留「儲存庫」與「我的工作」，多根工作區依 Folder 分組；工作項目可直接續載、重試或搜尋。「工具與環境」提供安裝、診斷與 Log，持久設定使用原生 Settings。
 - 各頁進入或重新進入時重用有效資料：Issue／MR／看板清單快取 60 秒，專案清單與成員、標籤、里程碑、範本選項快取 5 分鐘；到期後下次進頁才重抓，也可手動更新。目前頁面停留期間不因背景事件重抓 GitLab API 或執行 Git。使用者操作後讓受影響資料失效。
 - 「我的工作」先載入專案與 Issue；看板、里程碑在點擊載入篩選選項或恢復指定條件時才讀取。選擇 Group 重用有效快取，重選目前 Group 不重載。專案頁只先取得一頁清單（最多 100 筆），載入更多或下載／更新由使用者觸發，進頁的本機目錄檢查不連 Git Server。
 - Issue 預覽與詳情共用 60 秒基本資料快取；閱讀不預抓成員。新增 Issue 的成員、標籤與里程碑各自按需分頁，使用描述範本才讀名稱；切換專案保留完整草稿。Issue 與每則留言的表情分別點擊載入，寫入後只刷新該目標。
@@ -31,9 +31,9 @@
 - 專案頁提供離線本機 Repo 清單與一鍵掃描；辨識巢狀 Repo、submodule 和 worktree，登錄至 VS Code 原生 Git，並列出同一 GitLab 專案的所有本機副本。
 - 操作 Log 使用 VS Code 原生 Output 面板的「GitLab Workspace」通道，提供原生時間、等級與 Log 等級設定；僅手動開啟，保存與輪替由 VS Code 管理。
 - 操作結果集中於訊息中心，支援未讀、詳情及清除；本次工作階段最多保留 500 筆，重開面板保留，Extension Host 重啟後清空。
-- Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset；Git 狀態通知只標記快取失效，外部變更可重新進入版控或手動更新後查看。
+- Git 工作台保留分支導覽、提交圖與 Commit／Amend 表單，檔案主操作使用原生 Diff，部分行暫存另有明確入口。Repo、分支及 remote 使用原生選擇器；明確 remote 的 Fetch 一擊執行，一般 Commit 核對暫存內容後直接提交。保留 Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset 的必要確認；Git 狀態通知只標記快取失效，外部變更可重新進入版控或手動更新後查看。
 - Git 版控可在未連線 GitLab 時使用；原生側欄顯示分支、變更摘要與完整路徑，點 Repo 開啟含標籤、Stash 及進階操作的 Git 工作台。
-- 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
+- 查看指派給自己的未結案 Issue；單擊清單開完整詳情，另保留快速預覽。從專案建立 Issue 自動帶入專案；關聯 MR 在工作台開啟，返回時保留草稿與清單位置。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - Issue 預覽與詳情可按「使用 Codex 開發」，自動建立 Issue 分支，由 BMAD 接續實作與測試，再從原 Issue 檢視差異及人工提交。專案列可建立 GitLab Wiki，先預覽再發布；MR 詳情可一鍵 Code Review，自動回填報告及留言草稿。這三個入口需要 Codex CLI 0.166.0+，原有 Skills 與 BMAD 入口保留。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「Skills 功能指引」選擇 Wiki、MergeReviewer、ReleaseReviewer 或 CommitReviewer；四工具分頁提供分類功能、必要欄位、產出與下一步。提示詞帶入實際工作區及套件版本，可按「使用 Codex 執行」在工作台啟動，或複製後自行執行。合併審查與上版檢查每次指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 追查 Diff 及相關影響，在所選 Repo 的 `review-reports/` 產生報告。CommitReviewer 提供 Commit 草稿與 MR 前檢查，沿用一般 Codex 模型設定，草稿由開發者手動複製。

@@ -52,7 +52,7 @@ function loadUi(): Record<string, RepoGitUi> {
 }
 function normalizeLayout(value: unknown): GitPanelUiState['layout'] {
   const saved = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  return { theme: saved.theme === 'dark' ? 'dark' : 'vscode', left: clamp(saved.left, 180, 360, 220), right: clamp(saved.right, 280, 480, 320) };
+  return { theme: 'vscode', left: clamp(saved.left, 180, 360, 220), right: clamp(saved.right, 280, 480, 320) };
 }
 function loadLayout(): GitPanelUiState['layout'] {
   try { return normalizeLayout(JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? '{}')); }
@@ -83,7 +83,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const [pendingByRepo, setPendingByRepo] = useState<Record<string, string>>(() => Object.fromEntries(restoredWrites.map(write => [write.repoId, write.label])));
   const [readingByRepo, setReadingByRepo] = useState<Record<string, string>>({});
   const [errorsByRepo, setErrorsByRepo] = useState<Record<string, string>>({});
-  const [query, setQuery] = useState(initialState?.query ?? '');
+  const query = '';
   const [historyFilter, setHistoryFilter] = useState(initialState?.historyFilter ?? '');
   const [searchPosition, setSearchPosition] = useState(0);
   const [layout, setLayout] = useState(() => normalizeLayout(initialState?.layout ?? loadLayout()));
@@ -115,6 +115,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const rebaseSourceByRepository = useRef(new Map<string, string>());
   const requestId = useRef(0);
   const requestPrefix = useRef(crypto.randomUUID());
+  const nativePickerRequest = useRef<string>();
   const latestReadByRepo = useRef(new Map<string, string>());
   const requests = useRef(new Map<string, RequestContext>(restoredWrites.map(write => [write.id, {
     repoId: write.repoId, key: write.id, write: true,
@@ -209,7 +210,16 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
     const receive = (event: MessageEvent<GitPanelMessage | HostNavigation>): void => {
       const message = event.data;
       if (!message || typeof message !== 'object') return;
-      if (message.type === 'hostNavigation') {
+      if (message.type === 'gitRepositorySelected') {
+        if (!activeRef.current || message.requestId !== nativePickerRequest.current) return;
+        nativePickerRequest.current = undefined;
+        if (message.repositoryId) selectRepository(message.repositoryId, true);
+      } else if (message.type === 'gitRemoteSelected' || message.type === 'gitBranchSelected') {
+        if (!activeRef.current || message.repositoryId !== selectedIdRef.current || message.requestId !== nativePickerRequest.current) return;
+        nativePickerRequest.current = undefined;
+        if (message.type === 'gitRemoteSelected' && message.remote) send({ type: 'fetch', remote: message.remote }, message.repositoryId);
+        else if (message.type === 'gitBranchSelected' && message.branch) send({ type: message.create ? 'branch' : 'checkout', name: message.branch }, message.repositoryId);
+      } else if (message.type === 'hostNavigation') {
         if (message.values.mode !== undefined) observeNavigation({ hostSessionId: message.hostSessionId, generation: message.generation });
       } else if (message.type === 'gitRepositories') {
         if (message.revision < repositoryListRevision.current) return;
@@ -497,7 +507,13 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
       return next;
     });
   }
-  function selectChange(change: GitChange): void {
+  function selectChange(change: GitChange, inline = false): void {
+    if (!inline) {
+      setUi({ selectedPath: change.path, selectedSection: change.section, selection: 'worktree', selectedCommit: undefined, parent: undefined });
+      post(change.section === 'conflict' ? { type: 'gitOpenMergeEditor', repositoryId: selectedId, path: change.path }
+        : { type: 'gitOpenDiff', repositoryId: selectedId, path: change.path, staged: change.section === 'staged' });
+      return;
+    }
     setUi({ selectedPath: change.path, selectedSection: change.section, selection: 'worktree', view: 'diff', selectedCommit: undefined, parent: undefined });
     if (snapshot?.diffPath !== change.path || snapshot.diffRef || snapshot.diffStaged !== (change.section === 'staged') || snapshot.diffText === undefined) send({ type: 'readDiff', path: change.path, staged: change.section === 'staged' });
   }
@@ -509,8 +525,8 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   }
   function selectCommitFile(file: string): void {
     if (!selectedCommit || !commitComparisonReady) return;
-    setUi({ selectedPath: file, view: 'diff' });
-    if (snapshot?.diffRef !== selectedCommit.hash || snapshot.diffPath !== file || snapshot.diffParent !== snapshot.selectedCommitParent || snapshot.diffText === undefined) send({ type: 'readDiff', path: file, staged: false, ref: selectedCommit.hash, parent: snapshot.selectedCommitParent });
+    setUi({ selectedPath: file });
+    post({ type: 'gitOpenDiff', repositoryId: selectedId, path: file, staged: false, ref: selectedCommit.hash, parent: snapshot.selectedCommitParent });
   }
   function beginResize(side: 'left' | 'right', event: PointerEvent): void {
     event.preventDefault(); resizeCleanup.current?.();
@@ -523,9 +539,8 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   function submitCommit(event: Event, amend = false): void {
     event.preventDefault();
     if (!ui.draft.trim() || !snapshot?.stagedCount || pending) return;
-    send({ type: 'commit', message: ui.draft.trim(), amend });
+    send({ type: 'commit', message: ui.draft.trim(), amend, expectedCommitState: snapshot.commitState });
   }
-  const visibleRepositories = useMemo(() => repositories.filter((repo) => repo.id === selectedId || (repo.name + ' ' + repo.path).toLocaleLowerCase().includes(query.toLocaleLowerCase())), [repositories, query, selectedId]);
   const localBranches = snapshot?.branches.filter((branch) => branch.kind === 'local') ?? [];
   const branchesByKind = useMemo(() => ({ local: snapshot?.branches.filter(branch => branch.kind === 'local') ?? [],
     remote: snapshot?.branches.filter(branch => branch.kind === 'remote') ?? [], tag: snapshot?.branches.filter(branch => branch.kind === 'tag') ?? [] }), [snapshot?.branches]);
@@ -650,7 +665,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
         }
         case 'merge': send({ type: 'merge', ref: required('ref', '來源分支／提交') }); break;
         case 'reset': send({ type: 'reset', hash: required('hash', '目標提交'), mode: text('mode') as 'soft' | 'mixed' | 'hard' }); break;
-        case 'commit': send({ type: 'commit', message: required('message', '提交訊息'), amend: data.get('amend') === 'on' }); setUi({ draft: text('message') }); break;
+        case 'commit': send({ type: 'commit', message: required('message', '提交訊息'), amend: data.get('amend') === 'on', expectedCommitState: snapshot.commitState }); setUi({ draft: text('message') }); break;
         case 'pick': send({ type: text('operation') === 'revert' ? 'revert' : 'cherryPick', hash: required('hash', '提交'), mainline: text('mainline') ? Number(text('mainline')) : undefined }); break;
         case 'stashAction': {
           const hash = required('hash', 'Stash');
@@ -690,7 +705,8 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
     'Cherry-pick／Revert': firstBlocker(gitWaiting, blockedWhen(!selectedCommit, '請先選擇歷史提交。')),
     '更新 Repo 狀態': firstBlocker(blockedWhen(!snapshot, '請先載入 Repo。'), blockedWhen(pending && !uncertain, '正在處理 Repo 操作，請稍候。'), blockedWhen(reading, '正在讀取 Repo，請稍候。')) };
   const commitBlocked = firstBlocker(gitWaiting, blockedWhen(snapshot?.conflictCount, '請先解決並暫存衝突檔案。', 'warning'),
-    blockedWhen(!ui.draft.trim(), '請先填寫 Commit 訊息。'), blockedWhen(!snapshot?.stagedCount, '請先將要提交的變更加入暫存區。'));
+    blockedWhen(!ui.draft.trim(), '請先填寫 Commit 訊息。'), blockedWhen(!snapshot?.stagedCount, '請先將要提交的變更加入暫存區。'),
+    blockedWhen(!snapshot?.commitState, '請重新整理並確認暫存內容後提交。'));
   const commitBlockers = { 'Commit 已暫存變更': commitBlocked, 'Amend': firstBlocker(commitBlocked, blockedWhen(!headHash, '尚無可修改的上一筆提交。')) };
   const diffBlockers = { '暫存／取消暫存選取行': firstBlocker(gitWaiting,
       blockedWhen(selectedChange?.kind === '未追蹤', '未追蹤檔案請使用整檔暫存。'), blockedWhen(!selectedDiffLines.length, '請先選擇差異行。')),
@@ -699,18 +715,25 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
 
   function openNativeConflict(path: string): void { post({ type: 'gitOpenMergeEditor', repositoryId: selectedId, path }); }
 
+  function pickNative(kind: 'repository' | 'branch' | 'remote', create = false): void {
+    const id = `${requestPrefix.current}-pick-${++requestId.current}`;
+    nativePickerRequest.current = id;
+    post(kind === 'repository' ? { type: 'gitPickRepository', requestId: id } : kind === 'branch' ? { type: 'gitPickBranch', repositoryId: selectedId, requestId: id, create }
+      : { type: 'gitPickRemote', repositoryId: selectedId, requestId: id });
+  }
+
 
   return <section class="git-workbench" ref={hostRef} tabIndex={-1} aria-label="Git 版控工作台" data-theme={layout.theme} style={{ '--git-left-width': layout.left + 'px', '--git-right-width': layout.right + 'px' }}>
     <header class="git-toolbar">
-      <div class="git-repo-picker"><GitIcon name="repo" /><label><span>REPOSITORY</span><select aria-label="版控 Repo" value={selectedId} onChange={(event) => selectRepository(event.currentTarget.value, true)}><option value="">選擇 Repo</option>{visibleRepositories.map((repo) => <option key={repo.id} value={repo.id}>{repo.name} · {repo.path}</option>)}</select></label></div>
-      <label class="git-branch-picker"><GitIcon name="branch" /><select aria-label="切換本機分支" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} value={snapshot?.branch ?? ''} onChange={(event) => event.currentTarget.value && send({ type: 'checkout', name: event.currentTarget.value })}>{!snapshot?.branch && <option value="">Detached HEAD</option>}{snapshot?.branch && !localBranches.some((branch) => branch.name === snapshot.branch) && <option value={snapshot.branch}>{snapshot.branch}</option>}{localBranches.map((branch) => <option key={branch.name} value={branch.name}>{branch.name}</option>)}</select></label>
+      <button class="git-repo-picker" type="button" aria-label="選擇版控 Repo" title={snapshot?.path} onClick={() => pickNative('repository')}><GitIcon name="repo" /><span>{snapshot?.name ?? '選擇 Repo'} ▾</span></button>
+      <button class="git-branch-picker" type="button" aria-label="切換本機分支" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} onClick={() => pickNative('branch')}><GitIcon name="branch" /><span>{snapshot?.branch ?? 'Detached HEAD'} ▾</span></button>
       {snapshot && <span class="git-toolbar-sync" title={snapshot.tracking ?? '尚未設定追蹤分支'} aria-label={'同步狀態：領先 ' + (snapshot.ahead ?? 0) + '，落後 ' + (snapshot.behind ?? 0)}>↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span>}
       <div class="git-toolbar-spacer" />
-      <button class="git-tool git-fetch" {...availabilityProps(gitNoticeScope + '-toolbar', remoteBlocked)} onClick={() => startDialog('fetch')}><GitIcon name="fetch" />Fetch</button>
+      <button class="git-tool git-fetch" {...availabilityProps(gitNoticeScope + '-toolbar', remoteBlocked)} onClick={() => remotes.length === 1 ? send({ type: 'fetch', remote: remotes[0] }) : pickNative('remote')}><GitIcon name="fetch" />Fetch</button>
       <button class="git-tool git-pull" {...availabilityProps(gitNoticeScope + '-toolbar', remoteBlocked)} onClick={() => startDialog('pull')}><GitIcon name="down" />Pull</button>
       <button class="git-tool git-push" {...availabilityProps(gitNoticeScope + '-toolbar', toolbarBlockers['Push'])} onClick={() => startDialog('push')}><GitIcon name="up" />Push</button>
       <span class="git-toolbar-divider" />
-      <button class="git-tool secondary" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} onClick={() => startDialog('branch')}><GitIcon name="branch" />分支</button>
+      <button class="git-tool secondary" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} onClick={() => pickNative('branch', true)}><GitIcon name="branch" />新增分支</button>
       <button class="git-tool git-stash" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} onClick={() => startDialog('stash')}><GitIcon name="stash" />Stash</button>
       <button class="git-tool git-refresh" title="更新 Repo 狀態" aria-label="更新 Repo 狀態" {...availabilityProps(gitNoticeScope + '-toolbar', toolbarBlockers['更新 Repo 狀態'])} onClick={() => send({ type: 'refresh' })}><GitIcon name="refresh" /></button>
       <details class="git-actions-menu"><summary aria-label="遠端與進階操作">···</summary><div class="git-actions-popup">
@@ -720,7 +743,6 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
         <button onClick={() => startDialog('reset', selectedCommit?.hash ?? snapshot?.history[0]?.hash)} {...availabilityProps(gitNoticeScope + '-toolbar', toolbarBlockers['Reset'])}>Reset…</button>
         <button onClick={() => startDialog('pick', selectedCommit?.hash)} {...availabilityProps(gitNoticeScope + '-toolbar', toolbarBlockers['Cherry-pick／Revert'])}>Cherry-pick／Revert…</button>
       </div></details>
-      <select class="git-theme-picker" aria-label="Git 介面主題" value={layout.theme} onChange={(event) => setLayout((current) => ({ ...current, theme: event.currentTarget.value === 'dark' ? 'dark' : 'vscode' }))}><option value="vscode">跟隨 VS Code</option><option value="dark">深色</option></select>
     </header>
     <FeatureNotices id={gitNoticeScope + '-toolbar'} items={toolbarBlockers} /><OperationFeedback resourceKey={'git:' + selectedId} actions={actions} includeUnknown={!sharedActions} errorClass="git-error" onDismiss={operation => { if (operation.error === error || operation.refreshError && error.includes(operation.refreshError)) setError(''); }} onRefresh={() => send({ type: 'refresh' })} />
     {error && !trackedError && <div class="git-error dashboard-error"><FeatureNotice tone="error" reason={error.split(/\r?\n/, 1)[0].slice(0, 180)} details={error.length > 180 || /\r|\n/.test(error) ? error : undefined} /><button onClick={() => setError('')}>關閉</button></div>}
@@ -731,7 +753,6 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
         {(leftOpen && hostWidth < 1000 || rightOpen && hostWidth < 720) && <button class="git-drawer-shade" aria-label="關閉側面板" onClick={() => { setLeftOpen(false); setRightOpen(false); }} />}
         <aside class="git-sidebar" aria-label="分支導覽" inert={hostWidth < 1000 && !leftOpen}>
           <header class="git-sidebar-heading"><span>EXPLORER</span><button class="git-drawer-close" aria-label="關閉分支導覽" onClick={() => setLeftOpen(false)}>×</button></header>
-          <label class="git-sidebar-search"><GitIcon name="search" /><input aria-label="搜尋版控 Repo" placeholder="搜尋 Repo…" value={query} onInput={(event) => setQuery(event.currentTarget.value)} /></label>
           <button class={'git-worktree-link ' + (ui.selection === 'worktree' ? 'selected' : '')} onClick={() => setUi({ selection: 'worktree', view: 'graph', selectedPath: undefined, selectedSection: undefined })}><GitIcon name="changes" /><span>工作中變更</span><span class="git-count">{snapshot.changes.length}</span></button>
           {(['local', 'remote', 'tag'] as const).map((kind) => {
             const branches = branchesByKind[kind];
@@ -780,7 +801,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
             <div class="git-change-list">{(['conflict', 'unstaged', 'staged'] as const).map((section) => {
               const changes = changesBySection[section];
               if (section === 'conflict' && !changes.length) return null;
-              return <section class="git-change-section" key={section}><h3><span class={'git-section-dot ' + section} />{section === 'conflict' ? '衝突' : section === 'staged' ? '已暫存' : '未暫存'}<span class="git-count">{changes.length}</span></h3><VirtualRows active={active} resetKey={selectedId} className="git-virtual-changes" items={changes} itemKey={changeKey} estimateHeight={30} renderItem={(change) => <div key={change.path} class={'git-change-row ' + (ui.selectedPath === change.path && ui.selectedSection === section ? 'selected' : '')}><button class="git-change-name" title={change.path} onClick={() => selectChange(change)}><span class={'git-change-status ' + section}>{change.kind}</span><span>{change.path}</span></button>{section === 'conflict' ? <><button class="quiet small" aria-label={'開啟 Merge Editor ' + change.path} disabled={!!pending} onClick={() => openNativeConflict(change.path)}>Merge</button><button class="quiet small" title="儲存解決內容後，標記此檔為已解決" disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: true })}>✓</button></> : <button class="quiet small" title={section === 'staged' ? '取消暫存整檔' : '暫存整檔'} aria-label={(section === 'staged' ? '取消暫存 ' : '暫存 ') + change.path} disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: section !== 'staged' })}>{section === 'staged' ? '−' : '+'}</button>}{section === 'unstaged' && <button class="quiet small" title="先建立復原 Stash，再還原此檔" aria-label={'捨棄 ' + change.path} disabled={!!pending} onClick={() => send({ type: 'discard', path: change.path })}>↶</button>}</div>} />{!changes.length && <p class="git-nav-empty">{section === 'staged' ? '暫存檔案後即可提交' : '沒有未暫存變更'}</p>}</section>;
+              return <section class="git-change-section" key={section}><h3><span class={'git-section-dot ' + section} />{section === 'conflict' ? '衝突' : section === 'staged' ? '已暫存' : '未暫存'}<span class="git-count">{changes.length}</span></h3><VirtualRows active={active} resetKey={selectedId} className="git-virtual-changes" items={changes} itemKey={changeKey} estimateHeight={30} renderItem={(change) => <div key={change.path} class={'git-change-row ' + (ui.selectedPath === change.path && ui.selectedSection === section ? 'selected' : '')}><button class="git-change-name" title={change.path} onClick={() => selectChange(change)}><span class={'git-change-status ' + section}>{change.kind}</span><span>{change.path}</span></button>{section !== 'conflict' && <button class="quiet small" type="button" title="在工作台選取差異行，進行部分暫存" aria-label={'部分暫存預覽 ' + change.path} disabled={!!pending} onClick={() => selectChange(change, true)}>部分</button>}{section === 'conflict' ? <><button class="quiet small" aria-label={'開啟 Merge Editor ' + change.path} disabled={!!pending} onClick={() => openNativeConflict(change.path)}>Merge</button><button class="quiet small" title="儲存解決內容後，標記此檔為已解決" disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: true })}>✓</button></> : <button class="quiet small" title={section === 'staged' ? '取消暫存整檔' : '暫存整檔'} aria-label={(section === 'staged' ? '取消暫存 ' : '暫存 ') + change.path} disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: section !== 'staged' })}>{section === 'staged' ? '−' : '+'}</button>}{section === 'unstaged' && <button class="quiet small" title="先建立復原 Stash，再還原此檔" aria-label={'捨棄 ' + change.path} disabled={!!pending} onClick={() => send({ type: 'discard', path: change.path })}>↶</button>}</div>} />{!changes.length && <p class="git-nav-empty">{section === 'staged' ? '暫存檔案後即可提交' : '沒有未暫存變更'}</p>}</section>;
             })}</div>
             <CommitReviewLaunch post={post} skills={skills} repo={snapshot.path} stagedCount={snapshot.stagedCount} disabled={!!pending} />
             <form class="git-commit-composer" onSubmit={(event) => submitCommit(event)}><label class="git-field"><span>提交訊息</span><textarea aria-label="提交訊息" name="message" rows={5} value={ui.draft} placeholder="描述這次變更…" onInput={(event) => setUi({ draft: event.currentTarget.value })} /></label><div class="git-commit-preview"><span>{snapshot.stagedCount} 個已暫存檔案</span>{snapshot.conflictCount > 0 && <span class="warning">先解決衝突</span>}</div><button class="primary git-commit-launch" type="submit" {...availabilityProps(gitNoticeScope + '-commit', commitBlocked)}><GitIcon name="commit" />Commit 已暫存變更</button><button class="git-amend" type="button" {...availabilityProps(gitNoticeScope + '-commit', commitBlockers['Amend'])} onClick={(event) => submitCommit(event, true)}>Amend 最近一次提交…</button><FeatureNotices id={gitNoticeScope + '-commit'} items={commitBlockers} /></form>

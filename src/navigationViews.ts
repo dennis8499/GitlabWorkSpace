@@ -7,7 +7,7 @@ import type { WorkspacePanel } from './workspace/workspacePanel';
 
 export type RepositoryNode = { kind: 'folder'; folder: vscode.WorkspaceFolder; repositories: readonly GitRepositorySummary[] }
   | { kind: 'repository'; repository: GitRepositorySummary };
-export type WorkNode = { kind: 'section'; section: 'issues' | 'mergeRequests' }
+export type WorkNode = { kind: 'section'; section: 'issues' | 'mergeRequests'; scope?: string }
   | { kind: 'issue'; issue: GitLabIssue; scope: string }
   | { kind: 'mergeRequest'; mergeRequest: GitLabMergeRequest; scope: string };
 
@@ -61,7 +61,7 @@ export class MyWorkViewProvider implements vscode.TreeDataProvider<WorkNode>, vs
   getChildren(node?: WorkNode): WorkNode[] {
     const state = this.snapshot();
     if (!state.connected || !state.group) return [];
-    if (!node) return [{ kind: 'section', section: 'issues' }, { kind: 'section', section: 'mergeRequests' }];
+    if (!node) return [{ kind: 'section', section: 'issues', scope: state.scope }, { kind: 'section', section: 'mergeRequests', scope: state.scope }];
     if (node.kind !== 'section' || !state.connectedScope) return [];
     return node.section === 'issues' ? state.issues.map(issue => ({ kind: 'issue', issue, scope: state.scope }))
       : state.mergeRequests.map(mergeRequest => ({ kind: 'mergeRequest', mergeRequest, scope: state.scope }));
@@ -73,7 +73,7 @@ export class MyWorkViewProvider implements vscode.TreeDataProvider<WorkNode>, vs
       const item = new vscode.TreeItem(node.section === 'issues' ? '指派給我的 Issue' : 'Merge Request', vscode.TreeItemCollapsibleState.Expanded);
       item.id = `${state.scope}:${node.section}`; item.contextValue = 'gitlabWorkspace.workSection';
       const status = !section || section.status === 'idle' ? '尚未載入' : section.status === 'loading' || section.refreshing ? '載入中'
-        : section.status === 'error' ? '載入失敗；可重新整理' : section.status === 'unsupported' ? '站台不支援' : section.complete === false ? '部分結果；更多請開啟工作台' : count ? '已載入' : '沒有項目';
+        : section.status === 'error' ? '載入失敗；可重試' : section.status === 'unsupported' ? '站台不支援' : section.complete === false ? '部分結果；可載入更多' : count ? '已載入' : '沒有項目';
       item.description = `${count} · ${status}`; item.tooltip = section?.error ?? section?.pausedReason ?? status;
       item.iconPath = new vscode.ThemeIcon(node.section === 'issues' ? 'issues' : 'git-pull-request');
       item.accessibilityInformation = { label: `${item.label}，${item.description}` }; return item;
@@ -105,7 +105,7 @@ export class NavigationViews implements vscode.Disposable {
   private contextKey = '';
   private disposed = false;
   constructor(private readonly git: GitRepositoryService,
-    private readonly host: Pick<WorkspacePanel, 'getNavigationSnapshot' | 'onDidChangeNavigation' | 'loadNavigationData'>,
+    private readonly host: Pick<WorkspacePanel, 'getNavigationSnapshot' | 'onDidChangeNavigation' | 'loadNavigationData'> & Partial<Pick<WorkspacePanel, 'loadNavigationSection'>>,
     private readonly onError: (error: unknown) => void) {
     this.repositories = new RepositoryViewProvider(git); this.work = new MyWorkViewProvider(() => host.getNavigationSnapshot());
     this.repositoryView = vscode.window.createTreeView('gitlabWorkspace.repositories', { treeDataProvider: this.repositories, showCollapseAll: true });
@@ -164,12 +164,33 @@ export class NavigationViews implements vscode.Disposable {
   }
   async findWork(): Promise<WorkNode | undefined> {
     await this.host.loadNavigationData();
-    const nodes = this.work.getChildren().flatMap(section => this.work.getChildren(section));
-    const selected = await vscode.window.showQuickPick(nodes.map(node => {
-      const item = this.work.getTreeItem(node);
-      return { label: String(item.label), description: String(item.description ?? ''), node };
-    }), { title: '尋找 Issue 或 MR', matchOnDescription: true, placeHolder: '搜尋目前 Group 已載入的工作項目' });
-    return selected?.node;
+    const scope = this.host.getNavigationSnapshot().scope;
+    for (;;) {
+      const state = this.host.getNavigationSnapshot();
+      if (scope !== state.scope) return;
+      const nodes = this.work.getChildren().flatMap(section => this.work.getChildren(section));
+      const choices = nodes.map(node => {
+        const item = this.work.getTreeItem(node);
+        return { label: String(item.label), description: String(item.description ?? ''), node, section: undefined as 'issues' | 'mergeRequests' | undefined };
+      });
+      for (const section of ['issues', 'mergeRequests'] as const) {
+        const status = state.sections[section];
+        if (status?.complete === false || status?.status === 'error') choices.push({ label: `${status.status === 'error' ? '重試' : '載入更多'} ${section === 'issues' ? 'Issue' : 'MR'}`,
+          description: '目前搜尋僅含已載入項目', node: { kind: 'section', section, scope }, section });
+      }
+      const selected = await vscode.window.showQuickPick(choices, { title: `尋找 Issue 或 MR · 已載入 ${nodes.length} 筆`, matchOnDescription: true, placeHolder: '搜尋已載入項目；可選擇載入更多' });
+      if (!selected || scope !== this.host.getNavigationSnapshot().scope) return;
+      if (!selected.section) return selected.node;
+      await this.loadMore({ kind: 'section', section: selected.section, scope }, state.sections[selected.section]?.status === 'error');
+    }
+  }
+  async loadMore(node?: WorkNode, retry = false): Promise<void> {
+    const state = this.host.getNavigationSnapshot();
+    if (node?.kind !== 'section') return;
+    if (node.scope && node.scope !== state.scope) throw new Error('帳號或 Group 已變更，請重新選取。');
+    if (!retry && state.sections[node.section]?.complete !== false) return;
+    await this.host.loadNavigationSection?.(node.section, state.scope, retry);
+    this.refresh();
   }
   dispose(): void { this.disposed = true; this.subscriptions.forEach(subscription => subscription.dispose()); }
 }

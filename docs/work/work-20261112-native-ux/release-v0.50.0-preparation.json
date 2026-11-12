@@ -1,0 +1,12 @@
+{
+  "schema": "GitLabWorkspaceNativeUxReleasePreparation/v1",
+  "version": "0.50.0",
+  "preparedAt": "2026-11-12T14:22:33.065856+00:00",
+  "vsix": "dist\\gitlab-workspace-0.50.0.vsix",
+  "bytes": 2960531,
+  "sha256": "2f4faf4fd04bb03345aa236da44d68b0f0e60c166fcf12c7f5037f5da591fb79",
+  "measuredUiAssetsMatched": 11,
+  "localPackageValidation": ".gitlab-workspace-validation\\runs\\2026-11-12T14-23-19.491Z-18860\\timings.json",
+  "provenanceTests": 26,
+  "formalPublication": "Git tag and GitHub Actions complete matrix, followed by promotion of exact canonical CI artifacts"
+}

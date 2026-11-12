@@ -1,0 +1,30 @@
+{
+  "schema": "GitLabWorkspaceMinimumVersionValidation/v1",
+  "generatedAt": "2026-11-12T13:58:12.189Z",
+  "version": "1.90.0",
+  "passing": 2,
+  "failed": 0,
+  "exitCode": 0,
+  "zoomCases": 12,
+  "completeAssetsMatch": true,
+  "minViewport": {
+    "width": 464,
+    "height": 292
+  },
+  "dpr": [
+    1.5,
+    1.875,
+    3
+  ],
+  "nativeDiff": {
+    "status": "passed",
+    "coverage": [
+      "text and binary byte preservation",
+      "read-only permissions and write rejection",
+      "snapshot cleanup after final native tab closure",
+      "original working file unchanged"
+    ],
+    "compiledTestSha256": "89e4b3cbcfdf26ad0e53971ad59ef090184edcfd5b87ba527dc446c5f3fbede5"
+  },
+  "command": "node scripts/run-extension-tests.mjs --preflight-file docs/work/work-20261112-native-ux/evidence/native-zoom-vscode-1.90/extension-host.json --run .tmp/native-ux-zoom.test.js out/test/extension/nativeDiff.test.js --grep \"Native Codex Electron zoom|Native readonly Git Diff snapshots\" --forbid-only --fail-zero"
+}

@@ -9,6 +9,50 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = json.loads((ROOT / 'package.json').read_text(encoding='utf-8'))
 VSIX_PATH = ROOT / 'dist' / f"{MANIFEST['name']}-{MANIFEST['version']}.vsix"
 
+
+def verify_webview_dependencies(archive: zipfile.ZipFile) -> None:
+    """Validate every lazy module against the same build output as the entry."""
+    prefix = 'resources/issue-webview/'
+    manifest_name = prefix + 'asset-manifest.json'
+    manifest_bytes = archive.read('extension/' + manifest_name)
+    if manifest_bytes != (ROOT / manifest_name).read_bytes():
+        raise ValueError('Missing or stale packaged Webview manifest')
+    manifest = json.loads(manifest_bytes)
+    if not isinstance(manifest, dict):
+        raise ValueError('Invalid Webview manifest')
+    entries = [key for key, chunk in manifest.items()
+               if isinstance(chunk, dict) and chunk.get('isEntry') is True and chunk.get('file') == 'dashboard.js']
+    if len(entries) != 1:
+        raise ValueError('Webview manifest requires one dashboard entry')
+    visited = set()
+
+    def asset(name):
+        if not isinstance(name, str) or not name or any(char in name for char in '\\:?#\0') or any(part in ('', '.', '..') for part in name.split('/')):
+            raise ValueError('Unsafe Webview asset path')
+        relative = prefix + name
+        if archive.read('extension/' + relative) != (ROOT / relative).read_bytes():
+            raise ValueError('Missing or stale packaged Webview dependency: ' + name)
+
+    def visit(key):
+        if key in visited:
+            return
+        chunk = manifest.get(key)
+        if not isinstance(chunk, dict):
+            raise ValueError('Missing Webview manifest dependency: ' + str(key))
+        visited.add(key)
+        asset(chunk.get('file'))
+        for field in ('css', 'assets', 'imports', 'dynamicImports'):
+            values = chunk.get(field, [])
+            if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+                raise ValueError('Invalid Webview manifest ' + field)
+            for value in values:
+                if field in ('imports', 'dynamicImports'):
+                    visit(value)
+                else:
+                    asset(value)
+
+    visit(entries[0])
+
 def verify_bmad_parsers(archive: zipfile.ZipFile) -> None:
     """Resolve parsers from the delivered extension, independently of this checkout."""
     prefixes = ('extension/node_modules/yaml/', 'extension/node_modules/@iarna/toml/')
@@ -73,6 +117,7 @@ def main():
                      'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1'):
             if archive.read('extension/' + name) != (ROOT / name).read_bytes():
                 raise ValueError('Missing or stale packaged resource: ' + name)
+        verify_webview_dependencies(archive)
         forbidden = ('extension/.agents/', 'extension/.codex/', 'extension/.aws/',
                      'extension/resources/sidebar-webview/', 'extension/resources/offline-tools/', 'extension/resources/workflow-kit/',
                      'extension/.github/', 'extension/scripts/', 'extension/test/', 'extension/.npm-cache/')

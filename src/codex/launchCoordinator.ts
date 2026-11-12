@@ -104,6 +104,7 @@ export class CodexLaunchCoordinator {
     return drafts.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
   async latest(): Promise<CodexLaunchDraft | undefined> { const draft = (await this.drafts())[0]; return draft && projectDraft(draft); }
+  async list(): Promise<CodexLaunchDraft[]> { return (await this.drafts()).map(projectDraft); }
   async publish(): Promise<void> {
     let draft: CodexLaunchDraft | undefined;
     try { draft = this.active ? await this.load(this.active) : await this.latest(); } catch { this.active = undefined; }

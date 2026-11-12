@@ -1,0 +1,109 @@
+{
+  "schema": "GitLabWorkspaceNativeUxFinalRendererAssets/v1",
+  "measuredAt": "2026-11-12T13:54:32.927Z",
+  "method": "Final source including wrapped Issue action buttons built with Vite production config and write:false; emitted output persisted only under .tmp/renderer-final. Static import closure determines initial JS. Bundle hashes use the benchmark ordering.",
+  "entries": [
+    {
+      "label": "before",
+      "directory": ".tmp/native-ux-baseline/resources/issue-webview",
+      "bundleSha256": "c994513419611361b03e089f0987eeaa6146623c1033e9d5082b2f0e9e1f2600",
+      "initialJavaScriptBytes": 631836,
+      "initialJavaScriptFiles": [
+        "dashboard.js"
+      ],
+      "totalJavaScriptBytes": 631836,
+      "cssBytes": 126379,
+      "assets": [
+        {
+          "path": "codicon.ttf",
+          "bytes": 80188,
+          "sha256": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+        },
+        {
+          "path": "dashboard.css",
+          "bytes": 126379,
+          "sha256": "236281508460bb3fc9c71235d1203442f428932a03fff072bd356c825ed8e383"
+        },
+        {
+          "path": "dashboard.html",
+          "bytes": 456,
+          "sha256": "223f294e1428c304542e6d22a86690867009e214ab6e82e0c0df4fa6e6fa7428"
+        },
+        {
+          "path": "dashboard.js",
+          "bytes": 631836,
+          "sha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185"
+        }
+      ]
+    },
+    {
+      "label": "after",
+      "directory": ".tmp/renderer-final/resources/issue-webview",
+      "bundleSha256": "0662ee6390422d617021db7f64a9698ce0d4142528f0ec3cfcd8e67722088d2a",
+      "initialJavaScriptBytes": 367799,
+      "initialJavaScriptFiles": [
+        "dashboard.js",
+        "chunks/hooks.module-CG0zIPno.js"
+      ],
+      "totalJavaScriptBytes": 637978,
+      "cssBytes": 129872,
+      "assets": [
+        {
+          "path": "asset-manifest.json",
+          "bytes": 1919,
+          "sha256": "79db1acfbafcb2becd07ea03909227ce60008fcb652ba5b8dbde3175c39d5bd1"
+        },
+        {
+          "path": "chunks/BmadPanel-Q-ggcFST.js",
+          "bytes": 34215,
+          "sha256": "1df978baa259fe2ea2bd929f2c25ee9d31c0ed39595efa631c16317159092132"
+        },
+        {
+          "path": "chunks/CodexWorkspace-BoqbUCtA.js",
+          "bytes": 101903,
+          "sha256": "5a0a95b2c740a9f30385e116241b5522f4c973d8edbebb477d0bd4e001f7a9fd"
+        },
+        {
+          "path": "chunks/GitControlPanel-s-w5HuOP.js",
+          "bytes": 62050,
+          "sha256": "5adb555ee8317cece97c143e9c4bc425ce846cf3700dd205f887fc92ed8bf6fb"
+        },
+        {
+          "path": "chunks/hooks.module-CG0zIPno.js",
+          "bytes": 14310,
+          "sha256": "654f1dbb8321898f9e9b2cc477fb2afaa4b3b0f920c65ebdf87c927f5b571681"
+        },
+        {
+          "path": "chunks/IssueGraph-BCbAWbI_.js",
+          "bytes": 53579,
+          "sha256": "675f55106d993b27f050a4855ddef762948de24a6179643d417bd18315f542e3"
+        },
+        {
+          "path": "chunks/SkillsGuide-D1cMhBoy.js",
+          "bytes": 18432,
+          "sha256": "9023432ebf87ac4b309975693374aabbeae571c46ec789291f1d141c9eb8b962"
+        },
+        {
+          "path": "codicon.ttf",
+          "bytes": 80188,
+          "sha256": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0"
+        },
+        {
+          "path": "dashboard.css",
+          "bytes": 129872,
+          "sha256": "2560466dca92e7ee3d370d097b7157755e608af0eccd2e2b6ef64ef2d2a43779"
+        },
+        {
+          "path": "dashboard.html",
+          "bytes": 540,
+          "sha256": "873a70958519c9d715e73a434b4b62765992199c246bcfdf1cf970d493781b8c"
+        },
+        {
+          "path": "dashboard.js",
+          "bytes": 353489,
+          "sha256": "72ab5b4638d941c4435507b2e9f2e966d5e58c07f0006e610c8e09d8d1047494"
+        }
+      ]
+    }
+  ]
+}

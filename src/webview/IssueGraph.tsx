@@ -9,6 +9,7 @@ import type { IssueGraphSnapshot } from '../workspace/issueGraph';
 import { issueGraphBoardColor } from '../workspace/issueGraph';
 import { IssueRelationsEditor } from './issue-relations';
 import IssueGraphLayoutWorker from './issueGraphLayoutWorker.ts?worker&inline';
+import { useReducedMotion } from './motion';
 
 export interface GraphPosition { x: number; y: number; }
 export interface GraphCamera { x: number; y: number; scale: number; }
@@ -82,7 +83,7 @@ export function IssueGraphView(props: IssueGraphProps) {
   const saveTimerRef = useRef<number>();
   const cameraTimerRef = useRef<number>();
   const [dimensions, setDimensions] = useState(dimensionsRef.current);
-  const [systemReducedMotion, setSystemReducedMotion] = useState(() => prefersReducedMotion());
+  const systemReducedMotion = useReducedMotion();
   const [zoom, setZoom] = useState(cameraRef.current.scale);
   const [nodeSearch, setNodeSearch] = useState('');
   const nodeById = useMemo(() => new Map(props.nodes.map(node => [node.id, node])), [props.nodes]);
@@ -272,14 +273,6 @@ export function IssueGraphView(props: IssueGraphProps) {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!query) return;
-    const onChange = (event: MediaQueryListEvent) => setSystemReducedMotion(event.matches);
-    setSystemReducedMotion(query.matches);
-    query.addEventListener?.('change', onChange);
-    return () => query.removeEventListener?.('change', onChange);
-  }, []);
 
   useEffect(() => {
     const previousPositions = positionsRef.current;
@@ -548,7 +541,7 @@ export function IssueGraphView(props: IssueGraphProps) {
         <button class="quiet small graph-zoom-button" type="button" onClick={() => zoomBy(1.25)} aria-label="放大圖譜">＋</button>
         <button class="quiet small" type="button" onClick={fitGraph} aria-label="符合畫面">適合畫面</button>
         <button class="quiet small" type="button" onClick={resetLayout}>重設佈局</button>
-        <label class="graph-animation-toggle"><input type="checkbox" checked={effectiveAnimation} disabled={systemReducedMotion} onChange={(event) => props.onAnimationEnabledChange(event.currentTarget.checked)} /><span>{systemReducedMotion ? '系統已減少動態效果' : '跟隨動畫'}</span></label>
+        <label class="graph-animation-toggle"><input type="checkbox" checked={effectiveAnimation} disabled={systemReducedMotion} onChange={(event) => props.onAnimationEnabledChange(event.currentTarget.checked)} /><span>{systemReducedMotion ? '已減少動態效果' : '跟隨動畫'}</span></label>
       </div>
       {largeGraph && <div class="graph-node-search"><label>尋找圖譜節點<input type="search" aria-label="尋找圖譜節點" value={nodeSearch} onInput={event => setNodeSearch(event.currentTarget.value)} /></label>
         {searchResults.length > 0 && <div class="graph-search-results">{searchResults.map(node => <button key={node.id} type="button" onClick={() => selectCanvasNode(node.id, true)}>#{node.iid} {node.title}</button>)}</div>}
@@ -668,9 +661,6 @@ export function IssueGraphView(props: IssueGraphProps) {
   </section>;
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 function clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, value)); }
 

@@ -1,4 +1,8 @@
 export type NotificationLevel = 'info' | 'warn' | 'error';
+export type NotificationTarget = { kind: 'task'; taskId: string }
+  | { kind: 'issue' | 'mergeRequest'; projectId: number; iid: number }
+  | { kind: 'tools'; section?: 'codex' | 'workflowkit' }
+  | { kind: 'logs' };
 
 export interface NotificationOrigin {
   accountId?: string;
@@ -19,6 +23,7 @@ export interface WorkspaceNotification {
   read: boolean;
   operationId?: string;
   origin?: NotificationOrigin;
+  target?: NotificationTarget;
 }
 
 export interface NotificationSnapshot {
@@ -29,6 +34,7 @@ export interface NotificationSnapshot {
 }
 
 export type NotificationRequest =
+  | { type: 'openNotificationTarget'; id: string; destination: 'origin' | 'logs' }
   | { type: 'publishNotification'; level: NotificationLevel; message: string; title?: string; operationId?: string }
   | { type: 'markNotificationsRead'; ids: string[]; revision: number }
   | { type: 'markAllNotificationsRead'; revision: number }

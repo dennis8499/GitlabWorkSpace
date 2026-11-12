@@ -328,7 +328,11 @@ export class IssuePanels implements vscode.Disposable {
     this.workspace?.navigate(null);
   }
 
-  async showCreate(): Promise<void> {
+  private preferredCreateProject?: GitLabProject;
+  getActiveDetailForNavigation() { return this.lastSnapshot?.type === 'detailData' ? this.lastSnapshot.data : undefined; }
+
+  async showCreate(project?: GitLabProject): Promise<void> {
+    this.preferredCreateProject = project;
     this.suspended = false; this.refreshAfterWrite = false;
     this.cancelNavigationReads();
     const navigationVersion = ++this.navigationVersion;
@@ -599,12 +603,21 @@ export class IssuePanels implements vscode.Disposable {
   private async loadCreate(version: number, signal: AbortSignal, forceNetwork: boolean): Promise<void> {
     const group = this.session.selectedGroup;
     if (!group) throw new Error('Select a GitLab group first.');
+    const preferred = this.preferredCreateProject;
     const client = (await this.session.getClient()).withReadSignal(signal);
     const capabilitiesTask = this.session.ensureInstanceChecked();
     void capabilitiesTask.catch(() => {});
     const page = await this.readCreationProjects('', undefined, undefined, forceNetwork);
-    const projects = page.items;
-    const first = projects[0];
+    if (version !== this.navigationVersion || signal.aborted) return;
+    let projects = page.items;
+    let first = projects.find(project => project.id === preferred?.id) ?? projects[0];
+    if (preferred && !projects.some(project => project.id === preferred.id)) {
+      const project = await client.getProject(preferred.id);
+      if (version !== this.navigationVersion || signal.aborted) return;
+      if (!project.path_with_namespace.startsWith(group.full_path + '/')) throw new IssueValidationError('Project is outside the selected group.');
+      this.creationProjects.set(project.id, project);
+      projects = [project, ...projects]; first = project;
+    }
     if (version !== this.navigationVersion || signal.aborted) return;
     this.createOptionsAbort = new AbortController();
     this.post({ type: 'createData', projects, projectsState: page, selectedProjectId: first?.id, options: emptyFormOptions(), optionsLoading: false,

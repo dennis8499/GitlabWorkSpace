@@ -291,6 +291,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'submitCodexLaunch'; draftId: string; revision?: number; patch?: import('../codex/protocol').CodexLaunchPatch }
   | { type: 'cancelCodexLaunch'; draftId: string; revision?: number }
   | { type: 'showCodexLaunch'; draftId: string; revision?: number }
+  | { type: 'pickCodexLaunch' }
   | { type: 'repairCodexLaunch'; draftId: string; action: NonNullable<import('../codex/protocol').CodexLaunchCheck['repair']> }
   | { type: 'codexCommand'; command: import('../codex/protocol').CodexCommand }
   | { type: 'showCodexTask'; taskId: string }
@@ -298,6 +299,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'openCodexOrigin'; taskId: string }
   | { type: 'openCodexChanges'; taskId: string }
   | { type: 'previewProjectWiki'; taskId: string; refresh?: boolean; confirmRetry?: boolean; cursor?: string }
+  | { type: 'openProjectWikiDocument'; taskId: string; revision: string; slug: string; mode: 'source' | 'diff' }
   | { type: 'cancelProjectWikiPreview'; taskId: string }
   | { type: 'publishProjectWiki'; taskId: string; revision: string }
   | { type: 'publishCodexReview'; taskId: string; body: string }
@@ -326,6 +328,8 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'closeIssue' }
   | { type: 'connect' }
   | { type: 'openAccountManager' }
+  | { type: 'pickWorkbenchControl'; kind: 'workflow' | 'folder' | 'account' | 'tools' }
+  | { type: 'openRelatedMergeRequest'; projectId: number; iid: number; issueIid: number; mergeRequestProjectId: number }
   | { type: 'openConfiguration'; setting?: WorkspaceSettingId }
   | { type: 'disconnect'; accountId?: string }
   | { type: 'addAccount'; accountId?: string }
@@ -360,7 +364,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'selectProject'; projectId: number }
   | { type: 'selectIssue'; projectId: number; issueIid: number }
   | { type: 'openIssue'; projectId: number; issueIid: number; tab?: IssueDetailTab }
-  | { type: 'createIssue' }
+  | { type: 'createIssue'; projectId?: number }
   | { type: 'copy'; text: string }
   | { type: 'importIssueDrafts'; json: string }
   | { type: 'createIssueDrafts'; analysisId: string; drafts: IssueDraft[]; options: Record<string, { assigneeId?: number; labels: string[]; milestoneId?: number }> }
@@ -376,6 +380,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'submitTimeEntry'; id: string }
   | { type: 'acknowledgeTimeEntry'; id: string }
   | { type: 'selectMergeRequest'; projectId: number; iid: number }
+  | { type: 'openMergeRequestDiff'; projectId: number; iid: number; diffVersionId: number; oldPath: string; newPath: string }
   | { type: 'refreshMergeRequest'; projectId: number; iid: number }
   | { type: 'reconcileMergeRequestWrite'; projectId: number; iid: number }
   | { type: 'loadMergeRequestSection'; section: 'diffs' | 'discussions'; projectId: number; iid: number }
@@ -383,6 +388,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'openBranchReview'; projectId: number; iid: number }
   | { type: 'prepareCommitReview'; mode: 'commit' | 'mr'; revision: string; repo?: string; projectId?: number; issueIid?: number }
   | { type: 'loadSkillBranches'; repo: string; revision: string; requestId: string }
+  | { type: 'pickSkillBranch'; repo: string; revision: string; requestId: string; field: 'merge-repo.base' | 'merge-repo.head' | 'release-review.base' | 'release-review.head' }
   | { type: 'loadReviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
   | { type: 'loadReviewSessions'; revision: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
   | { type: 'cancelReviewSession'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
@@ -415,12 +421,13 @@ export type WorkspaceResponse =
   | { type: 'codexWorkflowResult'; taskId: string; result?: import('../codex/protocol').CodexTaskResult; report?: string; handoff?: string; wiki?: import('../codex/workflowProtocol').ProjectWikiPreview }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
-  | { type: 'openSettings' }
+  | { type: 'openSettings'; focusSection?: 'workflowkit' | 'codex'; draftId?: string }
   | { type: 'operationChanged'; operation: WorkspaceOperationState }
   | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
   | { type: 'commitReviewReady'; revision: string; mode: 'commit' | 'mr'; inputs: Record<string, string>; notice?: string }
   | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
   | { type: 'skillBranches'; revision: string; repo: string; requestId: string; branches: string[]; error?: string }
+  | { type: 'skillBranchSelected'; revision: string; repo: string; requestId: string; field: string; branch?: string }
   | { type: 'reviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId;
       capabilities?: import('./reviewSessionProtocol').ReviewerCapabilities; error?: string }
   | { type: 'reviewSessions'; revision: string; tool: import('./reviewSessionProtocol').ReviewerToolId; sessions: import('./reviewSessionProtocol').ReviewSessionSummary[]; error?: string }

@@ -2,6 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NotificationCenter } from '../../src/notifications/notificationCenter';
 
+test('operation notifications retain their origin destination and snapshots do not expose mutable store objects', async () => {
+  const center = new NotificationCenter();
+  await center.run({ operationId: 'issue-1', title: 'Issue', origin: { accountId: 'account-1', groupId: 2 }, target: { kind: 'issue', projectId: 3, iid: 4 } }, async () => {
+    center.publish({ level: 'error', message: 'Failed to save' });
+  });
+  center.publish({ operationId: 'issue-1', message: 'Retry after checking' });
+  const item = center.snapshot().items[0];
+  assert.deepEqual(item.target, { kind: 'issue', projectId: 3, iid: 4 });
+  assert.equal(item.origin?.accountId, 'account-1');
+  if (item.target?.kind === 'issue') item.target.iid = 999;
+  assert.deepEqual(center.snapshot().items[0].target, { kind: 'issue', projectId: 3, iid: 4 });
+});
+
 test('quiet read receipts do not accumulate and state transition deduplication remains bounded', () => {
   const center = new NotificationCenter();
   for (let index = 0; index < 2500; index++) {

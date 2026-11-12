@@ -20,6 +20,7 @@ export const workspaceActionKinds = {
   codexCommand: 'write',
   startCodexTask: 'write', listCodexTasks: 'control', codexHistory: 'read', sendCodexMessage: 'write',
   createCodexLaunch: 'read', updateCodexLaunch: 'control', checkCodexLaunch: 'read', showCodexLaunch: 'read',
+  pickCodexLaunch: 'read', openProjectWikiDocument: 'read',
   submitCodexLaunch: 'write', cancelCodexLaunch: 'control', repairCodexLaunch: 'write',
   showCodexTask: 'read', readCodexResult: 'read', openCodexOrigin: 'read', openCodexChanges: 'read',
   previewProjectWiki: 'read', cancelProjectWikiPreview: 'control', publishProjectWiki: 'write', publishCodexReview: 'write',
@@ -44,6 +45,9 @@ export const workspaceActionKinds = {
   setMergeRequestFilter: 'read',
   closeIssue: 'local',
   openAccountManager: 'local',
+  pickWorkbenchControl: 'local',
+  openNotificationTarget: 'local',
+  openRelatedMergeRequest: 'read',
   openLogs: 'local',
   addAccount: 'write',
   openConfiguration: 'local',
@@ -54,6 +58,10 @@ export const workspaceActionKinds = {
   gitOpenMergeEditor: 'local',
   gitOpenFile: 'local',
   gitOpenDiff: 'local',
+  gitPickRepository: 'local',
+  gitPickBranch: 'local',
+  gitPickRemote: 'local',
+  openMergeRequestDiff: 'read',
   refresh: 'read',
   retryInstanceCheck: 'read',
   scanRepositories: 'read',
@@ -77,6 +85,7 @@ export const workspaceActionKinds = {
   openBranchReview: 'read',
   prepareCommitReview: 'read',
   loadSkillBranches: 'read',
+  pickSkillBranch: 'read',
   loadReviewerCapabilities: 'read',
   loadReviewSessions: 'read',
   cancelReviewSession: 'write',
@@ -232,9 +241,12 @@ export const quickActionKinds = {
 } satisfies Record<QuickAction, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
+  pickSkillBranch: '選擇審查分支',
+  gitPickRepository: '選擇 Repo', gitPickBranch: '選擇分支', gitPickRemote: '選擇遠端', openMergeRequestDiff: '開啟 MR 原生 Diff',
   codexCommand: '管理 Codex 任務',
   startCodexTask: '啟動 Codex 任務', sendCodexMessage: '傳送 Codex 訊息', resumeCodexTask: '續作 Codex 任務',
   createCodexLaunch: '準備 Codex 任務', updateCodexLaunch: '保存任務設定', checkCodexLaunch: '檢查任務設定',
+  pickCodexLaunch: '選擇任務草稿', openProjectWikiDocument: '開啟 Wiki 文件',
   submitCodexLaunch: '開始執行 Codex 任務', cancelCodexLaunch: '取消任務準備', showCodexLaunch: '繼續準備任務', repairCodexLaunch: '修復任務環境',
   showCodexTask: '查看 Codex 任務', readCodexResult: '讀取任務成果', openCodexOrigin: '返回任務來源', openCodexChanges: '檢視 Issue 修改',
   previewProjectWiki: '預覽 GitLab Wiki', publishProjectWiki: '發布 GitLab Wiki', publishCodexReview: '發布審查留言',
@@ -260,6 +272,9 @@ const connectionActions = new Set(['connect', 'addAccount', 'disconnect', 'switc
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
 const localWorkspaceActions = new Set([
+  'pickSkillBranch',
+  'gitPickRepository', 'gitPickBranch', 'gitPickRemote',
+  'pickCodexLaunch', 'openProjectWikiDocument',
   'codexCommand',
   'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex',
@@ -309,7 +324,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   const action = request.type === 'perform' ? String(request.action) : request.type;
   let kind: ActionKind = request.type === 'perform' ? quickActionKinds[action as QuickAction] ?? 'control'
     : (workspaceActionKinds as Record<string, ActionKind>)[action] ?? 'control';
-  if (['refreshRepositories', 'refreshMyWork', 'findRepositories', 'findMyWork', 'openIssue', 'openMergeRequest', 'openTools'].includes(action)) kind = 'read';
+  if (['refreshRepositories', 'refreshMyWork', 'loadMoreMyWork', 'retryMyWorkSection', 'findRepositories', 'findMyWork', 'openIssue', 'openMergeRequest', 'openTools'].includes(action)) kind = 'read';
   let resourceKey = action;
   let slot = action;
   if (action === 'codexCommand') {
@@ -362,6 +377,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (['startCodexTask', 'sendCodexMessage', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'cancelCodexTask', 'codexHistory', 'checkCodex', 'configureCodex', 'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'publishProjectWiki'].includes(action)) { resourceKey = 'codex:' + (request.taskId ?? 'queue'); slot = resourceKey + ':' + action; }
   else if (action === 'publishCodexReview') resourceKey = 'codex-review:' + request.taskId;
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;
+  else if (action === 'pickSkillBranch') { resourceKey = 'skills'; slot = action + ':' + request.field + ':' + request.requestId; }
   else if (action === 'loadReviewerCapabilities') { resourceKey = 'review-capabilities:' + request.tool; slot = resourceKey; }
   else if (['loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport'].includes(action)) resourceKey = 'review:' + request.tool + ':' + (request.requestId ?? 'sessions');
   else if (connectionActions.has(action)) resourceKey = 'connection';

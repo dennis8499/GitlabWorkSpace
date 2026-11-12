@@ -64,13 +64,26 @@ test('draft identities and preferences stay within their account, project and wo
   const first = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
   const second = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 3 });
   assert.notEqual(second.id, first.id);
+  assert.deepEqual(new Set((await f.launch.list()).map(draft => draft.id)), new Set([first.id, second.id]));
   assert.equal((await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 })).id, first.id, 'older unfinished source drafts are recoverable');
   f.scope('account-two:workspace');
   await assert.rejects(f.launch.show(first.id), /帳號或工作區/);
   assert.equal(await f.launch.latest(), undefined);
+  assert.deepEqual(await f.launch.list(), []);
   const other = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
   assert.notEqual(other.id, first.id);
   f.scope('account-one:workspace'); assert.equal((await f.launch.show(first.id)).id, first.id);
+});
+
+test('draft picker omits submitted tasks and never dispatches while listing or reopening', async t => {
+  const f = await fixture(t);
+  const first = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
+  const second = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 3 });
+  await f.launch.show(first.id);
+  assert.equal(f.queued.length, 0);
+  await f.launch.submit(first.id);
+  assert.deepEqual((await f.launch.list()).map(draft => draft.id), [second.id]);
+  assert.equal(f.queued.length, 1);
 });
 
 test('cancel during preparation aborts checks and cannot publish a stale ready state or dispatch work', async t => {

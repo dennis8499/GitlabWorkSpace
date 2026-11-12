@@ -1,0 +1,4506 @@
+{
+  "generatedAt": "2026-11-12T13:44:32.869Z",
+  "sourceMode": true,
+  "zoomMethod": "effective viewport / scale + deviceScaleFactor; not native Electron zoom",
+  "assetHashes": {
+    "dashboard.js": "821667ff3110da465d35ebfef8f5e5cea43058ef2357e61ea82ea177ed40e90a",
+    "chunks/BmadPanel-Q-ggcFST.js": "1df978baa259fe2ea2bd929f2c25ee9d31c0ed39595efa631c16317159092132",
+    "chunks/CodexWorkspace-BoqbUCtA.js": "5a0a95b2c740a9f30385e116241b5522f4c973d8edbebb477d0bd4e001f7a9fd",
+    "chunks/GitControlPanel-s-w5HuOP.js": "5adb555ee8317cece97c143e9c4bc425ce846cf3700dd205f887fc92ed8bf6fb",
+    "chunks/IssueGraph-BCbAWbI_.js": "675f55106d993b27f050a4855ddef762948de24a6179643d417bd18315f542e3",
+    "chunks/SkillsGuide-D1cMhBoy.js": "9023432ebf87ac4b309975693374aabbeae571c46ec789291f1d141c9eb8b962",
+    "chunks/hooks.module-CG0zIPno.js": "654f1dbb8321898f9e9b2cc477fb2afaa4b3b0f920c65ebdf87c927f5b571681",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0",
+    "dashboard.css": "4c9e3ff565614def70c7b9623b296d3c2e6908a6309c4ca535c697a10a862a23",
+    "dashboard.html": "873a70958519c9d715e73a434b4b62765992199c246bcfdf1cf970d493781b8c",
+    "asset-manifest.json": "79db1acfbafcb2becd07ea03909227ce60008fcb652ba5b8dbde3175c39d5bd1"
+  },
+  "cases": 72,
+  "failures": 0,
+  "latency": {
+    "method": "Real navigation/task button click to two animation frames; chunks preloaded; cached fixtures; 500 transcript items per task; no GitLab/Codex network",
+    "summary": {
+      "navigation": {
+        "count": 40,
+        "medianMs": 31.099999997764826,
+        "p95Ms": 32,
+        "maxMs": 32.600000001490116,
+        "cachedUiWithin100ms": true
+      },
+      "taskSelection": {
+        "count": 40,
+        "medianMs": 30.800000000745058,
+        "p95Ms": 31.5,
+        "maxMs": 31.600000001490116,
+        "cachedUiWithin100ms": true
+      }
+    },
+    "samples": {
+      "navigation": [
+        {
+          "mode": "dashboard",
+          "ms": 30.300000000745058
+        },
+        {
+          "mode": "developer",
+          "ms": 30.600000001490116
+        },
+        {
+          "mode": "reviewer",
+          "ms": 26.300000000745058
+        },
+        {
+          "mode": "sa",
+          "ms": 31.400000002235174
+        },
+        {
+          "mode": "codex",
+          "ms": 30.5
+        },
+        {
+          "mode": "dashboard",
+          "ms": 30.699999999254942
+        },
+        {
+          "mode": "developer",
+          "ms": 32
+        },
+        {
+          "mode": "reviewer",
+          "ms": 31.199999999254942
+        },
+        {
+          "mode": "sa",
+          "ms": 31.600000001490116
+        },
+        {
+          "mode": "codex",
+          "ms": 30.599999997764826
+        },
+        {
+          "mode": "dashboard",
+          "ms": 31.199999999254942
+        },
+        {
+          "mode": "developer",
+          "ms": 30.899999998509884
+        },
+        {
+          "mode": "reviewer",
+          "ms": 32
+        },
+        {
+          "mode": "sa",
+          "ms": 30.399999998509884
+        },
+        {
+          "mode": "codex",
+          "ms": 30.5
+        },
+        {
+          "mode": "dashboard",
+          "ms": 30.799999997019768
+        },
+        {
+          "mode": "developer",
+          "ms": 31.5
+        },
+        {
+          "mode": "reviewer",
+          "ms": 30.800000000745058
+        },
+        {
+          "mode": "sa",
+          "ms": 32.600000001490116
+        },
+        {
+          "mode": "codex",
+          "ms": 30.600000001490116
+        },
+        {
+          "mode": "dashboard",
+          "ms": 31
+        },
+        {
+          "mode": "developer",
+          "ms": 31
+        },
+        {
+          "mode": "reviewer",
+          "ms": 31.600000001490116
+        },
+        {
+          "mode": "sa",
+          "ms": 32
+        },
+        {
+          "mode": "codex",
+          "ms": 31.300000000745058
+        },
+        {
+          "mode": "dashboard",
+          "ms": 31.699999999254942
+        },
+        {
+          "mode": "developer",
+          "ms": 30.399999998509884
+        },
+        {
+          "mode": "reviewer",
+          "ms": 30.300000000745058
+        },
+        {
+          "mode": "sa",
+          "ms": 31.300000000745058
+        },
+        {
+          "mode": "codex",
+          "ms": 31.100000001490116
+        },
+        {
+          "mode": "dashboard",
+          "ms": 32
+        },
+        {
+          "mode": "developer",
+          "ms": 31.399999998509884
+        },
+        {
+          "mode": "reviewer",
+          "ms": 30.699999999254942
+        },
+        {
+          "mode": "sa",
+          "ms": 31.399999998509884
+        },
+        {
+          "mode": "codex",
+          "ms": 30
+        },
+        {
+          "mode": "dashboard",
+          "ms": 31.099999997764826
+        },
+        {
+          "mode": "developer",
+          "ms": 32
+        },
+        {
+          "mode": "reviewer",
+          "ms": 32
+        },
+        {
+          "mode": "sa",
+          "ms": 30.899999998509884
+        },
+        {
+          "mode": "codex",
+          "ms": 30.699999999254942
+        }
+      ],
+      "taskSelection": [
+        {
+          "task": "b",
+          "ms": 29.899999998509884
+        },
+        {
+          "task": "a",
+          "ms": 30.5
+        },
+        {
+          "task": "b",
+          "ms": 30.699999999254942
+        },
+        {
+          "task": "a",
+          "ms": 30.600000001490116
+        },
+        {
+          "task": "b",
+          "ms": 29.799999997019768
+        },
+        {
+          "task": "a",
+          "ms": 31
+        },
+        {
+          "task": "b",
+          "ms": 31.600000001490116
+        },
+        {
+          "task": "a",
+          "ms": 31.299999997019768
+        },
+        {
+          "task": "b",
+          "ms": 30.800000000745058
+        },
+        {
+          "task": "a",
+          "ms": 31.099999997764826
+        },
+        {
+          "task": "b",
+          "ms": 30.5
+        },
+        {
+          "task": "a",
+          "ms": 30.900000002235174
+        },
+        {
+          "task": "b",
+          "ms": 31.299999997019768
+        },
+        {
+          "task": "a",
+          "ms": 31.400000002235174
+        },
+        {
+          "task": "b",
+          "ms": 31.400000002235174
+        },
+        {
+          "task": "a",
+          "ms": 30.800000000745058
+        },
+        {
+          "task": "b",
+          "ms": 31.300000000745058
+        },
+        {
+          "task": "a",
+          "ms": 31
+        },
+        {
+          "task": "b",
+          "ms": 31.199999999254942
+        },
+        {
+          "task": "a",
+          "ms": 29.900000002235174
+        },
+        {
+          "task": "b",
+          "ms": 30.300000000745058
+        },
+        {
+          "task": "a",
+          "ms": 30
+        },
+        {
+          "task": "b",
+          "ms": 31.5
+        },
+        {
+          "task": "a",
+          "ms": 29.100000001490116
+        },
+        {
+          "task": "b",
+          "ms": 30.700000002980232
+        },
+        {
+          "task": "a",
+          "ms": 31
+        },
+        {
+          "task": "b",
+          "ms": 28.900000002235174
+        },
+        {
+          "task": "a",
+          "ms": 31.199999999254942
+        },
+        {
+          "task": "b",
+          "ms": 31.299999997019768
+        },
+        {
+          "task": "a",
+          "ms": 30.5
+        },
+        {
+          "task": "b",
+          "ms": 30.800000000745058
+        },
+        {
+          "task": "a",
+          "ms": 30.199999999254942
+        },
+        {
+          "task": "b",
+          "ms": 30.300000000745058
+        },
+        {
+          "task": "a",
+          "ms": 30.100000001490116
+        },
+        {
+          "task": "b",
+          "ms": 31
+        },
+        {
+          "task": "a",
+          "ms": 30.5
+        },
+        {
+          "task": "b",
+          "ms": 29.899999998509884
+        },
+        {
+          "task": "a",
+          "ms": 31.599999997764826
+        },
+        {
+          "task": "b",
+          "ms": 30.599999997764826
+        },
+        {
+          "task": "a",
+          "ms": 30.599999997764826
+        }
+      ]
+    },
+    "requests": [
+      "ready",
+      "loadCodexUiDrafts",
+      "listCodexTasks",
+      "setIssueGraphVisibility",
+      "setMode",
+      "saveCodexUiDrafts"
+    ],
+    "errors": [],
+    "external": [],
+    "csp": []
+  },
+  "results": [
+    {
+      "key": "light-100-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-100-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 1217,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 298,
+          "y": 751.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-100-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 1217,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 768.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-100-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 408.9375,
+          "y": 800.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-100-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 789,
+          "y": 869,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-100-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 1214,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-125-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-125-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 961,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 298,
+          "y": 399.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-125-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 961,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 397.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-125-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 344.78125,
+          "y": 620.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-125-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 533,
+          "y": 351,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-125-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 958,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-200-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 10,
+          "y": 94,
+          "width": 56,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-200-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 601,
+          "height": 965
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 26,
+          "y": 284.0625,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-200-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 601,
+          "height": 1061
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 12,
+          "y": 276.828125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-200-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 101.1875,
+          "y": 350.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-200-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 149,
+          "y": 216,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "light-200-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 574,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-100-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-100-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 1217,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 298,
+          "y": 751.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-100-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 1217,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 768.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-100-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 408.9375,
+          "y": 800.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-100-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 789,
+          "y": 869,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(77, 170, 252)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-100-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 1214,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-125-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-125-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 961,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 298,
+          "y": 399.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-125-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 961,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 397.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-125-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 344.78125,
+          "y": 620.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-125-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 533,
+          "y": 351,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(77, 170, 252)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-125-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 958,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-200-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 10,
+          "y": 94,
+          "width": 56,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-200-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 601,
+          "height": 965
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 26,
+          "y": 284.0625,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-200-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 601,
+          "height": 1061
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 12,
+          "y": 276.828125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-200-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 101.1875,
+          "y": 350.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-200-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 149,
+          "y": 216,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(77, 170, 252)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "dark-200-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 574,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-100-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-100-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 1217,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 299,
+          "y": 752.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-100-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 1217,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 768.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-100-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 408.9375,
+          "y": 800.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-100-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 789,
+          "y": 869,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(77, 170, 252)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-100-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 1214,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-125-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-125-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 961,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 299,
+          "y": 399.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-125-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 961,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 397.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-125-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 344.78125,
+          "y": 620.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-125-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 533,
+          "y": 351,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(77, 170, 252)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-125-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 958,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-200-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 10,
+          "y": 94,
+          "width": 56,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-200-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 601,
+          "height": 967
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 27,
+          "y": 283.0625,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-200-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 601,
+          "height": 1061
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 12,
+          "y": 276.828125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-200-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 101.1875,
+          "y": 350.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-200-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 149,
+          "y": 216,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(77, 170, 252)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-dark-200-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 574,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 120, 212)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-100-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-100-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 1217,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 298,
+          "y": 751.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-100-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 726
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 1217,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 768.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-100-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 408.9375,
+          "y": 800.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-100-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 789,
+          "y": 869,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-100-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1280,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1280,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1265,
+          "height": 767
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 900
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 974,
+          "height": 743
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 1214,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-125-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 20,
+          "y": 62,
+          "width": 46,
+          "height": 34
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-125-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 961,
+          "height": 854
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 298,
+          "y": 399.9375,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-125-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 546
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 961,
+          "height": 1000
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 24,
+          "y": 397.28125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-125-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 344.78125,
+          "y": 620.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-125-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 533,
+          "y": 351,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-125-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 1024,
+        "height": 720
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 1024,
+          "height": 57
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 1024,
+          "height": 42
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 1009,
+          "height": 587
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 720
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 777,
+          "height": 563
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 958,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-200-desktop",
+      "scene": "dashboard",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務teamTest User0工具總覽總覽專案我的工作待審查版控Codex工作流程        Is",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 10,
+          "y": 94,
+          "width": 56,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "總覽"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-200-desktop",
+      "scene": "skills",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".skills-guide",
+          "overflow": 0,
+          "width": 601,
+          "height": 965
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 26,
+          "y": 284.0625,
+          "width": 117.21875,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-200-desktop",
+      "scene": "bmad",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 248
+        },
+        {
+          "selector": ".bmad-panel",
+          "overflow": 0,
+          "width": 601,
+          "height": 1061
+        }
+      ],
+      "focused": "",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 12,
+          "y": 276.828125,
+          "width": 121.21875,
+          "height": 34.796875
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "使用 Codex 執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-200-desktop",
+      "scene": "launch",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "focused": "\n    GWGitLab Workspace登入與訂單服務Test User0工具Codex總覽專案我的工作待審查版控Codex工作流程        Iss",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 101.1875,
+          "y": 350.6875,
+          "width": 72,
+          "height": 30
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(255, 255, 255)"
+        ],
+        "text": "開始執行"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-200-desktop",
+      "scene": "tools",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 509,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "WorkflowKit 工作流程整合包 · 已安裝",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 149,
+          "y": 216,
+          "width": 473,
+          "height": 17
+        },
+        "outline": [
+          "none",
+          "3px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "WorkflowKit 工作流程整合包 · 已安裝"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "key": "hc-light-200-desktop",
+      "scene": "notifications",
+      "viewport": {
+        "width": 640,
+        "height": 450
+      },
+      "documentOverflow": 0,
+      "containers": [
+        {
+          "selector": ".topbar",
+          "overflow": 0,
+          "width": 640,
+          "height": 89
+        },
+        {
+          "selector": ".workspace-navigation",
+          "overflow": 0,
+          "width": 640,
+          "height": 38
+        },
+        {
+          "selector": ".page",
+          "overflow": 0,
+          "width": 625,
+          "height": 289
+        },
+        {
+          "selector": ".tool-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".notification-drawer",
+          "overflow": 0,
+          "width": 619,
+          "height": 450
+        },
+        {
+          "selector": ".codex-launch",
+          "overflow": 0,
+          "width": 625,
+          "height": 742
+        }
+      ],
+      "dialogModal": true,
+      "focused": "關閉",
+      "action": {
+        "focused": true,
+        "reachable": true,
+        "rect": {
+          "x": 574,
+          "y": 32.171875,
+          "width": 48,
+          "height": 30
+        },
+        "outline": [
+          "solid",
+          "2px",
+          "rgb(0, 95, 184)"
+        ],
+        "text": "關閉"
+      },
+      "errors": [],
+      "external": [],
+      "csp": []
+    }
+  ]
+}

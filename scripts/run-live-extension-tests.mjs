@@ -830,32 +830,30 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
     return text;
   };
 
-  await frame.locator('.git-repo-picker select').waitFor({ state: 'visible', timeout: 20_000 });
-  const repoSelect = frame.locator('.git-repo-picker select');
+  const repoPicker = frame.locator('button.git-repo-picker');
+  await repoPicker.waitFor({ state: 'visible', timeout: 20_000 });
+  await repoPicker.click();
+  const serviceChoice = page.locator('.quick-input-widget .quick-input-list-entry').filter({ hasText: 'service' }).first();
   try {
-    await frame.waitForFunction(({ repoName }) => {
-      const select = document.querySelector('.git-repo-picker select');
-      return !!select && [...select.options].some((option) => option.text.toLocaleLowerCase('en-US').includes(repoName.toLocaleLowerCase('en-US')));
-    }, { repoName: 'service' }, { timeout: 20_000 });
+    await serviceChoice.waitFor({ state: 'visible', timeout: 20_000 });
   } catch {
-    const repositoryState = await repoSelect.evaluateAll((options) => options.map((option) => ({ value: option.value, text: option.textContent ?? '' })));
+    const repositoryState = await page.locator('.quick-input-widget .quick-input-list-entry').evaluateAll((options) => options.map(option => option.textContent ?? ''));
     const bodyText = await frame.evaluate('document.body?.innerText?.slice(0, 800) ?? ""');
     throw new Error(`The native Git GUI did not discover the service Repo after waiting for Git discovery. Options=${JSON.stringify(repositoryState)} Webview=${JSON.stringify(bodyText)}`);
   }
-  const serviceOption = await repoSelect.locator('option').evaluateAll((options) => options.map((option) => ({ value: option.value, text: option.textContent ?? '' })).find((option) => option.text.toLocaleLowerCase('en-US').includes('service')));
-  if (!serviceOption) throw new Error('The standalone Git GUI did not discover the service Repo.');
-  await repoSelect.selectOption(serviceOption.value);
+  await serviceChoice.click();
+  await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
   await frame.waitForFunction(() => document.querySelector('.git-repo-heading strong')?.textContent?.toLocaleLowerCase('en-US') === 'service' && document.querySelector('.git-toolbar > button.secondary')?.disabled === false, undefined, { timeout: 20_000 });
   const currentBranch = runGit(['branch', '--show-current']);
   const branch = `validation/native-gui/${Date.now().toString(36)}`;
   await frame.locator('.git-toolbar > button.secondary').click();
-  const branchInput = frame.locator('.git-dialog input[name="name"]');
+  const branchInput = page.locator('.quick-input-widget input[placeholder="新分支名稱"]');
   await branchInput.waitFor({ state: 'visible' });
   await branchInput.fill(branch);
-  await frame.locator('.git-dialog button[type="submit"]').click();
+  await page.keyboard.press('Enter');
+  await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
   await frame.waitForFunction(({ branch }) => {
-    const select = document.querySelector('.git-branch-picker select');
-    return !!select && [...select.options].some((option) => option.value === branch) && select.value === branch;
+    return document.querySelector('button.git-branch-picker span')?.textContent?.trim() === `${branch} ▾`;
   }, { branch }, { timeout: 20_000 });
   await waitGit(['branch', '--show-current'], (value) => value === branch, 'The Git GUI did not check out the created branch.');
 
@@ -864,7 +862,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   writeFileSync(serviceFile, `${original.trimEnd()}\n// native GUI partial-stage ${runId}\n// native GUI whole-file stage ${runId}\n`, 'utf8');
   await frame.locator('.git-refresh').click();
   await frame.locator('.git-change-name').filter({ hasText: 'service.ts' }).first().waitFor({ state: 'visible', timeout: 15_000 });
-  await frame.locator('.git-change-name').filter({ hasText: 'service.ts' }).first().click();
+  await frame.locator('[aria-label="部分暫存預覽 service.ts"]').first().click();
   const addedLines = frame.locator('.git-diff-line.add input[type="checkbox"]');
   await addedLines.first().waitFor({ state: 'visible' });
   if (await addedLines.count() !== 2) throw new Error('The native UI fixture should expose two added lines.');
@@ -879,14 +877,13 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   await waitGuiAction();
   const whole = await waitGit(['diff', '--cached', '--numstat'], (value) => /^2\s+0\s+service\.ts$/.test(value), 'Whole-file staging did not stage both lines.');
 
-  const commitMessage = `GUI native confirmation ${runId}`;
+  const commitMessage = `GUI direct staged commit ${runId}`;
   await frame.locator('.git-commit-composer textarea[name="message"]').fill(commitMessage);
   await frame.waitForFunction(() => document.querySelector('.git-commit-launch')?.disabled === false, undefined, { timeout: 10_000 });
   await frame.locator('.git-commit-launch').click();
   await frame.locator('.git-progress').waitFor({ state: 'visible', timeout: 10_000 });
-  const _commitConfirmation = await confirm('Commit');
   await frame.locator('.git-progress').waitFor({ state: 'hidden', timeout: 30_000 });
-  const commit = await waitGit(['log', '-1', '--format=%s'], (value) => value.includes(commitMessage), 'The confirmed commit did not appear in local Git history.');
+  const commit = await waitGit(['log', '-1', '--format=%s'], (value) => value.includes(commitMessage), 'The staged commit did not appear in local Git history.');
 
   await frame.locator('.git-push').click();
   await frame.locator('.git-dialog').waitFor({ state: 'visible' });
@@ -997,7 +994,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   return {
     branch, previousBranch: currentBranch, stagedPartial: partial, stagedWholeFile: whole,
     commitMessage: commit, pushUpstream: upstream, remoteBranch: remoteBranch.split(/\s+/)[0],
-    commitConfirmation: 'workbench-dom', pushConfirmation: 'workbench-dom', historyRows, unknownWrite
+    commitConfirmation: 'not-required-staged-commit', pushConfirmation: 'workbench-dom', historyRows, unknownWrite
   };
 }
 

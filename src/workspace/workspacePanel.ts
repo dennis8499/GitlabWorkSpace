@@ -16,6 +16,8 @@ import { sanitizeDiagnostic, sanitizeFeedbackDiagnostics } from '../logging/diag
 import { GitLabBudgetExceededError, GitLabRequestBudget } from '../api/gitLabRequestBudget';
 import { withReadObservation, type ReadObservation } from '../api/readObservation';
 import { readVerifiedMergeRequestDiff } from './mergeRequestDiffRead';
+import { resolveMergeRequestFile, readMergeRequestFile, type MergeRequestDiffRequest } from './mergeRequestNativeDiff';
+import { getNativeDocuments } from '../git/nativeDocuments';
 import { gitLabReadLifetimeMs, groupBoardReadKey, groupWorkspaceReadKey, type GitLabReadInvalidation } from '../api/gitLabReadKeys';
 import type { GitLabGraphWorkItem, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser, GitLabPage, GitLabBoardMembershipCursor, GitLabIssueGraphCursor } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
@@ -63,7 +65,7 @@ import { uiIntentField, type UiIntentField, type UiIntentValues } from './uiInte
 import { describeAction, effectiveOperationScope } from './actionPolicy';
 import { NotificationCenter } from '../notifications/notificationCenter';
 import { collectWorkspaceFeedback } from '../notifications/workspaceFeedback';
-import type { NotificationOrigin } from '../notifications/notificationProtocol';
+import type { NotificationTarget, NotificationOrigin } from '../notifications/notificationProtocol';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './workflowKitReleases';
@@ -90,7 +92,7 @@ import { readInstalledReviewerBinding } from './installedReviewer';
 import { readWorkflowKitRunnerBinding, workflowKitPythonCommand } from './workflowKitRunner';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
-import { isGitPanelRequest, isGitWriteAction } from '../git/gitProtocol';
+import { isGitPanelRequest, isGitWriteAction, isGitRefName } from '../git/gitProtocol';
 import type { GitPanelMessage } from '../git/gitProtocol';
 import type { LogContext } from '../logging/logProtocol';
 import type { LogOutcome } from '../logging/operationLog';
@@ -204,6 +206,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private readonly pendingViewNotices: unknown[] = [];
   private pendingNotificationsOpen = false;
   private pendingSettingsOpen = false;
+  private pendingSettingsOptions?: { focusSection?: 'workflowkit' | 'codex'; draftId?: string };
   private restoredOnce = false;
   private readonly gitWriteReceipts = new Map<string, Extract<GitPanelMessage, { type: 'gitActionResult' }>>();
   private groupMilestones: GitLabMilestone[] = [];
@@ -465,6 +468,7 @@ export class WorkspacePanel implements vscode.Disposable {
         messageListener.dispose(); visibilityListener.dispose();
         if (this.panel === panel) {
           this.pendingSettingsOpen = false;
+          this.pendingSettingsOptions = undefined;
           this.gitRepositories?.setActivePanelRepository(undefined);
           if (this.gitRepositoryListTimer) { clearTimeout(this.gitRepositoryListTimer); this.gitRepositoryListTimer = undefined; }
           this.suspendViewReads();
@@ -646,16 +650,49 @@ export class WorkspacePanel implements vscode.Disposable {
       groupId: this.session.selectedGroup?.id, root: this.projectContext?.root ?? this.groupRoot };
   }
 
+  private notificationTarget(request: WorkspaceRequest): NotificationTarget {
+    if ('taskId' in request && typeof request.taskId === 'string') return { kind: 'task', taskId: request.taskId };
+    if ('projectId' in request && typeof request.projectId === 'number') {
+      if ('issueIid' in request && typeof request.issueIid === 'number') return { kind: 'issue', projectId: request.projectId, iid: request.issueIid };
+      if ('iid' in request && typeof request.iid === 'number') return { kind: 'mergeRequest', projectId: request.projectId, iid: request.iid };
+    }
+    if (['installWorkflowKit', 'checkWorkflowKitReleases', 'copySkillGuidePrompt', 'refreshBmad'].includes(request.type)) return { kind: 'tools', section: 'workflowkit' };
+    if (['createCodexLaunch', 'submitCodexLaunch', 'checkCodex'].includes(request.type)) return { kind: 'tools', section: 'codex' };
+    return { kind: 'logs' };
+  }
+
+  async openNotificationTarget(id: string, destination: 'origin' | 'logs' = 'origin'): Promise<void> {
+    const notice = this.notifications.snapshot().items.find(item => item.id === id);
+    if (!notice) throw new Error('這則訊息已移除。');
+    const target = destination === 'logs' ? { kind: 'logs' } as const : notice.target;
+    if (!target || target.kind === 'logs') { await vscode.commands.executeCommand('gitlabWorkspace.showLogs'); return; }
+    const current = () => {
+      const now = this.getNotificationOrigin();
+      if (this.disposed || !notice.origin || ['accountId', 'baseUrl', 'groupId', 'root'].some(key => notice.origin?.[key as keyof NotificationOrigin] !== now[key as keyof NotificationOrigin])) {
+        throw new Error('訊息的帳號或工作區已變更，請切回原上下文後再開啟。');
+      }
+    };
+    current();
+    if (target.kind === 'tools') await this.openSettings({ focusSection: target.section });
+    else if (target.kind === 'task') { await this.linkedCodexSpec(target.taskId); current(); await this.navigateTo('codex'); current(); this.post({ type: 'codexTaskStarted', taskId: target.taskId }); }
+    else {
+      if (!this.projects.some(project => project.id === target.projectId)) throw new Error('此專案不在目前已載入的 Group，請重新選擇。');
+      if (target.kind === 'issue') await this.openIssue(target.projectId, target.iid);
+      else { await this.navigateTo('reviewer'); current(); await this.loadMergeRequest(target.projectId, target.iid); }
+    }
+  }
+
   async openNotifications(): Promise<void> {
     this.pendingNotificationsOpen = true;
     await this.show(undefined, { refresh: false });
     if (this.webviewReady) { this.post({ type: 'openNotifications' }); this.pendingNotificationsOpen = false; }
   }
 
-  async openSettings(): Promise<void> {
+  async openSettings(options?: { focusSection?: 'workflowkit' | 'codex'; draftId?: string }): Promise<void> {
     this.pendingSettingsOpen = true;
+    this.pendingSettingsOptions = options;
     try { await this.show(undefined, { refresh: false }); }
-    catch (error) { this.pendingSettingsOpen = false; throw error; }
+    catch (error) { this.pendingSettingsOpen = false; this.pendingSettingsOptions = undefined; throw error; }
     this.publishSettings();
   }
 
@@ -664,10 +701,50 @@ export class WorkspacePanel implements vscode.Disposable {
     await vscode.commands.executeCommand('workbench.action.openSettings', setting ?? '@ext:local-dev.gitlab-workspace');
   }
 
+  private async pickWorkbenchControl(kind: 'workflow' | 'folder' | 'account' | 'tools'): Promise<void> {
+    if (kind === 'workflow') { await vscode.commands.executeCommand('gitlabWorkspace.selectWorkflow'); return; }
+    if (kind === 'account') {
+      const epoch = this.session.connectionEpoch;
+      const choices = this.session.accounts.map(account => ({ label: account.name || account.username,
+        description: account.id === this.session.activeAccountId ? '目前帳號' : account.baseUrl, accountId: account.id, action: 'switch' }));
+      const selected = await vscode.window.showQuickPick([...choices,
+        { label: '新增 GitLab 帳號', action: 'add', accountId: '' }, { label: '管理帳號與連線', action: 'manage', accountId: '' }
+      ], { title: 'GitLab 帳號', matchOnDescription: true });
+      if (!selected || epoch !== this.session.connectionEpoch) return;
+      if (selected.action === 'add') await this.connect();
+      else if (selected.action === 'manage') await this.openAccountManager();
+      else if (selected.accountId !== this.session.activeAccountId || !this.session.baseUrl || this.session.accounts.find(account => account.id === selected.accountId)?.needsLogin) await this.switchAccount(selected.accountId);
+      return;
+    }
+    if (kind === 'tools') {
+      const selected = await vscode.window.showQuickPick([
+        { label: '工具與環境', command: 'openTools' }, { label: '設定', command: 'openSettings' },
+        { label: '帳號與連線', command: 'manageAccounts' }, { label: '開啟 Log', command: 'showLogs' }
+      ], { title: '工具與設定' });
+      if (selected) await vscode.commands.executeCommand('gitlabWorkspace.' + selected.command);
+      return;
+    }
+    const context = this.projectContext;
+    const selected = await vscode.window.showQuickPick((context?.folders ?? []).map(folder => ({
+      label: folder.name, description: folder.uri === context?.selectedFolderUri ? '目前資料夾' : undefined, detail: folder.path, folder
+    })), { title: '選擇專案資料夾', matchOnDetail: true });
+    if (selected && context?.revision === this.projectContext?.revision && context?.selectedFolderUri === this.projectContext?.selectedFolderUri) await this.selectProjectFolder(selected.folder.uri);
+  }
+
+  async loadNavigationSection(section: 'issues' | 'mergeRequests', expectedScope: string, retry = false): Promise<void> {
+    if (expectedScope !== this.getNavigationSnapshot().scope) throw new Error('帳號或 Group 已變更，請重新選擇。');
+    const scope = this.connectedScopeKey();
+    if (!scope) return;
+    this.navigationReadCount = (this.navigationReadCount ?? 0) + 1;
+    try { await this.loadWorkspaceSection(section, retry, retry ? undefined : 'next'); }
+    finally { this.navigationReadCount--; this.sendSnapshot(); }
+  }
+
   private publishSettings(): void {
     if (!this.pendingSettingsOpen || !this.webviewReady) return;
-    this.post({ type: 'openSettings' });
+    this.post({ type: 'openSettings', ...this.pendingSettingsOptions });
     this.pendingSettingsOpen = false;
+    this.pendingSettingsOptions = undefined;
   }
 
   async refreshFromSidebar(): Promise<void> {
@@ -954,6 +1031,35 @@ export class WorkspacePanel implements vscode.Disposable {
       await this.navigateTo('git', repositoryId);
       return;
     }
+    if (request.type === 'gitPickRepository') {
+      const scope = this.getLocalOperationScope();
+      const state = await this.gitRepositories.getSummaryState();
+      const selected = await vscode.window.showQuickPick(state.repositories.map(repository => ({
+        label: repository.name, description: repository.branch, detail: repository.path, repository
+      })), { title: '選擇版控 Repo', matchOnDescription: true, matchOnDetail: true });
+      if (!this.disposed) this.post({ type: 'gitRepositorySelected', requestId: request.requestId,
+        repositoryId: scope === this.getLocalOperationScope() ? selected?.repository.id : undefined });
+      return;
+    }
+    if (request.type === 'gitPickBranch' || request.type === 'gitPickRemote') {
+      const scope = this.getLocalOperationScope();
+      const snapshot = await this.gitRepositories.getSnapshot(request.repositoryId);
+      if (request.type === 'gitPickRemote') {
+        const selected = await vscode.window.showQuickPick(snapshot.remotes.map(remote => ({ label: remote })), { title: `Fetch：${snapshot.name}`, placeHolder: '選擇遠端' });
+        this.post({ type: 'gitRemoteSelected', repositoryId: request.repositoryId, requestId: request.requestId,
+          remote: scope === this.getLocalOperationScope() ? selected?.label : undefined });
+      } else {
+        const branch = request.create
+          ? await vscode.window.showInputBox({ title: `建立並切換分支：${snapshot.name}`, placeHolder: '新分支名稱',
+            validateInput: value => !isGitRefName(value.trim()) ? '請輸入有效的 Git 分支名稱。' : undefined })
+          : (await vscode.window.showQuickPick(snapshot.branches.filter(branch => branch.kind === 'local').map(branch => ({
+            label: branch.name, description: branch.current ? '目前分支' : branch.commit?.slice(0, 12)
+          })), { title: `切換分支：${snapshot.name}`, matchOnDescription: true }))?.label;
+        this.post({ type: 'gitBranchSelected', repositoryId: request.repositoryId, requestId: request.requestId, create: request.create,
+          branch: scope === this.getLocalOperationScope() ? branch?.trim() : undefined });
+      }
+      return;
+    }
     if (request.type === 'gitOpenMergeEditor' || request.type === 'gitOpenFile' || request.type === 'gitOpenDiff') {
       try {
         if (request.type === 'gitOpenDiff') await this.gitRepositories.openNativeDiff(request.repositoryId, request.path, request.staged, request.ref, request.parent);
@@ -1198,7 +1304,7 @@ export class WorkspacePanel implements vscode.Disposable {
         message: operation?.refreshError ?? operation?.error };
     });
     // Capture reads too: a failure can arrive after the user switches accounts.
-    await this.notifications.run({ operationId: requestId, title: policy.label, origin: this.getNotificationOrigin() }, async () => {
+    await this.notifications.run({ operationId: requestId, title: policy.label, origin: this.getNotificationOrigin(), target: this.notificationTarget(request as WorkspaceRequest) }, async () => {
       try { await logged(); }
       finally {
         const operation = this.operations.get(requestId);
@@ -1333,6 +1439,27 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'codexCommand': await this.getCodexHostActions().run(request.command); break;
       case 'listCodexTasks': await this.getCodexBridge().publish(); await this.getCodexLaunch().publish(); break;
       case 'createCodexLaunch': await this.openCodexLaunch(request.source); break;
+      case 'pickCodexLaunch': {
+        const launch = this.getCodexLaunch(), drafts = await launch.list();
+        if (!drafts.length) { await vscode.window.showInformationMessage('目前沒有尚未開始的任務草稿。'); break; }
+        const selected = await vscode.window.showQuickPick(drafts.map(draft => ({ label: draft.title,
+          description: `${draft.state === 'uncertain' || draft.state === 'submitting' ? '結果待核對' : draft.state === 'blocked' ? '需要處理' : '尚未開始'} · ${new Date(draft.updatedAt).toLocaleString()}`,
+          detail: draft.workingDirectory ?? draft.repositories.find(repo => repo.id === draft.repositoryId)?.path, id: draft.id
+        })), { title: '繼續準備 Codex 任務', placeHolder: '搜尋任務或專案', matchOnDescription: true, matchOnDetail: true });
+        if (!selected) break;
+        const draft = await launch.show(selected.id);
+        await this.navigateTo('codex'); this.post({ type: 'codexLaunchDraft', draft, open: true });
+        break;
+      }
+      case 'openProjectWikiDocument': {
+        const spec = await this.getCodexWorkflowService().specification(request.taskId), check = this.checkLinkedCodexAccess(spec);
+        if (spec.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
+        const page = await this.wikiStore().readPage(spec.workflow.id, spec.origin, request.revision, request.slug, request.mode); check();
+        const filename = request.slug.split('/').at(-1)! + '.md';
+        if (request.mode === 'diff') await getNativeDocuments().openDiff(filename, Buffer.from(page.previousContent, 'utf8'), Buffer.from(page.content, 'utf8'), `${page.title} · Wiki 差異`);
+        else await getNativeDocuments().openText(filename, Buffer.from(page.content, 'utf8'), `${page.title} · Wiki 草稿`);
+        break;
+      }
       case 'updateCodexLaunch': await this.getCodexLaunch().update(request.draftId, request.revision, request.patch); break;
       case 'checkCodexLaunch': await this.getCodexLaunch().check(request.draftId, request.revision, request.patch); break;
       case 'submitCodexLaunch': {
@@ -1342,21 +1469,30 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'cancelCodexLaunch': this.post({ type: 'codexLaunchDraft', draft: await this.getCodexLaunch().cancel(request.draftId), hidden: true }); break;
       case 'showCodexLaunch': {
         const draft = await this.getCodexLaunch().show(request.draftId);
+        await this.navigateTo('codex');
         if (draft.state === 'submitted' && draft.taskId) this.post({ type: 'codexTaskStarted', taskId: draft.taskId });
         else this.post({ type: 'codexLaunchDraft', draft, open: true });
         break;
       }
       case 'repairCodexLaunch': {
         await this.getCodexLaunch().show(request.draftId);
-        if (request.action === 'scan') await this.openRepositoryScan();
+        if (request.action === 'scan') {
+          await this.openRepositoryScan();
+          const draft = await this.getCodexLaunch().show(request.draftId);
+          await this.navigateTo('codex'); this.post({ type: 'codexLaunchDraft', draft, open: true });
+          if (!['submitted', 'submitting', 'uncertain'].includes(draft.state)) await this.getCodexLaunch().check(draft.id, draft.revision);
+        }
         else if (request.action === 'clone') await this.navigateTo('clone');
         else if (request.action === 'login') await vscode.commands.executeCommand('gitlabWorkspace.connect');
-        else if (request.action === 'tools') await vscode.commands.executeCommand('gitlabWorkspace.openTools');
+        else if (request.action === 'tools') await this.openSettings({ focusSection: 'workflowkit', draftId: request.draftId });
         else if (request.action === 'executable') await vscode.commands.executeCommand('workbench.action.openSettings', 'gitlabWorkspace.codex.executablePath');
         else {
           const context = await this.resolveProjectContext();
           if (!context.root) throw new Error('請先選擇專案根目錄。');
           await this.getCodexBridge().configure(context.root, request.action === 'sandbox' ? 'sandbox' : 'login');
+          const draft = await this.getCodexLaunch().show(request.draftId);
+          await this.navigateTo('codex'); this.post({ type: 'codexLaunchDraft', draft, open: true });
+          if (!['submitted', 'submitting', 'uncertain'].includes(draft.state)) await this.getCodexLaunch().check(draft.id, draft.revision);
         }
         break;
       }
@@ -1422,6 +1558,7 @@ export class WorkspacePanel implements vscode.Disposable {
           (!Number.isSafeInteger(request.scopeEpoch) || request.scopeEpoch < 0 || request.scopeEpoch !== this.session.connectionEpoch)) break;
         this.notifications.publish({ level: request.level, message: request.message, title: request.title, origin: this.getNotificationOrigin(),
           operationId: typeof request.operationId === 'string' ? request.operationId : undefined }); break;
+      case 'openNotificationTarget': await this.openNotificationTarget(request.id, request.destination); break;
       case 'markNotificationsRead':
         if (Number.isSafeInteger(request.revision) && request.revision >= 0 && Array.isArray(request.ids) && request.ids.length <= 500 && request.ids.every(id => typeof id === 'string' && id.length <= 160)) this.notifications.markRead(request.ids, request.revision);
         break;
@@ -1646,7 +1783,23 @@ export class WorkspacePanel implements vscode.Disposable {
         this.selectedProjectId = request.projectId; await this.context.globalState.update('gitlabWorkspace.selectedProjectId', request.projectId); this.sendSnapshot(); break;
       case 'selectIssue': await this.selectIssue(request.projectId, request.issueIid); break;
       case 'openIssue': await this.openIssue(request.projectId, request.issueIid, request.tab); break;
-      case 'createIssue': this.issueOpenGeneration++; await this.issuePanels.showCreate(); break;
+      case 'createIssue': {
+        const project = request.projectId === undefined ? undefined : this.projects.find(item => item.id === request.projectId);
+        if (request.projectId !== undefined && !project) throw new Error('專案已變更，請重新選擇。');
+        this.issueOpenGeneration++; await this.issuePanels.showCreate(project); break;
+      }
+      case 'pickWorkbenchControl': await this.pickWorkbenchControl(request.kind); break;
+      case 'openRelatedMergeRequest': {
+        const scope = this.connectedScopeKey(), epoch = this.session.connectionEpoch;
+        if (this.issueNavigation?.mode !== 'detail' || this.issueNavigation.projectId !== request.projectId || this.issueNavigation.issueIid !== request.issueIid) throw new Error('Issue 已變更，請重新選擇關聯 MR。');
+        const detail = this.issuePanels.getActiveDetailForNavigation();
+        if (detail?.issue.project_id !== request.projectId || detail.issue.iid !== request.issueIid) throw new Error('Issue 詳情已變更，請重新選擇關聯 MR。');
+        const related = detail.mergeRequests.find(item => item.project_id === request.mergeRequestProjectId && item.iid === request.iid);
+        if (!related) throw new Error('此 MR 不在目前 Issue 的關聯清單。');
+        await this.navigateTo('reviewer');
+        if (scope !== this.connectedScopeKey() || epoch !== this.session.connectionEpoch) return;
+        await this.loadMergeRequest(related.project_id, related.iid); break;
+      }
       case 'copy': await vscode.env.clipboard.writeText(request.text); this.post({ type: 'message', message: '已複製到剪貼簿。' }); break;
       case 'importIssueDrafts': this.post({ type: 'draftBundle', bundle: parseIssueDraftBundle(request.json) }); break;
       case 'createIssueDrafts': await this.createDrafts(request.analysisId, request.drafts, request.options); break;
@@ -1662,6 +1815,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'submitTimeEntry': await this.submitTime(request.id); break;
       case 'acknowledgeTimeEntry': await this.acknowledgeTimeEntry(request.id); break;
       case 'selectMergeRequest': await this.loadMergeRequest(request.projectId, request.iid); break;
+      case 'openMergeRequestDiff': await this.openMergeRequestDiff(request); break;
       case 'refreshMergeRequest': await this.refreshMergeRequestBranches(request.projectId, request.iid); break;
       case 'reconcileMergeRequestWrite': await this.reconcileMergeRequestWrite(request.projectId, request.iid); break;
       case 'loadMergeRequestSection': await this.loadMergeRequestSection(request.section, request.projectId, request.iid); break;
@@ -1669,6 +1823,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'openBranchReview': await this.openBranchReview(request.projectId, request.iid); break;
       case 'prepareCommitReview': await this.prepareCommitReview(request); break;
       case 'loadSkillBranches': await this.loadSkillBranches(request.repo, request.revision, request.requestId); break;
+      case 'pickSkillBranch': await this.pickSkillBranch(request); break;
       case 'loadReviewerCapabilities': await this.loadReviewerCapabilities(request.revision, request.requestId, request.tool); break;
       case 'replyMergeRequest': await this.replyMergeRequest(request.projectId, request.iid, request.discussionId, request.body); break;
       case 'approveMergeRequest': await this.approveMergeRequest(request.projectId, request.iid, request.sha); break;
@@ -5028,6 +5183,37 @@ export class WorkspacePanel implements vscode.Disposable {
     } finally { this.publishTimers(); }
   }
 
+  private async openMergeRequestDiff(request: MergeRequestDiffRequest): Promise<void> {
+    const scope = this.connectedScopeKey(), epoch = this.session.connectionEpoch;
+    const file = resolveMergeRequestFile(this.selectedMergeRequest, request);
+    const generation = this.mergeRequestGeneration, signal = this.mergeRequestAbort?.signal;
+    const current = (): boolean => !this.disposed && !signal?.aborted && scope === this.connectedScopeKey() &&
+      epoch === this.session.connectionEpoch && generation === this.mergeRequestGeneration &&
+      this.selectedMergeRequest?.diffVersionId === request.diffVersionId &&
+      this.selectedMergeRequest.request.project_id === request.projectId && this.selectedMergeRequest.request.iid === request.iid;
+    const budget = new GitLabRequestBudget({ requests: 4, bytes: 16 * 1024 * 1024, timeoutMs: 30_000 });
+    const subscriptionSignal = AbortSignal.any([budget.signal, ...(signal ? [signal] : [])]);
+    try {
+      await this.resolveGroupProject(request.projectId, subscriptionSignal);
+      if (!current()) return;
+      const bytes = await readMergeRequestFile({ getRepositoryFileBytes: (projectId, filePath, sha) =>
+        this.session.cachedRead(`project/${projectId}/immutable-file/${sha}/${encodeURIComponent(filePath)}`,
+          async (client, readSignal) => {
+            // Shared transport owns its limits; a departing viewer only cancels its subscription.
+            const readBudget = new GitLabRequestBudget({ requests: 2, bytes: 8 * 1024 * 1024, timeoutMs: 30_000 });
+            try { return await client.withReadSignal(readSignal).withRequestBudget(readBudget).getRepositoryFileBytes(projectId, filePath, sha); }
+            finally { readBudget.dispose(); }
+          }, { signal: subscriptionSignal, reason: 'mr-native-diff' }) }, file);
+      if (!current()) return;
+      resolveMergeRequestFile(this.selectedMergeRequest, request);
+      await getNativeDocuments().openDiff(file.diff.new_path, bytes.before, bytes.after,
+        `!${request.iid} ${file.diff.new_path} · ${file.baseSha.slice(0, 8)} → ${file.headSha.slice(0, 8)}`);
+    } catch (error) {
+      if (!current()) return;
+      throw new Error(`${readableError(error)} 已保留 MR 差異預覽，可重試或在 GitLab 開啟。`, { cause: error });
+    } finally { budget.dispose(); }
+  }
+
   private loadMergeRequest(projectId: number, iid: number, options: { force?: boolean } = {}): Promise<void> {
     requireIssueIid(iid);
     const scope = this.connectedScopeKey(), epoch = this.session.connectionEpoch;
@@ -5343,6 +5529,20 @@ export class WorkspacePanel implements vscode.Disposable {
       else inputs[`${feature}.target`] = binding.targetBranch;
     }
     this.post({ type: 'commitReviewReady', revision: current.revision, mode: request.mode, inputs });
+  }
+
+  private async pickSkillBranch(request: Extract<WorkspaceRequest, { type: 'pickSkillBranch' }>): Promise<void> {
+    const { repo, revision, requestId, field } = request;
+    const skills = this.getSkillsContext(), scope = this.getLocalOperationScope();
+    if (revision !== skills.revision) return;
+    const selected = resolveReviewerRepository(repo, skills.reviewerRepositories ?? []);
+    if (!selected) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
+    const current = () => !this.disposed && revision === this.getSkillsContext().revision && scope === this.getLocalOperationScope();
+    const branches = await readReviewerBranches(selected.path, this.gitRepositories?.gitExecutable ?? 'git');
+    if (!current()) return;
+    const branch = await vscode.window.showQuickPick(branches, { title: field.endsWith('.base') ? '選擇基礎分支' : '選擇比較分支',
+      placeHolder: branches.length ? '搜尋本機或遠端追蹤分支；不會自動 Fetch' : '此 Repo 尚無分支；可返回表單直接輸入名稱', matchOnDescription: true });
+    if (current()) this.post({ type: 'skillBranchSelected', revision, repo, requestId, field, branch });
   }
 
   private async loadSkillBranches(repo: string, revision: string, requestId: string): Promise<void> {

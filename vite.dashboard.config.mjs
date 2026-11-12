@@ -33,10 +33,13 @@ export default defineConfig({
     outDir: '../../resources/issue-webview',
     emptyOutDir: true,
     cssCodeSplit: false,
+    manifest: 'asset-manifest.json',
+    modulePreload: { polyfill: false },
     rollupOptions: {
       input: 'src/webview/dashboard.html',
       output: {
         entryFileNames: 'dashboard.js',
+        chunkFileNames: 'chunks/[name]-[hash].js',
         assetFileNames: (asset) => asset.name?.endsWith('.css') ? 'dashboard.css' : '[name][extname]'
       }
     }

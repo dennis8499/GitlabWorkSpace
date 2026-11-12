@@ -1236,6 +1236,24 @@ export class GitLabClient {
     });
   }
 
+  /** Read a complete immutable Git blob; never resolve a moving branch or follow redirects. */
+  async getRepositoryFileBytes(projectId: number, filePath: string, commitSha: string, maxBytes = 8 * 1024 * 1024): Promise<Uint8Array> {
+    if (!Number.isSafeInteger(projectId) || projectId <= 0 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(commitSha) ||
+      !filePath || filePath.length > 32767 || /[\0\r\n\\]/.test(filePath) || filePath.startsWith('/') || filePath.split('/').some(part => !part || part === '.' || part === '..') ||
+      !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 16 * 1024 * 1024) throw new GitLabApiError('無效的固定版本檔案讀取。');
+    const url = new URL(`${this.projectPath(projectId)}/repository/files/${encodeURIComponent(filePath)}/raw`, this.apiRoot);
+    url.searchParams.set('ref', commitSha);
+    return this.withReadRequest(async signal => {
+      const response = await this.send(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, signal, redirect: 'manual' }, true, maxBytes);
+      if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab 重新導向固定版本檔案讀取。', response.status);
+      if (!response.ok) throw new GitLabApiError(`無法讀取此版本的完整檔案（HTTP ${response.status}）。`, response.status);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      signal.throwIfAborted();
+      if (bytes.byteLength > maxBytes) throw new GitLabApiError('完整檔案超過原生 Diff 讀取上限，請在 GitLab 查看。');
+      return bytes;
+    });
+  }
+
   async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
     const url = new URL('../graphql', this.apiRoot);
     if (url.origin !== this.apiRoot.origin || !url.pathname.startsWith(this.apiRoot.pathname.slice(0, -3))) {

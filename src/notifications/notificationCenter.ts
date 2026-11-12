@@ -2,10 +2,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { sanitizeDiagnostic } from '../logging/diagnosticText';
 import { randomUUID } from 'node:crypto';
 import type { WorkspaceOperationState } from '../workspace/operations';
-import type { NotificationLevel, NotificationOrigin, NotificationSnapshot, WorkspaceNotification } from './notificationProtocol';
+import type { NotificationLevel, NotificationOrigin, NotificationSnapshot, NotificationTarget, WorkspaceNotification } from './notificationProtocol';
 
-interface NotificationContext { operationId: string; title: string; origin?: NotificationOrigin; }
-export interface NotificationInput { level?: NotificationLevel; title?: string; message: string; operationId?: string; origin?: NotificationOrigin; }
+interface NotificationContext { operationId: string; title: string; origin?: NotificationOrigin; target?: NotificationTarget; }
+export interface NotificationInput { level?: NotificationLevel; title?: string; message: string; operationId?: string; origin?: NotificationOrigin; target?: NotificationTarget; }
 const severity = { info: 0, warn: 1, error: 2 };
 const sanitizeNotification = (message: string): string => sanitizeDiagnostic(message);
 
@@ -31,7 +31,7 @@ export class NotificationCenter {
   dispose(): void { this.listeners.clear(); this.entries.clear(); this.versions.clear(); this.operationOutcomes.clear(); this.publishedStates.clear(); this.dismissed.clear(); this.unknownOperations.clear(); }
   get unreadCount(): number { let total = 0; for (const item of this.entries.values()) if (!item.read) total++; return total; }
   snapshot(): NotificationSnapshot {
-    const items = [...this.entries.values()].reverse().map(item => ({ ...item, messages: [...item.messages], origin: item.origin && { ...item.origin } }));
+    const items = [...this.entries.values()].reverse().map(item => ({ ...item, messages: [...item.messages], origin: item.origin && { ...item.origin }, target: item.target && { ...item.target } }));
     return { sessionId: this.sessionId, revision: this.revision, items, unreadCount: items.filter(item => !item.read).length };
   }
   async run<T>(context: NotificationContext, task: () => Promise<T>, complete = false): Promise<T> {
@@ -71,7 +71,8 @@ export class NotificationCenter {
       id, operationId, title: previous?.title ?? this.sanitizer(input.title ?? context?.title ?? 'GitLab Workspace').slice(0, 200),
       level: nextLevel, messages: [...(previous?.messages ?? []).filter(value => value !== message), message].slice(-100),
       createdAt: previous?.createdAt ?? now, updatedAt: now, contentRevision: this.revision + 1, read: false,
-      origin: origin && { ...origin, baseUrl: origin.baseUrl && this.sanitizer(origin.baseUrl), root: origin.root && this.sanitizer(origin.root) }
+      origin: origin && { ...origin, baseUrl: origin.baseUrl && this.sanitizer(origin.baseUrl), root: origin.root && this.sanitizer(origin.root) },
+      target: previous?.target ?? input.target ?? context?.target ?? { kind: 'logs' }
     };
     this.entries.delete(id); this.entries.set(id, next);
     this.revision++; this.versions.set(id, this.revision);

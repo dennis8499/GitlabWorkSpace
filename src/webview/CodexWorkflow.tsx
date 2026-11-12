@@ -1,58 +1,23 @@
 /** @jsxImportSource preact */
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { codexTaskActive, type CodexTaskSource, type CodexTaskState } from '../codex/protocol';
-import { CommitReviewLaunch } from './CommitReviewLaunch';
+import { codexTaskActive, type CodexTaskState } from '../codex/protocol';
 import { ActionController, type DispatchResult } from '../workspace/actionController';
 import type { CodexUiState } from './codexUiState';
 import { useActionSelector } from './useActions';
 import { CodexMarkdown } from './CodexMarkdown';
-import { codexReplyKey, editCodexReply, settleCodexReplies, wikiLineDiff, type CodexWorkflowUi } from './codexWorkflowUi';
-import type { SkillsContext, WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
+import { codexReplyKey, editCodexReply, settleCodexReplies, type CodexWorkflowUi } from './codexWorkflowUi';
+import type { WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import './codex-panel.css';
 import './codex-workflow.css';
 
-type LinkedSource = Extract<CodexTaskSource, { kind: 'issue' | 'project-wiki' | 'merge-request' }>;
 type Post = (request: WorkspaceRequest) => unknown;
 export type WorkflowPayload = Extract<WorkspaceResponse, { type: 'codexWorkflowResult' }>;
-
-export function taskForSource(tasks: readonly CodexTaskState[], source: LinkedSource): CodexTaskState | undefined {
-  const matches = tasks.filter(task => task.origin?.kind === source.kind && task.origin.projectId === source.projectId &&
-    (source.kind === 'issue' ? task.origin.iid === source.issueIid : source.kind === 'merge-request' ? task.origin.iid === source.iid && (task.origin.intent ?? 'review') === (source.intent ?? 'review') : true));
-  return matches.find(task => codexTaskActive(task.status) || task.status === 'queued') ?? matches[0];
-}
-
-export function CodexWorkflowLaunch({ tasks, source, post, compact = false, disabled = false, skillsContext }: {
-  tasks: readonly CodexTaskState[]; source: LinkedSource; post: Post; compact?: boolean; disabled?: boolean; skillsContext?: SkillsContext;
-}) {
-  const task = taskForSource(tasks, source), busy = task && (codexTaskActive(task.status) || task.status === 'queued');
-  const [isolated, setIsolated] = useState(true);
-  const label = { issue: '使用 Codex 開發', 'project-wiki': '建立／更新 Wiki', 'merge-request': '一鍵 Code Review' }[source.kind];
-  return <section class={`codex-workflow-launch ${compact ? 'compact' : ''}`} aria-label={label}>
-    <div class="button-row"><button type="button" class={compact ? 'quiet small' : 'primary'} disabled={disabled}
-      onClick={() => post(busy ? { type: 'showCodexTask', taskId: task.id } : { type: 'startCodexTask', source: source.kind === 'issue' ? { ...source, isolated } : source })}>
-      {busy ? source.kind === 'issue' ? '查看開發任務' : '查看執行任務' : label}</button>
-      {task && !busy && <button type="button" class="quiet small" onClick={() => post({ type: 'showCodexTask', taskId: task.id })}>查看上次成果</button>}
-      {source.kind === 'issue' && task?.result?.files?.length ? <button type="button" class="quiet small" onClick={() => post({ type: 'openCodexChanges', taskId: task.id })}>檢視差異</button> : null}
-    </div>
-    {source.kind === 'merge-request' && !busy && <button type="button" class="quiet small" disabled={disabled} onClick={() => post({ type: 'startCodexTask', source: { ...source, intent: 'fix-comments' } })}>將討論轉成修正任務</button>}
-    {source.kind === 'issue' && !busy && <label><input type="checkbox" checked={isolated} disabled={disabled} onChange={event => setIsolated(event.currentTarget.checked)} />在隔離 worktree 執行</label>}
-    {source.kind === 'issue' && <CommitReviewLaunch post={post} skills={skillsContext} projectId={source.projectId} issueIid={source.issueIid} disabled={disabled} />}
-    {!compact && task?.result && <p class="subtle" role="status">{task.result.summary}</p>}
-    {!compact && source.kind === 'issue' && task?.result && (!!task.result.files?.length || !!task.result.tests?.length) &&
-      <details><summary>修改與測試結果</summary>
-        <p>修改 {task.result.files?.length ?? 0} 個檔案；已核對 {task.result.tests?.length ?? 0} 個測試命令。</p>
-        {task.result.tests?.map((test, index) => <p key={index}><code>{test.command}</code> · exit {test.exitCode}</p>)}
-      </details>}
-    {!compact && source.kind === 'issue' && !task && <p class="subtle">自動建立 Issue 分支，由 BMAD 選擇流程並完成實作與測試，完成後由你檢閱及提交。</p>}
-  </section>;
-}
 
 export function CodexWorkflowResult({ task, payload, post, active, actions: sharedActions, ui, onUiChange }: {
   task: CodexTaskState; payload?: WorkflowPayload; post: Post; active: boolean; actions?: ActionController;
   ui?: CodexUiState; onUiChange?: (update: (state: CodexUiState) => CodexUiState) => void;
 }) {
   const [selectedPage, setSelectedPage] = useState('');
-  const [previewMode, setPreviewMode] = useState<'rendered' | 'source' | 'diff'>('rendered');
   const [changedOnly, setChangedOnly] = useState(false);
   const [localWorkflow, setLocalWorkflow] = useState<CodexWorkflowUi>({ replies: {} });
   const workflow = ui?.workflow ?? localWorkflow, workflowRef = useRef(workflow); workflowRef.current = workflow;
@@ -143,16 +108,14 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
         {wiki.progress && <p role="status" aria-live="polite">已核對 {wiki.progress.completed}/{wiki.progress.total} 頁{checking ? '，正在核對…' : wiki.progress.reason ? ` · ${wiki.progress.reason}` : ''}</p>}
         {wiki.error && <p class="warning" role="alert">{wiki.error}</p>}
         <label><input type="checkbox" checked={changedOnly} onChange={event => setChangedOnly(event.currentTarget.checked)} />只看有變更或待核對的頁面（{wiki.pages.filter(item => item.action !== 'unchanged').length}）</label>
-        <label>預覽頁面<select value={page?.slug ?? ''} onChange={event => setSelectedPage(event.currentTarget.value)}>{pages.map(item =>
-          <option key={item.slug} value={item.slug}>{({ unchecked: '待核對', create: '新增', update: '更新', unchanged: '相同' })[item.action]} · {item.slug}</option>)}</select></label>
         <ul class="codex-wiki-pages" aria-label="Wiki 頁面變更">{pages.map(item => <li key={item.slug}><button type="button" class="quiet small" aria-current={item.slug === page?.slug ? 'true' : undefined} onClick={() => setSelectedPage(item.slug)}>
           <span>{({ unchecked: '待核對', create: '新增', update: '更新', unchanged: '相同' })[item.action]}</span> {item.title || item.slug}{item.published ? ' · 已發布' : ''}</button></li>)}</ul>
-        <div class="button-row codex-wiki-modes" role="group" aria-label="Wiki 預覽方式">{([['rendered', '閱讀預覽'], ['source', 'Markdown 原文'], ['diff', '檢視變更']] as const).map(([mode, label]) =>
-          <button type="button" class="quiet small" aria-pressed={previewMode === mode} onClick={() => setPreviewMode(mode)}>{label}</button>)}</div>
+        {page && <div class="button-row codex-wiki-modes" role="group" aria-label="Wiki 文件">
+          <button type="button" class="quiet small" onClick={() => post({ type: 'openProjectWikiDocument', taskId: task.id, revision: wiki.revision, slug: page.slug, mode: 'source' })}>在編輯器開啟 Markdown</button>
+          <button type="button" class="quiet small" disabled={page.action === 'unchecked'} title={page.action === 'unchecked' ? '先核對遠端頁面，才能比較差異' : undefined} onClick={() => post({ type: 'openProjectWikiDocument', taskId: task.id, revision: wiki.revision, slug: page.slug, mode: 'diff' })}>開啟差異</button></div>}
         {!page && <p class="subtle">沒有符合篩選的頁面。</p>}
         {page && <div class="codex-wiki-content" aria-label="Wiki 草稿內容">
-          {previewMode === 'rendered' ? <CodexMarkdown text={page.content} onOpenLink={openLink} onOpenFile={openFile} onCopy={copy} /> : previewMode === 'source' ? <pre tabIndex={0}>{page.content}</pre> :
-            page.action === 'unchecked' ? <p>這頁尚未核對遠端內容，完成核對後才能檢視變更。</p> : <pre tabIndex={0} class="codex-wiki-diff" aria-label="Wiki 差異">{wikiLineDiff(page.previousContent ?? '', page.content).map((line, index) => <span key={index} class={`codex-diff-${line.kind}`}>{line.kind === 'added' ? '+ ' : line.kind === 'removed' ? '− ' : '  '}{line.text}{'\n'}</span>)}</pre>}
+          <CodexMarkdown text={page.content} onOpenLink={openLink} onOpenFile={openFile} onCopy={copy} />
         </div>}
         <button class="primary" type="button" disabled={busy || checking || !complete || !!wiki.error || !!wiki.uncertain || wiki.pages.every(item => item.published)} onClick={() => post({ type: 'publishProjectWiki', taskId: task.id, revision: wiki.revision })}>發布至 GitLab Wiki</button>
       </>}

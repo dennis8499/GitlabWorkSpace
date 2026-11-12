@@ -578,3 +578,35 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 }
 @media(max-width:960px) { .skills-workspace { grid-template-columns:minmax(0,1fr); gap:14px; } .skills-feature-navigation { display:flex; flex-wrap:wrap; gap:12px; } .skills-feature-navigation section { flex:1 1 180px; } .skills-feature-navigation h3 { margin-top:0; } }
 @media(max-width:520px) { .skills-tool-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .skills-tool-tabs button { font-size: 1rem; } .skills-environment { padding:12px; } }
+
+/* Keep global navigation compact while the native picker handles narrow views. */
+.native-mode-picker { display:none; }
+.workflow-tabs { display:flex; flex:none; gap:4px; padding:4px 20px; border-bottom:1px solid var(--border); }
+.workflow-tabs button { min-height:32px; padding:5px 14px; border:1px solid transparent; border-radius:4px; background:transparent; color:var(--muted); }
+.workflow-tabs button.active { border-color:var(--vscode-contrastActiveBorder, var(--vscode-focusBorder)); background:var(--vscode-list-inactiveSelectionBackground, var(--surface)); color:var(--vscode-foreground); }
+.workflow-tabs button:hover { background:var(--vscode-toolbar-hoverBackground, var(--surface)); }
+.workflow-tabs button:focus-visible { outline:2px solid var(--vscode-focusBorder); outline-offset:1px; }
+.issue-heading-actions { flex-wrap:wrap; }
+.issue-heading-actions > button { flex-shrink:0; }
+.app-shell :where(button:not([class])) { min-height:32px; padding:5px 10px; border:1px solid var(--vscode-button-border, var(--border)); border-radius:4px; background:var(--vscode-button-secondaryBackground, var(--surface)); color:var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
+.app-shell :where(button:not([class])):hover:not(:disabled) { background:var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
+.app-shell :where(button:not([class])):focus-visible { outline:2px solid var(--vscode-focusBorder); outline-offset:2px; }
+.home-attention { grid-column:1 / -1; }
+.home-feedback { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 0; }
+.home-feedback span { flex:1; min-width:120px; }
+.issue-list-entry { display:flex; align-items:stretch; min-width:0; }
+.issue-list-entry .work-row { flex:1; min-width:0; }
+.quick-issue-preview { flex:none; align-self:center; }
+.mr-native-diff { display:flex; align-items:center; gap:8px; width:100%; text-align:left; overflow-wrap:anywhere; }
+.mr-native-diff code { white-space:normal; overflow-wrap:anywhere; }
+.top-controls { min-width:0; gap:6px; }
+.top-controls .project-folder-select, .top-controls .group-picker { max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.top-controls .account-menu { min-width:0; }
+@media (max-width:719px) {
+  .workspace-navigation .mode-navigation { display:none; }
+  .native-mode-picker { display:inline-flex; align-items:center; gap:8px; }
+  .topbar { align-items:flex-start; }
+  .brand strong { display:none; }
+  .top-controls { flex-wrap:wrap; }
+  .top-controls .project-folder-select, .top-controls .group-picker { max-width:160px; }
+}

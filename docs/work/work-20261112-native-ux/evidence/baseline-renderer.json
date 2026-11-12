@@ -1,0 +1,1753 @@
+{
+  "schema": "GitLabWorkspaceCodexRendererBenchmark/v1",
+  "checkedAt": "2026-11-12T13:30:31.967Z",
+  "browser": "157.0.8103.52",
+  "method": "Production bundle, synthetic Host, live batches seed the complete transcript; updates dispatch through two animation frames. Layout probes observe every animation frame across long text, threshold changes, streaming, expansion and viewport changes. Excludes OS input, native VS Code bridge and external service latency.",
+  "summary": [
+    {
+      "label": "after",
+      "count": 2000,
+      "samples": 30,
+      "p50Ms": 31.699999999254942,
+      "p95Ms": 32.20000000298023,
+      "mountedMax": 15
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "samples": 30,
+      "p50Ms": 31.899999998509884,
+      "p95Ms": 32.30000000074506,
+      "mountedMax": 15
+    }
+  ],
+  "checks": [
+    {
+      "count": 10000,
+      "hiddenUpdateAnchor": true,
+      "taskSwitchAnchor": true,
+      "restoredAnchor": true,
+      "historyPrependAnchor": true,
+      "streamingAnchor": true,
+      "jumpLatestFocus": true,
+      "pinnedFocus": true
+    }
+  ],
+  "measurements": [
+    {
+      "label": "after",
+      "count": 2000,
+      "round": 0,
+      "latencies": [
+        31.5,
+        30.799999997019768,
+        31.399999998509884,
+        31.300000000745058,
+        31.199999999254942,
+        31.300000000745058,
+        31.300000000745058,
+        31.600000001490116,
+        31.300000000745058,
+        31.299999997019768
+      ],
+      "mounted": 15,
+      "nodes": 274,
+      "bundleSha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "round": 0,
+      "latencies": [
+        31.5,
+        32.100000001490116,
+        31.699999999254942,
+        31.799999997019768,
+        32.600000001490116,
+        31.599999997764826,
+        32.099999997764826,
+        31.899999998509884,
+        31.100000001490116,
+        31.899999998509884
+      ],
+      "mounted": 15,
+      "nodes": 274,
+      "bundleSha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 2000,
+      "round": 1,
+      "latencies": [
+        29.300000000745058,
+        31.699999999254942,
+        31.899999998509884,
+        31.399999998509884,
+        31.799999997019768,
+        31.800000000745058,
+        32,
+        31.800000000745058,
+        31.600000001490116,
+        32
+      ],
+      "mounted": 15,
+      "nodes": 274,
+      "bundleSha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "round": 1,
+      "latencies": [
+        32.099999997764826,
+        32.19999999925494,
+        32.19999999925494,
+        32,
+        31.800000000745058,
+        32,
+        31.899999998509884,
+        31.899999998509884,
+        31.300000000745058,
+        32.19999999925494
+      ],
+      "mounted": 15,
+      "nodes": 274,
+      "bundleSha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 2000,
+      "round": 2,
+      "latencies": [
+        31.5,
+        32.100000001490116,
+        31.799999997019768,
+        32.099999997764826,
+        32.20000000298023,
+        31.699999999254942,
+        32.19999999925494,
+        31.800000000745058,
+        31.799999997019768,
+        32.30000000074506
+      ],
+      "mounted": 15,
+      "nodes": 274,
+      "bundleSha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185",
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "label": "after",
+      "count": 10000,
+      "round": 2,
+      "latencies": [
+        31.800000000745058,
+        31.699999999254942,
+        32,
+        31.5,
+        31.899999998509884,
+        32.30000000074506,
+        31.899999998509884,
+        31.899999998509884,
+        32.19999999925494,
+        31.800000000745058
+      ],
+      "mounted": 15,
+      "nodes": 274,
+      "bundleSha256": "c5d69cc6318efabf1a8f2314162db81c97dd787e662c3dbdeccde396b5a9f185",
+      "errors": [],
+      "external": [],
+      "csp": []
+    }
+  ],
+  "layoutChecks": [
+    {
+      "count": 2,
+      "stage": "two-long-replies",
+      "frames": [
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 2,
+      "stage": "long-interaction-detail",
+      "frames": [
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 2,
+          "mounted": 2,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 200,
+      "stage": "200-initial",
+      "frames": [
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 201,
+      "stage": "threshold-up",
+      "frames": [
+        {
+          "total": 201,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 200,
+      "stage": "threshold-down",
+      "frames": [
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 200,
+      "stage": "200-stream-growth",
+      "frames": [
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 200,
+      "stage": "200-expand",
+      "frames": [
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 200,
+      "stage": "200-narrow",
+      "frames": [
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 200,
+      "stage": "200-wide",
+      "frames": [
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 200,
+      "stage": "200-last-reply-growth",
+      "frames": [
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 200,
+          "mounted": 200,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 201,
+      "stage": "201-initial",
+      "frames": [
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 201,
+      "stage": "201-stream-growth",
+      "frames": [
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 201,
+      "stage": "201-expand",
+      "frames": [
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 201,
+      "stage": "201-narrow",
+      "frames": [
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 201,
+      "stage": "201-wide",
+      "frames": [
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 18,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 17,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 17,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 17,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 17,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 201,
+      "stage": "201-last-reply-growth",
+      "frames": [
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 201,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 300,
+      "stage": "300-initial",
+      "frames": [
+        {
+          "total": 300,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 300,
+      "stage": "300-stream-growth",
+      "frames": [
+        {
+          "total": 300,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 300,
+      "stage": "300-expand",
+      "frames": [
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 300,
+      "stage": "300-narrow",
+      "frames": [
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 14,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 16,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 16,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 16,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 16,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 300,
+      "stage": "300-wide",
+      "frames": [
+        {
+          "total": 300,
+          "mounted": 16,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 23,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 21,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 21,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 21,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 21,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 300,
+      "stage": "300-last-reply-growth",
+      "frames": [
+        {
+          "total": 300,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 300,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 10000,
+      "stage": "10000-initial",
+      "frames": [
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 0,
+          "mounted": 0,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 10000,
+      "stage": "10000-stream-growth",
+      "frames": [
+        {
+          "total": 10000,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 10000,
+      "stage": "10000-expand",
+      "frames": [
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 10000,
+      "stage": "10000-narrow",
+      "frames": [
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 13,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 18,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 18,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 18,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 18,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 10000,
+      "stage": "10000-wide",
+      "frames": [
+        {
+          "total": 10000,
+          "mounted": 18,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 22,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 20,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 20,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 20,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 20,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    },
+    {
+      "count": 10000,
+      "stage": "10000-last-reply-growth",
+      "frames": [
+        {
+          "total": 10000,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 10,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        },
+        {
+          "total": 10000,
+          "mounted": 11,
+          "rowOverlap": 0,
+          "textOverflow": 0,
+          "controlOverlap": 0
+        }
+      ]
+    }
+  ]
+}
