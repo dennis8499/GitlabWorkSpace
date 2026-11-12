@@ -498,6 +498,10 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .workspace-navigation { position: sticky; top: 0; z-index: 3; }
   .workbench { flex: 1 0 240px; min-height: 240px; }
 }
+@media (max-height: 400px) {
+  /* Wrapped navigation and notices must scroll away from focused content. */
+  .workspace-navigation { position: static; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 .page[data-mode="git"] { padding: 0; overflow: hidden; }
