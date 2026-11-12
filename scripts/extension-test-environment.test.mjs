@@ -5,7 +5,60 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { inspectHostExecutable, isolatedHostEnvironment } from './extension-test-environment.mjs';
+import { downloadTestHost, inspectHostExecutable, isolatedHostEnvironment } from './extension-test-environment.mjs';
+
+test('host downloads preserve the requested version with a longer network idle timeout', async () => {
+  const options = [];
+  const executable = await downloadTestHost('1.90.0', {
+    download: async value => { options.push(value); return 'verified-editor'; },
+    wait: async () => assert.fail('successful downloads must not wait'),
+    warn: () => assert.fail('successful downloads must not warn')
+  });
+  assert.equal(executable, 'verified-editor');
+  assert.deepEqual(options, [{ version: '1.90.0', timeout: 60_000 }]);
+});
+
+test('host downloads recover from metadata timeouts and transient connection failures', async () => {
+  let attempts = 0;
+  const waits = [];
+  const warnings = [];
+  const executable = await downloadTestHost('stable', {
+    download: async () => {
+      attempts++;
+      if (attempts === 1) throw new Error('@vscode/test-electron request timeout out after 60000ms');
+      if (attempts === 2) throw new Error('fetch failed', { cause: Object.assign(new Error('reset'), { code: 'ECONNRESET' }) });
+      return 'stable-editor';
+    },
+    wait: async value => { waits.push(value); }, warn: value => { warnings.push(value); }
+  });
+  assert.equal(executable, 'stable-editor');
+  assert.equal(attempts, 3);
+  assert.deepEqual(waits, [1_000, 2_000]);
+  assert.equal(warnings.length, 2);
+});
+
+test('host downloads fail after three transient errors and preserve the final failure', async () => {
+  const failure = Object.assign(new Error('DNS unavailable'), { code: 'EAI_AGAIN' });
+  let attempts = 0;
+  const waits = [];
+  await assert.rejects(downloadTestHost('stable', {
+    download: async () => { attempts++; throw failure; },
+    wait: async value => { waits.push(value); }, warn: () => {}
+  }), error => error === failure);
+  assert.equal(attempts, 3);
+  assert.deepEqual(waits, [1_000, 2_000]);
+});
+
+test('host downloads immediately surface invalid versions and other permanent failures', async () => {
+  const failure = new Error('Invalid version 1.90.0');
+  let attempts = 0;
+  await assert.rejects(downloadTestHost('1.90.0', {
+    download: async () => { attempts++; throw failure; },
+    wait: async () => assert.fail('permanent failures must not wait'),
+    warn: () => assert.fail('permanent failures must not warn')
+  }), error => error === failure);
+  assert.equal(attempts, 1);
+});
 
 test('host launch removes inherited Electron/VS Code runtime state and preserves explicit test settings', () => {
   const { env, removed } = isolatedHostEnvironment({ PATH: 'runtime-path', ELECTRON_RUN_AS_NODE: '1',
