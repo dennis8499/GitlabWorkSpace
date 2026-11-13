@@ -329,8 +329,8 @@ export function describeAction(value: { type: string }, context: ActionContext =
   let slot = action;
   if (action === 'codexCommand') {
     const command = request.command;
-    if (['reconcile', 'diagnostics', 'open-file', 'open-diff', 'open-worktree', 'manage', 'storage'].includes(command?.action)) kind = 'read';
-    if (['approvals', 'reorder'].includes(command?.action)) kind = 'control';
+    if (['reconcile', 'diagnostics', 'open-file', 'open-diff', 'open-worktree', 'manage', 'storage', 'open-artifact'].includes(command?.action)) kind = 'read';
+    if (['approvals', 'reorder', 'stop-cleanup', 'manual-handoff', 'manage-local-connections'].includes(command?.action)) kind = 'control';
     resourceKey = 'codex:' + (command?.taskId ?? 'queue'); slot = resourceKey + ':' + command?.action;
   }
   if (request.type === 'ensureWorkspaceSection') {

@@ -47,6 +47,11 @@ rl.on('line', line => {
   if (method === 'account/read') { send({ id, result: { account: mode === 'logged-out' ? null : { type: 'chatgpt' }, requiresOpenaiAuth: true } }); return; }
   if (method === 'windowsSandbox/readiness') { send({ id, result: { status: mode === 'sandbox-missing' ? 'notConfigured' : 'ready' } }); return; }
   if (method === 'configRequirements/read') { send({ id, result: { requirements: mode === 'managed' ? { allowedSandboxModes: ['read-only'] } : null } }); return; }
+  if (method === 'config/read') {
+    let config = { sandbox_mode: 'workspace-write', approval_policy: 'on-request', approvals_reviewer: 'user' };
+    try { config = JSON.parse(fs.readFileSync(path.join(root, 'fixture-config.json'), 'utf8')); } catch {}
+    send({ id, result: { config, origins: {} } }); return;
+  }
   if (mode.startsWith('evolution') && method === 'account/rateLimits/read') { send({ id, result: { ordinaryUsageAllowed: true, rateLimits: { primary: { usedPercent: 12, resetsAt: 1794000000 } } } }); return; }
   if (mode.startsWith('evolution') && method === 'mcpServerStatus/list') { send({ id, result: { data: [{ name: 'fixture', authStatus: 'ready' }] } }); return; }
   if (mode.startsWith('evolution') && method === 'thread/fork') { send({ id, result: { thread: { id: 'fork-' + params.threadId } } }); return; }

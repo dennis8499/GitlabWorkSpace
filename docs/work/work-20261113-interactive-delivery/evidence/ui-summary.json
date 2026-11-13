@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-11-13T05:12:46.871Z",
+  "ready": true,
+  "sourceMode": true,
+  "actualDiskSource": true,
+  "inMemoryProductTransform": false,
+  "productModifiedDuringVerification": false,
+  "matrix": {
+    "cases": 80,
+    "failures": 0,
+    "keyboardCases": 80,
+    "keyboardFailures": 0,
+    "file": "codex-results.json"
+  },
+  "postPagination": {
+    "cases": 4,
+    "failures": 0,
+    "file": "post-pagination/post-more-focus.json"
+  },
+  "groupAt320": {
+    "cases": 4,
+    "failures": 0,
+    "file": "group-final/group-sha-at-320.json"
+  },
+  "assetHashesMatch": true,
+  "sourceFiles": [
+    {
+      "path": "src/webview/CodexWorkflow.tsx",
+      "sha256": "1141bce009dd97b0895df1595f473025e009ac021c9bb52a5ef038441e93679c"
+    },
+    {
+      "path": "src/webview/CodexLaunchPanel.tsx",
+      "sha256": "3e13aeedad8eee009ce827d9d102b527f333061235421ea0d7490ee11a5219f3"
+    },
+    {
+      "path": "src/webview/codex-launch.css",
+      "sha256": "bbb122986b252cee65b93e9b72ece01bd0e0cefd7a36d9a8e3c8869f9485542b"
+    },
+    {
+      "path": "src/webview/CodexWorkspace.tsx",
+      "sha256": "4f99ff3ad124c736fb64ac3fd85dba965e3179bae36a9b07f59b85b0d62a7308"
+    },
+    {
+      "path": "src/webview/codexUiState.ts",
+      "sha256": "6ddf5a3f1dc888209925021e5c700c03e0c97b2de65d96b543acf4df511e5651"
+    }
+  ],
+  "runners": [
+    {
+      "path": ".tmp/runner/verify-codex-ui-final.mjs",
+      "sha256": "bc3dcb6fe3a762e0a4dd4b255ff386153ad2a2b36c566b5e2bd0b71b3b09423f"
+    },
+    {
+      "path": ".tmp/runner/verify-codex-final-pagination.mjs",
+      "sha256": "20a4f98e667b869e940b6b3de0e890036367b64f499963a5d55a9489aa476bcc"
+    },
+    {
+      "path": ".tmp/runner/verify-final-group-probe.mjs",
+      "sha256": "b59731e3d31a565fc2140ed7d86aeece5a7aacdf7ee1c05cce4192f3158d2e3d"
+    }
+  ],
+  "screenshots": [
+    "dark-desktop-launch.png",
+    "post-pagination/hc-dark-post-more-focus.png",
+    "group-final/light-group-sha-at-320.png",
+    "hc-light-narrow-200-local-connections-keyboard.png"
+  ],
+  "zoomMethod": "effective viewport / scale + deviceScaleFactor; not native Electron zoom",
+  "hostMode": "mock acquireVsCodeApi; all requests served from intercepted localhost routes; no GitLab/Codex/model/network calls",
+  "notTested": [
+    "Native Electron zoom",
+    "Native VS Code QuickPick/dialog visual rendering",
+    "Real screen-reader announcements",
+    "Extension Development Host activation and reload",
+    "Real Codex App Server/GitLab end-to-end actions",
+    "Full Tab traversal from start for every control; tested keyboard re-entry and Enter activation for primary scene targets"
+  ]
+}

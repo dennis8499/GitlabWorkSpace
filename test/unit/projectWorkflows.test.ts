@@ -39,13 +39,17 @@ test('Issue creates a dedicated branch at the fixed default SHA and resumes with
   f.git('checkout', 'main'); await assert.rejects(startIssueWorkflow(f.spec), /切回/);
 });
 
-test('Issue dirty tree and queued source drift cannot create or switch a branch', async t => {
+test('Issue rejects dirty trees and retains its pinned local source when the default branch advances', async t => {
   const f = await fixture(t);
   await writeFile(path.join(f.repo, 'untracked.txt'), 'keep me');
   await assert.rejects(startIssueWorkflow(f.spec), /未提交/); assert.equal(f.git('branch', '--show-current'), 'main');
   await rm(path.join(f.repo, 'untracked.txt'));
   await writeFile(path.join(f.repo, 'main.ts'), 'export const answer = 2;\n'); f.git('add', '.'); f.git('commit', '-m', 'New default'); f.git('push', 'origin', 'main');
-  await assert.rejects(startIssueWorkflow(f.spec), /排隊期間/); assert.equal(f.git('branch', '--show-current'), 'main');
+  const advanced = f.git('rev-parse', 'HEAD');
+  await startIssueWorkflow(f.spec);
+  assert.equal(f.git('branch', '--show-current'), f.spec.origin!.branch);
+  assert.equal(f.git('rev-parse', 'HEAD'), f.spec.origin!.sourceSha);
+  assert.equal(f.git('rev-parse', 'main'), advanced, 'local-first setup must not reset the existing default branch');
 });
 
 test('Issue branch names avoid collisions and non-ASCII titles have a valid deterministic fallback', async t => {

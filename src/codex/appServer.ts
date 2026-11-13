@@ -1,6 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { CodexRpcError } from './rpcError';
+import { sanitizeDiagnostic } from '../logging/diagnosticText';
 
 export interface RpcMessage { id?: number | string; method?: string; params?: Record<string, any>; result?: any; error?: { code: number; message: string; data?: unknown }; }
 export interface RpcOptions { signal?: AbortSignal; timeoutMs?: number; }
@@ -24,6 +25,9 @@ export class CodexAppServer {
   private childClosed = false;
   private closing?: Promise<void>;
   private closePromise: Promise<void>;
+  private stderrTail = '';
+  private exitMetadata?: { code: number | null; signal: string | null; errorCode?: string };
+  get diagnostics() { return { stderr: this.stderrTail, exit: this.exitMetadata }; }
   onNotification: (message: RpcMessage) => void = () => {};
   onRequest: (message: RpcMessage) => void = () => {};
   onExit: (error: Error) => void = () => {};
@@ -32,11 +36,11 @@ export class CodexAppServer {
     private readonly terminationTimeoutMs = 5000) {
     this.closePromise = new Promise(resolve => child.once('close', () => { this.childClosed = true; resolve(); }));
     child.stdout.on('data', (data: Buffer) => this.receive(this.decoder.write(data)));
-    child.stderr.on('data', () => {});
+    child.stderr.on('data', (data: Buffer) => { this.stderrTail = sanitizeDiagnostic((this.stderrTail + data.toString('utf8')).slice(-2048)); });
     child.stdin.on('drain', () => { this.blocked = false; this.flush(); });
     child.stdin.on('error', () => this.fail(new CodexRpcError('transport', undefined, undefined, 'possibly-sent')));
-    child.once('error', () => this.fail(new CodexRpcError('transport')));
-    child.once('close', () => this.fail(new CodexRpcError('transport', undefined, undefined, 'possibly-sent')));
+    child.once('error', (error: NodeJS.ErrnoException) => { this.exitMetadata = { code: null, signal: null, errorCode: error.code }; this.fail(new CodexRpcError('transport')); });
+    child.once('close', (code, signal) => { this.exitMetadata = { ...this.exitMetadata, code, signal }; this.fail(new CodexRpcError('transport', undefined, undefined, 'possibly-sent')); });
   }
   async initialize(version: string, experimentalApi = true, signal?: AbortSignal): Promise<void> {
     await this.request('initialize', { clientInfo: { name: 'gitlab_workspace', title: 'GitLab Workspace', version }, capabilities: { experimentalApi } }, { signal });
@@ -54,7 +58,7 @@ export class CodexAppServer {
         this.diagnostic(pending, 'failed', category);
         reject(new CodexRpcError(category, method, undefined, pending.sent ? 'possibly-sent' : 'not-sent'));
       };
-      const timer = setTimeout(() => finish('timeout'), options.timeoutMs ?? this.timeoutMs);
+      const timer = setTimeout(() => finish('timeout'), options.timeoutMs ?? (method === 'turn/start' && this.timeoutMs === 30_000 ? 90_000 : this.timeoutMs));
       const abort = () => finish('cancelled');
       const pending: Pending = { method, started: Date.now(), sent: false, resolve, reject, timer,
         removeAbort: () => options.signal?.removeEventListener('abort', abort) };
@@ -108,7 +112,11 @@ export class CodexAppServer {
       } catch { this.invalid(); return; }
       if (message.method) {
         try { if (message.id !== undefined) this.onRequest(message); else this.onNotification(message); }
-        catch { this.invalid(); return; }
+        catch {
+          // A product callback is not a malformed wire frame. Keep the transport usable.
+          try { this.onDiagnostic({ method: message.method, phase: 'failed', elapsedMs: 0, category: 'callback' }); } catch { /* best effort */ }
+          if (message.id !== undefined) { try { this.reject(message.id); } catch { /* the transport may already have closed */ } }
+        }
       } else if (message.id !== undefined) {
         const pending = this.pending.get(message.id); if (!pending) continue;
         if (Object.hasOwn(message, 'result') === Object.hasOwn(message, 'error')) { this.invalid(); return; }

@@ -5,7 +5,7 @@ import type { CodexBridge } from './bridge';
 import type { CodexTaskSpec, CodexTaskResult } from './protocol';
 import type { ProjectWikiStore, WikiPreviewOptions } from './projectWiki';
 import type { ProjectWikiPreview } from './workflowProtocol';
-import { readWorkflowReport } from './projectWorkflows';
+import { readWorkflowReport, workflowHash } from './projectWorkflows';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -19,7 +19,7 @@ interface WorkflowServiceOptions {
   visible(): boolean;
   confirmRetry(): Promise<boolean>;
   post(message: WorkflowResult): void;
-  publishReview(projectId: number, iid: number, body: string, beforeSend: () => Promise<void>): Promise<void>;
+  publishReview(projectId: number, iid: number, body: string, beforeSend: () => Promise<void>, taskId: string): Promise<void>;
   cancelled(): void;
   failed(message: string): void;
 }
@@ -124,7 +124,12 @@ export class CodexWorkflowService {
       if (spec.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
       return this.options.wiki().publish(spec.workflow.id, spec.origin, revision, client, check);
     });
-    if (!this.disposed && generation === this.generation && this.options.visible()) await this.previewWiki({ taskId });
+    if (!this.disposed && generation === this.generation && this.options.visible()) {
+      const task = this.options.bridge().list().find(item => item.id === taskId);
+      if (!task || task.retention === 'results-only' || task.result?.state === 'published') {
+        if (task) this.options.post({ type: 'codexWorkflowResult', taskId, result: task.result });
+      } else await this.previewWiki({ taskId });
+    }
   }
   async assertReviewCurrent(spec: CodexTaskSpec): Promise<void> {
     const check = this.options.check(spec), origin = spec.origin!;
@@ -142,7 +147,20 @@ export class CodexWorkflowService {
     if (result?.state !== 'ready' || !result.reportPath) throw new Error('這份審查尚未取得完整報告，請先完成審查。');
     await readWorkflowReport(spec, result.reportPath); check();
     await this.assertReviewCurrent(spec);
-    await this.options.publishReview(spec.origin!.projectId, spec.origin!.iid!, body,
-      async () => { check(); await this.assertReviewCurrent(spec); check(); });
+    let failure: unknown, failed = false;
+    try {
+      await this.options.publishReview(spec.origin!.projectId, spec.origin!.iid!, body,
+        async () => { check(); await this.assertReviewCurrent(spec); check(); }, taskId);
+    } catch (error) { failure = error; failed = true; }
+    const task = this.options.bridge().list().find(item => item.id === taskId), receipt = task?.publication;
+    const currentReceipt = receipt?.kind === 'review' && receipt.bodyHash === workflowHash(body.trim());
+    const pending = receipt?.state === 'pending' || Object.values(task?.publications ?? {}).some(item => item.state === 'pending');
+    const confirmed = currentReceipt && receipt.state === 'confirmed' && !pending;
+    if (confirmed) await this.options.bridge().resultAction(taskId, async () => ({ ...result, state: 'published', summary: '已核對審查報告已發布至 GitLab MR。' }));
+    else if (!(currentReceipt && receipt.state === 'not-published' && !pending)) {
+      await this.options.bridge().resultAction(taskId, async () => ({ ...result, state: 'uncertain', summary: '審查發布結果尚未核對；保留原報告與執行資料，請先確認 GitLab 結果後再繼續。' }));
+    }
+    if (failed) throw failure;
+    if (!confirmed) throw new Error('審查發布未取得已確認的收據，請先核對 GitLab 結果。');
   }
 }

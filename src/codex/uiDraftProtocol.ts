@@ -47,6 +47,12 @@ export function sanitizeCodexUiDraftValue(key: string, value: unknown, allowedQu
     const patch = object(item.patch), clean: Record<string, unknown> = {};
     for (const [name, max] of [['requirement', 32000], ['repositoryId', 200], ['model', 200], ['effort', 40]] as const) if (patch[name] !== undefined) clean[name] = text(patch[name], max);
     if (patch.isolated !== undefined) { if (typeof patch.isolated !== 'boolean') throw new Error('工作區設定無效。'); clean.isolated = patch.isolated; }
+    if (patch.automaticDelivery !== undefined) { if (typeof patch.automaticDelivery !== 'boolean') throw new Error('交付設定無效。'); clean.automaticDelivery = patch.automaticDelivery; }
+    for (const [name, max, length] of [['additionalSkillIds', 100, 200], ['repositoryIds', 1000, 200], ['testCommands', 20, 4096]] as const) if (patch[name] !== undefined) {
+      const values = patch[name];
+      if (!Array.isArray(values) || values.length > max || name !== 'testCommands' && new Set(values).size !== values.length) throw new Error('技能、Repo 或測試選擇超出範圍。');
+      clean[name] = values.map(value => { const item = text(value, length); if (!item.trim() || /[\r\n]/.test(item)) throw new Error('技能、Repo 或測試選擇無效。'); return item; });
+    }
     if (patch.discussionIds !== undefined) { if (!Array.isArray(patch.discussionIds) || patch.discussionIds.length > 30) throw new Error('討論選取超出範圍。'); clean.discussionIds = patch.discussionIds.map(value => text(value, 200)); }
     return { patch: clean, ...(item.baseRevision === undefined ? {} : { baseRevision: integer(item.baseRevision) }) };
   }

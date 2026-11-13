@@ -537,6 +537,13 @@ export class GitLabClient {
     );
   }
 
+  findMergeRequestsBySourceBranch(projectId: number, sourceBranch: string): Promise<GitLabMergeRequest[]> {
+    if (!sourceBranch.trim() || sourceBranch.length > 255) throw new GitLabApiError('A valid source branch is required.');
+    return this.getPages<GitLabMergeRequest>(
+      `${this.projectPath(projectId)}/merge_requests?state=all&source_branch=${encodeURIComponent(sourceBranch)}&per_page=100`
+    );
+  }
+
   getMergeRequest(projectId: number, iid: number): Promise<GitLabMergeRequest> {
     return this.getJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests/${iid}?include_rebase_in_progress=true`);
   }

@@ -27,6 +27,7 @@ async function fixture(t: test.TestContext) {
     async getIssue() { calls.push('issue'); return { iid: 8, title: 'Fix calculation', description: 'Return the correct sum.', labels: ['bug'], updated_at: 'revision-1', web_url: project.web_url + '/-/issues/8' }; },
     async getMergeRequest() { calls.push('mr'); return mr; }, async getRepositoryBranch() { calls.push('branch'); return { commit: { id: 'a'.repeat(40) } }; } };
   const panel = Object.create(WorkspacePanel.prototype);
+  panel.codexSourceReads = new Map(); panel.refreshCodexSources = false;
   panel.panel = { visible: true };
   panel.context = { globalStorageUri: { fsPath: path.join(root, 'storage') } }; panel.projectContext = { root };
   panel.session = { baseUrl: 'https://gitlab.test', activeAccountId: 'account-one', getClient: async () => client };
@@ -91,6 +92,17 @@ test('selected model and supplemental acceptance criteria retain the same admiss
   assert.equal(rechecked.model, 'fixture-model'); assert.equal(rechecked.effort, 'high');
 });
 
+test('isolated tasks pin Group rules without copying the shared installation and reject changed instructions', async t => {
+  const f = await fixture(t), rule = path.join(f.root, 'AGENTS.md'); await writeFile(rule, 'Run the project checks before delivery.');
+  f.panel.prepareCodexEnvironment = (source: any, previous?: CodexTaskSpec) => f.panel.prepareLinkedCodexTask(source, previous);
+  const first: CodexTaskSpec = await f.panel.prepareCodexTask({ kind: 'issue', projectId: 4, issueIid: 8, isolated: true });
+  assert.equal(first.projectRules?.length, 1); assert.equal(first.projectRules[0].path, rule);
+  assert.match(first.projectRules[0].fingerprint, /^[a-f0-9]{64}$/);
+  assert.equal((await f.panel.prepareCodexTask(first.source, first)).environmentKey, first.environmentKey);
+  await writeFile(rule, 'Changed instructions');
+  await assert.rejects(f.panel.prepareCodexTask(first.source, first), /規則已變更/);
+});
+
 test('Host MR preparation pins two local evidence refs and checks source, target and account again before publication', async t => {
   const f = await fixture(t);
   const spec: CodexTaskSpec = await f.panel.prepareLinkedCodexTask({ kind: 'merge-request', projectId: 4, iid: 8 });
@@ -120,7 +132,11 @@ test('MR discussion fixes pin their snapshots and worktree without inheriting re
   assert.ok(spec.workflow?.discussions?.[0].text.includes('Add a regression test.'));
   assert.ok(spec.prompt.includes('提交、推送、回覆及解決討論由使用者操作'));
   discussion.notes[0].body = 'Changed after queueing';
-  await assert.rejects(f.panel.prepareLinkedCodexTask(source, spec), /討論在排隊期間已變更/);
+  const resumed: CodexTaskSpec = await f.panel.prepareLinkedCodexTask(source, spec);
+  assert.deepEqual(resumed.workflow?.discussions, spec.workflow?.discussions, 'queue and execution share the captured discussion snapshot');
+  f.panel.codexSourceReads.clear(); f.panel.refreshCodexSources = true;
+  const refreshed: CodexTaskSpec = await f.panel.prepareLinkedCodexTask(source);
+  assert.ok(refreshed.workflow?.discussions?.[0].text.includes('Changed after queueing'), 'explicit recheck captures the new source for acknowledgement');
 });
 
 test('Host reconciliation unlocks a Wiki draft after an unknown write has been checked', async t => {

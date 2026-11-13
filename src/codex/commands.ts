@@ -4,7 +4,7 @@ const string = (value: unknown, max: number) => typeof value === 'string' && val
 export function isCodexCommand(value: unknown): value is CodexCommand {
   if (!record(value) || typeof value.action !== 'string') return false;
   let allowed = ['action', 'taskId'];
-  if (value.action === 'storage') return Object.keys(value).length === 1;
+  if (value.action === 'storage' || value.action === 'manage-local-connections') return Object.keys(value).length === 1;
   if (value.action === 'create') return Object.keys(value).every(key => ['action', 'context'].includes(key)) &&
     (value.context === undefined || ['none', 'selection', 'file', 'diff'].includes(String(value.context)));
   if (!string(value.taskId, 100) || !/^[a-z0-9-]+$/i.test(String(value.taskId))) return false;
@@ -21,6 +21,8 @@ export function isCodexCommand(value: unknown): value is CodexCommand {
     allowed.push('path', 'line');
     if (!string(value.path, 4096) || value.line !== undefined && (!Number.isSafeInteger(value.line) || Number(value.line) < 1 || Number(value.line) > 10_000_000)) return false;
   }
-  else if (!['manage', 'reconcile', 'diagnostics', 'fork', 'goal', 'handoff', 'handoff-review', 'open-worktree', 'remove-worktree', 'regenerate-wiki', 'mr-fix', 'reprepare', 'open-diff'].includes(value.action)) return false;
+  else if (value.action === 'open-artifact') { allowed.push('artifactId'); if (!string(value.artifactId, 200)) return false; }
+  else if (!['manage', 'reconcile', 'diagnostics', 'fork', 'goal', 'handoff', 'handoff-review', 'open-worktree', 'remove-worktree', 'regenerate-wiki', 'mr-fix', 'reprepare', 'open-diff',
+    'stop-cleanup', 'manual-handoff', 'retry-delivery', 'export-result', 'copy-handoff', 'new-from-result', 'restore-result'].includes(value.action)) return false;
   return Object.keys(value).every(key => allowed.includes(key));
 }

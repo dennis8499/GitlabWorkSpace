@@ -76,6 +76,20 @@ test('task deltas preserve unrelated tasks and ignore old task revisions before 
   const deleted = mergeCodexTasks(next, [], ['b']); assert.deepEqual(deleted.map(item => item.id), ['a', 'c']);
   assert.deepEqual(mergeCodexTasks(deleted, [task('a', 2)], [], true).map(item => [item.id, item.revision]), [['a', 3]]);
 });
+test('results-only projection replaces revisioned execution and permanently rejects late live cards', () => {
+  const live: CodexTaskState = { id: 'sealed-task', revision: 12, title: 'Execution', root: 'C:/repo', status: 'completed', threadId: 'deleted-thread',
+    createdAt: '2026-11-10', updatedAt: '2026-11-10' };
+  const sealed: CodexTaskState = { id: live.id, title: 'Saved result', root: live.root, status: 'completed', retention: 'results-only',
+    createdAt: live.createdAt, updatedAt: live.updatedAt, cleanupState: 'needs-attention' };
+  const merged = mergeCodexTasks([live], [sealed]);
+  assert.equal(merged[0], sealed); assert.equal(merged[0].threadId, undefined);
+  for (const replace of [false, true]) {
+    const late = mergeCodexTasks(merged, [{ ...live, revision: 999, status: 'running' }], [], replace);
+    assert.equal(late[0], sealed); assert.equal(late[0].threadId, undefined);
+  }
+  const cleaned = { ...sealed, cleanupState: 'complete' as const };
+  assert.equal(mergeCodexTasks(merged, [cleaned])[0], cleaned);
+});
 test('launch edits remain independent of task retention and restore only bounded editable fields', () => {
   const state = restoreCodexUi({ launchDrafts: { draft: { requirement: 'Unsaved last keystroke', model: 'model', isolated: true,
     ...({ untrustedField: 'drop' } as object) }, malformed: { requirement: 'x'.repeat(32001) } } });

@@ -13,8 +13,8 @@ export function invalidateCodexModelCatalog(client: CodexAppServer): void { mode
 
 /** Advanced methods are enabled only against a captured, tested CLI contract. */
 export function codexCapabilities(version: string): NonNullable<CodexEnvironment['capabilities']> {
-  const verified = version === '0.166.0';
-  return { fork: verified, goals: verified, usage: verified, extraSkills: verified };
+  const verified = ['0.166.0', '0.167.2'].includes(version);
+  return { fork: verified, goals: verified, usage: verified, extraSkills: verified, deleteThread: version === '0.167.2' };
 }
 const reads = new Set(['model/list', 'thread/read', 'thread/turns/list', 'thread/items/list', 'account/rateLimits/read', 'mcpServerStatus/list', 'thread/goal/get']);
 export class CodexProtocolAdapter {

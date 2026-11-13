@@ -52,6 +52,60 @@ export async function workflowBranchSha(root: string, remote: string, branch: st
   return sha;
 }
 
+/** Already-present objects never trigger a network request, including on resume. */
+export async function ensureLocalCommit(root: string, sha: string,
+  source?: string | { remote?: string; ref?: string; signal?: AbortSignal }, fetchRef?: string): Promise<void> {
+  if (source && typeof source === 'object' && source.signal) {
+    const { signal, ...options } = source;
+    return withWorkflowExecution({ ...workflowContext.getStore(), signal }, () => ensureLocalCommit(root, sha, options));
+  }
+  const remote = typeof source === 'string' ? source : source?.remote;
+  fetchRef ??= typeof source === 'object' ? source.ref : undefined;
+  if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('來源 SHA 無效。');
+  const exists = async () => {
+    try { return (await workflowGit(root, ['rev-parse', '--verify', `${sha}^{commit}`])).trim() === sha; }
+    catch (error) { if (error && typeof error === 'object' && 'workflowCleanupUncertain' in error) throw error; return false; }
+  };
+  if (await exists()) return;
+  if (!remote || !/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(remote)) throw new Error('本機缺少固定來源版本；請同步所需 Repo 後重試。');
+  if (fetchRef && !/^[a-f0-9]{40,64}$/i.test(fetchRef)) await workflowGit(root, ['check-ref-format', fetchRef]);
+  await workflowGit(root, ['fetch', '--no-tags', remote, fetchRef ?? sha], 90_000);
+  if (!await exists()) throw new Error('同步後仍找不到固定來源版本；請保留原任務並核對來源。');
+}
+
+/** Extract one fixed local commit, excluding all working-tree modifications. */
+export async function exportCommitSnapshot(repository: string, sha: string, destination: string, python: PythonRuntime): Promise<void> {
+  await ensureLocalCommit(repository, sha);
+  const tree = await workflowGit(repository, ['ls-tree', '-r', '-z', sha]);
+  if (tree.split('\0').some(entry => entry.startsWith('160000 '))) throw new Error('固定來源包含尚未物化的 Git submodule；請先提供完整來源，不能以不完整快照完成分析。');
+  const parent = await realpath(path.dirname(destination));
+  if (!sameWorkflowPath(parent, path.dirname(destination))) throw new Error('來源快照父目錄不可重新導向。');
+  await mkdir(destination, { recursive: true });
+  if (!sameWorkflowPath(await realpath(destination), destination) || (await lstat(destination)).isSymbolicLink()) throw new Error('來源快照目錄不可重新導向。');
+  const archive = path.join(parent, `.snapshot-${workflowHash(destination).slice(0, 24)}.zip`);
+  let cleanupUncertain = false;
+  try {
+    await workflowGit(repository, ['archive', '--format=zip', '--output', archive, sha], 60_000);
+    const script = [
+      'import pathlib,stat,sys,zipfile', 'root=pathlib.Path(sys.argv[2]).resolve()',
+      'assert all(not p.is_symlink() for p in root.rglob("*")), "snapshot contains symlink"',
+      'with zipfile.ZipFile(sys.argv[1]) as z:', ' items=z.infolist()',
+      ' assert len(items)<=50000 and sum(i.file_size for i in items)<=536870912, "snapshot too large"',
+      ' for i in items:', '  p=root.joinpath(i.filename).resolve()',
+      '  assert not stat.S_ISLNK(i.external_attr>>16), "archive symlink"',
+      '  assert p.is_relative_to(root) and "\\\\" not in i.filename and not p.is_symlink(), "unsafe archive path"',
+      '  if not i.is_dir():',
+      '   with z.open(i) as f: prefix=f.read(1024)',
+      '   assert not (prefix.startswith(b"version https://git-lfs.github.com/spec/v1") and b"oid sha256:" in prefix), "snapshot contains an unmaterialized Git LFS pointer"',
+      ' z.extractall(root)'
+    ].join('\n');
+    await exec(python.executable, [...python.args, '-I', '-c', script, archive, destination], {
+      env: python.env, signal: workflowContext.getStore()?.signal, windowsHide: true, timeout: 60_000, maxBuffer: 64_000
+    });
+  } catch (error) { cleanupUncertain = !!error && typeof error === 'object' && 'workflowCleanupUncertain' in error; throw error; }
+  finally { if (!cleanupUncertain) await removeOwnedStorage(parent, archive); }
+}
+
 export async function issueBranchName(root: string, iid: number, title: string): Promise<string> {
   const slug = title.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'development';
   const base = `issue/${iid}-${slug}`;
@@ -73,7 +127,7 @@ export async function startIssueWorkflow(spec: CodexTaskSpec): Promise<void> {
     if (!sameWorkflowPath(await realpath(renderRoot), renderRoot)) throw new Error('BMAD render 目錄不可指向其他專案。');
   }
   if (workflow.worktree) {
-    if (await workflowBranchSha(origin.repositoryRoot, workflow.remote, origin.sourceBranch, true) !== origin.sourceSha) throw new Error('Issue 來源分支已變更，請重新建立任務。');
+    await ensureLocalCommit(origin.repositoryRoot, origin.sourceSha, workflow.remote, `refs/heads/${origin.sourceBranch}`);
     await startManagedWorktree(spec); return;
   }
   const receiptPath = path.join(workflow.runtimeRoot, 'issue-branch.json');
@@ -90,9 +144,7 @@ export async function startIssueWorkflow(spec: CodexTaskSpec): Promise<void> {
   if ((await workflowGit(origin.repositoryRoot, ['status', '--porcelain', '-z', '--untracked-files=normal'])).length) {
     throw new Error('此 Repo 有未提交變更。請先在「版控」提交或保存變更，再從 Issue 啟動開發。');
   }
-  if (await workflowBranchSha(origin.repositoryRoot, workflow.remote, origin.sourceBranch, true) !== origin.sourceSha) {
-    throw new Error('預設分支在排隊期間已變更，請從 Issue 重新建立任務。');
-  }
+  await ensureLocalCommit(origin.repositoryRoot, origin.sourceSha, workflow.remote, `refs/heads/${origin.sourceBranch}`);
   // Persist intent before checkout, allowing recovery if the host exits after Git succeeds.
   await mkdir(workflow.runtimeRoot, { recursive: true });
   const intentPath = path.join(workflow.runtimeRoot, 'issue-intent.json');
@@ -163,32 +215,11 @@ export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRunti
     return;
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   await mkdir(root, { recursive: true });
-  if (await workflowBranchSha(origin.repositoryRoot, workflow.remote, origin.sourceBranch, true) !== origin.sourceSha) {
-    throw new Error('Wiki 來源分支在排隊期間已變更，請重新建立草稿。');
-  }
-  const archive = path.join(workflow.runtimeRoot, 'source.zip');
-  let cleanupUncertain = false;
-  try {
-  await workflowGit(origin.repositoryRoot, ['archive', '--format=zip', '--output', archive, origin.sourceSha], 60_000);
-  const script = [
-    'import pathlib,sys,zipfile',
-    'root=pathlib.Path(sys.argv[2]).resolve()',
-    'with zipfile.ZipFile(sys.argv[1]) as z:',
-    ' items=z.infolist()',
-    ' assert len(items)<=50000 and sum(i.file_size for i in items)<=536870912, "snapshot too large"',
-    ' for i in items:',
-    '  p=root.joinpath(i.filename).resolve()',
-    '  assert p.is_relative_to(root) and "\\\\" not in i.filename and not p.is_symlink(), "unsafe archive path"',
-    ' z.extractall(root)'
-  ].join('\n');
-  await exec(python.executable, [...python.args, '-I', '-c', script, archive, root],
-    { env: python.env, signal: workflowContext.getStore()?.signal, windowsHide: true, timeout: 60_000, maxBuffer: 64_000 });
+  await ensureLocalCommit(origin.repositoryRoot, origin.sourceSha, workflow.remote, `refs/heads/${origin.sourceBranch}`);
+  await removeOwnedStorage(workflow.runtimeRoot, path.join(workflow.runtimeRoot, 'source.zip'));
+  await exportCommitSnapshot(origin.repositoryRoot, origin.sourceSha, root, python);
   if (workflow.sourceRoot) await mkdir(spec.executionRoot!, { recursive: true });
   await atomicNetworkJson(receiptPath, { sha: origin.sourceSha, repository: origin.repositoryRoot });
-  } catch (error) {
-    cleanupUncertain = !!error && typeof error === 'object' && 'workflowCleanupUncertain' in error;
-    throw error;
-  } finally { if (!cleanupUncertain) await removeOwnedStorage(workflow.runtimeRoot, archive); }
 }
 
 function testCommand(command: string): boolean {
@@ -205,9 +236,9 @@ export async function collectIssueResult(spec: CodexTaskSpec, outputs: readonly 
   const root = spec.workflow?.worktree ? await verifyManagedWorktree(spec) : origin.repositoryRoot;
   const branch = (await workflowGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => '')).trim();
   if (branch !== origin.branch) return { state: 'needs-work', summary: `工作分支已變更；請核對 ${origin.branch} 的修改。` };
-  const tracked = await workflowGit(root, ['diff', '--name-only', '-z', origin.sourceSha]);
+  const tracked = await workflowGit(root, ['diff', '--no-renames', '--name-only', '-z', origin.sourceSha]);
   const untracked = await workflowGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
-  const files = [...new Set((tracked + untracked).split('\0').filter(Boolean))].slice(0, 500);
+  const files = [...new Set((tracked + untracked).split('\0').filter(Boolean))];
   const implementation = files.some(file => !/^(?:_bmad(?:-output)?|\.agents|\.codex)\//.test(file));
   const tests = [...new Map(outputs.filter(item => item.kind === 'command' && item.exitCode !== undefined && testCommand(item.command ?? ''))
     .map(item => ({ command: item.command!.slice(0, 2000), exitCode: item.exitCode! })).map(item => [item.command, item])).values()].slice(-30);
@@ -224,15 +255,27 @@ export async function collectIssueResult(spec: CodexTaskSpec, outputs: readonly 
 export async function implementationDigest(spec: CodexTaskSpec, files: readonly string[]): Promise<string> {
   const root = spec.workflow?.worktree ? await verifyManagedWorktree(spec) : spec.origin!.repositoryRoot;
   const hash = createHash('sha256'); hash.update(spec.origin!.sourceSha);
-  hash.update(await workflowGit(root, ['diff', '--binary', '--no-ext-diff', '--no-textconv', spec.origin!.sourceSha]));
+  const tracked = await workflowGit(root, ['diff', '--no-renames', '--name-only', '-z', spec.origin!.sourceSha]);
+  const untracked = await workflowGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
+  const inventory = [...new Set((tracked + untracked).split('\0').filter(Boolean))].sort();
+  if (JSON.stringify(inventory) !== JSON.stringify([...files].sort())) throw new Error('成果檔案清單已變更，請重新核對與測試。');
+  const modes = new Map<string, string>();
+  for (const entry of (await workflowGit(root, ['ls-files', '--stage', '-z'])).split('\0').filter(Boolean)) {
+    const match = /^(\d{6}) [a-f0-9]+ (\d)\t([\s\S]+)$/.exec(entry);
+    if (!match || match[2] !== '0') throw new Error('Git index 尚未解決合併衝突，無法核對成果。');
+    modes.set(match[3], match[1]);
+  }
   let total = 0;
   for (const file of [...files].sort()) {
     const relative = path.normalize(file);
     if (path.isAbsolute(relative) || relative === '..' || relative.startsWith('..' + path.sep)) throw new Error('成果檔案不在本次 Repo。');
-    const target = path.join(root, relative); hash.update(file);
-    let info; try { info = await lstat(target); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') { hash.update('deleted'); continue; } throw error; }
+    const target = path.join(root, relative);
+    let info; try { info = await lstat(target); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') { hash.update(JSON.stringify([file, 'deleted'])); continue; } throw error; }
     if (!info.isFile() || info.isSymbolicLink()) throw new Error('成果包含子模組或符號連結，請先從對應 Repo 核對。');
     total += info.size; if (total > 128 * 1024 * 1024) throw new Error('成果超過 128 MiB 核對範圍，請縮小本次變更。');
+    const mode = process.platform === 'win32' ? modes.get(file) ?? '100644' : info.mode & 0o111 ? '100755' : '100644';
+    if (!['100644', '100755'].includes(mode)) throw new Error('成果包含未支援的 Git 檔案模式。');
+    hash.update(JSON.stringify([file, 'write', mode, info.size]));
     const actual = await realpath(target), parent = path.relative(await realpath(root), actual);
     if (path.isAbsolute(parent) || parent === '..' || parent.startsWith('..' + path.sep)) throw new Error('成果檔案目錄不可重新導向。');
     for await (const chunk of createReadStream(actual)) hash.update(chunk);

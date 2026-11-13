@@ -34,13 +34,13 @@
 - Git 工作台保留分支導覽、提交圖與 Commit／Amend 表單，檔案主操作使用原生 Diff，部分行暫存另有明確入口。Repo、分支及 remote 使用原生選擇器；明確 remote 的 Fetch 一擊執行，一般 Commit 核對暫存內容後直接提交。保留 Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset 的必要確認；Git 狀態通知只標記快取失效，外部變更可重新進入版控或手動更新後查看。
 - Git 版控可在未連線 GitLab 時使用；原生側欄顯示分支、變更摘要與完整路徑，點 Repo 開啟含標籤、Stash 及進階操作的 Git 工作台。
 - 查看指派給自己的未結案 Issue；單擊清單開完整詳情，另保留快速預覽。從專案建立 Issue 自動帶入專案；關聯 MR 在工作台開啟，返回時保留草稿與清單位置。建立、編輯、討論及管理 Issue 都在同一工作台完成。
-- Issue 預覽與詳情可按「使用 Codex 開發」，自動建立 Issue 分支，由 BMAD 接續實作與測試，再從原 Issue 檢視差異及人工提交。專案列可建立 GitLab Wiki，先預覽再發布；MR 詳情可一鍵 Code Review，自動回填報告及留言草稿。這三個入口需要 Codex CLI 0.166.0+，原有 Skills 與 BMAD 入口保留。
+- Issue、Wiki、MR 審查及討論修正可沿用保存的 Repo、模型、Skills 與測試偏好一鍵執行，保留問答及核准。可明確啟用自動交付，經最後驗證後提交、普通推送並建立 Draft MR／回覆或發布文件；首次預設關閉，人工流程保留。本機 Group 可離線分析固定 HEAD、產生開發文件與可複製牌卡，再由使用者自行開 Issue。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「Skills 功能指引」選擇 Wiki、MergeReviewer、ReleaseReviewer 或 CommitReviewer；四工具分頁提供分類功能、必要欄位、產出與下一步。提示詞帶入實際工作區及套件版本，可按「使用 Codex 執行」在工作台啟動，或複製後自行執行。合併審查與上版檢查每次指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 追查 Diff 及相關影響，在所選 Repo 的 `review-reports/` 產生報告。CommitReviewer 提供 Commit 草稿與 MR 前檢查，沿用一般 Codex 模型設定，草稿由開發者手動複製。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 「BMAD 開發流程」透過 WorkflowKit 安裝 BMAD 6.12.4。輸入需求後可使用 Codex 一鍵執行，由 BMAD 選擇流程；頁面保留能力參考，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
-- 「Codex」工作台提供可保存的準備頁、執行／成果分頁、待回答區及任務詳情。Issue／MR／Wiki 保留來源與下一步，模型及思考強度在頁內設定；問題、MR 回覆與最後一次輸入可恢復，跨視窗衝突保留本機文字。支援逐任務暫停、恢復、封存及預設關閉的 Auto-Accept。App Server 與暫存資源用畢清理，失敗可核對重試；需要 Codex CLI 0.165.0+，GitLab 工作流程的共用 Skills 能力以已驗證 CLI 契約為準。
+- 「Codex」工作台提供可保存的準備頁、執行／成果分頁、待回答區及任務詳情。可停止自動處理、匯出完整成果並還原至人工工作目錄；先保存並驗證成果，才刪除所屬連線、對話與專用暫存，失敗保留資料供重試。成果可獨立閱讀及匯出，切換帳號仍可管理本機連線。Auto-Accept 預設關閉；完整原生對話清理依已驗證 Codex CLI 0.167.2 能力啟用。
 - 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
 
 側欄、鍵盤與設定入口見 [介面操作說明](docs/ui-navigation.md)。

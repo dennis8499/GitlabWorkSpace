@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { codexTaskActive, type CodexTaskState } from '../codex/protocol';
 import { ActionController, type DispatchResult } from '../workspace/actionController';
 import type { CodexUiState } from './codexUiState';
@@ -35,15 +35,16 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
     if (next && next !== workflowRef.current) updateWorkflow(() => next);
   }, [operations]);
   useEffect(() => {
+    if (task.retention === 'results-only') return;
     const pending = Object.values(workflowRef.current.replies).filter(item => item.pending && !restored.current.has(item.pending.requestId)).map(item => item.pending!);
     for (const item of pending) { restored.current.add(item.requestId); actions.restorePending(item); }
     if (pending.length) post({ type: 'reconcileOperations', pendingIds: pending.map(item => item.requestId) });
-  }, [task.id]);
+  }, [task.id, task.retention]);
   useEffect(() => () => fallbackActions.current?.dispose(), []);
   const requested = useRef<string>();
   const result = task.result, wiki = payload?.wiki;
   useEffect(() => {
-    if (!active || !result || codexTaskActive(task.status) || task.status === 'queued') return;
+    if (!active || !result || task.retention === 'results-only' || codexTaskActive(task.status) || task.status === 'queued') return;
     const key = JSON.stringify([task.id, task.turnId, result.draftId, result.reportPath, result.handoffPath]);
     if (requested.current === key) return;
     requested.current = key;
@@ -52,8 +53,11 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
       return () => { post({ type: 'cancelProjectWikiPreview', taskId: task.id }); };
     }
     else if (result.reportPath || result.handoffPath) post({ type: 'readCodexResult', taskId: task.id });
-  }, [active, task.id, task.status, task.turnId, result?.draftId, result?.reportPath, result?.handoffPath]);
-  if (!task.origin) return null;
+  }, [active, task.id, task.status, task.retention, task.turnId, result?.draftId, result?.reportPath, result?.handoffPath]);
+  if (task.savedResult) return <SavedCodexResult task={task} post={post} />;
+  if (!task.origin) return result ? <section class="codex-workflow-result" aria-label="本機工作成果"><p role="status">{result.summary}</p>
+    <div class="button-row"><button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'copy-handoff', taskId: task.id } })}>複製成果與牌卡內容</button>
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'export-result', taskId: task.id } })}>匯出成果包</button></div></section> : null;
   const busy = codexTaskActive(task.status) || task.status === 'queued' || task.status === 'uncertain';
   const checking = wiki?.progress?.status === 'loading';
   const complete = !wiki?.progress || wiki.progress.status === 'ready';
@@ -125,5 +129,39 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
       <p class="subtle">先檢閱實際差異，並在版控暫存要提交的變更，再準備 CommitReviewer 檢查。提交、推送及建立 MR 由你操作。</p>
       <div class="button-row"><button type="button" class="quiet small" onClick={() => post({ type: 'copy', text: payload.handoff! })}>複製交接草稿</button>
         <button type="button" disabled={busy} onClick={() => post({ type: 'codexCommand', command: { action: 'handoff-review', taskId: task.id } })}>準備 CommitReviewer 檢查</button></div></details>}
+  </section>;
+}
+
+function SavedCodexResult({ task, post }: { task: CodexTaskState; post: Post }) {
+  const [artifactLimit, setArtifactLimit] = useState(100);
+  const artifactList = useRef<HTMLUListElement>(null), nextArtifactFocus = useRef<{ taskId: string; index: number }>();
+  useLayoutEffect(() => { nextArtifactFocus.current = undefined; setArtifactLimit(100); }, [task.id]);
+  useLayoutEffect(() => {
+    const pending = nextArtifactFocus.current; nextArtifactFocus.current = undefined;
+    if (pending?.taskId === task.id) artifactList.current?.querySelectorAll('button')[pending.index]?.focus();
+  }, [artifactLimit, task.id]);
+  const saved = task.savedResult!;
+  const delivery = task.delivery ?? saved.delivery;
+  const result = saved.result;
+  return <section class="codex-workflow-result" aria-label="已保存成果">
+    <p role="status">{saved.summary}</p>
+    <p class="subtle">成果已獨立保存，可離線閱讀與匯出。後續需求會以成果建立新的任務。</p>
+    <div class="button-row">
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'export-result', taskId: task.id } })}>匯出成果包</button>
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'copy-handoff', taskId: task.id } })}>複製接續摘要與牌卡內容</button>
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'new-from-result', taskId: task.id } })}>以成果建立新任務</button>
+      {saved.restore && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'restore-result', taskId: task.id } })}>還原至新的手動工作目錄</button>}
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'manual-handoff', taskId: task.id } })}>轉交人工處理</button>
+      {(delivery?.url ?? result?.url) && <button type="button" onClick={() => post({ type: 'openExternal', url: delivery?.url ?? result!.url! })}>開啟 GitLab 成果</button>}
+    </div>
+    {delivery && 'error' in delivery && delivery.error && <p class="warning" role="status">{delivery.error}</p>}
+    {!!saved.artifacts.length && <ul ref={artifactList} class="codex-result-files" aria-label="成果檔案">{saved.artifacts.slice(0, artifactLimit).map(artifact => <li key={artifact.id}>
+      <button type="button" class="quiet small" onClick={() => post({ type: 'codexCommand', command: { action: 'open-artifact', taskId: task.id, artifactId: artifact.id } })}>{artifact.name}</button>
+      <span class="subtle"> · {artifact.size.toLocaleString()} bytes</span>
+    </li>)}</ul>}
+    {saved.artifacts.length > artifactLimit && <button type="button" onClick={() => { nextArtifactFocus.current = { taskId: task.id, index: artifactLimit }; setArtifactLimit(limit => Math.min(saved.artifacts.length, limit + 100)); }}>
+      顯示更多成果（{artifactLimit}/{saved.artifacts.length}）</button>}
+    {!!result?.tests?.length && <details><summary>測試結果（{result.tests.length}）</summary>{result.tests.map((test, index) => <p key={index}><code>{test.command}</code> · exit {test.exitCode}</p>)}</details>}
+    {task.validation?.commands.length ? <details><summary>已核對的測試證據（{task.validation.commands.length}）</summary>{task.validation.commands.map((test, index) => <p key={index}><code>{test.command}</code> · exit {test.exitCode}</p>)}</details> : null}
   </section>;
 }

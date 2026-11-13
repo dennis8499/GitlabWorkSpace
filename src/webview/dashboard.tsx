@@ -1404,7 +1404,10 @@ function App() {
       {mode === 'clone' && <div class="repository-scan-action"><button class="quiet repository-scan-trigger" type="button"
         {...availabilityProps('workspace-scan', scanBlocked)} disabled={scanBusy || !!scanBlocked} aria-busy={scanBusy}
         title={projectRoot ? `掃描目前專案根目錄：${projectRoot}` : '掃描目前專案根目錄'}
-        onClick={() => post({ type: 'scanRepositories' })}><Codicon name="search" />{scanBusy ? '掃描中…' : '一鍵掃描 Repo'}</button></div>}
+        onClick={() => post({ type: 'scanRepositories' })}><Codicon name="search" />{scanBusy ? '掃描中…' : '一鍵掃描 Repo'}</button>
+        <button class="quiet" type="button" disabled={!!localBlocked || !projectRoot || !!snapshot.projectOperationBusy || !!snapshot.workflowKitOperationBusy}
+          title={projectRoot ? `分析目前本機 Group 的需求影響：${projectRoot}` : '請先開啟或選擇本機 Group 資料夾'}
+          onClick={() => post({ type: 'createCodexLaunch', source: { kind: 'group-analysis' } })}><Codicon name="references" />需求影響分析</button></div>}
       <FeatureNotices id="workspace-scan" items={{ '一鍵掃描 Repo': scanBlocked }}>{!projectRoot && !localBlocked && !snapshot.projectContext?.folders.length && <button type="button" onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟資料夾</button>}</FeatureNotices>
     </div>
 

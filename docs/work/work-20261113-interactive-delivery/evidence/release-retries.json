@@ -1,0 +1,20 @@
+﻿{
+    "priorRun":  "2026-11-13T05-10-18.263Z-20948",
+    "causeOfTimeout":  "not determined",
+    "productOrFixtureChanged":  false,
+    "timeoutChanged":  false,
+    "cases":  [
+                  {
+                      "case":  "WorkflowKit134IntegrationTests.test_upgrade_warnings_conflicts_and_rollback_keep_user_work",
+                      "exitCode":  0,
+                      "seconds":  53.739,
+                      "log":  "retry-134-upgrade-warnings.log"
+                  },
+                  {
+                      "case":  "WorkflowKit135IntegrationTests.test_upgrade_from_134_and_rollback_preserve_wiki_and_review_work",
+                      "exitCode":  0,
+                      "seconds":  102.227,
+                      "log":  "retry-135-upgrade-rollback.log"
+                  }
+              ]
+}

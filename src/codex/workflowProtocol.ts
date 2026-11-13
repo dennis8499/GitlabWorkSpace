@@ -14,6 +14,9 @@ export interface CodexTaskOrigin {
   targetSha?: string;
   branch?: string;
   intent?: 'review' | 'fix-comments';
+  sourceProjectId?: number;
+  sourceRemote?: string;
+  pushUrl?: string;
 }
 
 /** Host-only execution binding. Install, execution and repository roots have distinct roles. */
@@ -25,6 +28,7 @@ export interface CodexWorkflowBinding {
   sourceRoot?: string;
   worktree?: { path: string; branch: string; sourceSha: string; repository: string };
   discussions?: Array<{ id: string; noteIds: number[]; text: string }>;
+  temporaryRefs?: Array<{ ref: string; sha: string }>;
   wikiIncremental?: { previousDraftId: string; pages: string[]; changedFiles: string[]; baseSha: string };
 }
 
@@ -62,3 +66,8 @@ export interface ProjectWikiPreview {
 
 export const workflowOriginKey = (origin: CodexTaskOrigin): string =>
   JSON.stringify([origin.accountKey, origin.kind, origin.projectId, origin.iid ?? '', origin.repositoryRoot, origin.intent ?? 'review']);
+/** Serializable Group input; kept separate from filesystem-backed preparation. */
+export interface CodexGroupRepository { id: string; name: string; path: string; sha: string; snapshotPath: string; projectPath?: string; }
+export interface CodexGroupAnalysisBinding {
+  id: string; groupRoot: string; runtimeRoot: string; outputRoot: string; repositories: CodexGroupRepository[];
+}

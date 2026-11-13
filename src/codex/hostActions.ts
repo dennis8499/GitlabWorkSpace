@@ -1,10 +1,13 @@
 import type * as VSCode from 'vscode';
 import path from 'node:path';
-import { realpath } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { realpath, stat } from 'node:fs/promises';
 import { CodexBridge } from './bridge';
 import type { CodexCommand, CodexContext, CodexTaskSource, CodexTaskSpec } from './protocol';
 import { captureCodexContext, contextHash, pathInside } from './freeTask';
 import { workflowGit } from './projectWorkflows';
+import { CodexTaskScheduler } from './scheduler';
+import type { CodexResultManifest } from './resultProtocol';
 
 export interface CodexHostActionOptions {
   bridge(): CodexBridge;
@@ -21,6 +24,7 @@ export interface CodexHostActionOptions {
 /** Host resolves trusted paths and task specifications; the webview requests named actions. */
 export class CodexHostActions {
   private draft?: { repository: string; prompt: string; contexts: CodexContext[] };
+  private readonly restoreScheduler = new CodexTaskScheduler('manual-restore-' + randomUUID());
   constructor(private readonly options: CodexHostActionOptions, private readonly vscode: typeof VSCode) {}
   async run(command: CodexCommand): Promise<void> {
     if (!this.vscode.workspace.isTrusted) throw new Error('請先信任工作區。');
@@ -29,7 +33,109 @@ export class CodexHostActions {
       return;
     }
     if (command.action === 'storage') { await this.vscode.commands.executeCommand('revealFileInOS', this.vscode.Uri.file(this.options.bridge().storagePath)); return; }
-    const bridge = this.options.bridge(), spec = await bridge.specification(command.taskId);
+    const bridge = this.options.bridge();
+    if (command.action === 'manage-local-connections') {
+      await bridge.initialize();
+      const tasks = bridge.list().filter(task => task.retention !== 'results-only');
+      if (!tasks.length) { await this.vscode.window.showInformationMessage('目前沒有需要管理的本機連線；已保存成果可在成果頁閱讀。'); return; }
+      const selected = await this.vscode.window.showQuickPick(tasks.map(task => ({ label: task.title,
+        description: task.status + (task.controls?.external ? ' · 由其他視窗執行' : ''), detail: task.origin?.repositoryRoot ?? task.root, task })),
+      { title: '管理本機連線', placeHolder: '跨 GitLab 帳號管理此電腦保留的連線', matchOnDescription: true, matchOnDetail: true, ignoreFocusOut: true });
+      if (!selected) return;
+      if (selected.task.controls?.external) { await this.vscode.window.showInformationMessage('此連線由另一個 VS Code 視窗執行，請先到原視窗停止。'); return; }
+      const action = await this.vscode.window.showQuickPick([
+        { label: '停止並匯出人工接續資料', action: 'manual-handoff' as const }, { label: '刪除連線並保留成果', action: 'stop-cleanup' as const }
+      ], { title: selected.task.title, placeHolder: selected.detail, ignoreFocusOut: true });
+      if (action) await this.run({ action: action.action, taskId: selected.task.id });
+      return;
+    }
+    if (command.action === 'stop-cleanup' || command.action === 'manual-handoff') {
+      let cleanupError: unknown;
+      try { await bridge.stopAndClean(command.taskId, command.action === 'manual-handoff' ? 'manual' : 'deleted'); }
+      catch (error) { if (command.action !== 'manual-handoff') throw error; cleanupError = error; }
+      await this.options.selected(command.taskId);
+      if (command.action === 'manual-handoff') {
+        if (cleanupError) await this.vscode.window.showWarningMessage(`清理尚未完成：${cleanupError instanceof Error ? cleanupError.message : '停止或清理狀態待核對'}。已保存的成果仍可還原或匯出；原暫存環境保留供核對。`);
+        let manifest: CodexResultManifest;
+        try { manifest = await bridge.resultManifest(command.taskId); }
+        catch (error) {
+          if (!cleanupError) throw error;
+          const folders = await this.vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
+            title: '匯出尚待核對的人工接續成果', openLabel: '在此建立人工接續成果包' });
+          if (!folders?.[0]) return;
+          const parent = await this.existingDirectory(folders[0].fsPath);
+          if (!parent) throw new Error('人工接續成果包需要有效的本機上層資料夾。', { cause: error });
+          const destination = path.join(parent, `codex-handoff-${command.taskId}-${randomUUID().slice(0, 8)}`);
+          const pending = await bridge.exportForHandoff(command.taskId, destination);
+          const handoff = pending.artifacts.find(artifact => artifact.path === 'handoff.md');
+          if (handoff) await this.vscode.window.showTextDocument(this.vscode.Uri.file(path.join(destination, ...handoff.path.split('/'))), { preview: false });
+          await this.vscode.commands.executeCommand('revealFileInOS', this.vscode.Uri.file(destination));
+          await this.vscode.window.showWarningMessage('已停止自動處理，發布／清理結果仍待核對，原環境保留。請核對成果包內的交付收據，不要重複發布。');
+          return;
+        }
+        await this.run({ action: manifest.restore ? 'restore-result' : 'export-result', taskId: command.taskId });
+      }
+      return;
+    }
+    if (command.action === 'retry-delivery') { await bridge.retryDelivery(command.taskId); return; }
+    if (['export-result', 'copy-handoff', 'new-from-result', 'open-artifact', 'restore-result'].includes(command.action)) {
+      const manifest = await bridge.resultManifest(command.taskId);
+      if (command.action === 'restore-result') {
+        if (!manifest.restore) { await this.run({ action: 'export-result', taskId: command.taskId }); return; }
+        const repository = await this.chooseResultDirectory(manifest.restore.originalRepository, '選擇保留的原 Repo（須含成果的基礎提交）',
+          () => this.run({ action: 'export-result', taskId: command.taskId }));
+        if (!repository) return;
+        const folders = await this.vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
+          title: '選擇新手動工作目錄的上層資料夾', openLabel: '在此建立新的手動工作目錄' });
+        if (!folders?.[0]) return;
+        const parent = await this.existingDirectory(folders[0].fsPath);
+        if (!parent) throw new Error('新的手動工作目錄需要有效的本機上層資料夾。');
+        const destination = path.join(parent, `codex-manual-${manifest.id}-${randomUUID().slice(0, 8)}`);
+        const spec: CodexTaskSpec = { source: { kind: 'free', repository, prompt: '' }, root: repository, executionRoot: repository,
+          title: '還原人工工作目錄', prompt: '', writableRoots: [destination], workspaceKey: repository, environmentKey: 'manual-result-restore' };
+        const admission = await this.restoreScheduler.tryAcquire('restore-' + manifest.id, spec, 2);
+        if (!admission.reservation) throw new Error('原 Repo 或 Git 共用目錄正在使用，請稍後重試還原。');
+        const reservation = admission.reservation;
+        const outcome = await bridge.results.restoreTo(manifest.id, repository, destination).then(result => ({ result }), (error: unknown) => ({ error }));
+        const releases = await Promise.allSettled([reservation.primary, ...reservation.extras].map(lease => lease.release()));
+        await reservation.release(releases.some(result => result.status === 'rejected'), true);
+        const failure = releases.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+        if (failure) throw failure.reason;
+        if ('error' in outcome) throw outcome.error;
+        const restored = outcome.result;
+        const handoff = await this.savedHandoff(bridge, manifest);
+        const document = [`# 已還原的手動工作目錄`, `工作目錄：${JSON.stringify(restored.path)}`, `工作分支：${restored.branch}`, `基礎版本：${restored.baseSha}`,
+          '這個工作目錄由你管理，不會由原任務自動清理。請在此開啟新的 Codex CLI 對話，並核對專案依賴與測試。', handoff].join('\n\n');
+        await this.vscode.window.showTextDocument(await this.vscode.workspace.openTextDocument({ content: document, language: 'markdown' }), { preview: false });
+        const choice = await this.vscode.window.showInformationMessage(`已還原至 ${restored.path}；原工作目錄與成果包保留。`, '開啟工作目錄', '複製接續資料');
+        if (choice === '開啟工作目錄') await this.vscode.commands.executeCommand('vscode.openFolder', this.vscode.Uri.file(restored.path), { forceNewWindow: true });
+        else if (choice === '複製接續資料') await this.vscode.env.clipboard.writeText(document);
+      } else if (command.action === 'export-result') {
+        const folders = await this.vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, openLabel: '選擇成果匯出位置' });
+        if (folders?.[0]) {
+          const destination = path.join(folders[0].fsPath, `codex-result-${manifest.id}-${Date.now()}`);
+          await bridge.results.exportTo(manifest.id, destination);
+          await this.vscode.commands.executeCommand('revealFileInOS', this.vscode.Uri.file(destination));
+        }
+      } else if (command.action === 'open-artifact') {
+        const saved = await bridge.results.readArtifact(manifest.id, command.artifactId);
+        if (!saved.artifact.mediaType.startsWith('text/') && saved.artifact.mediaType !== 'application/json') throw new Error('二進位成果請使用匯出成果包保存。');
+        await this.vscode.window.showTextDocument(await this.vscode.workspace.openTextDocument({ content: saved.bytes.toString('utf8'), language: saved.artifact.mediaType === 'application/json' ? 'json' : /\.md$/i.test(saved.artifact.name) ? 'markdown' : 'plaintext' }), { preview: true });
+      } else {
+        const text = await this.savedHandoff(bridge, manifest);
+        if (command.action === 'copy-handoff') await this.vscode.env.clipboard.writeText(text);
+        else {
+          const repository = await this.chooseResultDirectory(manifest.restore?.originalRepository ?? manifest.origin?.repositoryRoot ?? manifest.root, '選擇接續成果的本機工作目錄',
+            () => this.run({ action: 'export-result', taskId: command.taskId }));
+          if (repository) {
+            const prompt = text.length <= 30_000 ? text : text.slice(0, 28_000) + `\n\n摘要已節錄；完整需求、牌卡與檔案清單請讀取永久成果清單 ${JSON.stringify(path.join(bridge.results.directory, manifest.id, 'manifest.json'))}，不要把節錄當成完整需求。`;
+            await this.options.createTask({ kind: 'free', repository, prompt });
+          }
+        }
+      }
+      return;
+    }
+    const spec = await bridge.specification(command.taskId);
     this.options.check(spec);
     const task = bridge.list().find(task => task.id === command.taskId)!;
     if (command.action === 'manage') {
@@ -61,7 +167,7 @@ export class CodexHostActions {
     else if (command.action === 'diagnostics') {
       const text = JSON.stringify(bridge.diagnosticSnapshot(task.id), null, 2);
       await this.vscode.window.showTextDocument(await this.vscode.workspace.openTextDocument({ language: 'json', content: text }), { preview: true });
-      const choice = await this.vscode.window.showInformationMessage('已開啟診斷摘要，僅包含版本、狀態與 RPC 耗時。', '另存診斷');
+      const choice = await this.vscode.window.showInformationMessage('已開啟診斷摘要，包含版本、狀態、RPC 耗時、已遮蔽的程序錯誤輸出與程序結束狀態。', '另存診斷');
       if (choice === '另存診斷') {
         const uri = await this.vscode.window.showSaveDialog({ defaultUri: this.vscode.Uri.file(`codex-diagnostics-${task.id}.json`), filters: { JSON: ['json'] } });
         if (uri) await this.vscode.workspace.fs.writeFile(uri, Buffer.from(text));
@@ -89,7 +195,38 @@ export class CodexHostActions {
       const minutes = await this.vscode.window.showInputBox({ title: '執行時間預算（分鐘，選填）', value: '', validateInput: value => value && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 1440) ? '請輸入 1 到 1,440，或留白' : undefined });
       if (minutes === undefined) return;
       await bridge.setGoal(task.id, { objective, tokenBudget: Number(budget), timeBudgetSeconds: minutes ? Number(minutes) * 60 : undefined });
-    } else await this.options.workflow(command.action, task.id);
+    } else await this.options.workflow(command.action as Parameters<CodexHostActionOptions['workflow']>[0], task.id);
+  }
+  private async existingDirectory(candidate: string): Promise<string | undefined> {
+    try { const actual = await realpath(candidate); return (await stat(actual)).isDirectory() ? actual : undefined; } catch { return undefined; }
+  }
+  private async chooseResultDirectory(preferred: string, title: string, exportDocuments: () => Promise<void>): Promise<string | undefined> {
+    const existing = await this.existingDirectory(preferred);
+    if (existing) {
+      const choice = await this.vscode.window.showQuickPick([{ label: path.basename(existing), description: existing, directory: existing },
+        { label: '選擇其他本機資料夾…', description: '還原程式仍需成果綁定的原 Repo', directory: undefined }], { title, ignoreFocusOut: true });
+      if (!choice) return undefined;
+      if (choice.directory) return choice.directory;
+    } else {
+      const choice = await this.vscode.window.showInformationMessage('原工作目錄目前不存在。文件仍可匯出；程式還原需要保留的原 Repo 與基礎提交。', '選擇本機資料夾', '匯出成果包');
+      if (choice === '匯出成果包') await exportDocuments();
+      if (choice !== '選擇本機資料夾') return undefined;
+    }
+    const folders = await this.vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title, openLabel: '使用此本機資料夾' });
+    if (!folders?.[0]) return undefined;
+    const directory = await this.existingDirectory(folders[0].fsPath);
+    if (!directory) throw new Error('請選擇已存在的本機資料夾。');
+    return directory;
+  }
+  private async savedHandoff(bridge: CodexBridge, manifest: CodexResultManifest): Promise<string> {
+    const artifact = manifest.artifacts.find(item => item.path === 'handoff.md' || /handoff\.md$/i.test(item.name));
+    const body = artifact ? (await bridge.results.readArtifact(manifest.id, artifact.id)).bytes.toString('utf8') : manifest.summary;
+    const cards = manifest.artifacts.find(item => item.path === 'documents/cards.md');
+    const cardText = cards ? (await bridge.results.readArtifact(manifest.id, cards.id)).bytes.toString('utf8') : undefined;
+    const root = path.join(bridge.results.directory, manifest.id);
+    return [body, ...(cardText ? ['## 可複製牌卡內容', cardText] : []), '## 永久成果位置', JSON.stringify(root),
+      `完整檔案清單：${JSON.stringify(path.join(root, 'manifest.json'))}`,
+      ...manifest.artifacts.slice(0, 100).map(item => `- ${item.name}：${JSON.stringify(path.join(root, ...item.path.split('/')))}`)].join('\n\n');
   }
   private async context(kind: 'selection' | 'file' | 'diff', root: string): Promise<CodexContext[]> {
     if (kind === 'diff') {

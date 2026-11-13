@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { createHash } from 'node:crypto';
 /** Stored records are untrusted even when their JSON and envelope are valid. */
 type ObjectValue = Record<string, unknown>;
 const object = (value: unknown): value is ObjectValue => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -6,12 +8,125 @@ const integer = (value: unknown) => Number.isSafeInteger(value) && Number(value)
 const optional = (value: unknown, valid: (value: unknown) => boolean) => value === undefined || valid(value);
 const array = (value: unknown, valid: (value: unknown) => boolean) => Array.isArray(value) && value.every(valid);
 const fields = (value: ObjectValue, keys: string[], valid: (value: unknown) => boolean = string) => keys.every(key => optional(value[key], valid));
+const text = (value: unknown, max = 4096): value is string => string(value) && value.length > 0 && value.length <= max && !value.includes('\0');
+const absolute = (value: unknown): value is string => text(value, 32767) && path.isAbsolute(value);
+const sha = (value: unknown): value is string => string(value) && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value);
+const digest = (value: unknown): value is string => string(value) && /^[a-f0-9]{64}$/.test(value);
+const uuid = (value: unknown): value is string => string(value) && /^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(value);
+const opaque = (value: unknown): value is string => string(value) && /^[a-z0-9][a-z0-9._:-]{0,199}$/i.test(value);
+const date = (value: unknown): value is string => text(value, 100) && Number.isFinite(Date.parse(value));
+const same = (a: string, b: string): boolean => process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
+const inside = (root: string, value: string): boolean => { const relative = path.relative(root, value); return !!relative && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep); };
+const list = (value: unknown, max: number, check: (value: unknown) => boolean): value is unknown[] => Array.isArray(value) && value.length <= max && value.every(check);
+const ids = (value: unknown, max: number): value is string[] => list(value, max, opaque) && new Set(value).size === value.length;
+const tests = (value: unknown): boolean => list(value, 20, entry => text(entry) && entry.trim().length > 0 && !/[\r\n]/.test(entry));
+const keys = (value: ObjectValue, names: string[]): boolean => Object.keys(value).every(key => names.includes(key));
+
+export function validCodexTemporaryRef(value: unknown, repository = false): boolean {
+  return object(value) && keys(value, repository ? ['repository', 'ref', 'sha'] : ['ref', 'sha']) && (!repository || absolute(value.repository)) &&
+    text(value.ref, 2048) && /^(?:refs\/(?:heads|remotes)\/workbench\/|refs\/gitlab-workspace\/tasks\/)/.test(value.ref) &&
+    !/[\s\\~^:?*[\]]/.test(value.ref) && !value.ref.includes('..') && !value.ref.includes('@{') && !value.ref.includes('//') &&
+    value.ref.split('/').every(part => part.length > 0 && !part.startsWith('.') && !part.endsWith('.') && !part.endsWith('.lock')) && sha(value.sha);
+}
+
+export function validCodexGroupAnalysis(value: unknown, root: string): boolean {
+  if (!object(value) || !keys(value, ['id', 'groupRoot', 'runtimeRoot', 'outputRoot', 'repositories']) || !uuid(value.id) || !absolute(value.groupRoot) ||
+    !same(value.groupRoot, root) || !absolute(value.runtimeRoot) || path.basename(value.runtimeRoot) !== value.id ||
+    path.basename(path.dirname(value.runtimeRoot)) !== 'codex-group-analysis' || !absolute(value.outputRoot) || !inside(value.groupRoot, value.outputRoot) ||
+    inside(value.runtimeRoot, value.outputRoot) || !Array.isArray(value.repositories) || !value.repositories.length || value.repositories.length > 100) return false;
+  const seen = new Set<string>();
+  return value.repositories.every(repo => {
+    if (!object(repo) || !keys(repo, ['id', 'name', 'path', 'sha', 'snapshotPath', 'projectPath']) || !opaque(repo.id) || seen.has(repo.id) ||
+      !text(repo.name, 1024) || !absolute(repo.path) || !sha(repo.sha) || !absolute(repo.snapshotPath) || !optional(repo.projectPath, item => text(item, 500)) ||
+      !same(repo.path, value.groupRoot as string) && !inside(value.groupRoot as string, repo.path)) return false;
+    seen.add(repo.id);
+    const expected = path.join(value.runtimeRoot as string, 'sources', createHash('sha256').update(repo.path).digest('hex').slice(0, 16));
+    return same(repo.snapshotPath, expected);
+  });
+}
+
+function validDelivery(value: unknown): boolean {
+  if (!object(value) || !keys(value, ['mode', 'state', 'steps', 'artifactDigest', 'deliveredCommitSha', 'url', 'error']) ||
+    !['automatic', 'manual'].includes(String(value.mode)) || !['pending', 'running', 'published', 'needs-attention', 'cancelled'].includes(String(value.state)) ||
+    !optional(value.artifactDigest, digest) || !optional(value.deliveredCommitSha, sha) || !fields(value, ['url', 'error'], item => text(item, 8192)) || !Array.isArray(value.steps) || value.steps.length > 200) return false;
+  const seen = new Set<string>();
+  const valid = value.steps.every(step => {
+    if (!object(step) || !keys(step, ['id', 'kind', 'state', 'key', 'bodyHash', 'resourceId', 'url', 'sha', 'parentSha', 'treeSha', 'error']) ||
+      !opaque(step.id) || seen.has(step.id) || !['commit', 'push', 'merge-request', 'issue-note', 'review-note', 'reply', 'upload', 'wiki'].includes(String(step.kind)) ||
+      !['prepared', 'sending', 'confirmed', 'uncertain'].includes(String(step.state)) || !digest(step.key) || !optional(step.bodyHash, digest) ||
+      !optional(step.resourceId, id => Number.isSafeInteger(id) && Number(id) > 0) || !fields(step, ['url', 'error'], item => text(item, 8192)) ||
+      !fields(step, ['sha', 'parentSha', 'treeSha'], sha)) return false;
+    seen.add(step.id);
+    if (step.state === 'confirmed') {
+      if (step.kind === 'commit' && (!sha(step.sha) || !sha(step.parentSha) || !sha(step.treeSha))) return false;
+      if (step.kind === 'push' && !sha(step.sha)) return false;
+      if (['merge-request', 'issue-note', 'review-note', 'reply'].includes(String(step.kind)) && !step.resourceId) return false;
+      if (step.kind === 'upload' && !text(step.url, 8192)) return false;
+    }
+    return true;
+  });
+  return valid && (value.state !== 'published' || value.steps.length > 0 && value.steps.every(step => object(step) && step.state === 'confirmed'));
+}
+
+function validAdditions(value: ObjectValue): boolean {
+  const spec = value.spec as ObjectValue, source = spec.source as ObjectValue;
+  if (!absolute(spec.root)) return false;
+  if (!fields(source, ['requirement'], item => text(item, 32000)) || !fields(source, ['automaticDelivery', 'oneClick'], item => typeof item === 'boolean') ||
+    !optional(source.additionalSkillIds, item => ids(item, 100)) || !optional(source.testCommands, tests) ||
+    !optional(source.repositoryIds, item => source.kind === 'group-analysis' && ids(item, 1000)) ||
+    !optional(spec.preparationKey, item => text(item, 4096)) ||
+    !optional(spec.requirementSummary, item => string(item) && item.length <= 8000 && !item.includes('\0')) ||
+    !optional(spec.projectRules, item => list(item, 1, rule => object(rule) && keys(rule, ['path', 'fingerprint']) && absolute(rule.path) && digest(rule.fingerprint) &&
+      ['AGENTS.md', 'AGENTS.override.md'].some(name => same(rule.path as string, path.join(spec.root as string, name))))) ||
+    !optional(spec.skill, item => object(item) && text(item.name, 200) && absolute(item.path) && optional(item.fingerprint, digest)) ||
+    !optional(spec.additionalSkills, item => list(item, 100, skill => object(skill) && keys(skill, ['id', 'name', 'path', 'fingerprint']) &&
+      opaque(skill.id) && text(skill.name, 200) && absolute(skill.path) && digest(skill.fingerprint)) &&
+      new Set((item as ObjectValue[]).map(skill => skill.id)).size === (item as ObjectValue[]).length) ||
+    !optional(spec.delivery, item => object(item) && keys(item, ['mode', 'testCommands']) && ['automatic', 'manual'].includes(String(item.mode)) && optional(item.testCommands, tests)) ||
+    !optional(value.delivery, validDelivery) || !optional(value.cleanupState, item => ['pending', 'running', 'complete', 'needs-attention'].includes(String(item))) ||
+    !optional(value.closing, item => object(item) && keys(item, ['reason', 'startedAt']) && ['completed', 'manual', 'deleted'].includes(String(item.reason)) && date(item.startedAt)) ||
+    !optional(value.ownedThreadIds, item => ids(item, 1000)) || !optional(value.temporaryRefs, item => list(item, 1000, ref => validCodexTemporaryRef(ref, true)))) return false;
+  if (source.kind === 'group-analysis') {
+    if (!text(source.requirement, 32000) || !validCodexGroupAnalysis(spec.groupAnalysis, spec.root as string) || spec.origin || spec.workflow) return false;
+    const binding = spec.groupAnalysis as ObjectValue;
+    if (!absolute(spec.executionRoot) || !same(spec.executionRoot, binding.outputRoot as string) || !Array.isArray(spec.writableRoots) ||
+      !spec.writableRoots.length || spec.writableRoots.some(root => !absolute(root) || !same(root, binding.outputRoot as string))) return false;
+  } else if (spec.groupAnalysis !== undefined) return false;
+  if (Array.isArray(source.additionalSkillIds) && source.additionalSkillIds.some(id => !Array.isArray(spec.additionalSkills) || !spec.additionalSkills.some(skill => object(skill) && skill.id === id))) return false;
+  if (!optional(spec.workflow, item => object(item) && optional(item.temporaryRefs, refs => list(refs, 1000, ref => validCodexTemporaryRef(ref))))) return false;
+  const workflow = spec.workflow;
+  if (object(workflow) && Array.isArray(workflow.temporaryRefs) && workflow.temporaryRefs.some(ref => !object(ref) || !string(workflow.id) ||
+    !(String(ref.ref).endsWith('-' + workflow.id) || String(ref.ref).includes('-' + workflow.id + '-')))) return false;
+  if (Array.isArray(value.temporaryRefs) && value.temporaryRefs.some(ref => !object(ref) ||
+    !same(String(ref.repository), object(spec.origin) ? String(spec.origin.repositoryRoot) : String(spec.root)) ||
+    !(String(ref.ref).startsWith(`refs/gitlab-workspace/tasks/${value.id}/`) || object(spec.workflow) &&
+      (String(ref.ref).endsWith('-' + spec.workflow.id) || String(ref.ref).includes('-' + spec.workflow.id + '-'))))) return false;
+  if (!optional(spec.origin, item => object(item) && optional(item.sourceProjectId, id => Number.isSafeInteger(id) && Number(id) > 0) &&
+    optional(item.sourceRemote, remote => text(remote, 200) && /^[a-z0-9][a-z0-9._/-]*$/i.test(remote)) && optional(item.pushUrl, url => text(url, 4096) && !/[\0\r\n]/.test(url)))) return false;
+  return optional(value.validation, item => object(item) && keys(item, ['cwd', 'artifactDigest', 'testedAt', 'commands', 'turnId', 'noChanges']) &&
+    absolute(item.cwd) && digest(item.artifactDigest) && date(item.testedAt) && optional(item.turnId, opaque) && optional(item.noChanges, flag => typeof flag === 'boolean') &&
+    list(item.commands, 100, command => object(command) && keys(command, ['command', 'exitCode', 'cwd', 'itemId', 'startedAtMs', 'completedAtMs']) &&
+      text(command.command, 20_000) && Number.isSafeInteger(command.exitCode) && optional(command.cwd, absolute) && optional(command.itemId, opaque) &&
+      fields(command, ['startedAtMs', 'completedAtMs'], integer) && !(typeof command.startedAtMs === 'number' && typeof command.completedAtMs === 'number' && command.completedAtMs < command.startedAtMs)));
+}
+/** Older hosts must fail closed rather than manage records carrying new contracts. */
+export function hasCodexV3Metadata(value: unknown): boolean {
+  if (!object(value) || !object(value.spec) || !object(value.spec.source)) return false;
+  const spec = value.spec, source = spec.source as ObjectValue;
+  return source.kind === 'group-analysis' || ['additionalSkillIds', 'testCommands', 'automaticDelivery', 'oneClick', 'repositoryIds'].some(key => source[key] !== undefined) ||
+    ['additionalSkills', 'delivery', 'groupAnalysis', 'preparationKey', 'projectRules', 'requirementSummary'].some(key => spec[key] !== undefined) ||
+    object(spec.skill) && spec.skill.fingerprint !== undefined || object(spec.workflow) && spec.workflow.temporaryRefs !== undefined ||
+    object(spec.origin) && ['sourceProjectId', 'sourceRemote', 'pushUrl'].some(key => (spec.origin as ObjectValue)[key] !== undefined) ||
+    ['delivery', 'validation', 'closing', 'cleanupState', 'ownedThreadIds', 'temporaryRefs'].some(key => value[key] !== undefined);
+}
 export function validStoredCodexProjection(value: unknown): boolean {
   if (!object(value) || !['title', 'createdAt', 'updatedAt'].every(key => string(value[key])) ||
     !fields(value, ['threadId', 'turnId', 'error', 'ownerInstance', 'pendingMessage']) ||
     !fields(value, ['pinned', 'archived', 'dispatchPending', 'pendingMessageIsUser'], item => typeof item === 'boolean') ||
     !optional(value.revision, integer) || !object(value.spec) || !object(value.spec.source) ||
-    !['free', 'skill', 'bmad', 'issue', 'project-wiki', 'merge-request', 'review'].includes(String(value.spec.source.kind))) return false;
+    !['free', 'skill', 'bmad', 'group-analysis', 'issue', 'project-wiki', 'merge-request', 'review'].includes(String(value.spec.source.kind))) return false;
+  if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2', 'GitLabWorkspaceCodexTask/v3'].includes(String(value.schema)) ||
+    hasCodexV3Metadata(value) && value.schema !== 'GitLabWorkspaceCodexTask/v3' || !validAdditions(value)) return false;
   const origin = value.spec.origin;
   if (!optional(value.spec.launch, item => object(item) && integer(item.openedAt) && fields(item, ['draftReadyAt', 'checkedMs', 'submittedAt'], integer))) return false;
   if (!optional(origin, item => object(item) && ['projectPath', 'webUrl', 'sourceBranch'].every(key => string(item[key])) &&

@@ -17,6 +17,7 @@
 .codex-launch-summary { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; }
 .codex-launch-summary dd { margin: 0; overflow-wrap: anywhere; }
 .codex-launch-summary dt { color: var(--vscode-descriptionForeground); }
+.codex-launch-repository-heads code { overflow-wrap: anywhere; }
 .codex-launch-checks ol { list-style: none; padding: 0; }
 .codex-launch-checks li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--vscode-panel-border); flex-wrap: wrap; }
 .codex-launch-checks li > div { flex: 1 1 180px; }

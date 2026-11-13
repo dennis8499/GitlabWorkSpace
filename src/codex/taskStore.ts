@@ -1,17 +1,23 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, unlink, copyFile } from 'node:fs/promises';
 import path from 'node:path';
-import { validStoredCodexProjection } from './recordValidation';
+import { hasCodexV3Metadata, validStoredCodexProjection } from './recordValidation';
 import type { CodexTaskRecord, CodexStorageProblem } from './protocol';
 import { canonicalReviewRequestId, codexTaskActive } from './protocol';
 import { atomicNetworkJson } from '../api/localNetworkLease';
 import { requestedEffort } from './modelRouting';
 import { validateExecutionSelection } from './executionSelection';
-import { cleanupTaskStorage, taskCleanupPlan, validateCleanupPlan, type CodexCleanupPlan } from './taskCleanup';
+import { cleanupTaskStorage, taskCleanupPlan, validateCleanupPlan, CODEX_CLEANUP_MAX_BYTES, type CodexCleanupPlan } from './taskCleanup';
 import { missingFile, ownedStoragePath, removeOwnedStorage, removeOwnedAtomicTemps } from '../storage/ownedStorage';
 import { acquireStorageControl } from '../storage/controlLease';
 
 export const codexRootKey = (root: string): string => createHash('sha256').update(process.platform === 'win32' ? root.toLowerCase() : root).digest('hex');
+const sameStoragePath = (first: string, second: string): boolean => process.platform === 'win32'
+  ? path.resolve(first).toLowerCase() === path.resolve(second).toLowerCase() : path.resolve(first) === path.resolve(second);
+function ownerMayBeAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; }
+}
 export const validTaskId = (id: unknown): id is string => typeof id === 'string' && /^[a-z0-9-]{1,100}$/i.test(id);
 export class CodexTaskDeletedError extends Error {
   constructor() { super('此 Codex 任務紀錄已刪除。'); }
@@ -41,10 +47,12 @@ export class CodexTaskStore {
       catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
       if (await this.isDeleted(name.slice(0, -5))) continue;
       if (!validStoredCodexProjection(value)) throw new Error('Codex 任務顯示資料無法驗證。');
+      if (value.spec.groupAnalysis && !sameStoragePath(value.spec.groupAnalysis.runtimeRoot,
+        path.join(path.dirname(this.directory), 'codex-group-analysis', value.spec.groupAnalysis.id))) throw new Error('Group 分析暫存目錄不屬於此儲存區。');
       if (value.schema === 'GitLabWorkspaceCodexTask/v1' && info.size > 1024 * 1024 || value.spec?.executionRoot !== undefined &&
         (typeof value.spec.executionRoot !== 'string' || !path.isAbsolute(value.spec.executionRoot)) || value.approvalSettings &&
         !['command', 'file', 'permissions'].every(key => typeof value.approvalSettings![key as keyof typeof value.approvalSettings] === 'boolean')) throw new Error('Codex 任務設定無效。');
-      if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2'].includes(value.schema) || !validTaskId(value.id) || name !== value.id + '.json' ||
+      if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2', 'GitLabWorkspaceCodexTask/v3'].includes(value.schema) || !validTaskId(value.id) || name !== value.id + '.json' ||
           !Number.isSafeInteger(value.ownerPid) || value.ownerPid < 1 || !value.spec || typeof value.spec.prompt !== 'string' ||
           typeof value.spec.root !== 'string' || !path.isAbsolute(value.spec.root) || value.root !== value.spec.root ||
           (value.spec.source?.kind !== 'free' && (!value.spec.skill || typeof value.spec.skill.path !== 'string' || !path.isAbsolute(value.spec.skill.path))) || !Array.isArray(value.spec.writableRoots) ||
@@ -89,18 +97,20 @@ export class CodexTaskStore {
   }
   save(record: CodexTaskRecord): Promise<void> {
     if (!validTaskId(record.id)) return Promise.reject(new Error('Codex 任務識別無效。'));
+    if (record.schema !== 'GitLabWorkspaceCodexTask/v3' && hasCodexV3Metadata(record)) return Promise.reject(new Error('新任務契約需要 v3 紀錄；請先升級任務格式，避免舊 Host 同時管理。'));
     const serialized = JSON.stringify(record);
     if (Buffer.byteLength(serialized) > 4 * 1024 * 1024) return Promise.reject(new Error('Codex 任務紀錄超過 4 MiB，請縮小上下文或差異範圍。'));
     const task = this.queue.then(async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
       if (await this.isDeleted(record.id)) throw new CodexTaskDeletedError();
       const file = path.join(this.directory, record.id + '.json');
-      if (record.schema === 'GitLabWorkspaceCodexTask/v2') {
+      if (record.schema === 'GitLabWorkspaceCodexTask/v2' || record.schema === 'GitLabWorkspaceCodexTask/v3') {
         try {
           const previous = JSON.parse(await readFile(file, 'utf8'));
-          if (previous.schema === 'GitLabWorkspaceCodexTask/v1') {
-            if (codexTaskActive(previous.status) && previous.ownerPid !== process.pid) throw new Error('請先重載所有執行中的舊版視窗。');
-            await copyFile(file, file + '.v1-backup', 1).catch(error => { if (error.code !== 'EEXIST') throw error; });
+          if (previous.schema === 'GitLabWorkspaceCodexTask/v1' || record.schema === 'GitLabWorkspaceCodexTask/v3' && previous.schema === 'GitLabWorkspaceCodexTask/v2') {
+            if (codexTaskActive(previous.status) && previous.ownerPid !== process.pid && ownerMayBeAlive(previous.ownerPid)) throw new Error('請先重載所有執行中的舊版視窗。');
+            const backup = previous.schema === 'GitLabWorkspaceCodexTask/v1' ? '.v1-backup' : '.v2-backup';
+            await copyFile(file, file + backup, 1).catch(error => { if (error.code !== 'EEXIST') throw error; });
           }
         } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       }
@@ -109,6 +119,7 @@ export class CodexTaskStore {
       if (await this.isDeleted(record.id)) {
         await unlink(path.join(this.directory, record.id + '.json')).catch(error => { if (error.code !== 'ENOENT') throw error; });
         await removeOwnedStorage(this.directory, path.join(this.directory, record.id + '.json.v1-backup'));
+        await removeOwnedStorage(this.directory, path.join(this.directory, record.id + '.json.v2-backup'));
         throw new CodexTaskDeletedError();
       }
     });
@@ -137,11 +148,15 @@ export class CodexTaskStore {
       const record = (await this.load()).find(value => value.id === id);
       if (!record) return;
       if (codexTaskActive(record.status) || ['queued', 'uncertain'].includes(record.status) || record.result?.state === 'uncertain' || record.publication?.state === 'pending' || Object.values(record.publications ?? {}).some(publication => publication.state === 'pending')) throw new Error('請先暫停任務並確認清理及發布結果，再刪除紀錄。');
+      if (record.delivery?.state === 'running' || record.delivery?.steps.some(step => step.state === 'sending' || step.state === 'uncertain') ||
+        record.closing && record.cleanupState !== 'complete') throw new Error('交付或成果清理尚未完成；請先核對已送出的步驟。');
       if (record.lease && record.lease.released !== true) throw new Error('請先核對任務狀態，確認程序與執行鎖已釋放，再刪除紀錄。');
       await prepare?.(record);
       await ownedStoragePath(path.dirname(this.directory), this.directory);
       // The atomic journal also fences stale writers if the host exits before the tombstone.
-      await atomicNetworkJson(path.join(this.directory, id + '.cleanup.json'), taskCleanupPlan(record));
+      const plan = taskCleanupPlan(record); validateCleanupPlan(plan, id);
+      if (Buffer.byteLength(JSON.stringify(plan)) > CODEX_CLEANUP_MAX_BYTES) throw new Error('清理清單超過保存限制；原任務已保留。');
+      await atomicNetworkJson(path.join(this.directory, id + '.cleanup.json'), plan);
       await this.finishCleanup(id);
     });
   }
@@ -150,7 +165,7 @@ export class CodexTaskStore {
     let plan: CodexCleanupPlan | undefined;
     if (await ownedStoragePath(this.directory, journal)) {
       const info = await lstat(journal);
-      if (!info.isFile() || info.size > 64 * 1024) throw new Error('刪除清理清單無法驗證。');
+      if (!info.isFile() || info.size > CODEX_CLEANUP_MAX_BYTES) throw new Error('刪除清理清單無法驗證。');
       plan = JSON.parse(await readFile(journal, 'utf8')); validateCleanupPlan(plan!, id);
     }
     if (!await this.isDeleted(id)) return;
@@ -170,6 +185,7 @@ export class CodexTaskStore {
       }
       await removeOwnedStorage(this.directory, path.join(this.directory, id + '.json'));
       await removeOwnedStorage(this.directory, path.join(this.directory, id + '.json.v1-backup'));
+      await removeOwnedStorage(this.directory, path.join(this.directory, id + '.json.v2-backup'));
       for (const suffix of ['.json', '.cleanup.json', '.deleted.json']) await removeOwnedAtomicTemps(this.directory, path.join(this.directory, id + suffix));
       if (plan) { await this.cleanup(plan); await removeOwnedStorage(this.directory, journal); }
       this.cleanupProblems = this.cleanupProblems.filter(problem => problem.id !== id);
@@ -187,7 +203,7 @@ export class CodexTaskStore {
     }));
     const ids = new Set([...names].flatMap(name => {
       const match = /^([a-z0-9-]{1,100})\.(cleanup|deleted)\.json$/i.exec(name);
-      return match && (match[2] === 'cleanup' || names.has(match[1] + '.json') || names.has(match[1] + '.json.v1-backup') || atomicIds.has(match[1])) ? [match[1]] : [];
+      return match && (match[2] === 'cleanup' || names.has(match[1] + '.json') || names.has(match[1] + '.json.v1-backup') || names.has(match[1] + '.json.v2-backup') || atomicIds.has(match[1])) ? [match[1]] : [];
     }));
     for (const id of ids) {
       try { await this.control(id, () => this.finishCleanup(id)); }

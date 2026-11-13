@@ -2,6 +2,9 @@ import type { BmadCommandRequest } from '../workspace/bmadProtocol';
 import type { ReviewerToolId } from '../workspace/reviewSessionProtocol';
 import type { ModelRoutingBinding, ModelRoutingSummary } from './modelRoutingProtocol';
 import type { CodexTaskOrigin, CodexTaskResult, CodexWorkflowBinding } from './workflowProtocol';
+import type { CodexResultManifest } from './resultProtocol';
+import type { CodexDeliveryState, CodexValidationEvidence } from './deliveryProtocol';
+import type { CodexGroupAnalysisBinding } from './workflowProtocol';
 export type { CodexTaskOrigin, CodexTaskResult } from './workflowProtocol';
 export type { CodexLaunchDraft, CodexLaunchPatch, CodexLaunchCheck } from './launchProtocol';
 
@@ -10,6 +13,7 @@ export type CodexTaskSource = (
   | { kind: 'free'; repository: string; prompt: string; contexts?: CodexContext[] }
   | { kind: 'skill'; featureId: string; inputs: Record<string, string>; revision: string }
   | { kind: 'bmad'; request: BmadCommandRequest }
+  | { kind: 'group-analysis'; repositoryIds?: string[] }
   | { kind: 'issue'; projectId: number; issueIid: number; isolated?: boolean }
   | { kind: 'project-wiki'; projectId: number; incrementalFrom?: string }
   | { kind: 'merge-request'; projectId: number; iid: number; intent?: 'review' | 'fix-comments'; discussionIds?: string[] }
@@ -17,6 +21,10 @@ export type CodexTaskSource = (
     /** Host-resolved repository; launch requests carry an opaque repository id. */
     repository?: string;
     requirement?: string;
+    additionalSkillIds?: string[];
+    testCommands?: string[];
+    automaticDelivery?: boolean;
+    oneClick?: boolean;
     returnTo?: { mode: 'clone' | 'developer' | 'reviewer' | 'sa' | 'bmad'; issueTab?: 'content' | 'relations' | 'time' };
   };
 export interface CodexTaskSpec {
@@ -25,9 +33,15 @@ export interface CodexTaskSpec {
   root: string;
   workspaceKey: string;
   prompt: string;
-  skill?: { name: string; path: string };
+  requirementSummary?: string;
+  skill?: { name: string; path: string; fingerprint?: string };
+  additionalSkills?: Array<{ id: string; name: string; path: string; fingerprint: string }>;
+  projectRules?: Array<{ path: string; fingerprint: string }>;
+  delivery?: { mode: 'automatic' | 'manual'; testCommands?: string[] };
+  groupAnalysis?: CodexGroupAnalysisBinding;
   writableRoots: string[];
   environmentKey: string;
+  preparationKey?: string;
   review?: { tool: ReviewerToolId; requestId: string; revision: string; runtimeRoot?: string; workspaceRoot?: string; repositoryPath?: string };
   commitReview?: { runtimeRoot: string };
   routing?: ModelRoutingBinding;
@@ -89,6 +103,11 @@ export interface CodexTaskState {
   controls?: CodexTaskControls;
   origin?: CodexTaskOrigin;
   result?: CodexTaskResult;
+  retention?: 'results-only';
+  savedResult?: CodexResultManifest;
+  delivery?: CodexDeliveryState;
+  validation?: CodexValidationEvidence;
+  cleanupState?: 'pending' | 'running' | 'complete' | 'needs-attention';
   revision?: number;
   pinned?: boolean;
   archived?: boolean;
@@ -116,7 +135,7 @@ export function canReprepareCodexTask(task: CodexTaskState): boolean {
     !task.uncertainMessages && !task.messageQueue?.some(item => item.state === 'uncertain' || item.state === 'sending');
 }
 export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
-  schema: 'GitLabWorkspaceCodexTask/v1' | 'GitLabWorkspaceCodexTask/v2';
+  schema: 'GitLabWorkspaceCodexTask/v1' | 'GitLabWorkspaceCodexTask/v2' | 'GitLabWorkspaceCodexTask/v3';
   spec: CodexTaskSpec;
   ownerPid: number;
   pendingMessage?: string;
@@ -134,6 +153,9 @@ export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
   lease?: { directory: string; nonce?: string; receipt?: { path: string; nonce: string }; released?: boolean; extras?: Array<{ directory: string; nonce: string }> };
   forkedFrom?: { taskId: string; threadId: string; turnId: string };
   approvalSettings?: CodexApprovalSettings;
+  closing?: { reason: 'completed' | 'manual' | 'deleted'; startedAt: string };
+  ownedThreadIds?: string[];
+  temporaryRefs?: Array<{ repository: string; ref: string; sha: string }>;
 }
 export interface CodexInteraction {
   id: string;
@@ -144,9 +166,15 @@ export interface CodexInteraction {
   questions?: Array<{ id: string; question: string; isSecret?: boolean; options?: Array<{ label: string; description?: string }> }>;
   schema?: Record<string, unknown>;
   url?: string;
+  availableDecisions?: Array<string | { acceptWithExecpolicyAmendment: { execpolicy_amendment: string[] } }
+    | { applyNetworkPolicyAmendment: { network_policy_amendment: { action: 'allow' | 'deny'; host: string } } }>;
+  permissionScopes?: Array<'turn' | 'session'>;
 }
 export interface CodexInteractionAnswer {
-  decision: 'accept' | 'decline' | 'cancel';
+  decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel';
+  scope?: 'turn' | 'session';
+  execpolicyAmendment?: string[];
+  networkPolicyAmendment?: { action: 'allow' | 'deny'; host: string };
   answers?: Record<string, string>;
   content?: Record<string, unknown>;
 }
@@ -161,6 +189,9 @@ export interface CodexOutputItem {
   exitCode?: number;
   final?: boolean;
   durationMs?: number;
+  cwd?: string;
+  startedAtMs?: number;
+  completedAtMs?: number;
   files?: Array<{ path: string; kind?: string; diff?: string }>;
 }
 export interface CodexEnvironment {
@@ -171,7 +202,7 @@ export interface CodexEnvironment {
   authenticated?: boolean;
   sandbox?: string;
   message?: string;
-  capabilities?: { fork: boolean; goals: boolean; usage: boolean; extraSkills: boolean };
+  capabilities?: { fork: boolean; goals: boolean; usage: boolean; extraSkills: boolean; deleteThread?: boolean };
   mcp?: Array<{ name: string; status: string }>;
   checkedAt?: string;
   storageProblems?: CodexStorageProblem[];
@@ -187,7 +218,9 @@ export type CodexEvent =
 export type CodexCommand =
   | { action: 'create'; context?: 'none' | 'selection' | 'file' | 'diff' }
   | { action: 'storage' }
-  | { action: 'manage' | 'reconcile' | 'diagnostics' | 'fork' | 'goal' | 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare'; taskId: string }
+  | { action: 'manage-local-connections' }
+  | { action: 'manage' | 'reconcile' | 'diagnostics' | 'fork' | 'goal' | 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare' | 'stop-cleanup' | 'manual-handoff' | 'retry-delivery' | 'export-result' | 'copy-handoff' | 'new-from-result' | 'restore-result'; taskId: string }
+  | { action: 'open-artifact'; taskId: string; artifactId: string }
   | { action: 'metadata'; taskId: string; title?: string; pinned?: boolean; archived?: boolean }
   | { action: 'approvals'; taskId: string; settings: CodexApprovalSettings }
   | { action: 'reorder'; taskId: string; direction: 'up' | 'down' }
@@ -204,9 +237,9 @@ export function canonicalReviewRequestId(value: string): string {
 }
 export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
   const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, result,
-    revision, pinned, archived, progress, recovery, goal, publication, publications } = record;
+    revision, pinned, archived, progress, recovery, goal, publication, publications, delivery, validation, cleanupState } = record;
   return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, isolated: !!record.spec.workflow?.worktree, selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin, result,
-    revision, pinned, archived, progress: progress ? { ...progress, diff: undefined, hasDiff: !!progress.diff } : undefined, recovery, goal, publication, publications,
+    revision, pinned, archived, progress: progress ? { ...progress, diff: undefined, hasDiff: !!progress.diff } : undefined, recovery, goal, publication, publications, delivery, validation, cleanupState,
     pendingMessages: record.queuedMessages?.filter(item => item.state === 'queued' || item.state === 'sending').length,
     uncertainMessages: record.queuedMessages?.filter(item => item.state === 'uncertain').length,
     messageQueue: record.queuedMessages?.flatMap(item => item.state === 'accepted' ? [] : [{ id: item.id, text: item.text, state: item.state }]),

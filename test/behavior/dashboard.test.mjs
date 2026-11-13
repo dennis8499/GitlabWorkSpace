@@ -2399,8 +2399,10 @@ test('Codex only opens for an explicit start and binds auto-accept and deletion 
   assert.equal(document.querySelector('.codex-auto-accept input').checked, true);
   const input = document.getElementById('codex-follow-up'); input.value = 'Delete this draft'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   document.querySelector('.codex-details-toggle').click(); await view.tick();
-  [...document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '刪除任務與隔離檔案').click(); await view.tick();
-  assert.equal(view.requests.findLast(value => value.type === 'deleteCodexTask').taskId, task.id);
+  [...document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '刪除連線並保留成果').click(); await view.tick();
+  const cleanup = view.requests.findLast(value => value.type === 'codexCommand' && value.command.action === 'stop-cleanup');
+  assert.equal(cleanup.command.taskId, task.id);
+  assert.equal(view.requests.some(value => value.type === 'deleteCodexTask'), false, 'cleanup uses the result-preserving retirement path');
   await send({ kind: 'tasks', tasks: [] });
   assert.equal(view.savedState.codexUi.drafts[task.id].text, 'Delete this draft', 'catalog absence alone cannot erase saved content');
   const saving = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');

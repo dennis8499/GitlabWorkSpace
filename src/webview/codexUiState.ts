@@ -15,6 +15,8 @@ export function mergeCodexTasks(previous: readonly CodexTaskState[], incoming: r
   const merged = new Map(replace ? [] : existing);
   for (const task of incoming) {
     const current = existing.get(task.id);
+    if (task.retention === 'results-only') { merged.set(task.id, task); continue; }
+    if (current?.retention === 'results-only') { merged.set(task.id, current); continue; }
     merged.set(task.id, current?.revision !== undefined && (task.revision === undefined || current.revision > task.revision) ? current : task);
   }
   for (const id of removed) merged.delete(id);
@@ -41,8 +43,12 @@ function restoreLaunchDrafts(value?: Record<string, CodexLaunchPatch>): Record<s
       patch.model !== undefined && (typeof patch.model !== 'string' || patch.model.length > 200) ||
       patch.effort !== undefined && (typeof patch.effort !== 'string' || patch.effort.length > 40) ||
       patch.isolated !== undefined && typeof patch.isolated !== 'boolean' ||
+      patch.automaticDelivery !== undefined && typeof patch.automaticDelivery !== 'boolean' ||
+      (['additionalSkillIds', 'repositoryIds', 'testCommands'] as const).some(key => patch[key] !== undefined && (!Array.isArray(patch[key]) ||
+        patch[key]!.length > (key === 'testCommands' ? 20 : key === 'repositoryIds' ? 1000 : 100) || key !== 'testCommands' && new Set(patch[key]).size !== patch[key]!.length ||
+        patch[key]!.some(item => typeof item !== 'string' || !item.trim() || item.length > (key === 'testCommands' ? 4096 : 200) || /[\0\r\n]/.test(item)))) ||
       patch.discussionIds !== undefined && (!Array.isArray(patch.discussionIds) || patch.discussionIds.length > 30 || patch.discussionIds.some(item => typeof item !== 'string' || item.length > 200))) return [];
-    const clean = Object.fromEntries(Object.entries(patch).filter(([key]) => ['requirement', 'repositoryId', 'model', 'effort', 'isolated', 'discussionIds'].includes(key))) as CodexLaunchPatch;
+    const clean = Object.fromEntries(Object.entries(patch).filter(([key]) => ['requirement', 'repositoryId', 'repositoryIds', 'additionalSkillIds', 'testCommands', 'automaticDelivery', 'model', 'effort', 'isolated', 'discussionIds'].includes(key))) as CodexLaunchPatch;
     return [[id, clean]];
   }));
 }

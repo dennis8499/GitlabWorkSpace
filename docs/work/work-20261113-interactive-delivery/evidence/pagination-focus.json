@@ -1,0 +1,121 @@
+{
+  "sourceMode": true,
+  "actualDiskSource": true,
+  "inMemoryProductTransform": false,
+  "sourceRunner": ".tmp/runner/verify-codex-final-pagination.mjs",
+  "zoomMethod": "effective viewport / scale + deviceScaleFactor; not native Electron zoom",
+  "assetHashes": {
+    "dashboard.js": "10397a7b692161632e92bf223ecc98439109dd88035167f371b86da7db176f5c",
+    "chunks/BmadPanel-Q-ggcFST.js": "1df978baa259fe2ea2bd929f2c25ee9d31c0ed39595efa631c16317159092132",
+    "chunks/CodexWorkspace-BRewBNW6.js": "2bb9a4e5e7da705e8daabc5c5d3595d6399fcd9a87e375c97f86b3ace3976250",
+    "chunks/GitControlPanel-s-w5HuOP.js": "5adb555ee8317cece97c143e9c4bc425ce846cf3700dd205f887fc92ed8bf6fb",
+    "chunks/IssueGraph-BCbAWbI_.js": "675f55106d993b27f050a4855ddef762948de24a6179643d417bd18315f542e3",
+    "chunks/SkillsGuide-D1cMhBoy.js": "9023432ebf87ac4b309975693374aabbeae571c46ec789291f1d141c9eb8b962",
+    "chunks/hooks.module-CG0zIPno.js": "654f1dbb8321898f9e9b2cc477fb2afaa4b3b0f920c65ebdf87c927f5b571681",
+    "codicon.ttf": "360527575395ad70f940eff1e43eb7c2ec64f4e69f89dc5861b73420d2a578f0",
+    "dashboard.css": "d50afd297babb534e6e2fd550cb33a1a6948d0113642475132f0ad939f2a2df2",
+    "dashboard.html": "873a70958519c9d715e73a434b4b62765992199c246bcfdf1cf970d493781b8c",
+    "asset-manifest.json": "4fd77dc655e2102cee9e6eaee3967869fc26fb3711943fad7cbdc7790867abed"
+  },
+  "cases": [
+    {
+      "theme": "light",
+      "expected": "需求與驗收文件-100.md",
+      "text": "需求與驗收文件-100.md",
+      "focusVisible": true,
+      "rect": {
+        "x": 18,
+        "y": 217,
+        "width": 145.953125,
+        "height": 25
+      },
+      "viewport": {
+        "width": 320,
+        "height": 450
+      },
+      "inViewport": true,
+      "hit": true,
+      "artifactCount": 200,
+      "errors": [],
+      "external": [],
+      "csp": [],
+      "ok": true
+    },
+    {
+      "theme": "dark",
+      "expected": "需求與驗收文件-100.md",
+      "text": "需求與驗收文件-100.md",
+      "focusVisible": true,
+      "rect": {
+        "x": 18,
+        "y": 217,
+        "width": 145.953125,
+        "height": 25
+      },
+      "viewport": {
+        "width": 320,
+        "height": 450
+      },
+      "inViewport": true,
+      "hit": true,
+      "artifactCount": 200,
+      "errors": [],
+      "external": [],
+      "csp": [],
+      "ok": true
+    },
+    {
+      "theme": "hc-dark",
+      "expected": "需求與驗收文件-100.md",
+      "text": "需求與驗收文件-100.md",
+      "focusVisible": true,
+      "rect": {
+        "x": 18,
+        "y": 217,
+        "width": 145.953125,
+        "height": 25
+      },
+      "viewport": {
+        "width": 320,
+        "height": 450
+      },
+      "inViewport": true,
+      "hit": true,
+      "artifactCount": 200,
+      "errors": [],
+      "external": [],
+      "csp": [],
+      "ok": true
+    },
+    {
+      "theme": "hc-light",
+      "expected": "需求與驗收文件-100.md",
+      "text": "需求與驗收文件-100.md",
+      "focusVisible": true,
+      "rect": {
+        "x": 18,
+        "y": 217,
+        "width": 145.953125,
+        "height": 25
+      },
+      "viewport": {
+        "width": 320,
+        "height": 450
+      },
+      "inViewport": true,
+      "hit": true,
+      "artifactCount": 200,
+      "errors": [],
+      "external": [],
+      "csp": [],
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "notTested": [
+    "Native Electron zoom",
+    "Real screen-reader announcements",
+    "Native QuickPick rendering",
+    "Real Codex/GitLab actions"
+  ]
+}

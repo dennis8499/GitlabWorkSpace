@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { CodexWorkflowService } from '../../src/codex/workflowService';
 import { ProjectWikiStore } from '../../src/codex/projectWiki';
 import { GitLabClient } from '../../src/api/gitLabClient';
+import { workflowHash } from '../../src/codex/projectWorkflows';
 import type { CodexTaskSpec, CodexTaskState } from '../../src/codex/protocol';
 import type { ProjectWikiPreview } from '../../src/codex/workflowProtocol';
 
@@ -40,16 +41,19 @@ async function fixture(t: test.TestContext) {
     await write?.(); const page = { ...body, slug, format: 'markdown' }; pages.set(slug, page);
     return new Response(JSON.stringify(page), { headers: { 'content-type': 'application/json' } });
   });
-  let scope = 'account', visible = true, cancelled = 0, failed = 0;
-  const service = new CodexWorkflowService({ bridge: () => ({ specification: async () => spec, list: () => [task],
-    resultAction: async (_taskId, action) => { task.result = await action(spec); } }),
+  let scope = 'account', visible = true, cancelled = 0, failed = 0, retirePublished = false, specificationReads = 0;
+  const service = new CodexWorkflowService({ bridge: () => ({ specification: async () => {
+    specificationReads++; if (task.retention === 'results-only') throw new Error('The task was retired'); return spec;
+  }, list: () => [task],
+    resultAction: async (_taskId, action) => { task.result = await action(spec); if (retirePublished && task.result.state === 'published') task.retention = 'results-only'; } }),
     wiki: () => store, client: async () => client, check: value => () => { if (value.origin?.accountKey !== scope) throw new Error('Scope changed'); },
     visible: () => visible, confirmRetry: async () => true, post: message => messages.push(message),
     publishReview: async () => { throw new Error('Unexpected MR write'); }, cancelled: () => { cancelled++; }, failed: () => { failed++; } });
   t.after(() => service.dispose());
   return { root, store, service, spec, task, calls, messages, counts: () => ({ cancelled, failed }),
     get: (hook: typeof get) => { get = hook; }, write: (hook: typeof write) => { write = hook; },
-    hide: () => { visible = false; service.suspendReads(); }, changeAccount: () => { scope = 'another'; service.suspendReads(); } };
+    hide: () => { visible = false; service.suspendReads(); }, changeAccount: () => { scope = 'another'; service.suspendReads(); },
+    retireOnPublish: () => { retirePublished = true; }, specificationReads: () => specificationReads };
 }
 
 test('Wiki view cancellation releases its read, preserves checked pages and resumes without re-reading them', async t => {
@@ -100,4 +104,72 @@ test('queued reads arriving after hiding never restart Wiki or result reads', as
   await f.service.readResult('wiki');
   assert.deepEqual(f.calls, []); assert.deepEqual(f.messages, []);
   assert.equal(f.task.result, originalResult); assert.equal(f.counts().cancelled, 2);
+});
+
+test('a visible Wiki publication posts its retained result without previewing a retired task', async t => {
+  const f = await fixture(t); await f.service.previewWiki({ taskId: 'wiki' });
+  const revision = f.messages.at(-1)!.wiki!.revision, reads = f.specificationReads(); f.retireOnPublish();
+  await f.service.publishWiki('wiki', revision);
+  assert.equal(f.task.retention, 'results-only'); assert.equal(f.specificationReads(), reads);
+  assert.equal(f.calls.filter(call => call.method === 'POST').length, 3);
+  assert.equal(f.messages.at(-1)?.wiki, undefined);
+});
+
+async function reviewFixture(t: test.TestContext) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'glw-review-service-')); t.after(() => rm(root, { recursive: true, force: true }));
+  const reports = path.join(root, 'review-reports'); await mkdir(reports); const reportPath = path.join(reports, 'review.md');
+  await writeFile(reportPath, '# Complete MR report\n');
+  const origin = { kind: 'merge-request' as const, accountKey: 'account', baseUrl: 'https://gitlab.test', projectId: 1, iid: 2,
+    projectPath: 'team/repo', webUrl: 'https://gitlab.test/team/repo', repositoryRoot: root, sourceBranch: 'feature', sourceSha: 'a'.repeat(40),
+    targetBranch: 'main', targetSha: 'b'.repeat(40), intent: 'review' as const };
+  const spec: CodexTaskSpec = { source: { kind: 'merge-request', projectId: 1, iid: 2, intent: 'review' }, title: 'Review', root, workspaceKey: root,
+    executionRoot: root, prompt: 'Private execution prompt', writableRoots: [], environmentKey: 'fixture', origin };
+  const task: CodexTaskState = { id: 'review', title: spec.title, root, status: 'completed', createdAt: '2026-11-13T00:00:00Z',
+    updatedAt: '2026-11-13T00:00:00Z', origin, result: { state: 'ready', summary: 'Complete review', reportPath } };
+  const writes: Array<{ taskId: string; body: string }> = [], states: string[] = [];
+  let current = true, publish: (body: string) => Promise<void> = async body => {
+    task.publication = { kind: 'review', state: 'confirmed', key: 'receipt', bodyHash: workflowHash(body.trim()) };
+  };
+  const client = new GitLabClient(origin.baseUrl, 'fixture-token', async input => {
+    const pathname = new URL(String(input)).pathname;
+    const response = pathname.includes('/merge_requests/') ? { sha: current ? origin.sourceSha : 'c'.repeat(40), target_branch: origin.targetBranch }
+      : { commit: { id: origin.targetSha } };
+    return new Response(JSON.stringify(response), { headers: { 'content-type': 'application/json' } });
+  });
+  const service = new CodexWorkflowService({ bridge: () => ({ specification: async () => spec, list: () => [task], resultAction: async (_id, action) => {
+    task.result = await action(spec); states.push(task.result.state); if (task.result.state === 'published') task.retention = 'results-only';
+  } }), wiki: () => { throw new Error('Unexpected Wiki access'); }, client: async () => client, check: () => () => {}, visible: () => true,
+    confirmRetry: async () => false, post: () => {}, cancelled: () => {}, failed: () => {},
+    publishReview: async (projectId, iid, body, beforeSend, taskId) => {
+      assert.equal(projectId, 1); assert.equal(iid, 2); await beforeSend(); writes.push({ taskId, body }); await publish(body);
+    } });
+  t.after(() => service.dispose());
+  return { root, service, task, writes, states, publish: (hook: typeof publish) => { publish = hook; }, changeSource: () => { current = false; } };
+}
+
+test('manual MR publication binds the task and retires only after its matching confirmed receipt', async t => {
+  const f = await reviewFixture(t); await f.service.readResult('review'); await f.service.publishReview('review', ' Full report ');
+  assert.deepEqual(f.writes, [{ taskId: 'review', body: ' Full report ' }]); assert.deepEqual(f.states, ['published']);
+  assert.equal(f.task.retention, 'results-only'); assert.equal(f.task.result?.reportPath, path.join(f.root, 'review-reports', 'review.md'));
+});
+
+test('manual MR publication preserves uncertain results for missing, pending or stale receipts', async t => {
+  for (const receipt of ['missing', 'pending', 'stale', 'other-pending']) {
+    const f = await reviewFixture(t);
+    f.publish(async body => {
+      if (receipt === 'missing') return;
+      f.task.publication = { kind: 'review', key: 'receipt', state: receipt === 'pending' ? 'pending' : 'confirmed', bodyHash: workflowHash(receipt === 'stale' ? 'old body' : body.trim()) };
+      if (receipt === 'other-pending') f.task.publications = { other: { kind: 'reply', key: 'other', state: 'pending' } };
+    });
+    await assert.rejects(f.service.publishReview('review', 'Current report'), /收據/);
+    assert.equal(f.task.result?.state, 'uncertain'); assert.equal(f.task.retention, undefined); assert.deepEqual(f.states, ['uncertain']);
+  }
+});
+
+test('manual MR publication keeps known unsent reports retryable and rejects changed sources before sending', async t => {
+  const f = await reviewFixture(t), failure = new Error('Write was not sent');
+  f.publish(async body => { f.task.publication = { kind: 'review', key: 'receipt', state: 'not-published', bodyHash: workflowHash(body.trim()) }; throw failure; });
+  await assert.rejects(f.service.publishReview('review', 'Report'), error => error === failure);
+  assert.equal(f.task.result?.state, 'ready'); assert.deepEqual(f.states, []);
+  f.changeSource(); await assert.rejects(f.service.publishReview('review', 'Report'), /版本已變更/); assert.equal(f.writes.length, 1);
 });

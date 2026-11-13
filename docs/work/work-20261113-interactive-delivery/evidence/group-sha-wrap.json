@@ -1,0 +1,93 @@
+{
+  "sourceMode": true,
+  "actualDiskSource": true,
+  "inMemoryProductTransform": false,
+  "zoomMethod": "effective viewport / scale + deviceScaleFactor; not native Electron zoom",
+  "cases": [
+    {
+      "theme": "light",
+      "measured": [
+        {
+          "selector": "codex-conversation",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch-repository-heads",
+          "overflow": 0
+        }
+      ],
+      "ok": true,
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "theme": "dark",
+      "measured": [
+        {
+          "selector": "codex-conversation",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch-repository-heads",
+          "overflow": 0
+        }
+      ],
+      "ok": true,
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "theme": "hc-dark",
+      "measured": [
+        {
+          "selector": "codex-conversation",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch-repository-heads",
+          "overflow": 0
+        }
+      ],
+      "ok": true,
+      "errors": [],
+      "external": [],
+      "csp": []
+    },
+    {
+      "theme": "hc-light",
+      "measured": [
+        {
+          "selector": "codex-conversation",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch",
+          "overflow": 0
+        },
+        {
+          "selector": "codex-launch-repository-heads",
+          "overflow": 0
+        }
+      ],
+      "ok": true,
+      "errors": [],
+      "external": [],
+      "csp": []
+    }
+  ],
+  "failures": 0
+}

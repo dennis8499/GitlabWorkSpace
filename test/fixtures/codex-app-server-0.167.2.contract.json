@@ -1,0 +1,508 @@
+{
+  "version": "0.167.2",
+  "source": "official @openai/codex Windows native CLI",
+  "generator": [
+    "app-server",
+    "generate-json-schema",
+    "--experimental"
+  ],
+  "coverage": "Selected methods and approval shapes; this is not a replacement for the separately pinned 0.166.0 generated type graph.",
+  "schemas": {
+    "ClientRequest.json": {
+      "sha256": "2d629aaaceea335d7e58ab19ce5908c8dd75ca3f3a6161a5f015bf59aadd3295",
+      "required": [],
+      "properties": []
+    },
+    "v2/ThreadDeleteParams.json": {
+      "sha256": "0d5425d94af95e3dd20971cee052b2cb8c7d0d23195db1d17fde4e59cfbdec4a",
+      "required": [
+        "threadId"
+      ],
+      "properties": [
+        "threadId"
+      ]
+    },
+    "v2/ThreadDeleteResponse.json": {
+      "sha256": "333c0c5df96d78d1bcbdb19b57ddfa941de9a02bdae1c29d13c5311c2cdf6527",
+      "required": [],
+      "properties": []
+    },
+    "CommandExecutionRequestApprovalParams.json": {
+      "sha256": "799abbf1875b3e774d6da16f277032025a03d6717cba0e67fdd89446666d0610",
+      "required": [
+        "itemId",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ],
+      "properties": [
+        "additionalPermissions",
+        "approvalId",
+        "availableDecisions",
+        "command",
+        "commandActions",
+        "cwd",
+        "environmentId",
+        "itemId",
+        "kind",
+        "networkApprovalContext",
+        "proposedExecpolicyAmendment",
+        "proposedNetworkPolicyAmendments",
+        "reason",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "CommandExecutionRequestApprovalResponse.json": {
+      "sha256": "6d0767113e22f311381809b6b236b0dde2b99b01992879c26bf7b1ea0e003cb7",
+      "required": [
+        "decision"
+      ],
+      "properties": [
+        "decision"
+      ]
+    },
+    "FileChangeRequestApprovalResponse.json": {
+      "sha256": "b95b03ee6be674e25cee2e863cc135a28620e1070addd2f34685aadee27cde08",
+      "required": [
+        "decision"
+      ],
+      "properties": [
+        "decision"
+      ]
+    },
+    "PermissionsRequestApprovalResponse.json": {
+      "sha256": "23f3f24e9dbf35db3e0b85703f0d934da5a1cff3cbb611fba8bcd41f3b4a04b0",
+      "required": [
+        "permissions"
+      ],
+      "properties": [
+        "permissions",
+        "scope",
+        "strictAutoReview"
+      ]
+    },
+    "v2/ThreadForkParams.json": {
+      "sha256": "9c85b0347ef12c9a7eef7f08b3710d859569a16414bdf0f18254b0c42560a47e",
+      "required": [
+        "threadId"
+      ],
+      "properties": [
+        "approvalPolicy",
+        "approvalsReviewer",
+        "attachToSource",
+        "baseInstructions",
+        "beforeTurnId",
+        "config",
+        "cwd",
+        "deferGoalContinuation",
+        "developerInstructions",
+        "ephemeral",
+        "excludeTurns",
+        "experimentalDisablePredictionMcp",
+        "experimentalPredictionMode",
+        "lastTurnId",
+        "model",
+        "modelProvider",
+        "path",
+        "permissions",
+        "runtimeWorkspaceRoots",
+        "sandbox",
+        "serviceTier",
+        "threadId",
+        "threadSource"
+      ]
+    },
+    "v2/ThreadGoalSetParams.json": {
+      "sha256": "36c1f1935e1a352865512433aae44c9fffde4a7fa3db127449da088a8a212287",
+      "required": [
+        "threadId"
+      ],
+      "properties": [
+        "objective",
+        "origin",
+        "status",
+        "threadId",
+        "tokenBudget"
+      ]
+    },
+    "v2/ThreadGoalGetParams.json": {
+      "sha256": "1a5de89b3c5c49528af404a65411a73ef05dc7c9c49c3f00c90d9926dfe34137",
+      "required": [
+        "threadId"
+      ],
+      "properties": [
+        "threadId"
+      ]
+    },
+    "v2/ModelListParams.json": {
+      "sha256": "de29a536c00a5b8f46f34dba417dabd93365305571a8ed200e33bea85db68b5a",
+      "required": [],
+      "properties": [
+        "cursor",
+        "includeHidden",
+        "limit"
+      ]
+    },
+    "v2/SkillsListParams.json": {
+      "sha256": "1d245374e64c5acc9739dfc68a4fe5114c6c9147af04c480886f1846d2ca6239",
+      "required": [],
+      "properties": [
+        "cwds",
+        "forceReload"
+      ]
+    }
+  },
+  "methods": {
+    "thread/delete": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/delete"
+          ],
+          "title": "Thread/deleteRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadDeleteParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/deleteRequest",
+      "type": "object"
+    },
+    "thread/fork": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/fork"
+          ],
+          "title": "Thread/forkRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadForkParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/forkRequest",
+      "type": "object"
+    },
+    "thread/goal/set": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/goal/set"
+          ],
+          "title": "Thread/goal/setRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadGoalSetParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/goal/setRequest",
+      "type": "object"
+    },
+    "thread/goal/get": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/goal/get"
+          ],
+          "title": "Thread/goal/getRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadGoalGetParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/goal/getRequest",
+      "type": "object"
+    },
+    "model/list": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "model/list"
+          ],
+          "title": "Model/listRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ModelListParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Model/listRequest",
+      "type": "object"
+    },
+    "account/rateLimits/read": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "account/rateLimits/read"
+          ],
+          "title": "Account/rateLimits/readRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/GetAccountRateLimitsParams"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "method"
+      ],
+      "title": "Account/rateLimits/readRequest",
+      "type": "object"
+    },
+    "skills/list": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "skills/list"
+          ],
+          "title": "Skills/listRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/SkillsListParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Skills/listRequest",
+      "type": "object"
+    },
+    "skills/extraRoots/set": {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "skills/extraRoots/set"
+          ],
+          "title": "Skills/extraRoots/setRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/SkillsExtraRootsSetParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Skills/extraRoots/setRequest",
+      "type": "object"
+    }
+  },
+  "deleteParams": {
+    "properties": {
+      "threadId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "threadId"
+    ],
+    "title": "ThreadDeleteParams",
+    "type": "object"
+  },
+  "availableDecisions": {
+    "items": {
+      "$ref": "#/definitions/CommandExecutionApprovalDecision"
+    },
+    "type": [
+      "array",
+      "null"
+    ]
+  },
+  "commandApprovalDecision": {
+    "oneOf": [
+      {
+        "enum": [
+          "accept"
+        ],
+        "type": "string"
+      },
+      {
+        "enum": [
+          "acceptForSession"
+        ],
+        "type": "string"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "acceptWithExecpolicyAmendment": {
+            "properties": {
+              "execpolicy_amendment": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "execpolicy_amendment"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "acceptWithExecpolicyAmendment"
+        ],
+        "title": "AcceptWithExecpolicyAmendmentCommandExecutionApprovalDecision",
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "applyNetworkPolicyAmendment": {
+            "properties": {
+              "network_policy_amendment": {
+                "$ref": "#/definitions/NetworkPolicyAmendment"
+              }
+            },
+            "required": [
+              "network_policy_amendment"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "applyNetworkPolicyAmendment"
+        ],
+        "title": "ApplyNetworkPolicyAmendmentCommandExecutionApprovalDecision",
+        "type": "object"
+      },
+      {
+        "enum": [
+          "decline"
+        ],
+        "type": "string"
+      },
+      {
+        "enum": [
+          "cancel"
+        ],
+        "type": "string"
+      }
+    ]
+  },
+  "fileApprovalDecision": {
+    "oneOf": [
+      {
+        "enum": [
+          "accept"
+        ],
+        "type": "string"
+      },
+      {
+        "enum": [
+          "acceptForSession"
+        ],
+        "type": "string"
+      },
+      {
+        "enum": [
+          "decline"
+        ],
+        "type": "string"
+      },
+      {
+        "enum": [
+          "cancel"
+        ],
+        "type": "string"
+      }
+    ]
+  },
+  "permissionGrantScope": {
+    "enum": [
+      "turn",
+      "session"
+    ],
+    "type": "string"
+  },
+  "networkPolicyAmendment": {
+    "properties": {
+      "action": {
+        "$ref": "#/definitions/NetworkPolicyRuleAction"
+      },
+      "host": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "action",
+      "host"
+    ],
+    "type": "object"
+  },
+  "networkPolicyRuleAction": {
+    "enum": [
+      "allow",
+      "deny"
+    ],
+    "type": "string"
+  }
+}

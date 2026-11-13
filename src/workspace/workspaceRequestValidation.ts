@@ -113,17 +113,23 @@ const json: Check = value => {
   };
   return record(value) && visit(value, 0);
 };
+const testCommands: Check = value => array(item => string(4096, 1)(item) && !/[\r\n]/.test(String(item)), 20)(value);
+const taskSourceCommon: Shape = { requirement: optional(text), additionalSkillIds: optional(array(identity, 100)), testCommands: optional(testCommands),
+  automaticDelivery: optional(boolean), oneClick: optional(boolean) };
+const sourceObject = (shape: Shape): Check => object({ ...taskSourceCommon, ...shape });
 const taskSource: Check = value => record(value) && (
-  value.kind === 'skill' ? object({ kind: one('skill'), featureId: identity, inputs: dictionary(text, 100), revision: key })(value)
-    : value.kind === 'bmad' ? object({ kind: one('bmad'), request: object(bmad) })(value)
-      : value.kind === 'issue' ? object({ kind: one('issue'), projectId: id, issueIid: id, isolated: optional(boolean) })(value)
-        : value.kind === 'project-wiki' ? object({ kind: one('project-wiki'), projectId: id })(value)
-          : value.kind === 'merge-request' ? object({ kind: one('merge-request'), projectId: id, iid: id,
+  value.kind === 'skill' ? sourceObject({ kind: one('skill'), featureId: identity, inputs: dictionary(text, 100), revision: key })(value)
+    : value.kind === 'bmad' ? sourceObject({ kind: one('bmad'), request: object(bmad) })(value)
+      : value.kind === 'group-analysis' ? sourceObject({ kind: one('group-analysis'), repositoryIds: optional(array(identity, 1000)) })(value)
+        : value.kind === 'issue' ? sourceObject({ kind: one('issue'), projectId: id, issueIid: id, isolated: optional(boolean) })(value)
+        : value.kind === 'project-wiki' ? sourceObject({ kind: one('project-wiki'), projectId: id })(value)
+          : value.kind === 'merge-request' ? sourceObject({ kind: one('merge-request'), projectId: id, iid: id,
             intent: optional(one('review', 'fix-comments')), discussionIds: optional(array(identity, 30)) })(value)
-            : value.kind === 'review' && object({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
+            : value.kind === 'review' && sourceObject({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
 
 const launchPatch = object({ requirement: optional(text), repositoryId: optional(identity), model: optional(string(200)),
-  effort: optional(string(40)), isolated: optional(boolean), discussionIds: optional(array(identity, 30)), acknowledgedSource: optional(identity) });
+  effort: optional(string(40)), isolated: optional(boolean), discussionIds: optional(array(identity, 30)), acknowledgedSource: optional(identity),
+  repositoryIds: optional(array(identity, 1000)), additionalSkillIds: optional(array(identity, 100)), testCommands: optional(testCommands), automaticDelivery: optional(boolean) });
 const uiDraftUpdate: Check = value => {
   if (!object({ key: string(9000, 1), revision: integer, value: () => true })(value)) return false;
   try { const item = value as { key: string; value: unknown }; sanitizeCodexUiDraftValue(item.key, item.value); return JSON.stringify(value).length <= 200_000; } catch { return false; }
@@ -147,7 +153,9 @@ export const workspaceRequestSchemas = {
   publishProjectWiki: { taskId: identity, revision: identity }, publishCodexReview: { taskId: identity, body: string(50000, 1) },
   sendCodexMessage: { taskId: identity, text }, cancelCodexTask: { taskId: identity }, resumeCodexTask: { taskId: identity },
   pauseCodexTask: { taskId: identity }, deleteCodexTask: { taskId: identity }, setCodexAutoAccept: { taskId: identity, enabled: boolean },
-  answerCodex: { taskId: identity, interactionId: identity, answer: object({ decision: one('accept', 'decline', 'cancel'), answers: optional(dictionary(string(8000), 100)), content: optional(json) }) },
+  answerCodex: { taskId: identity, interactionId: identity, answer: object({ decision: one('accept', 'acceptForSession', 'decline', 'cancel'), scope: optional(one('turn', 'session')),
+    execpolicyAmendment: optional(array(string(4096, 1), 100)), networkPolicyAmendment: optional(object({ action: one('allow', 'deny'), host: string(4096, 1) })),
+    answers: optional(dictionary(string(8000), 100)), content: optional(json) }) },
   checkCodex: {}, configureCodex: { action: one('login', 'sandbox', 'executable') },
   ready: { projectSource: optional(one('gitlab', 'local')), developerView: optional(one('list', 'graph')), mergeRequestFilter: optional(one('all', 'reviewer', 'assigned')) },
   reconcileOperations: { pendingIds: optional(array(identity, 200)) }, confirmOperationResult: { targetOperationId: identity, recovery: optional(recovery) },

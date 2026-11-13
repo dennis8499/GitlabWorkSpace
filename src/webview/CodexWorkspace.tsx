@@ -21,10 +21,11 @@ const emptyInteractions: CodexInteraction[] = [];
 
 export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'workspace' }: { controller: Controller; active: boolean; onNavigate(mode: WorkspaceMode): void; layout?: 'workspace' | 'classic' }) {
   const task = c.tasks.find(value => value.id === c.ui.selectedTaskId), selected = task?.id;
-  const view = selected ? c.ui.views?.[selected] ?? (task?.result && !codexTaskActive(task.status) && task.status !== 'queued' ? 'results' : 'execution') : 'execution';
-  const classic = layout === 'classic', executionVisible = classic || view === 'execution', resultsVisible = classic || view === 'results';
-  const entries = selected ? c.items[selected] ?? emptyEntries : emptyEntries, waiting = selected ? c.interactions[selected] ?? emptyInteractions : emptyInteractions;
-  const previousQuestions = Object.values(c.ui.interactionDrafts ?? {}).filter(item => item.taskId === selected && !waiting.some(request => request.id === item.interactionId) && Object.values(item.values).some(Boolean));
+  const resultsOnly = task?.retention === 'results-only';
+  const view = resultsOnly ? 'results' : selected ? c.ui.views?.[selected] ?? (task?.result && !codexTaskActive(task.status) && task.status !== 'queued' ? 'results' : 'execution') : 'execution';
+  const classic = layout === 'classic', executionVisible = !resultsOnly && (classic || view === 'execution'), resultsVisible = resultsOnly || classic || view === 'results';
+  const entries = selected && !resultsOnly ? c.items[selected] ?? emptyEntries : emptyEntries, waiting = selected && !resultsOnly ? c.interactions[selected] ?? emptyInteractions : emptyInteractions;
+  const previousQuestions = resultsOnly ? [] : Object.values(c.ui.interactionDrafts ?? {}).filter(item => item.taskId === selected && !waiting.some(request => request.id === item.interactionId) && Object.values(item.values).some(Boolean));
   const storageState = c.draftStorage.error ? 'error' : c.draftStorage.loading ? 'loading' : c.draftStorage.saving ? 'saving' : c.draftStorage.conflicts.length ? 'conflict' : 'saved';
   const output = useRef<HTMLDivElement>(null), shown = useRef<string>();
   // Capture the saved anchor once per selection, rather than restoring it on
@@ -51,17 +52,17 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
     && (filter === 'all' || (filter === 'active' ? codexTaskActive(task.status) || task.status === 'queued' : task.status === filter))
     && (!search.trim() || (task.title + ' ' + task.root).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())))
     .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.createdAt.localeCompare(a.createdAt)), [c.tasks, search, filter, repo, archived]);
-  const historyReady = !!task?.threadId && ((!codexTaskActive(task.status) && task.status !== 'queued') || !!task.controls?.external && !!task.turnId);
+  const historyReady = !resultsOnly && !!task?.threadId && ((!codexTaskActive(task.status) && task.status !== 'queued') || !!task.controls?.external && !!task.turnId);
   useEffect(() => { if (active && task && historyReady) post({ type: 'codexHistory', taskId: task.id }); }, [active, selected, task?.threadId, historyReady]);
   useEffect(() => {
-    if (!task) return;
+    if (!task || resultsOnly) return;
     if (codexTaskActive(task.status) || task.status === 'queued') { automaticRecovery.current.delete(task.id); return; }
     if (!active || c.launchVisible || task.controls?.external || !['interrupted', 'uncertain'].includes(task.status)) return;
     const revision = String(task.revision ?? task.updatedAt), previous = automaticRecovery.current.get(task.id);
     if (previous && (previous.revision === revision || task.recovery && Date.parse(task.recovery.checkedAt) >= previous.startedAt)) return;
     automaticRecovery.current.set(task.id, { revision, startedAt: Date.now() });
     post({ type: 'codexCommand', command: { action: 'reconcile', taskId: task.id } });
-  }, [active, selected, task?.status, c.launchVisible]);
+  }, [active, selected, task?.status, task?.retention, c.launchVisible]);
   useLayoutEffect(() => {
     if (!active || !executionVisible || c.launchVisible || !task || !output.current) { shown.current = undefined; return; }
     const node = output.current;
@@ -98,13 +99,13 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
   };
   const draft = selected ? c.ui.drafts[selected]?.text ?? '' : '';
   const changeView = (next: 'execution' | 'results') => { if (selected) c.updateUi(current => ({ ...current, views: { ...current.views, [selected]: next } })); };
-  const projectedPrimary = task?.primaryAction ?? (task ? waiting.length ? { kind: 'answer' as const, label: '回答待處理要求', enabled: !task.controls?.external }
+  const projectedPrimary = resultsOnly ? { kind: 'results' as const, label: '檢閱成果', enabled: true } : task?.primaryAction ?? (task ? waiting.length ? { kind: 'answer' as const, label: '回答待處理要求', enabled: !task.controls?.external }
     : task.status === 'uncertain' ? { kind: 'reconcile' as const, label: '核對任務狀態', enabled: !task.controls?.external }
     : task.result && !codexTaskActive(task.status) && task.status !== 'queued' ? { kind: 'results' as const, label: '檢閱成果', enabled: true }
     : codexTaskActive(task.status) || task.status === 'queued' ? { kind: 'pause' as const, label: task.status === 'pausing' ? '暫停中…' : '暫停', enabled: !!task.controls?.canPause }
     : { kind: 'resume' as const, label: task.status === 'completed' ? '接續' : '恢復', enabled: !!task.controls?.canResume } : undefined);
   const primary = projectedPrimary?.kind === 'results' && resultsVisible
-    ? task?.origin?.kind === 'issue' && task.result?.state === 'ready' && !task.result.handoffPath
+    ? !resultsOnly && task?.origin?.kind === 'issue' && task.result?.state === 'ready' && !task.result.handoffPath
       ? { kind: 'handoff' as const, label: '準備交接', enabled: !!task.controls?.canResume, reason: undefined } : undefined
     : projectedPrimary;
   const primaryEnabled = !!primary?.enabled && (!task?.controls?.external || primary.kind === 'results') &&
@@ -118,13 +119,14 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
     else post({ type: 'codexCommand', command: { action: primary.kind, taskId: task.id } });
   };
   const phaseLabel = task?.progress?.phase ? ({ preflight: '檢查執行環境', process: '啟動 Codex', readiness: '確認登入與模型', workspace: '準備工作目錄', conversation: '接續對話', executing: '執行工作', verifying: '核對成果', cleanup: '完成收尾' })[task.progress.phase] : undefined;
-  const canReprepare = !!task && canReprepareCodexTask(task);
+  const canReprepare = !!task && !resultsOnly && canReprepareCodexTask(task);
   const currentStage = task && ['queued', 'starting'].includes(task.status) ? 0 : task?.result && !codexTaskActive(task.status)
     ? task.result.state === 'published' || task.publication?.state === 'confirmed' ? 3 : 2 : 1;
   return <section class="codex-workspace codex-panel" data-layout={layout} hidden={!active} aria-label="Codex 任務管理">
     <nav class="codex-tasks" aria-label="Codex 任務清單"><header><h1>Codex</h1><span>{c.tasks.length} 項任務</span></header>
       <button type="button" class="primary" onClick={() => post({ type: 'codexCommand', command: { action: 'create' } })}>建立 Codex 任務</button>
       <button type="button" onClick={() => post({ type: 'pickCodexLaunch' })}>繼續準備任務…</button>
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'manage-local-connections' } })}>管理本機連線</button>
       <label class="codex-task-filter">搜尋任務<input type="search" value={search} onInput={event => { setSearch(event.currentTarget.value); setTaskLimit(50); }} /></label>
       <label class="codex-task-filter">狀態<select value={filter} onChange={event => { setFilter(event.currentTarget.value); setTaskLimit(50); }}>
         <option value="all">全部狀態</option><option value="active">執行／排隊中</option><option value="waiting">等待回覆</option><option value="paused">已暫停</option><option value="completed">本輪完成</option><option value="uncertain">結果待核對</option><option value="failed">失敗</option></select></label>
@@ -157,7 +159,8 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
       </section>
       <div class="codex-mobile-tasks"><label>目前任務<select value={c.launchVisible ? '__launch' : selected ?? ''} onChange={event => event.currentTarget.value === '__launch' ? c.showLaunch() : c.select(event.currentTarget.value)}>
         {!c.tasks.length && !c.launch && <option value="">尚無任務</option>}{c.launch && <option value="__launch">準備新任務</option>}{c.tasks.filter(value => !value.archived || value.id === selected).map(value => <option key={value.id} value={value.id}>{value.title} · {codexStatusLabels[value.status]}</option>)}
-      </select></label><button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'create' } })}>新增</button><button type="button" onClick={() => post({ type: 'pickCodexLaunch' })}>草稿…</button></div>
+      </select></label><button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'create' } })}>新增</button><button type="button" onClick={() => post({ type: 'pickCodexLaunch' })}>草稿…</button>
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'manage-local-connections' } })}>管理本機連線</button></div>
       {c.launch && <div class="codex-launch-container" hidden={!c.launchVisible}><CodexLaunchPanel key={c.launch.id} draft={c.launch} post={post} localDraft={c.ui.launchDrafts?.[c.launch.id]} localDraftRevision={c.ui.launchDraftBases?.[c.launch.id]}
         onDraftChange={(patch, baseRevision) => { const id = c.launch!.id; c.updateUi(current => { const launchDrafts = { ...current.launchDrafts }, launchDraftBases = { ...current.launchDraftBases };
           if (patch) { launchDrafts[id] = patch; if (Number.isSafeInteger(baseRevision) && baseRevision! >= 0) launchDraftBases[id] = baseRevision!; else delete launchDraftBases[id]; }
@@ -168,13 +171,20 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
         <p class="codex-root" title={task.origin?.repositoryRoot ?? task.root}>{task.origin?.branch ?? task.origin?.sourceBranch ?? task.origin?.repositoryRoot ?? task.root}</p></div><span role="status">{['starting', 'running', 'pausing'].includes(task.status) ? phaseLabel ?? codexStatusLabels[task.status] : codexStatusLabels[task.status]}</span></header>
       <ol class="codex-journey" hidden={classic} aria-label="工作階段">{['準備', '執行', '成果', '交接／發布'].map((label, index) => <li key={label} aria-current={index === currentStage ? 'step' : undefined} class={index < currentStage ? 'complete' : ''}>{label}</li>)}</ol>
       {task.progress?.waitReason && <p class="codex-wait-reason" role="status">{codexWaitLabels[task.progress.waitReason]}{task.queuePosition !== undefined ? ` · 排隊位置 ${task.queuePosition}` : ''}</p>}
+      {task.delivery && <p role="status" aria-live="polite">交付：{({ pending: '等待交付', running: '正在回寫 GitLab', published: '已確認交付', 'needs-attention': '需要處理', cancelled: '已停止自動交付' })[task.delivery.state]}{task.delivery.error ? ` · ${task.delivery.error}` : ''}</p>}
+      {task.cleanupState && <p role="status" aria-live="polite">清理：{({ pending: '等待清理', running: '保存成果並清理中', complete: '已清理，只保留成果', 'needs-attention': '需要處理，可重試清理' })[task.cleanupState]}</p>}
       <div class="codex-controls" role="group" aria-label="任務控制">
         {primary && <button class="primary" type="button" disabled={!primaryEnabled} title={primary.reason} aria-busy={task.status === 'pausing'} onClick={runPrimary}>{primary.label}</button>}
-        {primary?.kind !== 'pause' && task.controls?.canPause && <button type="button" class="quiet" onClick={() => post({ type: 'pauseCodexTask', taskId: task.id })}>暫停</button>}
+        {!resultsOnly && primary?.kind !== 'pause' && task.controls?.canPause && <button type="button" class="quiet" onClick={() => post({ type: 'pauseCodexTask', taskId: task.id })}>暫停</button>}
+        {!resultsOnly && <button type="button" class="quiet" disabled={!!task.controls?.external || task.cleanupState === 'running'}
+          onClick={() => post({ type: 'codexCommand', command: { action: 'manual-handoff', taskId: task.id } })}>停止並轉交人工處理</button>}
+        {!resultsOnly && task.result && !codexTaskActive(task.status) && task.status !== 'queued' && task.delivery && ['pending', 'needs-attention'].includes(task.delivery.state) &&
+          <button type="button" class="quiet" disabled={!!task.controls?.external || task.cleanupState === 'running'}
+            onClick={() => post({ type: 'codexCommand', command: { action: 'retry-delivery', taskId: task.id } })}>核對並重試交付</button>}
         {canReprepare && <button type="button" class="quiet" title="以原來源與需求建立新的準備草稿" onClick={() => post({ type: 'codexCommand', command: { action: 'reprepare', taskId: task.id } })}>重新準備</button>}
-        <label class="codex-auto-accept"><input type="checkbox" checked={task.controls?.autoAccept ?? false} disabled={!task.controls?.canAutoAccept}
-          onChange={event => post({ type: 'setCodexAutoAccept', taskId: task.id, enabled: event.currentTarget.checked })} />Auto-Accept: {task.controls?.external ? '由原視窗管理' : task.controls?.autoAccept ? 'ON' : 'OFF'}</label>
-        {task.origin && <button type="button" class="quiet" onClick={() => post({ type: 'openCodexOrigin', taskId: task.id })}>返回{task.origin.kind === 'issue' ? ' Issue' : task.origin.kind === 'merge-request' ? ' MR' : '專案'}</button>}
+        {!resultsOnly && <label class="codex-auto-accept"><input type="checkbox" checked={task.controls?.autoAccept ?? false} disabled={!task.controls?.canAutoAccept}
+          onChange={event => post({ type: 'setCodexAutoAccept', taskId: task.id, enabled: event.currentTarget.checked })} />Auto-Accept: {task.controls?.external ? '由原視窗管理' : task.controls?.autoAccept ? 'ON' : 'OFF'}</label>}
+        {task.origin && <button type="button" class="quiet" onClick={() => post(resultsOnly ? { type: 'openExternal', url: task.origin!.webUrl } : { type: 'openCodexOrigin', taskId: task.id })}>返回{task.origin.kind === 'issue' ? ' Issue' : task.origin.kind === 'merge-request' ? ' MR' : '專案'}</button>}
         <button ref={detailsToggle} type="button" class="quiet codex-details-toggle" aria-expanded={detailsOpen} aria-controls="codex-details-drawer" onClick={() => setDetailsOpen(value => !value)}>任務詳情</button>
       </div>
       {task.blockers?.length ? <div class="codex-blockers" role="status">{task.blockers.map((blocker, index) => <p key={`${blocker.kind}-${index}`}>{blocker.message}</p>)}</div> : null}
@@ -182,14 +192,15 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
       {(task.error || task.controls?.autoAcceptError) && <p class="warning" role="status">{task.error ?? task.controls?.autoAcceptError}</p>}
       <div class="codex-details-drawer" id="codex-details-drawer" hidden={!detailsOpen} role="region" aria-label="任務詳情" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setDetailsOpen(false); detailsToggle.current?.focus(); } }}>
       <div class="codex-drawer-heading"><h3>任務詳情</h3><button type="button" class="quiet" onClick={() => { setDetailsOpen(false); detailsToggle.current?.focus(); }}>關閉詳情</button></div>
-      <label class="codex-auto-accept codex-auto-accept-details"><input type="checkbox" checked={task.controls?.autoAccept ?? false} disabled={!task.controls?.canAutoAccept}
+      <label class="codex-auto-accept codex-auto-accept-details" hidden={resultsOnly}><input type="checkbox" checked={task.controls?.autoAccept ?? false} disabled={!task.controls?.canAutoAccept}
         onChange={event => post({ type: 'setCodexAutoAccept', taskId: task.id, enabled: event.currentTarget.checked })} />Auto-Accept: {task.controls?.external ? '由原視窗管理' : task.controls?.autoAccept ? 'ON' : 'OFF'}</label>
-      <div class="codex-extra-controls"><button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'manage', taskId: task.id } })}>更多操作</button>
-        <button type="button" disabled={codexTaskActive(task.status) || task.status === 'queued' || !!task.controls?.external} onClick={() => post({ type: 'codexCommand', command: { action: 'reconcile', taskId: task.id } })}>核對任務狀態</button>
-        <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'open-diff', taskId: task.id } })}>檢視差異</button>
-        <button type="button" disabled={!task.threadId || !historyReady && !task.turnId} onClick={() => post({ type: 'codexHistory', taskId: task.id, force: true })}>讀取對話</button>
-        <button type="button" disabled={!task.controls?.canDelete} title={task.controls?.canDelete ? '一併刪除本對話的紀錄、草稿與隔離 worktree，包含未提交的修改；保留原 Repo' : '請先暫停並確認清理完成'} onClick={() => post({ type: 'deleteCodexTask', taskId: task.id })}>刪除任務與隔離檔案</button>
-        {primary?.kind !== 'resume' && task.controls?.canResume && <button type="button" onClick={() => post({ type: 'resumeCodexTask', taskId: task.id })}>接續</button>}</div>
+      <div class="codex-extra-controls"><button type="button" hidden={resultsOnly} onClick={() => post({ type: 'codexCommand', command: { action: 'manage', taskId: task.id } })}>更多操作</button>
+        <button type="button" hidden={resultsOnly} disabled={resultsOnly || codexTaskActive(task.status) || task.status === 'queued' || !!task.controls?.external} onClick={() => post({ type: 'codexCommand', command: { action: 'reconcile', taskId: task.id } })}>核對任務狀態</button>
+        <button type="button" hidden={resultsOnly} disabled={resultsOnly} onClick={() => post({ type: 'codexCommand', command: { action: 'open-diff', taskId: task.id } })}>檢視差異</button>
+        <button type="button" hidden={resultsOnly} disabled={resultsOnly || !task.threadId || !historyReady && !task.turnId} onClick={() => post({ type: 'codexHistory', taskId: task.id, force: true })}>讀取對話</button>
+        {task.cleanupState !== 'complete' && <button type="button" disabled={!!task.controls?.external || task.cleanupState === 'running'} title="先保存可還原成果，再停止連線並清除任務暫存"
+          onClick={() => post({ type: 'codexCommand', command: { action: 'stop-cleanup', taskId: task.id } })}>{task.cleanupState === 'needs-attention' ? '重試成果清理' : '刪除連線並保留成果'}</button>}
+        {!resultsOnly && primary?.kind !== 'resume' && task.controls?.canResume && <button type="button" onClick={() => post({ type: 'resumeCodexTask', taskId: task.id })}>接續</button>}</div>
       <CodexTaskDetails task={task} post={post} />
       {c.environment.state === 'ready' && <p class="subtle">CLI {c.environment.version ?? ''} · {c.environment.compatibility === 'basic' ? '基礎協定相容，進階能力依 CLI 支援啟用。' : '已通過協定驗證。'}</p>}
       <p class="subtle codex-root">Repo：{task.origin?.repositoryRoot ?? task.root}</p>
@@ -198,16 +209,16 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
         <p>{task.modelRouting.reason}</p>{task.modelRouting.history.map((entry, index) => <p key={index}>{entry.effort}：{entry.reason}</p>)}
         {task.modelRouting.reportPath && <p>報告：{task.modelRouting.reportPath}</p>}</details>}
       </div>
-      <div class="codex-content-tabs" hidden={classic} role="tablist" aria-label="任務內容" onKeyDown={event => {
+      <div class="codex-content-tabs" hidden={classic || resultsOnly} role="tablist" aria-label="任務內容" onKeyDown={event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault(); const next = event.key === 'Home' ? 'execution' : event.key === 'End' ? 'results' : view === 'execution' ? 'results' : 'execution';
         changeView(next); event.currentTarget.querySelector<HTMLButtonElement>(`#codex-${next}-tab`)?.focus();
       }}><button type="button" id="codex-execution-tab" role="tab" tabIndex={view === 'execution' ? 0 : -1} aria-selected={view === 'execution'} aria-controls="codex-execution-panel" onClick={() => changeView('execution')}>執行紀錄</button>
         <button type="button" id="codex-results-tab" role="tab" tabIndex={view === 'results' ? 0 : -1} aria-selected={view === 'results'} aria-controls="codex-results-panel" onClick={() => changeView('results')}>成果{task.result ? ' · ' + ({ ready: '可交接', draft: '待檢閱', published: '已發布', partial: '部分完成', uncertain: '待核對', 'needs-work': '需接續' })[task.result.state] : ''}</button></div>
       <div class="codex-results-panel" id="codex-results-panel" role={classic ? 'region' : 'tabpanel'} aria-label={classic ? '成果' : undefined} aria-labelledby={classic ? undefined : 'codex-results-tab'} hidden={!resultsVisible}>
-        {task.controls?.canResume && task.status !== 'uncertain' && <div class="codex-result-actions"><button type="button" class="quiet" onClick={() => post({ type: 'codexCommand', command: { action: 'metadata', taskId: task.id, archived: !task.archived } })}>{task.archived ? '取消封存' : '封存任務'}</button><span class="subtle">封存會保留對話與工作成果。</span></div>}
+        {!resultsOnly && task.controls?.canResume && task.status !== 'uncertain' && <div class="codex-result-actions"><button type="button" class="quiet" onClick={() => post({ type: 'codexCommand', command: { action: 'metadata', taskId: task.id, archived: !task.archived } })}>{task.archived ? '取消封存' : '封存任務'}</button><span class="subtle">封存會保留對話與工作成果。</span></div>}
         <CodexWorkflowResult task={task} payload={c.results[task.id]} post={post} active={active && resultsVisible} actions={c.actions} ui={c.ui} onUiChange={c.updateUi} />
-        {!task.result && <div class="codex-results-empty"><h3>{codexTaskActive(task.status) || task.status === 'queued' ? '成果準備中' : '檢閱本輪工作'}</h3><p>{codexTaskActive(task.status) || task.status === 'queued' ? '完成後可在這裡核對變更、測試與下一步。' : '請從執行紀錄查看回覆，或檢視實際檔案差異。'}</p>
+        {!task.result && !task.savedResult && <div class="codex-results-empty"><h3>{codexTaskActive(task.status) || task.status === 'queued' ? '成果準備中' : '檢閱本輪工作'}</h3><p>{codexTaskActive(task.status) || task.status === 'queued' ? '完成後可在這裡核對變更、測試與下一步。' : '請從執行紀錄查看回覆，或檢視實際檔案差異。'}</p>
           <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'open-diff', taskId: task.id } })}>檢視差異</button></div>}
       </div>
       <div class="codex-execution-panel" id="codex-execution-panel" role={classic ? 'region' : 'tabpanel'} aria-label={classic ? '執行紀錄' : undefined} aria-labelledby={classic ? undefined : 'codex-execution-tab'} hidden={!executionVisible}>
@@ -247,7 +258,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
         {previousQuestions.map(item => <article key={item.interactionId}><pre tabIndex={0}>{Object.values(item.values).filter(Boolean).join('\n\n')}</pre>
           <button type="button" onClick={() => post({ type: 'copy', text: Object.values(item.values).filter(Boolean).join('\n\n') })}>複製問題草稿</button></article>)}
       </details>}
-      <form class="codex-message" onSubmit={event => { event.preventDefault(); c.submit(); }}>
+      {!resultsOnly && <><form class="codex-message" onSubmit={event => { event.preventDefault(); c.submit(); }}>
         <label for="codex-follow-up">補充需求或接續對話</label><textarea id="codex-follow-up" rows={2} maxLength={32000} value={draft}
           onInput={event => c.edit(task.id, event.currentTarget.value)} />
         <button class="primary" type="submit" disabled={!draft.trim() || !!task.controls?.external || ['pausing', 'uncertain'].includes(task.status) || !!task.uncertainMessages || !codexTaskActive(task.status) && task.status !== 'queued' && !task.controls?.canResume}>傳送</button>
@@ -258,7 +269,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
             <button type="button" class="quiet small" onClick={() => post({ type: 'copy', text: message.text })}>複製完整內容</button></div><pre>{message.text}</pre></article>)}
           {task.messageQueue.some(message => message.state === 'uncertain') && <p class="subtle">先核對對話與任務結果；確認未送出後，再決定是否傳送，避免重複執行。</p>}
         </div></details>}
-      </form><p class="codex-footnote subtle">{waiting.length ? '補充需求會保留在佇列；完成上方待回覆要求後接續。' : ['queued', 'starting'].includes(task.status) ? '補充需求會保存並排隊，開始執行後接續傳送。' : task.status === 'running' ? '執行中傳送可補充要求；暫停會保留已完成工作。' : '傳送補充需求，會沿原對話接續執行。'}</p>
+      </form><p class="codex-footnote subtle">{waiting.length ? '補充需求會保留在佇列；完成上方待回覆要求後接續。' : ['queued', 'starting'].includes(task.status) ? '補充需求會保存並排隊，開始執行後接續傳送。' : task.status === 'running' ? '執行中傳送可補充要求；暫停會保留已完成工作。' : '傳送補充需求，會沿原對話接續執行。'}</p></>}
     </> : <div class="codex-empty"><h2>從 GitLab 工作接續到成果</h2><p>開啟 Issue 進行開發、從 MR 啟動審查，或從專案建立 Wiki。任務會保留來源、執行進度及成果。</p>
       <div class="button-row"><button type="button" onClick={() => onNavigate('developer')}>前往我的工作</button><button type="button" onClick={() => onNavigate('clone')}>前往專案</button><button type="button" onClick={() => onNavigate('sa')}>Skills 與審查</button></div>
       <CodexSettings post={post} /></div>)}</section>
