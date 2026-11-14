@@ -18,7 +18,10 @@ const git = (root: string, ...args: string[]) => execFileSync('git', ['-C', root
 async function fixture(t: test.TestContext, longPaths = false) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'codex-managed-repository-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const local = path.join(directory, 'source'), storage = path.join(directory, longPaths ? 'storage-' + 's'.repeat(40) : 'storage'); await mkdir(local); await mkdir(storage);
+  const local = path.join(directory, 'source');
+  // Cross MAX_PATH in Git files while keeping the process cwd below the Windows limit.
+  const storageName = longPaths ? 'storage-' + 's'.repeat(Math.max(0, 120 - path.join(directory, 'storage-').length)) : 'storage';
+  const storage = path.join(directory, storageName); await mkdir(local); await mkdir(storage);
   if (longPaths) {
     const inheritedConfig = path.join(directory, 'inherited.gitconfig'), previous = process.env.GIT_CONFIG_GLOBAL;
     await writeFile(inheritedConfig, '[core]\n\tautocrlf = true\n'); process.env.GIT_CONFIG_GLOBAL = inheritedConfig;

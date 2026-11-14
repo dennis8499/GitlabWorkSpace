@@ -18,6 +18,8 @@
 
 0.51.0 另更新版本資料及 WorkflowKit 1.10.0 bundled status helper，須重新建置、核對 metadata 與套件；上述 537 檔案相同的結論只適用於更新前的驗收候選。正式發布以新版本 Commit 的 GitHub CI 產物為準。
 
+首輪 0.51.0 main CI `43605042518` 的三個 Windows cells 均完成 Host／workspace trust，但單元各 1,729 通過／1 失敗／4 略過。唯一失敗是固定 padding 的長路徑 fixture 在較短 CI Temp 下未跨過 260 字元。修正只依絕對 storage 路徑動態補長，保留所有長路徑及實際 Git 斷言；cache ref lock 為 283、clone 深層檔案為 299 字元，暫存 Repo 工作目錄仍能正常啟動與辨識。獨立 Temp 的完整 managedRepository 檔案 8／8 實跑通過，原失敗紀錄保留；修正提交仍須重新通過正式矩陣後才建立 Tag。
+
 第一個 `all` 保留 failed：啟動案例的 complete 分支總事件數為 16 而非 15，AbortSignal 與 progress 檢查先通過。Optional telemetry 本身核對執行身分及中止訊號，但輸出、進度儲存與檔案監聽仍可發出合法背景事件，原紀錄不能確認多出的確切種類。測試改為保留 AbortSignal／完整 progress 比對，另核對 MCP 狀態不變且不發出 STALE 環境資料，沒有新增等待延遲或修改 runtime。之後完整單元及其餘官方分項均通過；略過與未啟用項目不算成功。
 
 ## 真實主路徑
