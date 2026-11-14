@@ -12,6 +12,8 @@ export async function captureGitProcess(executable: string, args: readonly strin
   cwd?: string; env?: NodeJS.ProcessEnv; signal?: AbortSignal; timeoutMs?: number;
   maxStdoutBytes?: number; allowTruncated?: boolean; input?: string; onStderr?: (text: string) => void;
   network?: boolean;
+  /** A verified local clone may use Git's file transport without acquiring a network slot. */
+  localRepositoryTransport?: boolean;
 } = {}): Promise<GitProcessOutput> {
   const timeoutMs = options.timeoutMs ?? 300_000;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) return Promise.reject(new RangeError('Git timeout must be a positive 32-bit integer.'));
@@ -33,7 +35,7 @@ export async function captureGitProcess(executable: string, args: readonly strin
       supervised ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../../../resources/windows-git-supervisor.ps1')] : [...args],
       // Git before 2.46 ignores GIT_NO_LAZY_FETCH. An empty transport allowlist
       // also stops implicit promisor fetches during supposedly local reads.
-      { cwd: options.cwd, env: { ...process.env, ...options.env, GIT_NO_LAZY_FETCH: '1', ...(!network ? { GIT_ALLOW_PROTOCOL: '' } : {}) }, shell: false, windowsHide: true, detached: process.platform !== 'win32',
+      { cwd: options.cwd, env: { ...process.env, ...options.env, GIT_NO_LAZY_FETCH: '1', ...(!network ? { GIT_ALLOW_PROTOCOL: options.localRepositoryTransport ? 'file' : '' } : {}) }, shell: false, windowsHide: true, detached: process.platform !== 'win32',
       stdio: [supervised || options.input !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
     const output: Buffer[] = [], errors: Buffer[] = [];
     let bytes = 0, received = 0, errorBytes = 0, truncated = false, settled = false, interrupted: Error | undefined;

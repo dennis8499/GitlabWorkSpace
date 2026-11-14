@@ -24,7 +24,7 @@ export interface BmadStoryProgress {
   inventoryPath?: string;
   association?: 'confirmed' | 'unconfirmed' | 'ambiguous' | 'not-observed';
 }
-export interface BmadCurrentCandidate { stepId: string; artifactId?: string; storyId?: string; label: string; reason: string }
+export interface BmadCurrentCandidate { stepId: string; artifactId?: string; storyId?: string; blockedArtifactId?: string; label: string; reason: string }
 export interface BmadRecommendation { stepId: string; reason: string }
 export interface BmadWorkflowSnapshot {
   root?: string; revision: string; version?: string;
@@ -38,14 +38,23 @@ export interface BmadWorkflowSnapshot {
   currentCandidates: BmadCurrentCandidate[]; recommendations: BmadRecommendation[];
   watchDirectories: string[]; diagnostics: BmadDiagnostic[];
   observedAt?: string; watchRootArtifacts?: boolean;
+  /** Host evidence, never inferred from a writable folder or a model assertion. */
+  autoBuild?: { state: 'ready' | 'unavailable'; synchronousSubagents: boolean; gitSandbox: 'verified' | 'unverified' | 'unsupported'; reason: string; verifiedAt?: string };
+  /** Immutable Host-owned snapshots that remain available after a task window closes. */
+  persistedArtifactRoots?: string[];
 }
 export interface BmadCommandRequest {
-  revision: string; command: 'task' | 'codex' | 'skill';
+  revision: string; command: 'task' | 'codex' | 'skill' | 'entry';
   skill?: string; stepId?: string; artifactId?: string; storyId?: string;
   requirement?: string;
+  entry?: 'goal' | 'plan' | 'build' | 'verify' | 'project';
+  operation?: 'start' | 'resume' | 'status';
+  nativeSkill?: string;
 }
 export interface BmadPanelState {
   selectedSection?: 'start' | 'capabilities' | 'progress'; selectedTaskId?: string;
   selectedStepId?: string; expandedPhases?: string[];
   showCatalog?: boolean; requirement?: string;
+  selectedEntry?: 'goal' | 'plan' | 'build' | 'verify' | 'project';
+  selectedBuildMode?: 'build' | 'auto';
 }

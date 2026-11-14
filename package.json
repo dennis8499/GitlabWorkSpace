@@ -1,5 +1,6 @@
 {
   "activationEvents": [
+    "workspaceContains:.gitlab-workspace-task.json",
     "onCommand:gitlabWorkspace.openWorkspace",
     "onCommand:gitlabWorkspace.openNotifications",
     "onCommand:gitlabWorkspace.openSettings",
@@ -582,5 +583,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.50.0"
+  "version": "0.51.0"
 }

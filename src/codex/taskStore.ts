@@ -10,6 +10,7 @@ import { validateExecutionSelection } from './executionSelection';
 import { cleanupTaskStorage, taskCleanupPlan, validateCleanupPlan, CODEX_CLEANUP_MAX_BYTES, type CodexCleanupPlan } from './taskCleanup';
 import { missingFile, ownedStoragePath, removeOwnedStorage, removeOwnedAtomicTemps } from '../storage/ownedStorage';
 import { acquireStorageControl } from '../storage/controlLease';
+import { validateTaskWorkspaceBinding } from './taskWorkspace';
 
 export const codexRootKey = (root: string): string => createHash('sha256').update(process.platform === 'win32' ? root.toLowerCase() : root).digest('hex');
 const sameStoragePath = (first: string, second: string): boolean => process.platform === 'win32'
@@ -21,6 +22,9 @@ function ownerMayBeAlive(pid: number): boolean {
 export const validTaskId = (id: unknown): id is string => typeof id === 'string' && /^[a-z0-9-]{1,100}$/i.test(id);
 export class CodexTaskDeletedError extends Error {
   constructor() { super('此 Codex 任務紀錄已刪除。'); }
+}
+export class CodexTaskOwnerError extends Error {
+  constructor() { super('此任務由另一個 VS Code 視窗管理，請至任務視窗操作。'); }
 }
 export class CodexTaskStore {
   private queue = Promise.resolve();
@@ -49,10 +53,15 @@ export class CodexTaskStore {
       if (!validStoredCodexProjection(value)) throw new Error('Codex 任務顯示資料無法驗證。');
       if (value.spec.groupAnalysis && !sameStoragePath(value.spec.groupAnalysis.runtimeRoot,
         path.join(path.dirname(this.directory), 'codex-group-analysis', value.spec.groupAnalysis.id))) throw new Error('Group 分析暫存目錄不屬於此儲存區。');
+      if (value.spec.bmadArtifacts && !sameStoragePath(value.spec.bmadArtifacts.outputRoot,
+        path.join(path.dirname(this.directory), 'codex-bmad-artifacts', path.basename(value.spec.bmadArtifacts.outputRoot)))) throw new Error('BMAD 成果目錄不屬於此儲存區。');
+      if (value.spec.bmadArtifacts?.seedRoot && !sameStoragePath(value.spec.bmadArtifacts.seedRoot,
+        path.join(path.dirname(this.directory), 'bmad-artifacts', createHash('sha256').update(path.resolve(value.root)).digest('hex'),
+          path.basename(path.dirname(value.spec.bmadArtifacts.seedRoot)), '_bmad-output'))) throw new Error('BMAD 接續來源不屬於此儲存區與原專案。');
       if (value.schema === 'GitLabWorkspaceCodexTask/v1' && info.size > 1024 * 1024 || value.spec?.executionRoot !== undefined &&
         (typeof value.spec.executionRoot !== 'string' || !path.isAbsolute(value.spec.executionRoot)) || value.approvalSettings &&
         !['command', 'file', 'permissions'].every(key => typeof value.approvalSettings![key as keyof typeof value.approvalSettings] === 'boolean')) throw new Error('Codex 任務設定無效。');
-      if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2', 'GitLabWorkspaceCodexTask/v3'].includes(value.schema) || !validTaskId(value.id) || name !== value.id + '.json' ||
+      if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2', 'GitLabWorkspaceCodexTask/v3', 'GitLabWorkspaceCodexTask/v4'].includes(value.schema) || !validTaskId(value.id) || name !== value.id + '.json' ||
           !Number.isSafeInteger(value.ownerPid) || value.ownerPid < 1 || !value.spec || typeof value.spec.prompt !== 'string' ||
           typeof value.spec.root !== 'string' || !path.isAbsolute(value.spec.root) || value.root !== value.spec.root ||
           (value.spec.source?.kind !== 'free' && (!value.spec.skill || typeof value.spec.skill.path !== 'string' || !path.isAbsolute(value.spec.skill.path))) || !Array.isArray(value.spec.writableRoots) ||
@@ -61,6 +70,10 @@ export class CodexTaskStore {
         throw new Error('Codex 任務紀錄損壞；請先核對儲存區，避免重複執行。');
       }
       if (value.review) value.review.requestId = canonicalReviewRequestId(value.review.requestId);
+      if (value.spec.taskWorkspace) {
+        validateTaskWorkspaceBinding(path.dirname(this.directory), value.spec.taskWorkspace);
+        if (value.spec.taskWorkspace.taskId !== value.id || !value.ownerInstance || !Number.isSafeInteger(value.ownerGeneration) || value.ownerGeneration! < 1) throw new Error('任務視窗擁有者無法驗證。');
+      }
       if (value.spec.review) value.spec.review.requestId = canonicalReviewRequestId(value.spec.review.requestId);
       if (value.spec.origin || value.spec.workflow) {
         const origin = value.spec.origin, workflow = value.spec.workflow;
@@ -96,14 +109,32 @@ export class CodexTaskStore {
     return records;
   }
   save(record: CodexTaskRecord): Promise<void> {
+    return this.persist(record);
+  }
+  private persist(record: CodexTaskRecord, previousOwner?: { instance?: string; generation?: number }): Promise<void> {
     if (!validTaskId(record.id)) return Promise.reject(new Error('Codex 任務識別無效。'));
-    if (record.schema !== 'GitLabWorkspaceCodexTask/v3' && hasCodexV3Metadata(record)) return Promise.reject(new Error('新任務契約需要 v3 紀錄；請先升級任務格式，避免舊 Host 同時管理。'));
+    if (!['GitLabWorkspaceCodexTask/v3', 'GitLabWorkspaceCodexTask/v4'].includes(record.schema) && hasCodexV3Metadata(record)) return Promise.reject(new Error('新任務契約需要 v3 紀錄；請先升級任務格式，避免舊 Host 同時管理。'));
+    if (record.spec.taskWorkspace && record.schema !== 'GitLabWorkspaceCodexTask/v4') return Promise.reject(new Error('獨立視窗任務需要 v4 紀錄，請先重載所有舊版視窗。'));
+    if (record.spec.taskWorkspace && (!record.ownerInstance || !Number.isSafeInteger(record.ownerGeneration) || record.ownerGeneration! < 1 || !Number.isSafeInteger(record.revision) || record.revision! < 1)) return Promise.reject(new CodexTaskOwnerError());
     const serialized = JSON.stringify(record);
     if (Buffer.byteLength(serialized) > 4 * 1024 * 1024) return Promise.reject(new Error('Codex 任務紀錄超過 4 MiB，請縮小上下文或差異範圍。'));
+    record = JSON.parse(serialized) as CodexTaskRecord;
     const task = this.queue.then(async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
       if (await this.isDeleted(record.id)) throw new CodexTaskDeletedError();
       const file = path.join(this.directory, record.id + '.json');
+      const fence = await acquireStorageControl(file + '.save', 'codex-task-save');
+      try {
+      try {
+        const previous = JSON.parse(await readFile(file, 'utf8')) as CodexTaskRecord;
+        if (previous.spec?.taskWorkspace) {
+          const expected = previousOwner ?? { instance: record.ownerInstance, generation: record.ownerGeneration };
+          if (previous.ownerInstance !== expected.instance || previous.ownerGeneration !== expected.generation || !record.spec.taskWorkspace ||
+            JSON.stringify(previous.spec.taskWorkspace) !== JSON.stringify(record.spec.taskWorkspace) ||
+            previousOwner && record.ownerGeneration! <= previous.ownerGeneration! ||
+            !previousOwner && record.revision !== undefined && previous.revision !== undefined && record.revision <= previous.revision) throw new CodexTaskOwnerError();
+        }
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       if (record.schema === 'GitLabWorkspaceCodexTask/v2' || record.schema === 'GitLabWorkspaceCodexTask/v3') {
         try {
           const previous = JSON.parse(await readFile(file, 'utf8'));
@@ -122,8 +153,28 @@ export class CodexTaskStore {
         await removeOwnedStorage(this.directory, path.join(this.directory, record.id + '.json.v2-backup'));
         throw new CodexTaskDeletedError();
       }
+      } finally { await fence.release(); }
     });
     this.queue = task.catch(() => {}); return task;
+  }
+  async claim(id: string, instance: string, generation: number, verifyStopped: (record: CodexTaskRecord) => Promise<void>): Promise<CodexTaskRecord | undefined> {
+    return this.control(id, async () => {
+      await this.flush();
+      const record = (await this.load([id]))[0];
+      if (!record) return undefined;
+      if (!record.spec.taskWorkspace || !Number.isSafeInteger(generation) || generation < 1) throw new CodexTaskOwnerError();
+      if (record.ownerInstance === instance && record.ownerGeneration === generation) return record;
+      await verifyStopped(record);
+      const previousOwner = { instance: record.ownerInstance, generation: record.ownerGeneration };
+      record.ownerInstance = instance; record.ownerPid = process.pid; record.ownerGeneration = generation;
+      record.revision = (record.revision ?? 0) + 1; record.updatedAt = new Date().toISOString();
+      if (codexTaskActive(record.status) || record.status === 'queued') {
+        record.status = record.dispatchPending || record.status === 'pausing' ? 'uncertain' : 'interrupted';
+        record.error = '先前工作已中斷，請先核對結果再接續。';
+      }
+      await this.persist(record, previousOwner);
+      return record;
+    });
   }
   async isDeleted(id: string): Promise<boolean> {
     if (!validTaskId(id)) throw new Error('Codex 任務識別無效。');

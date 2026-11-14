@@ -93,9 +93,12 @@ test('stop and clean deduplicates repeated requests and retains results before d
   assert.equal(JSON.stringify(result).includes('thread-'), false);
 });
 
-test('completed Group tasks seal their documents and remove only managed analysis runtime', async t => {
+test('completed Group drafts retain their sources until an explicit handoff seals them', async t => {
   const f = await fixture(t, true), bridge = f.make(); await bridge.enqueue(f.spec, 'group-task');
-  await until(() => !(bridge as any).records.has('group-task') && bridge.list()[0]?.retention === 'results-only', 'automatic result retention');
+  await until(() => bridge.list().find(task => task.id === 'group-task')?.status === 'completed' && !(bridge as any).executions.has('group-task'), 'draft retained for confirmation');
+  assert.ok((bridge as any).records.has('group-task')); assert.equal(bridge.list()[0].retention, undefined);
+  assert.ok(await lstat(f.runtime)); assert.deepEqual(await bridge.results.list(), []);
+  await bridge.stopAndClean('group-task', 'manual');
   assert.equal(bridge.list()[0].status, 'completed'); assert.equal(f.calls.filter(call => call === 'turn/start').length, 1);
   assert.equal(await readFile(path.join(f.output, 'SPEC.md'), 'utf8'), '# Retained outcome\n', 'permanent Group documents remain user assets');
   await assert.rejects(lstat(f.runtime), { code: 'ENOENT' });
@@ -108,11 +111,28 @@ test('a closing record replays cleanup after restart using its sealed results wi
   await new CodexResultStore(path.join(f.storage, 'codex-results')).seal(record, [], 'manual');
   await new CodexTaskStore(path.join(f.storage, 'codex-tasks')).save(record); await rm(f.project, { recursive: true, force: true });
   const bridge = f.make({ prepare: async () => { throw new Error('recovery must not prepare a new execution'); }, client: async () => { throw new Error('no owned threads remain'); } });
-  await bridge.initialize(); await until(() => !(bridge as any).records.has(record.id) && bridge.list()[0]?.retention === 'results-only', 'closing replay after archive');
+  await bridge.initialize(); await until(() => !(bridge as any).records.has(record.id) && !(bridge as any).cleanupTasks.has(record.id) && bridge.list()[0]?.retention === 'results-only', 'closing replay after archive');
   const manifest = await bridge.resultManifest(record.id); assert.equal(manifest.id, record.id);
   const exported = path.join(f.root, 'recovered-export'); await bridge.results.exportTo(record.id, exported);
   assert.equal(await readFile(path.join(exported, 'reports', 'SPEC.md'), 'utf8'), '# Retained outcome\n');
   assert.equal(f.cleanupCount(), 1); assert.deepEqual(f.calls, []);
+});
+
+test('a legacy linked Issue cannot fork into a free task on its shared cache', async t => {
+  const f = await fixture(t), record = f.record('linked-fork'), cache = path.join(f.storage, 'shared-cache'); let sideEffects = 0;
+  await mkdir(cache); const cacheFile = path.join(cache, 'source.txt'); await writeFile(cacheFile, 'immutable cache');
+  record.threadId = 'linked-thread';
+  record.spec = { ...f.spec, source: { kind: 'issue', projectId: 1, issueIid: 42 },
+    skill: { name: 'bmad-spec', path: path.join(f.project, '.agents', 'skills', 'bmad-spec', 'SKILL.md') },
+    origin: { kind: 'issue', accountKey: 'fixture', baseUrl: 'https://gitlab.test', projectId: 1, projectPath: 'team/repo',
+      webUrl: 'https://gitlab.test/team/repo/-/issues/42', repositoryRoot: cache, iid: 42, sourceBranch: 'main', sourceSha: 'a'.repeat(40), branch: 'workbench/issue-42' },
+    workflow: { id: 'a'.repeat(32), runtimeRoot: path.join(f.storage, 'codex-workflows', 'a'.repeat(32)), remote: 'origin' } };
+  const store = new CodexTaskStore(path.join(f.storage, 'codex-tasks')); await store.save(record);
+  const bridge = f.make({ prepare: async () => { sideEffects++; return f.spec; }, client: async () => { sideEffects++; throw new Error('fork must not call App Server'); } });
+  await bridge.initialize(); const file = path.join(f.storage, 'codex-tasks', record.id + '.json'), before = await readFile(file, 'utf8');
+  await assert.rejects(bridge.fork(record.id, 'completed-turn'), /持久成果.*新任務/);
+  assert.equal(sideEffects, 0); assert.equal(await readFile(file, 'utf8'), before);
+  assert.equal(await readFile(cacheFile, 'utf8'), 'immutable cache'); assert.equal((await store.load()).length, 1);
 });
 
 test('confirmed native deletions are checkpointed and unknown errors do not discard remaining ownership', async t => {
@@ -192,7 +212,55 @@ test('automatic finalization keeps unfinished goals, queued input and unanswered
   (bridge as any).interactions.clear();
 });
 
-test('final tests use native command evidence and a changed source digest prevents automatic delivery', async t => {
+test('linked workflows keep network and direct publishing approvals outside Auto-Accept', async t => {
+  const f = await fixture(t, true), record = f.record('host-delivery-guard'); record.threadId = 'guard-thread'; record.turnId = 'guard-turn';
+  await new CodexTaskStore(path.join(f.storage, 'codex-tasks')).save(record);
+  const bridge = f.make(); await bridge.initialize();
+  const stored = (bridge as any).records.get(record.id) as CodexTaskRecord, responses: unknown[] = [];
+  const client = { respond: (_id: unknown, value: unknown) => responses.push(value), reject: () => assert.fail('known approval rejected at transport') } as unknown as CodexAppServer;
+  (bridge as any).executions.set(record.id, { record: stored, client, abort: new AbortController(), settled: Promise.resolve(), settle() {} });
+  let sequence = 0;
+  const request = (method: string, params: Record<string, unknown>) => {
+    (bridge as any).receiveInteraction(stored, client, { id: ++sequence, method, params: { threadId: record.threadId, turnId: record.turnId, ...params } });
+    return [...(bridge as any).interactions.keys()].at(-1) as string;
+  };
+  try {
+    await bridge.setAutoAccept(record.id, true);
+    for (const entry of [
+      { method: 'item/permissions/requestApproval', params: { permissions: { network: { enabled: true } } } },
+      { method: 'item/commandExecution/requestApproval', params: { command: `git -C "${f.project}" push origin issue/1`, availableDecisions: ['accept', 'decline'] } },
+      { method: 'item/commandExecution/requestApproval', params: { command: 'glab mr create', availableDecisions: ['accept', 'decline'] } },
+      { method: 'item/commandExecution/requestApproval', params: { command: 'npm test', additionalPermissions: { network: { enabled: true } }, availableDecisions: ['accept', 'decline'] } }
+    ]) {
+      const before = responses.length, interaction = request(entry.method, entry.params);
+      await new Promise(resolve => setImmediate(resolve)); assert.equal(responses.length, before);
+      await assert.rejects(bridge.answer(record.id, interaction, { decision: 'accept' }), /Host|人工確認/);
+      await bridge.answer(record.id, interaction, { decision: 'decline' });
+    }
+    const before = responses.length;
+    request('item/permissions/requestApproval', { permissions: { fileSystem: { read: [f.project] } } });
+    await new Promise(resolve => setImmediate(resolve)); assert.equal(responses.length, before + 1);
+    assert.deepEqual(responses.at(-1), { permissions: { fileSystem: { read: [f.project] } }, scope: 'turn' });
+  } finally { (bridge as any).executions.delete(record.id); }
+});
+
+test('local-only failed delivery can resume with a fresh confirmation while sent remote steps remain fenced', async t => {
+  const f = await fixture(t), local = f.record('local-delivery-rework'), remote = f.record('remote-delivery-rework');
+  local.delivery = { mode: 'automatic', state: 'needs-attention', confirmation: { digest: 'a'.repeat(64), confirmedAt: new Date().toISOString() }, steps: [] };
+  local.validation = { cwd: f.project, artifactDigest: 'b'.repeat(64), testedAt: new Date().toISOString(), commands: [{ command: 'npm test', exitCode: 0 }] };
+  remote.delivery = { mode: 'automatic', state: 'needs-attention', steps: [{ id: 'push', kind: 'push', state: 'confirmed', key: 'c'.repeat(64), sha: 'd'.repeat(40) }] };
+  const store = new CodexTaskStore(path.join(f.storage, 'codex-tasks')); await store.save(local); await store.save(remote);
+  const bridge = f.make(); await bridge.initialize();
+  assert.equal(bridge.list().find(task => task.id === local.id)!.controls!.canResume, true);
+  assert.equal(bridge.list().find(task => task.id === remote.id)!.controls!.canResume, false);
+  await assert.rejects(bridge.resume(remote.id), /交付意圖/);
+  await bridge.resume(local.id);
+  const renewed = (bridge as any).records.get(local.id) as CodexTaskRecord;
+  assert.equal(renewed.delivery, undefined); assert.equal(renewed.validation, undefined);
+  await bridge.pause(local.id);
+});
+
+test('final validation runs independently of delivery preferences and never publishes without a human confirmation', async t => {
   for (const mutate of [false, true]) {
     const f = await fixture(t), git = (...args: string[]) => execFileSync('git', ['-C', f.project, '-c', 'core.hooksPath=', '-c', 'user.name=Validation Test',
       '-c', 'user.email=validation@test.invalid', '-c', 'commit.gpgsign=false', ...args], { encoding: 'utf8', windowsHide: true }).trim();
@@ -203,7 +271,7 @@ test('final tests use native command evidence and a changed source digest preven
     f.spec.origin = { kind: 'issue', accountKey: 'fixture', baseUrl: 'https://example.test', projectId: 1, iid: 1, projectPath: 'g/p', webUrl: 'https://example.test/g/p',
       repositoryRoot: f.project, sourceBranch: 'main', sourceSha: base, branch: 'main' };
     f.spec.workflow = { id: 'b'.repeat(32), runtimeRoot: path.join(f.storage, 'codex-workflows', 'b'.repeat(32)), remote: 'origin' };
-    f.spec.delivery = { mode: 'automatic', testCommands: ['npm.cmd test'] };
+    f.spec.delivery = { mode: mutate ? 'automatic' : 'manual', testCommands: ['npm.cmd test'] };
     let delivered = 0, evidence: CodexTaskRecord['validation'];
     const bridge = f.make({ completed: async () => ({ state: 'ready', summary: 'Candidate ready.', files: ['main.ts'] }),
       deliver: async (record, checkpoint) => {
@@ -232,12 +300,13 @@ test('final tests use native command evidence and a changed source digest preven
       return connection;
     };
     const id = mutate ? 'changed-validation' : 'verified-validation'; await bridge.enqueue(f.spec, id);
-    await until(() => mutate ? bridge.list().find(task => task.id === id)?.result?.state === 'needs-work' : !(bridge as any).records.has(id) && bridge.list().find(task => task.id === id)?.retention === 'results-only', 'native validation result')
+    await until(() => mutate ? bridge.list().find(task => task.id === id)?.result?.state === 'needs-work'
+      : bridge.list().find(task => task.id === id)?.status === 'completed' && !!(bridge as any).records.get(id)?.validation, 'native validation result')
       .catch(error => { throw new Error(String(error) + ': ' + JSON.stringify({ tasks: bridge.list(), calls: f.calls, problems: (bridge as any).store.problems })); });
     assert.equal(f.calls.filter(call => call === 'validation/turn/start').length, 1);
     assert.equal(f.calls.some(call => ['command/exec', 'process/spawn', 'thread/shellCommand'].includes(call)), false);
-    assert.equal(delivered, mutate ? 0 : 1);
-    if (!mutate) { assert.equal(evidence?.cwd, f.project); assert.equal(evidence?.commands[0].itemId, 'native-test'); assert.equal(evidence?.commands[0].exitCode, 0); }
+    assert.equal(delivered, 0);
+    if (!mutate) { evidence = (bridge as any).records.get(id)?.validation; assert.equal(evidence?.cwd, f.project); assert.equal(evidence?.commands[0].itemId, 'native-test'); assert.equal(evidence?.commands[0].exitCode, 0); }
     else { assert.match(bridge.list().find(task => task.id === id)!.result!.summary, /驗證|來源|提交/); assert.equal((await new CodexTaskStore(path.join(f.storage, 'codex-tasks')).load()).find(task => task.id === id)?.validation, undefined); }
   }
 });

@@ -10,6 +10,8 @@ import { collectIssueResult, issueBranchName, startIssueWorkflow, startWikiWorkf
 import type { CodexTaskSpec, CodexOutputItem } from '../../src/codex/protocol';
 import { resolvePythonRuntime } from '../../src/workspace/pythonRuntime';
 
+const quoteNativeArgument = (value: string): string => `'${value.replaceAll("'", `'"'"'`)}'`;
+
 async function fixture(t: test.TestContext) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glw-project-workflow-'));
   assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
@@ -76,6 +78,73 @@ test('Issue completion requires implementation and actual successful test comman
     { id: 'python-windows', kind: 'command', command: '& "C:\\Program Files\\Python\\python.exe" -m unittest -v', text: '', exitCode: 0 });
   assert.equal((await collectIssueResult(f.spec, output)).tests!.length, 3);
   assert.equal(f.git('rev-parse', 'HEAD'), f.spec.origin!.sourceSha, 'workflow did not commit');
+});
+
+test('Issue completion retains direct and native-wrapped Python failures and accepts actual corrected reruns', async t => {
+  const f = await fixture(t); await startIssueWorkflow(f.spec);
+  await writeFile(path.join(f.repo, 'test_calculator.py'), 'from calculator import add\nassert add(2, 3) == 5\n');
+  const python = await resolvePythonRuntime('python'), pythonArgs = [...python.args, '-E', '-B', 'test_calculator.py'];
+  const shell = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe') : '/bin/sh';
+  const body = (process.platform === 'win32' ? '& ' : '') + [python.executable, ...pythonArgs].map(quoteNativeArgument).join(' ');
+  const shellArgs = process.platform === 'win32' ? ['-NoProfile', '-NonInteractive', '-Command', body] : ['-c', body];
+  for (const wrapped of [false, true]) {
+    const command = wrapped ? [shell, ...shellArgs].map(quoteNativeArgument).join(' ') : 'python -E -B test_calculator.py';
+    const output: CodexOutputItem[] = [];
+    const run = () => {
+      let exitCode = 0;
+      try { execFileSync(wrapped ? shell : python.executable, wrapped ? shellArgs : pythonArgs, { cwd: f.repo, env: python.env, windowsHide: true, stdio: 'pipe' }); }
+      catch (error) { exitCode = (error as { status: number }).status; }
+      assert.ok(exitCode === 0 || exitCode === 1);
+      output.push({ id: 'python-' + output.length, kind: 'command', command, text: '', exitCode });
+      return exitCode;
+    };
+    await writeFile(path.join(f.repo, 'calculator.py'), 'def add(a, b):\n    return a - b\n');
+    assert.equal(run(), 1);
+    const failed = await collectIssueResult(f.spec, output); assert.equal(failed.state, 'needs-work');
+    assert.deepEqual(failed.tests, [{ command, exitCode: 1 }]);
+    await writeFile(path.join(f.repo, 'calculator.py'), 'def add(a, b):\n    return a + b\n');
+    assert.equal(run(), 0);
+    const passed = await collectIssueResult(f.spec, output); assert.equal(passed.state, 'ready');
+    assert.deepEqual(passed.tests, [{ command, exitCode: 0 }]); assert.match(passed.evidence!.digest, /^[a-f0-9]{64}$/);
+  }
+});
+
+test('Issue Python evidence recognizes conventional paths and safe flags but rejects scripts and fabricated output', async t => {
+  const f = await fixture(t); await startIssueWorkflow(f.spec);
+  await writeFile(path.join(f.repo, 'main.ts'), 'export const answer = 2;\n');
+  const native = (body: string) => `"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -Command ${quoteNativeArgument(body)}`;
+  const accepted = [
+    'python -E -B test_calculator.py', 'python3 -I -u tests/calculator_test.py',
+    '& "C:\\Program Files\\Python\\python.exe" -X utf8 -B ".\\tests with spaces\\test_calculator.py"',
+    '"/opt/python tools/python3" -EB \'./tests with spaces/calculator_test.py\'',
+    'python3.12 -Xutf8 -- test_calculator.py', 'python -B -m unittest -v', 'python3 -m pytest -q',
+    'cd "C:\\repo with spaces"\npython -E -B test_calculator.py',
+    'Set-Location -LiteralPath \'C:\\repo with spaces\'; & "C:\\Python\\python.exe" -E -B test_calculator.py',
+    'cd /repo && python -E -B test_calculator.py',
+    '"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "python -E -B test_calculator.py"',
+    native('try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\npython -E -B test_calculator.py'),
+    native('cd "C:\\repo with spaces"\npython -E -B test_calculator.py')
+  ];
+  for (const command of accepted) {
+    const result = await collectIssueResult(f.spec, [{ id: 'run', kind: 'command', command, text: '', exitCode: 0 }]);
+    assert.equal(result.state, 'ready', command); assert.deepEqual(result.tests, [{ command, exitCode: 0 }]);
+  }
+  const rejected = [
+    'python calculator.py', 'python scripts/validate.py', 'python -c "print(\'all tests passed\')"',
+    'python -c "print(\'pytest passed\')"', 'python -c "print(\'unittest passed\')"',
+    'python -O test_calculator.py', 'python -OO tests/calculator_test.py', 'python -m compileall test_calculator.py',
+    'python -E -B test_calculator.py --help', 'python test_calculator.py && python -c "print(\'passed\')"',
+    'python test_calculator.py; echo passed', 'echo python -E -B test_calculator.py',
+    'cd /repo\npython -c "print(\'pytest passed\')"', 'cd /repo; python -O test_calculator.py',
+    native('python -c "print(\'pytest passed\')"'), native('python -O test_calculator.py'),
+    native('python -E -B test_calculator.py; exit 0'), native('python -E -B test_calculator.py\nexit 0'),
+    native('Write-Output "pytest passed"'), native('python -E -B test_calculator.py && python -c "print(\'passed\')"'),
+    native('pwsh -Command "python -E -B test_calculator.py"')
+  ];
+  for (const command of rejected) {
+    const result = await collectIssueResult(f.spec, [{ id: 'fake', kind: 'command', command, text: 'All tests passed.', exitCode: 0 }]);
+    assert.equal(result.state, 'needs-work', command); assert.deepEqual(result.tests, [], command);
+  }
 });
 
 test('Wiki uses an archive of the fixed remote SHA and preserves the source working branch and dirty files', async t => {

@@ -2,7 +2,7 @@ import type * as VSCode from 'vscode';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
-import { CodexBridge } from './bridge';
+import { CodexBridge, canForkCodexTask } from './bridge';
 import type { CodexCommand, CodexContext, CodexTaskSource, CodexTaskSpec } from './protocol';
 import { captureCodexContext, contextHash, pathInside } from './freeTask';
 import { workflowGit } from './projectWorkflows';
@@ -20,6 +20,8 @@ export interface CodexHostActionOptions {
   diff(spec: CodexTaskSpec, taskId: string): Promise<void>;
   workflow(action: 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare', taskId: string): Promise<void>;
   reply(taskId: string, discussionId: string, body: string): Promise<void>;
+  publishGroupIssues?(taskId: string): Promise<void>;
+  applyProjectChanges?(taskId: string): Promise<void>;
 }
 /** Host resolves trusted paths and task specifications; the webview requests named actions. */
 export class CodexHostActions {
@@ -34,6 +36,13 @@ export class CodexHostActions {
     }
     if (command.action === 'storage') { await this.vscode.commands.executeCommand('revealFileInOS', this.vscode.Uri.file(this.options.bridge().storagePath)); return; }
     const bridge = this.options.bridge();
+    if (command.action === 'open-worktree') {
+      const spec = await bridge.specification(command.taskId);
+      if (spec.taskWorkspace) {
+        await this.vscode.commands.executeCommand('vscode.openFolder', this.vscode.Uri.file(spec.taskWorkspace.workspaceFile), { forceNewWindow: true });
+        return;
+      }
+    }
     if (command.action === 'manage-local-connections') {
       await bridge.initialize();
       const tasks = bridge.list().filter(task => task.retention !== 'results-only');
@@ -77,7 +86,33 @@ export class CodexHostActions {
       }
       return;
     }
-    if (command.action === 'retry-delivery') { await bridge.retryDelivery(command.taskId); return; }
+    if (command.action === 'confirm-delivery' || command.action === 'retry-delivery') {
+      const preview = await bridge.previewDelivery(command.taskId);
+      const history = preview.commits.map(commit => `${commit.sha}\n${commit.message || commit.subject}`).join('\n\n');
+      const planned = preview.plannedCommitMessage
+        ? `若仍有未提交修改，Host 將使用以下完整訊息補提交；乾淨工作樹直接採用已驗證 HEAD：\n${preview.plannedCommitMessage}` : undefined;
+      const evidence = preview.validation;
+      const validation = evidence
+        ? [`最後驗證：${evidence.testedAt}`, `驗證目錄：${evidence.cwd}`, `成果版本：${evidence.artifactDigest}`,
+          ...(evidence.noChanges ? ['此需求已經驗證為不需新增修改。'] : []),
+          ...evidence.commands.map(item => `exit ${item.exitCode} · ${item.command}\n目錄：${item.cwd ?? evidence.cwd}`),
+          ...(!evidence.commands.length ? ['未記錄測試指令。'] : [])].join('\n')
+        : '未保存最終驗證證據；交付時仍會核對適用的驗證門檻。';
+      const detail = [preview.summary, history ? `既有任務提交（完整訊息）：\n${history}` : undefined, planned, validation,
+        '將推送工作分支並建立 Draft MR，或發布這份任務對應的 Wiki／審查成果。'].filter(Boolean).join('\n\n');
+      const confirmation = await this.vscode.window.showWarningMessage('確認這份成果並執行 GitLab 交付？',
+        { modal: true, detail }, '確認並交付');
+      if (confirmation === '確認並交付') await bridge.confirmDelivery(command.taskId, preview.digest);
+      return;
+    }
+    if (command.action === 'publish-group-issues') {
+      if (!this.options.publishGroupIssues) throw new Error('目前未啟用需求探索的 Issue 發布。');
+      await this.options.publishGroupIssues(command.taskId); return;
+    }
+    if (command.action === 'apply-project-changes') {
+      if (!this.options.applyProjectChanges) throw new Error('目前未啟用專案規則套用。');
+      await this.options.applyProjectChanges(command.taskId); return;
+    }
     if (['export-result', 'copy-handoff', 'new-from-result', 'open-artifact', 'restore-result'].includes(command.action)) {
       const manifest = await bridge.resultManifest(command.taskId);
       if (command.action === 'restore-result') {
@@ -125,7 +160,8 @@ export class CodexHostActions {
         const text = await this.savedHandoff(bridge, manifest);
         if (command.action === 'copy-handoff') await this.vscode.env.clipboard.writeText(text);
         else {
-          const repository = await this.chooseResultDirectory(manifest.restore?.originalRepository ?? manifest.origin?.repositoryRoot ?? manifest.root, '選擇接續成果的本機工作目錄',
+          const preferred = manifest.restore?.commitBundleArtifactId ? manifest.root : manifest.restore?.originalRepository ?? manifest.origin?.repositoryRoot ?? manifest.root;
+          const repository = await this.chooseResultDirectory(preferred, '選擇接續成果的本機工作目錄',
             () => this.run({ action: 'export-result', taskId: command.taskId }));
           if (repository) {
             const prompt = text.length <= 30_000 ? text : text.slice(0, 28_000) + `\n\n摘要已節錄；完整需求、牌卡與檔案清單請讀取永久成果清單 ${JSON.stringify(path.join(bridge.results.directory, manifest.id, 'manifest.json'))}，不要把節錄當成完整需求。`;
@@ -143,7 +179,8 @@ export class CodexHostActions {
         { label: '核對任務狀態', value: 'reconcile' }, { label: '查看診斷摘要', value: 'diagnostics' }, { label: '查看模型回報差異', value: 'open-diff' }
       ];
       if (task.controls?.canResume) choices.push({ label: '重新命名', value: 'rename' }, { label: task.pinned ? '取消釘選' : '釘選', value: 'pin' },
-        { label: task.archived ? '取消封存' : '封存管理紀錄', value: 'archive' }, { label: '從完成回合分支對話', value: 'fork' });
+        { label: task.archived ? '取消封存' : '封存管理紀錄', value: 'archive' });
+      if (task.controls?.canResume && canForkCodexTask(spec)) choices.push({ label: '從完成回合分支對話', value: 'fork' });
       if (task.controls?.canResume && spec.source.kind === 'free') choices.push({ label: '設定／暫停目標', value: 'goal' });
       if (task.status === 'queued' && !task.controls?.external) choices.push({ label: '向前移動排隊順序', value: 'up' }, { label: '向後移動排隊順序', value: 'down' });
       if (spec.origin?.kind === 'issue' && task.result?.state === 'ready') choices.push({ label: '準備 CommitReviewer 與 MR 草稿', value: 'handoff' });
@@ -181,6 +218,7 @@ export class CodexHostActions {
     } else if (command.action === 'open-diff') await this.options.diff(spec, task.id);
     else if (command.action === 'publish-reply') await this.options.reply(task.id, command.discussionId, command.body);
     else if (command.action === 'fork') {
+      if (!canForkCodexTask(spec)) throw new Error('此任務的來源與成果受管理；請先保存持久成果，再以成果建立新任務。');
       const turns = await bridge.turns(task.id);
       const turn = await this.vscode.window.showQuickPick(turns.filter(turn => ['completed', 'failed', 'interrupted'].includes(turn.status ?? '')).map(turn => ({ label: turn.id, description: turn.status, turn })), { title: '選擇分支起點（保留原對話）' });
       if (turn) await this.options.selected(await bridge.fork(task.id, turn.turn.id));

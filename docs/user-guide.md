@@ -4,7 +4,7 @@ GitLab Workspace 開啟共用 Dashboard，集中顯示本機 Repo、Git／Skills
 
 操作結果統一顯示於右上角訊息中心；「GitLab Workspace: 訊息中心」命令也可開啟。可篩選全部／未讀、展開詳情並標為已讀、全部已讀、移除或清空。最多保存本次工作階段 500 筆，切換帳號、Group 或根目錄仍保留原始來源；Extension Host 重啟後清空。執行進度、欄位提示、區段重試與必要確認視窗仍顯示在操作位置。
 
-安裝 Output Style 後，各工具優先依當前產出自動選擇精簡、詳解、教學或正式文件風格；未安裝時沿用原 Skill 的輸出規則。可在提示詞使用 `$output-style style=explanatory` 等指定風格；正式報告的必要欄位、證據、Checklist 與核准要求不因風格改變。
+各工具預設沿用本次必要 Skill 的輸出規則。只有明確選取 Output Style 或在提示詞要求 `$output-style style=explanatory` 等風格時，才載入其完整 Skill 與必要 reference；安裝本身不會自動啟用。正式報告的必要欄位、證據、Checklist 與核准要求不因風格改變。
 
 MergeReviewer 開始前凍結 base／head、合併預覽及相關 Repo 證據。後續雲端更新不打斷本次審查，報告結論僅適用列出的固定 SHA；要檢查新版需另啟新審查。證據不足的必要事項列為待人工確認，不宣告通過；人工核對區可填核對人、日期與證據，原始審查結論保留。
 

@@ -15,6 +15,76 @@ test('delayed hydration preserves fresh typing and uses its original CAS base', 
   const pending = sync.next(ui)!; assert.equal(pending.updates.length, 1); assert.equal(pending.updates[0].revision, 0);
 });
 
+test('a started Issue selection survives delayed first hydration and a later manual selection stays selected', () => {
+  let ui = restoreCodexUi(); const sync = new CodexDraftSync(ui), selection = JSON.stringify(['selection', 'current']);
+  const started = { ...ui, selectedTaskId: 'new-issue' }; sync.note(ui, started); ui = started;
+  const oldGroup = snapshot([{ key: selection, revision: 3, value: 'old-group' }]);
+  ui = sync.load(oldGroup, ui);
+  assert.equal(ui.selectedTaskId, 'new-issue', 'late hydration must not undo an explicit task-start selection');
+  const selected = { ...ui, selectedTaskId: 'other-task' }; sync.note(ui, selected); ui = selected;
+  ui = sync.load(oldGroup, ui);
+  assert.equal(ui.selectedTaskId, 'other-task', 'a later manual choice takes precedence over the started task');
+});
+
+test('a started Issue with restored sync metadata cannot override a later manual choice when its save is acknowledged', () => {
+  const selection = JSON.stringify(['selection', 'current']), oldGroup = { key: selection, revision: 3, value: 'old-group' };
+  let ui = restoreCodexUi({ selectedTaskId: 'old-group', draftSync: { scope: 'account-root-a', bases: [oldGroup] } });
+  const sync = new CodexDraftSync(ui), started = { ...ui, selectedTaskId: 'new-issue' }; sync.note(ui, started); ui = started;
+  ui = sync.load(snapshot([oldGroup]), ui);
+  assert.equal(ui.selectedTaskId, 'new-issue');
+  const savingStarted = sync.next(ui)!;
+  assert.deepEqual(savingStarted.updates, [{ key: selection, revision: 3, value: 'new-issue' }]);
+  const selected = { ...ui, selectedTaskId: 'other-task' }; sync.note(ui, selected); ui = selected;
+  ui = sync.accepted(snapshot([{ key: selection, revision: 4, value: 'new-issue' }]), ui);
+  assert.equal(ui.selectedTaskId, 'other-task', 'acknowledging the started task must preserve a newer manual choice');
+  const savingManual = sync.next(ui)!;
+  assert.deepEqual(savingManual.updates, [{ key: selection, revision: 4, value: 'other-task' }]);
+  ui = sync.accepted(snapshot([{ key: selection, revision: 5, value: 'other-task' }]), ui);
+  assert.equal(ui.selectedTaskId, 'other-task'); assert.equal(sync.next(ui), undefined);
+});
+
+test('automatic owner selection rebases only its system preference while fresh text retains the original CAS', () => {
+  const selection = JSON.stringify(['selection', 'current']);
+  let ui = restoreCodexUi({ selectedTaskId: 'old-owner', draftSync: { scope: 'account-root-a',
+    bases: [{ key: selection, revision: 2, value: 'old-owner' }, entry('a', 2, 'Cached text')] }, drafts: { a: { text: 'Cached text', revision: 1 } } });
+  const sync = new CodexDraftSync(ui), edited = editCodexDraft(ui, 'a', 'Fresh local text'); sync.note(ui, edited); ui = edited;
+  ui = sync.load(snapshot([{ key: selection, revision: 4, value: 'old-owner' }, entry('a', 4, 'Other window text')]), ui);
+  ui = sync.automaticSelection('new-owner', ui)!;
+  const updates = sync.next(ui)!.updates;
+  assert.deepEqual(updates.find(item => item.key === selection), { key: selection, revision: 4, value: 'new-owner' });
+  assert.equal(updates.find(item => item.key === key('a'))!.revision, 2);
+  assert.equal(ui.drafts.a.text, 'Fresh local text');
+});
+
+test('a manual selection made before hydration retains its original CAS and is not silently rebased', () => {
+  const selection = JSON.stringify(['selection', 'current']);
+  let ui = restoreCodexUi({ selectedTaskId: 'old-owner', draftSync: { scope: 'account-root-a',
+    bases: [{ key: selection, revision: 2, value: 'old-owner' }] } });
+  const sync = new CodexDraftSync(ui), manual = { ...ui, selectedTaskId: 'manual-choice' }; sync.note(ui, manual); ui = manual;
+  ui = sync.load(snapshot([{ key: selection, revision: 4, value: 'other-window-choice' }]), ui);
+  assert.deepEqual(sync.next(ui)!.updates, [{ key: selection, revision: 2, value: 'manual-choice' }]);
+});
+
+test('automatic owner selection preserves existing conflicts and in-flight selection writes without retrying', () => {
+  const selection = JSON.stringify(['selection', 'current']), remote = { key: selection, revision: 4, value: 'old-owner' };
+  let ui = restoreCodexUi(); const sync = new CodexDraftSync(ui);
+  const conflict = { id: 'selection-conflict', key: selection, value: 'manual-choice', createdAt: '2026-11-14T11:03:19.251Z' };
+  ui = sync.load(snapshot([remote], { conflicts: [conflict] }), ui);
+  const metadata = sync.metadata();
+  assert.equal(sync.automaticSelection('new-owner', ui), undefined);
+  assert.deepEqual(sync.conflicts, [conflict]); assert.deepEqual(sync.metadata(), metadata); assert.equal(sync.next(ui), undefined);
+  const clean = new CodexDraftSync(restoreCodexUi()); ui = clean.load(snapshot([remote]), restoreCodexUi());
+  ui = clean.automaticSelection('first-owner', ui)!;
+  const sending = clean.next(ui)!;
+  assert.equal(clean.automaticSelection('second-owner', ui), undefined);
+  assert.equal(clean.next(ui), undefined, 'an in-flight selection must not be sent twice');
+  const rejected = { ...conflict, value: 'first-owner' };
+  ui = clean.accepted(snapshot([remote], { conflicts: [rejected] }), ui);
+  assert.equal(clean.automaticSelection('second-owner', ui), undefined);
+  assert.equal(clean.next(ui), undefined, 'a genuine intervening write requires explicit conflict handling');
+  assert.deepEqual(sending.updates, [{ key: selection, revision: 4, value: 'first-owner' }]);
+});
+
 test('a held normal acknowledgement cannot erase a later urgent draft or resend it automatically', () => {
   let ui = restoreCodexUi(); const sync = new CodexDraftSync(ui); ui = sync.load(snapshot(), ui);
   let edited = editCodexDraft(ui, 'a', 'First'); sync.note(ui, edited); ui = edited; const first = sync.next(ui)!;

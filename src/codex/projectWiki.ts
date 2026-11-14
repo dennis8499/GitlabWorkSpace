@@ -108,6 +108,9 @@ export function projectWikiMarkdown(content: string, file: string, files: readon
 }
 
 export class ProjectWikiStore {
+  async readLocalPreview(id: string, origin: CodexTaskOrigin): Promise<ProjectWikiPreview> {
+    return this.projection(await this.load(id, origin));
+  }
   constructor(private readonly directory: string) {}
   private file(id: string): string {
     if (!/^[a-f0-9-]{32,36}$/i.test(id)) throw new Error('Wiki 草稿識別無效。');

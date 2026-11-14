@@ -30,6 +30,43 @@ async function fixture(t: test.TestContext) {
     preparations: () => preparations, unavailable: () => { available = false; }, available: () => { available = true; }, scope: (value: string) => { scope = value; } };
 }
 
+test('managed windows clear a passively restored blocked draft while preserving explicit show and create', async t => {
+  const f = await fixture(t), draft = await f.launch.create({ kind: 'merge-request', projectId: 2, iid: 1, reviewerTool: 'merge-reviewer' });
+  const file = path.join(f.directory, draft.id + '.json'), blocked = { ...draft, state: 'blocked', error: 'Workflow unavailable' };
+  await writeFile(file, JSON.stringify(blocked)); const before = await readFile(file, 'utf8');
+  let restoreLatest = true;
+  const reopened = new CodexLaunchCoordinator({ ...f.options, restoreLatest: () => restoreLatest }); t.after(() => reopened.dispose());
+  await reopened.publish(); assert.equal(f.events.at(-1)?.id, draft.id, 'ordinary workspaces still restore their latest draft');
+  restoreLatest = false; f.events.length = 0;
+  await reopened.publish(); assert.deepEqual(f.events.map(value => value?.id), [undefined]);
+  await reopened.publish(); assert.deepEqual(f.events.map(value => value?.id), [undefined, undefined]);
+  assert.equal(await readFile(file, 'utf8'), before, 'managed startup must not edit the shared blocked preparation');
+  assert.equal((await reopened.list())[0].id, draft.id, 'the explicit continue picker must still find it');
+  await reopened.show(draft.id); assert.equal(f.events.at(-1)?.id, draft.id);
+  await reopened.publish(); assert.equal(f.events.at(-1)?.id, draft.id, 'a genuinely explicit preparation survives remount');
+  const created = await reopened.create({ kind: 'merge-request', projectId: 2, iid: 2, reviewerTool: 'release-reviewer' });
+  assert.equal(f.events.at(-1)?.id, created.id); assert.equal(f.queued.length, 0);
+});
+
+for (const waiting of ['latest', 'control'] as const) test(`managed binding fences a passive blocked draft delayed at ${waiting}`, async t => {
+  const f = await fixture(t), draft = await f.launch.create({ kind: 'merge-request', projectId: 2, iid: 1 });
+  const file = path.join(f.directory, draft.id + '.json'); await writeFile(file, JSON.stringify({ ...draft, state: 'blocked' }));
+  const before = await readFile(file, 'utf8'); let restoreLatest = true, release!: () => void, entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; }), began = new Promise<void>(resolve => { entered = resolve; });
+  const reopened = new CodexLaunchCoordinator({ ...f.options, restoreLatest: () => restoreLatest }); t.after(() => reopened.dispose());
+  if (waiting === 'latest') {
+    const latest = reopened.latest.bind(reopened);
+    reopened.latest = async () => { const value = await latest(); entered(); await gate; return value; };
+  } else {
+    const control = (reopened as any).control.bind(reopened);
+    (reopened as any).control = async (id: string, work: () => Promise<unknown>) => { entered(); await gate; return control(id, work); };
+  }
+  f.events.length = 0; const pending = reopened.publish(); await began;
+  restoreLatest = false; const binding = reopened.publish(); release(); await Promise.all([binding, pending]);
+  assert.equal(f.events.some(value => value?.id === draft.id), false, 'a late passive response cannot take over the native owner view');
+  assert.equal(await readFile(file, 'utf8'), before); assert.equal(f.queued.length, 0);
+});
+
 test('opening a source persists preparation before I/O and model changes do not repeat complete preparation', async t => {
   const f = await fixture(t), draft = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
   assert.equal(draft.isolated, true); assert.equal(draft.state, 'editing'); assert.equal(f.preparations(), 0); assert.equal(f.queued.length, 0);
@@ -44,19 +81,18 @@ test('opening a source persists preparation before I/O and model changes do not 
   assert.equal(await f.launch.submit(draft.id), draft.id);
 });
 
-test('repairing a missing repository resumes the same draft with its requirement and selected worktree mode', async t => {
+test('a missing local repository delegates preparation to the cache resolver and preserves draft requirements', async t => {
   const f = await fixture(t); f.unavailable();
   const opened = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
-  const blocked = await f.launch.check(opened.id, opened.revision, { requirement: 'Add regression tests', isolated: false });
-  assert.equal(blocked.state, 'blocked'); assert.equal(blocked.checks.find(item => item.state === 'blocked')?.repair, 'scan');
-  assert.equal(f.preparations(), 0); f.available();
+  const prepared = await f.launch.check(opened.id, opened.revision, { requirement: 'Add regression tests', isolated: false });
+  assert.equal(prepared.state, 'ready'); assert.equal(f.preparations(), 1); f.available();
   const restored = new CodexLaunchCoordinator(f.options); t.after(() => restored.dispose());
   const resumed = await restored.show(opened.id);
-  assert.equal(resumed.requirement, 'Add regression tests'); assert.equal(resumed.isolated, false);
+  assert.equal(resumed.requirement, 'Add regression tests'); assert.equal(resumed.isolated, true);
   const ready = await restored.check(opened.id, resumed.revision);
   assert.equal(ready.state, 'ready'); await restored.submit(opened.id, ready.revision);
   assert.equal(f.queued[0].source.requirement, 'Add regression tests'); assert.equal(f.queued[0].source.repository, f.repository);
-  assert.equal(f.queued[0].source.kind === 'issue' && f.queued[0].source.isolated, false);
+  assert.equal(f.queued[0].source.kind === 'issue' && f.queued[0].source.isolated, true);
 });
 
 test('draft identities and preferences stay within their account, project and workspace scope', async t => {
@@ -120,6 +156,16 @@ test('an ambiguous enqueue is persisted, never resent, and resumes only after a 
   await assert.rejects(f.launch.submit(opened.id), /待核對/); assert.equal(attempts, 1);
   f.tasks.add(opened.id); const reconciled = await f.launch.show(opened.id);
   assert.equal(reconciled.state, 'submitted'); assert.equal(reconciled.taskId, opened.id);
+});
+
+test('a saved task launch followed by a failed window open retains its recovery identifier without redispatching', async t => {
+  const f = await fixture(t); let attempts = 0;
+  f.options.enqueue = async (_spec, id) => { attempts++; f.tasks.add(id); throw new Error('window open failed'); };
+  const opened = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 }), ready = await f.launch.check(opened.id, opened.revision);
+  await assert.rejects(f.launch.submit(opened.id, ready.revision), /window open failed/);
+  const saved = await f.launch.show(opened.id);
+  assert.equal(saved.state, 'submitted'); assert.equal(saved.taskId, opened.id);
+  assert.equal(await f.launch.submit(opened.id), opened.id); assert.equal(attempts, 1);
 });
 
 test('recreated ready drafts require fresh inspection and unavailable models cannot silently change execution', async t => {
@@ -268,7 +314,7 @@ test('repreparing forks a fresh draft from trusted source and never overwrites a
   const original = f.queued[0], unfinished = await f.launch.create({ ...source, requirement: 'Newer unfinished input' });
   const fork = await f.launch.create(original.source, Date.now(), original);
   assert.notEqual(fork.id, unfinished.id); assert.notEqual(fork.id, opened.id); assert.equal(fork.requirement, source.requirement);
-  assert.equal(fork.model, source.model); assert.equal(fork.isolated, false); assert.deepEqual(fork.source.returnTo, source.returnTo);
+  assert.equal(fork.model, source.model); assert.equal(fork.isolated, true); assert.deepEqual(fork.source.returnTo, source.returnTo);
   assert.equal((await f.launch.show(unfinished.id)).requirement, 'Newer unfinished input');
   sha = 'b'.repeat(40); const checked = await f.launch.check(fork.id, fork.revision);
   assert.equal(checked.sourceChange?.previous.sourceSha, 'a'.repeat(40)); assert.equal(checked.sourceChange?.current.sourceSha, sha);

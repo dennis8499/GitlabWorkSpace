@@ -3,7 +3,7 @@ import test from 'node:test';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { CodexDeliveryService, deliveryComment } from '../../src/codex/delivery';
+import { CodexDeliveryService, confirmCodexDelivery, deliveryComment } from '../../src/codex/delivery';
 import { GitLabClient } from '../../src/api/gitLabClient';
 import type { CodexTaskRecord } from '../../src/codex/protocol';
 import type { CodexDeliveryState } from '../../src/codex/deliveryProtocol';
@@ -40,7 +40,8 @@ async function fixture(t: test.TestContext, report = '# Review\n\nComplete repor
   const receipts: CodexDeliveryState[] = [];
   const checkpoint = async (state: CodexDeliveryState) => { receipts.push(structuredClone(state)); };
   const service = new CodexDeliveryService({ client: async () => client });
-  return { root, record, service, calls, receipts, checkpoint, notes, changeHead: () => { head = 'c'.repeat(40); },
+  await confirmCodexDelivery(record);
+  return { root, reportPath, client, record, service, calls, receipts, checkpoint, notes, changeHead: () => { head = 'c'.repeat(40); },
     loseNote: () => { loseNoteResponse = true; }, failUpload: () => { failUpload = true; } };
 }
 
@@ -83,11 +84,23 @@ test('read-only reconciliation confirms existing notes without any new write', a
 });
 
 test('manual mode does not create clients or publish anything', async t => {
-  const f = await fixture(t); f.record.spec.delivery!.mode = 'manual';
+  const f = await fixture(t); f.record.spec.delivery!.mode = 'manual'; f.record.delivery!.mode = 'manual';
   const service = new CodexDeliveryService({ client: async () => { throw new Error('No client should be acquired'); } });
   assert.equal((await service.deliver(f.record, f.checkpoint, () => {})).state, 'ready'); assert.equal(f.receipts.length, 0);
 });
 
 test('automated comments escape standalone GitLab slash commands', () => {
   assert.equal(deliveryComment('# Findings\n/close\n/assign @user\n/path/file.ts'), '# Findings\n\\/close\n\\/assign @user\n/path/file.ts');
+});
+
+test('report changes during metadata checks invalidate approval before publishing the captured report', async t => {
+  const f = await fixture(t), original = f.client.getMergeRequest.bind(f.client); let reads = 0;
+  t.mock.method(f.client, 'getMergeRequest', async (...args: Parameters<GitLabClient['getMergeRequest']>) => {
+    const result = await original(...args);
+    if (++reads === 2) await writeFile(f.reportPath, '# Changed after report capture\n');
+    return result;
+  });
+  await f.service.deliver(f.record, f.checkpoint, () => {});
+  assert.equal(f.record.delivery?.state, 'needs-attention'); assert.match(f.record.delivery?.error ?? '', /重新檢閱/);
+  assert.equal(f.calls.filter(call => call.method !== 'GET').length, 0);
 });

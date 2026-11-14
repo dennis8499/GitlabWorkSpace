@@ -89,8 +89,9 @@ const gitSchemas = {
   stashSave: { message: string(1000), includeUntracked: boolean }, stashApply: { hash: key, pop: optional(boolean) }, stashDrop: { hash: key },
   reset: { hash: key, mode: one('soft', 'mixed', 'hard') }, discard: { path }, abort: {}, continue: {}, skip: {}
 } satisfies Record<GitAction['type'], Shape>;
-const bmad: Shape = { revision: key, command: one('task', 'codex', 'skill'), skill: optional(key), stepId: optional(key),
-  artifactId: optional(path), storyId: optional(path), requirement: optional(string(8000)) };
+const bmad: Shape = { revision: key, command: one('task', 'codex', 'skill', 'entry'), skill: optional(key), stepId: optional(key),
+  artifactId: optional(path), storyId: optional(path), requirement: optional(string(8000)),
+  entry: optional(one('goal', 'plan', 'build', 'verify', 'project')), operation: optional(one('start', 'resume', 'status')), nativeSkill: optional(key) };
 const draft = object({ id: identity, projectPath: key, title: string(1024, 1), description: string(1_100_000),
   acceptanceCriteria: array(text), sourceEvidence: array(object({ path, claim: text })), labels: optional(array(string(255))) });
 const review: Shape = { revision: key, requestId: identity, tool };
@@ -121,13 +122,14 @@ const taskSource: Check = value => record(value) && (
   value.kind === 'skill' ? sourceObject({ kind: one('skill'), featureId: identity, inputs: dictionary(text, 100), revision: key })(value)
     : value.kind === 'bmad' ? sourceObject({ kind: one('bmad'), request: object(bmad) })(value)
       : value.kind === 'group-analysis' ? sourceObject({ kind: one('group-analysis'), repositoryIds: optional(array(identity, 1000)) })(value)
-        : value.kind === 'issue' ? sourceObject({ kind: one('issue'), projectId: id, issueIid: id, isolated: optional(boolean) })(value)
+        : value.kind === 'issue' ? sourceObject({ kind: one('issue'), projectId: id, issueIid: id, isolated: optional(boolean), buildMode: optional(one('interactive', 'auto')) })(value)
         : value.kind === 'project-wiki' ? sourceObject({ kind: one('project-wiki'), projectId: id })(value)
           : value.kind === 'merge-request' ? sourceObject({ kind: one('merge-request'), projectId: id, iid: id,
-            intent: optional(one('review', 'fix-comments')), discussionIds: optional(array(identity, 30)) })(value)
+            intent: optional(one('review', 'fix-comments')), discussionIds: optional(array(identity, 30)), reviewerTool: optional(tool) })(value)
             : value.kind === 'review' && sourceObject({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
 
-const launchPatch = object({ requirement: optional(text), repositoryId: optional(identity), model: optional(string(200)),
+// Launch forms use an empty selection for Group analysis and before choosing a single Repo.
+const launchPatch = object({ requirement: optional(text), repositoryId: optional(string(160)), model: optional(string(200)),
   effort: optional(string(40)), isolated: optional(boolean), discussionIds: optional(array(identity, 30)), acknowledgedSource: optional(identity),
   repositoryIds: optional(array(identity, 1000)), additionalSkillIds: optional(array(identity, 100)), testCommands: optional(testCommands), automaticDelivery: optional(boolean) });
 const uiDraftUpdate: Check = value => {
@@ -173,7 +175,7 @@ export const workspaceRequestSchemas = {
   ensureWorkspaceSection: { section: one('milestones', 'boards'), connectedScope: key },
   loadIssueRelations: { requestId: identity, connectedScope: key, ...projectIssue }, mutateIssueRelations: { requestId: identity, connectedScope: key, ...projectIssue, action: relation },
   openLocalWorkspace: {}, selectProjectFolder: { folderUri: path }, selectProjectRoot: {}, resetProjectRoot: {}, selectCloneRoot: {}, resetCloneRoot: {},
-  refreshBmad: {}, copyBmadCommand: bmad, openBmadTerminal: { revision: key }, openBmadArtifact: { revision: key, stepId: key, path },
+  refreshBmad: { probeBuildAuto: optional(boolean) }, copyBmadCommand: bmad, openBmadTerminal: { revision: key }, openBmadArtifact: { revision: key, stepId: key, path },
   clone: { projectIds: ids, cloneAll: optional(boolean) }, cloneSelection: { requestId: identity, scopeKey: optional(key), projectIds: ids }, syncRepos: { projectIds: optional(ids) },
   selectProject: { projectId: id }, selectIssue: projectIssue, openIssue: { ...projectIssue, tab: optional(one('content', 'relations', 'time')) }, createIssue: { projectId: optional(id) },
   pickWorkbenchControl: { kind: one('workflow', 'folder', 'account', 'tools') },

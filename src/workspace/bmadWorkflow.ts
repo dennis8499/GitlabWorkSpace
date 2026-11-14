@@ -8,6 +8,7 @@ import type {
   BmadProgressStatus, BmadStoryProgress, BmadWorkflowSnapshot
 } from './bmadProtocol';
 import { BMAD_GUIDANCE_VERSION } from './bmadGuide';
+import { BMAD_ENTRIES } from './bmadEntrypoints';
 
 export interface ReadBmadWorkflowOptions {
   root?: string;
@@ -16,6 +17,11 @@ export interface ReadBmadWorkflowOptions {
   maxArtifactBytes?: number;
   signal?: AbortSignal;
   cache?: BmadReadCache;
+  autoBuild?: BmadWorkflowSnapshot['autoBuild'];
+  /** Host-resolved immutable artifact roots, each preserving _bmad-output/. */
+  persistedArtifactRoots?: string[];
+  /** Saved captures use a fixed layout; proposed config changes are not active configuration. */
+  fixedArtifactLayout?: boolean;
 }
 const CONFIG_PATHS = ['_bmad/config.toml', '_bmad/config.user.toml', '_bmad/custom/config.toml', '_bmad/custom/config.user.toml'];
 const MAX_FILES = 2000;
@@ -192,6 +198,7 @@ const NAMES: Record<string, RegExp> = {
   'bmad-sprint-planning': /^sprint-status\.ya?ml$/i,
   'bmad-spec': /^SPEC\.md$/i,
   'bmad-build': /^spec-.+\.md$/i,
+  'bmad-build-auto': /^spec-.+\.md$/i,
   'bmad-retrospective': /retro(?:spective)?.*\.md$/i
 };
 const FINAL_SKILLS = new Set(['bmad-prd', 'bmad-ux', 'bmad-architecture', 'bmad-create-epics-and-stories']);
@@ -207,12 +214,13 @@ const RETRO_VERDICTS: Record<string, string> = { accepted: '驗收通過', 'acce
 function buildStage(status: string, route?: unknown): string | undefined {
   return status === 'in-progress' && route === 'oneshot' ? '實作與內建審查中' : BUILD_STAGES[status] ?? WORK_STAGES[status];
 }
+const isBuildSkill = (skill: string): boolean => skill === 'bmad-build' || skill === 'bmad-build-auto';
 
 function artifactState(node: BmadCatalogNode, content: string, fm = frontmatter(content)): Pick<BmadArtifact, 'status' | 'reason' | 'marker' | 'nativeStatus' | 'stage'> {
   const raw = fm.status;
   if (raw !== undefined && typeof raw !== 'string') return { status: 'error', reason: 'status 不是字串，無法判讀。' };
   const status = typeof raw === 'string' ? raw.toLowerCase().trim() : undefined;
-  const native = { nativeStatus: status, stage: status ? node.skill === 'bmad-build' ? buildStage(status, fm.route) : WORK_STAGES[status] : undefined };
+  const native = { nativeStatus: status, stage: status ? isBuildSkill(node.skill) ? buildStage(status, fm.route) : WORK_STAGES[status] : undefined };
   if (node.skill === 'bmad-prfaq' && status && PRFAQ_STAGES[status]) return { ...native, stage: PRFAQ_STAGES[status],
     status: status === 'complete' ? 'complete' : 'draft', reason: `PRFAQ 正式狀態：${status}。`, marker: `status: ${status}` };
   if (node.skill === 'bmad-brainstorming' && status === 'complete') return { ...native, stage: '腦力激盪完成', status: 'complete', reason: 'Brainstorm 記錄明確標示 complete。', marker: 'status: complete' };
@@ -221,8 +229,8 @@ function artifactState(node: BmadCatalogNode, content: string, fm = frontmatter(
     if (!status) return { status: 'needs-confirmation', nativeStatus: fm.verdict, stage: RETRO_VERDICTS[fm.verdict],
       reason: `已記錄回顧結論「${RETRO_VERDICTS[fm.verdict]}」；verdict 不代表回顧流程已完成。`, marker: `verdict: ${fm.verdict}` };
   }
-  if (node.skill === 'bmad-build' && status === 'blocked') return { ...native, status: 'blocked', reason: typeof fm.blocked_reason === 'string' ? `Build 受阻：${fm.blocked_reason}` : 'Build 正式記錄 blocked；請開啟文件查看原因並讓 BMAD 核對續作方式。', marker: 'status: blocked' };
-  if (node.skill === 'bmad-build' && status === 'done') return { ...native, status: 'complete', reason: 'Build 產物明確標示 done；Story 審查狀態另依正式追蹤來源顯示。', marker: 'status: done' };
+  if (isBuildSkill(node.skill) && status === 'blocked') return { ...native, status: 'blocked', reason: typeof fm.blocked_reason === 'string' ? `Build 受阻：${fm.blocked_reason}` : 'Build 正式記錄 blocked；請開啟文件查看原因並讓 BMAD 核對續作方式。', marker: 'status: blocked' };
+  if (isBuildSkill(node.skill) && status === 'done') return { ...native, status: 'complete', reason: node.skill === 'bmad-build-auto' ? 'Build Auto 已 done；再次派送是 follow-up review，不是一般續作。' : 'Build 產物明確標示 done；Story 審查狀態另依正式追蹤來源顯示。', marker: 'status: done' };
   if (status === 'final' && FINAL_SKILLS.has(node.skill)) return { ...native, status: 'complete', reason: 'BMAD 正式完成標記。', marker: 'status: final' };
   if (['draft', 'in-progress', 'incomplete', 'ready-for-dev', 'review', 'in-review', 'backlog'].includes(status ?? '')) return { ...native, status: 'draft', reason: `產物明確標示 ${status}。`, marker: `status: ${status}` };
   if (status && !['final', 'done', 'complete', 'completed'].includes(status)) return { ...native, status: 'error', reason: `未支援的 status: ${status}；請由 BMAD 核對原生狀態。`, marker: `status: ${status}` };
@@ -248,14 +256,14 @@ function stepStatus(artifacts: BmadArtifact[], node: BmadCatalogNode): { status:
 async function readCodexSkills(root: string, nodes: BmadCatalogNode[], reader: Reader, signal?: AbortSignal, watchDirectories?: string[]): Promise<BmadWorkflowSnapshot['codex']> {
   const directory = path.join(root, '.agents', 'skills');
   const expected = [...new Set(['bmad-help', ...nodes.map(node => node.skill)])].sort();
-  const candidates = new Set(expected);
+  const candidates = new Set([...expected, ...BMAD_ENTRIES.map(entry => `wk-${entry.id}`)]);
   let foundDirectory = false, integrationPresent = false, invalid = false;
   try {
     const stat = await fs.lstat(directory);
     if (!stat.isDirectory() || stat.isSymbolicLink() || !inside(root, await fs.realpath(directory))) throw new Error('Codex skills 不是專案內的一般資料夾。');
     foundDirectory = true;
     const entries = await fs.readdir(directory, { withFileTypes: true });
-    const bmadEntries = entries.filter(entry => /^bmad-[a-z0-9-]+$/.test(entry.name));
+    const bmadEntries = entries.filter(entry => /^(?:bmad|wk)-[a-z0-9-]+$/.test(entry.name));
     integrationPresent = bmadEntries.length > 0;
     if (bmadEntries.length > 256) { invalid = true; reader.diagnostic('codex-scan-limit', 'Codex BMAD skills 超過 256 個，僅檢查目錄能力。', directory); }
     else for (const entry of bmadEntries) candidates.add(entry.name);
@@ -290,7 +298,7 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
     guidanceVersion: BMAD_GUIDANCE_VERSION, compatibility: 'unknown',
     installation: { state: 'missing', reason: options.root ? '此根目錄尚未偵測到 BMAD；請在設定安裝 WorkflowKit。' : '請先選擇專案根目錄。' },
     codex: { state: 'unknown', skills: [], reason: options.root ? '正在核對專案中的 Codex skills。' : '選擇專案後偵測 Codex 整合。' },
-    observation: { state: 'paused' },
+    observation: { state: 'paused' }, autoBuild: options.autoBuild,
     catalogSource: 'guidance', nodes, phases: [], edges: [], steps: [], stories: [], currentCandidates: [], recommendations: [], watchDirectories: [], diagnostics };
   let readableRoot = !!snapshot.root;
   if (snapshot.root) {
@@ -337,9 +345,36 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
         snapshot.installation = { state: 'partial', reason: `BMAD 安裝尚未完整，缺少 ${absent.join('、')}；請檢查 WorkflowKit 或既有外部 BMAD。` };
         reader.diagnostic('installation-incomplete', snapshot.installation.reason);
       }
-      if (snapshot.installation.state === 'ready') await readProgress(snapshot, options, reader);
+      if (snapshot.installation.state === 'ready') {
+        if (!snapshot.nodes.some(node => node.skill === 'bmad-build-auto') && (await reader.read(path.join(root, '.agents', 'skills', 'bmad-build-auto', 'SKILL.md')))?.content.trim()) {
+          const build = snapshot.nodes.find(node => node.skill === 'bmad-build');
+          if (build) snapshot.nodes.push({ ...build, id: `${build.module}:bmad-build-auto:`, skill: 'bmad-build-auto', displayName: 'Build Auto', menuCode: 'BA',
+            description: '明確選用的自動迭代；需要同步子代理與已驗證的 sandbox 本機 Git 提交能力。', required: false });
+        }
+        await readProgress(snapshot, options, reader);
+      }
     }
     snapshot.codex = await readCodexSkills(root, snapshot.catalogSource === 'installed' ? snapshot.nodes : [], reader, options.signal, snapshot.watchDirectories);
+  }
+  snapshot.persistedArtifactRoots = [];
+  for (const supplied of options.persistedArtifactRoots ?? []) {
+    options.signal?.throwIfAborted();
+    try {
+      const artifactRoot = await fs.realpath(supplied), info = await fs.lstat(supplied);
+      if (!path.isAbsolute(supplied) || !info.isDirectory() || info.isSymbolicLink() || snapshot.persistedArtifactRoots.includes(artifactRoot)) throw new Error('成果目錄無法驗證。');
+      const persisted: BmadWorkflowSnapshot = { ...snapshot, root: artifactRoot, steps: [], stories: [], watchDirectories: [], diagnostics: [], persistedArtifactRoots: [] };
+      const reader = makeReader(artifactRoot, persisted.diagnostics, options.maxArtifactBytes ?? 1024 * 1024, options.signal, options.cache);
+      await readProgress(persisted, { ...options, fixedArtifactLayout: true }, reader);
+      for (const step of persisted.steps) {
+        const existing = snapshot.steps.find(candidate => candidate.id === step.id);
+        const artifacts = step.artifacts.map(artifact => ({ ...artifact, id: hash(`${artifactRoot}\0${artifact.id}`), relativePath: `任務成果/${path.basename(artifactRoot)}/${artifact.relativePath}` }));
+        if (existing) { existing.artifacts.push(...artifacts); Object.assign(existing, stepStatus(existing.artifacts, snapshot.nodes.find(node => node.id === step.id)!)); }
+        else snapshot.steps.push({ ...step, artifacts });
+      }
+      snapshot.stories.push(...persisted.stories);
+      snapshot.diagnostics.push(...persisted.diagnostics);
+      snapshot.persistedArtifactRoots.push(artifactRoot);
+    } catch (error) { if (options.signal?.aborted) throw error; diagnostics.push({ code: 'persisted-artifact-invalid', message: (error as Error).message, path: supplied }); }
   }
   const phaseOrder = ['plan', '2-planning', 'ship', 'anytime'];
   const phaseIds = [...new Set(snapshot.nodes.map(node => node.phase))].sort((a, b) => { const ai = phaseOrder.indexOf(a), bi = phaseOrder.indexOf(b); return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi); });
@@ -357,6 +392,11 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
   const build = snapshot.nodes.find(node => node.skill === 'bmad-build');
   const review = snapshot.nodes.find(node => node.skill === 'bmad-code-review');
   const help = snapshot.nodes.find(node => node.skill === 'bmad-help');
+  const auto = snapshot.nodes.find(node => node.skill === 'bmad-build-auto');
+  if (auto && help) for (const candidate of snapshot.currentCandidates) {
+    const artifact = snapshot.steps.find(step => step.id === auto.id)?.artifacts.find(item => item.id === candidate.artifactId);
+    if (candidate.stepId === auto.id && artifact?.nativeStatus === 'blocked') { candidate.blockedArtifactId = candidate.artifactId; candidate.stepId = help.id; candidate.artifactId = undefined; candidate.reason = 'Build Auto 已受阻；先核對阻擋原因，不直接重派。'; }
+  }
   const storyNode = (story: BmadStoryProgress): BmadCatalogNode | undefined => story.status === 'conflict' || story.association === 'unconfirmed' || story.association === 'ambiguous' ? help ?? build
     : story.mode === 'spec' ? build : ['review', 'in-review'].includes(story.status) ? review ?? build : build;
   for (const story of snapshot.stories.filter(story => story.status !== 'done' && story.status !== 'backlog')) {
@@ -397,7 +437,7 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
 
 async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWorkflowOptions, reader: Reader): Promise<void> {
   const root = snapshot.root!; const config: Record<string, unknown> = {};
-  for (const name of CONFIG_PATHS) {
+  for (const name of options.fixedArtifactLayout ? [] : CONFIG_PATHS) {
     options.signal?.throwIfAborted();
     const file = path.join(root, name); const diagnosticCount = snapshot.diagnostics.length; const value = await reader.read(file);
     if (!value && snapshot.diagnostics.length > diagnosticCount) snapshot.installation = { state: 'error', reason: 'BMAD TOML 設定無法安全讀取。' };
@@ -474,8 +514,8 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
       if (outputDirectories.length) {
         snapshot.watchDirectories.push(...outputDirectories);
         const matches = node.skill === 'bmad-project-context' ? [path.join(root, 'AGENTS.md')] : [...new Set([
-          ...(await Promise.all(outputDirectories.map(scan))).flat().filter(file => pattern.test(path.basename(file)) && (node.skill !== 'bmad-build' || path.basename(path.dirname(file)) !== 'stories')),
-          ...(node.skill === 'bmad-build' ? [...storyFiles] : [])
+          ...(await Promise.all(outputDirectories.map(scan))).flat().filter(file => pattern.test(path.basename(file)) && (!isBuildSkill(node.skill) || path.basename(path.dirname(file)) !== 'stories')),
+          ...(isBuildSkill(node.skill) ? [...storyFiles] : [])
         ])].sort();
         for (const file of matches) {
           const diagnosticCount = snapshot.diagnostics.length; const data = await reader.read(file);
@@ -486,6 +526,11 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
           }
           let state: ReturnType<typeof artifactState>;
           try {
+            if (isBuildSkill(node.skill)) {
+              const metadata = reader.metadata(data);
+              const isAuto = metadata.workflow === 'bmad-build-auto' || typeof metadata.followup_review_recommended === 'boolean' || data.content.includes('<intent-contract>');
+              if (isAuto !== (node.skill === 'bmad-build-auto')) continue;
+            }
             if (node.skill === 'bmad-sprint-planning') {
               const entries = object(object(reader.value(data)).development_status);
               if (!Object.keys(entries).length || Object.values(entries).some(value => typeof value !== 'string' || !STORY_STATUSES.has(value) && value !== 'optional')) throw new Error('Sprint 追蹤檔缺少有效的 development_status 或含無效狀態。');
@@ -500,7 +545,7 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
       }
     }
     const aggregate = stepStatus(artifacts, node);
-    if (node.skill === 'bmad-build' && aggregate.status !== 'error') {
+    if (isBuildSkill(node.skill) && aggregate.status !== 'error') {
       const inventoryStories = snapshot.stories.filter(story => story.mode === 'spec');
       const classicStories = snapshot.stories.filter(story => story.mode === 'classic');
       const missingRecords = inventoryStories.filter(story => story.association === 'not-observed').length;

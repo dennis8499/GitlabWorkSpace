@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { codexTaskActive, type CodexEnvironment, type CodexInteraction, type CodexInteractionAnswer, type CodexLaunchDraft, type CodexOutputItem, type CodexTaskState } from '../codex/protocol';
 import { mergeCodexTranscript } from '../codex/transcript';
 import type { ActionController, DispatchResult } from '../workspace/actionController';
-import type { WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
+import type { ManagedTaskFocus, WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { codexInteractionKey, editCodexDraft, editCodexInteractionDraft, mergeCodexTasks, restoreCodexUi, settleCodexDrafts, type CodexUiState } from './codexUiState';
 import { useActionSelector } from './useActions';
 import { boundTranscriptCache } from '../codex/historyBudget';
 import { CodexDraftSync, codexDraftConflictText } from './codexDraftSync';
 import type { CodexUiDraftConflict } from '../codex/uiDraftProtocol';
+import { normalizeProjectRoot } from './projectUiState';
 type WorkflowPayload = Extract<WorkspaceResponse, { type: 'codexWorkflowResult' }>;
 
 type Post = (request: WorkspaceRequest) => DispatchResult;
@@ -17,9 +18,10 @@ export const codexStatusLabels: Record<CodexTaskState['status'], string> = {
 };
 
 /** Stays mounted at the dashboard root, independently of the visible workspace page. */
-export function useCodexWorkspace({ post, actions, initialState, onStateChange, onOpen, enabled, visible, scope }: {
+export function useCodexWorkspace({ post, actions, initialState, onStateChange, onOpen, enabled, visible, scope, managedTaskFocus, accountId, root }: {
   post: Post; actions: ActionController; initialState?: CodexUiState; onStateChange(state: CodexUiState): void;
   onOpen(): void; enabled: boolean; visible: boolean; scope?: string;
+  managedTaskFocus?: ManagedTaskFocus; accountId?: string; root?: string;
 }) {
   const [tasks, setTasks] = useState<CodexTaskState[]>([]);
   const tasksRef = useRef<CodexTaskState[]>([]), deltaRevision = useRef(-1), removedTasks = useRef(new Set<string>());
@@ -31,6 +33,11 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
   const urgentDraftRequests = useRef(new Map<string, string | undefined>()), reloadAfterUrgent = useRef(false), draftTimer = useRef<number>(), urgentDraftTimer = useRef<number>();
   const draftClient = useRef(`codex-ui-${Math.random().toString(36).slice(2)}`), draftSerial = useRef(0), draftScope = useRef<string>();
   const draftEnabled = useRef(enabled), flushDrafts = useRef<() => void>(() => {}); draftEnabled.current = enabled;
+  const currentScope = useRef(scope); currentScope.current = scope;
+  const manualSelection = useRef(false), focusedManagedTasks = useRef(new Set<string>());
+  const managedFocus = useRef<ManagedTaskFocus>();
+  managedFocus.current = managedTaskFocus && root && normalizeProjectRoot(root) === normalizeProjectRoot(managedTaskFocus.originRoot) &&
+    (!managedTaskFocus.accountId || managedTaskFocus.accountId === accountId) ? managedTaskFocus : undefined;
   save.current = onStateChange; open.current = onOpen;
   const setUi = (update: (state: CodexUiState) => CodexUiState, track = true) => {
     let next = update(uiRef.current);
@@ -40,6 +47,20 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     uiRef.current = next; save.current(next); commitUi(next);
     flushDrafts.current();
   };
+  const applyManagedTaskFocus = (state: CodexUiState): CodexUiState => {
+    const focus = managedFocus.current;
+    if (!focus || !draftEnabled.current || draftScope.current !== currentScope.current || manualSelection.current || focusedManagedTasks.current.has(focus.taskId) ||
+      !tasksRef.current.some(task => task.id === focus.taskId && task.controls?.external === false)) return state;
+    setLaunchVisible(false); open.current();
+    // Keep the owner visible while loading, without recording an edit against a
+    // stale cached revision. The first Host load supplies this preference's CAS.
+    if (!draftSync.current!.loaded) return { ...state, selectedTaskId: focus.taskId };
+    if (urgentDraftRequests.current.size) return state;
+    const next = draftSync.current!.automaticSelection(focus.taskId, state);
+    if (!next) return state;
+    focusedManagedTasks.current.add(focus.taskId); return next;
+  };
+  const focusManagedTask = () => setUi(applyManagedTaskFocus, false);
   const storageFailed = (message: string) => {
     if (draftTimer.current !== undefined) window.clearTimeout(draftTimer.current);
     if (urgentDraftTimer.current !== undefined) window.clearTimeout(urgentDraftTimer.current); urgentDraftTimer.current = undefined;
@@ -112,7 +133,9 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     }
     if (!enabled) return;
     if (draftScope.current !== undefined && draftScope.current !== scope) {
-      const empty = restoreCodexUi(); draftSync.current = new CodexDraftSync(empty); draftRequest.current = undefined; draftError.current = undefined;
+      const focus = managedFocus.current;
+      const empty = restoreCodexUi(!manualSelection.current && focus && uiRef.current.selectedTaskId === focus.taskId ? { selectedTaskId: focus.taskId } : undefined);
+      draftSync.current = new CodexDraftSync(empty); draftRequest.current = undefined; draftError.current = undefined;
       urgentDraftRequests.current.clear(); reloadAfterUrgent.current = false;
       setUi(() => empty, false); restoredPending.current.clear();
     }
@@ -133,11 +156,12 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         if (message.error || !message.snapshot) { storageFailed(message.error ?? '本機草稿回覆不完整。'); return; }
         if (request.kind === 'save' && message.snapshot.scope !== draftSync.current!.scope) { storageFailed('草稿範圍已變更，請重新讀取。'); return; }
         try {
-          const next = request.kind === 'load' ? draftSync.current!.load(message.snapshot, uiRef.current) : draftSync.current!.accepted(message.snapshot, uiRef.current);
+          let next = request.kind === 'load' ? draftSync.current!.load(message.snapshot, uiRef.current) : draftSync.current!.accepted(message.snapshot, uiRef.current);
           draftRequest.current = undefined; draftError.current = undefined;
           if (draftTimer.current !== undefined) window.clearTimeout(draftTimer.current);
           setDraftStorage({ loading: false, saving: !!urgentDraftRequests.current.size, conflicts: draftSync.current!.conflicts });
           if (reloadAfterUrgent.current && !urgentDraftRequests.current.size) loadDrafts();
+          next = applyManagedTaskFocus(next);
           setUi(() => restoreCodexUi(next), false); restorePendingDrafts(uiRef.current); flushDrafts.current();
         } catch (error) { storageFailed(error instanceof Error ? error.message : '本機草稿內容無法讀取。'); }
         return;
@@ -158,6 +182,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
           setUi(current => { const launchDrafts = { ...current.launchDrafts }, launchDraftBases = { ...current.launchDraftBases }; delete launchDrafts[id]; delete launchDraftBases[id]; return { ...current, launchDrafts, launchDraftBases }; });
         }
         setLaunchVisible(false);
+        if (managedFocus.current?.taskId === message.taskId) { if (!manualSelection.current) focusManagedTask(); return; }
         setUi(current => ({ ...current, selectedTaskId: message.taskId })); open.current(); return;
       }
       if (message?.type !== 'codexEvent') return;
@@ -170,6 +195,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         tasksRef.current = nextTasks;
         const ids = nextTasks.map(task => task.id), keep = new Set(ids);
         knownTasks.current = keep;
+        focusManagedTask();
         // Catalog absence can mean filtering or quarantine; only the Host's
         // explicit deletion fence may remove durable draft entries.
         setTasks(nextTasks); setUi(current => ({ ...current,
@@ -225,7 +251,8 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
       draftRequest.current = undefined; draftSync.current!.failed();
     };
   }, [enabled, scope]);
-  const select = (id: string) => { setLaunchVisible(false); setUi(current => ({ ...current, selectedTaskId: id })); };
+  useEffect(() => { focusManagedTask(); }, [enabled, scope, managedTaskFocus?.taskId, managedTaskFocus?.originRoot, managedTaskFocus?.accountId, accountId, root]);
+  const select = (id: string) => { manualSelection.current = true; setLaunchVisible(false); setUi(current => ({ ...current, selectedTaskId: id })); };
   const answer = (interaction: CodexInteraction, response: CodexInteractionAnswer): DispatchResult => {
     const result = post({ type: 'answerCodex', taskId: interaction.taskId, interactionId: interaction.id, answer: response });
     const operation = result.operationId ? actions.get(result.operationId) : undefined;

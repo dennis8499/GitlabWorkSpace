@@ -4,9 +4,12 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath, symlink } f
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewSync, withReviewSyncInvalidation, sharedReviewCacheRoot, sharedReviewCacheV2Root, resolveReviewRuntime, defaultReviewRuntime, invalidateReviewAuth } from '../../src/workspace/reviewSessions';
 import { workspaceActionKinds, describeAction } from '../../src/workspace/actionPolicy';
 import { reviewSessionActions } from '../../src/workspace/reviewSessionProtocol';
+import { reviewRunnerRuntime, reviewRunnerWritableRoots } from '../../src/workspace/reviewLaunch';
 
 async function fixture(t: test.TestContext) {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'review-jobs-'));
@@ -23,6 +26,103 @@ async function fixture(t: test.TestContext) {
   await save(job);
   return { base, root, repo, id, job, save };
 }
+
+async function legacyMergeFixture(t: test.TestContext, baseSha = '1'.repeat(40), headSha = '2'.repeat(40)) {
+  const f = await fixture(t), context = path.join(f.root, 'sessions', f.id), report = path.join(f.repo, 'review-reports', 'old-name-unrelated-to-ref.md');
+  await mkdir(path.dirname(report));
+  const table = ['### 固定版本', '', '| Repo | 角色 | 來源 | 完整 SHA |', '| --- | --- | --- | --- |',
+    `| supporting | candidate | base | \`${'c'.repeat(40)}\` |`, `| supporting | candidate | head | \`${'d'.repeat(40)}\` |`,
+    `| ${path.basename(f.repo)} | seed | head | \`${headSha}\` |`, `| ${path.basename(f.repo)} | seed | base | \`${baseSha}\` |`,
+    `| ${path.basename(f.repo)} | seed | merge-preview | \`${'e'.repeat(40)}\` |`].join('\n');
+  const body = `# Native Merge report\n\n- 本機路徑：\`${f.repo}\`\n\n<!-- merge-confirmations:start -->\nHuman notes\n<!-- merge-confirmations:end -->\n\n${table}\n`;
+  const job: any = { ...f.job, state: 'published', phase: 'complete', context_dir: context, selected_repo: 'repo-000', report_path: report,
+    review_outcome: { schema: 'MergeReviewOutcome/v1', outcome_available: true, review_complete: true, review_status: 'complete', gaps: [] } };
+  const publish = async (content = body, fullReportHash = false) => {
+    await writeFile(report, content);
+    job.report_sha256 = createHash('sha256').update(content).digest('hex');
+    const fixed = content.replace(/<!-- merge-confirmations:start -->[\s\S]*?<!-- merge-confirmations:end -->/,
+      '<!-- merge-confirmations:start -->\n<editable-human-confirmations>\n<!-- merge-confirmations:end -->');
+    job.report_receipt = fullReportHash ? undefined : { policy: 'merge-report-static-body/v1', static_body_sha256: createHash('sha256').update(fixed).digest('hex'), review_outcome: job.review_outcome };
+    await f.save(job);
+  };
+  const manifest: any = { schema: 'merge-reviewer-workspace-context/v3', request_id: f.id, runtime_root: f.root, context_dir: context, workspace: f.base,
+    selected_repo: 'repo-000', capture_completed_at: '2026-11-14T00:00:00Z', repositories: [{ id: 'repo-000', role: 'seed', state: 'captured', path: f.repo,
+      native: { base_input: f.job.inputs.base, head_input: f.job.inputs.head, base_sha: baseSha, head_sha: headSha }, sources: { base: { ref: baseSha }, head: { ref: headSha } } }] };
+  const owner = { schema: 'merge-reviewer-session/v2', directory: context, runtime: f.root, request_id: f.id, token: 'a'.repeat(32) };
+  const capture = async () => {
+    await mkdir(context, { recursive: true }); await writeFile(path.join(context, '.merge-reviewer-owned.json'), JSON.stringify(owner));
+    const bytes = JSON.stringify(manifest); await writeFile(path.join(context, 'manifest.json'), bytes);
+    job.evidence_receipt = { schema: 'MergeReviewEvidenceReceipt/v1', manifest_sha256: createHash('sha256').update(bytes).digest('hex') }; await f.save(job);
+  };
+  await publish();
+  return { ...f, context, report, table, body, job, manifest, owner, publish, capture, read: async () => (await readReviewSessions(f.root, f.base, [f.repo]))[0] };
+}
+
+test('a published Merge v1 without fixed_identity retains its full selected SHA pair after native context cleanup', async t => {
+  const f = await legacyMergeFixture(t), before = await readFile(path.join(f.root, 'jobs', f.id + '.json'));
+  let row = await f.read();
+  assert.equal(row.baseSha, '1'.repeat(40)); assert.equal(row.headSha, '2'.repeat(40)); assert.equal(row.reviewOutcome?.reviewComplete, true);
+  assert.equal((await readReviewJob(f.root, f.id, f.base, [f.repo])).fixed_identity, undefined, 'Reading must not synthesize fields that a caller could write back to the native job');
+  assert.deepEqual(await readFile(path.join(f.root, 'jobs', f.id + '.json')), before); await assert.rejects(readdir(f.context), { code: 'ENOENT' });
+  await f.publish(f.body, true); row = await f.read(); assert.equal(row.baseSha, '1'.repeat(40)); assert.equal(row.headSha, '2'.repeat(40), 'Legacy full-report hash policy remains supported');
+});
+
+test('retained Merge context identity requires its owner, manifest receipt, selected Repo and matching fixed inputs', async t => {
+  const valid = await legacyMergeFixture(t); valid.job.state = 'reviewing'; await valid.capture();
+  assert.equal((await valid.read()).baseSha, '1'.repeat(40)); assert.equal((await valid.read()).capturedAt, '2026-11-14T00:00:00Z');
+  for (const scenario of ['hash', 'owner', 'schema', 'request', 'runtime', 'workspace', 'project', 'selected', 'duplicate', 'native-ref', 'input-ref', 'missing-manifest']) await t.test(scenario, async child => {
+    const f = await legacyMergeFixture(child); await f.capture(); // A valid report cannot hide conflicting retained evidence.
+    if (scenario === 'hash') { await writeFile(path.join(f.context, 'manifest.json'), JSON.stringify({ ...f.manifest, capture_completed_at: 'changed' })); }
+    else if (scenario === 'missing-manifest') await rm(path.join(f.context, 'manifest.json'));
+    else {
+      if (scenario === 'owner') f.owner.request_id = 'b'.repeat(32);
+      if (scenario === 'schema') f.manifest.schema = 'foreign/v1';
+      if (scenario === 'request') f.manifest.request_id = 'b'.repeat(32);
+      if (scenario === 'runtime') f.manifest.runtime_root = f.base;
+      if (scenario === 'workspace') f.manifest.workspace = f.repo;
+      if (scenario === 'project') f.manifest.repositories[0].path = f.base;
+      if (scenario === 'selected') f.manifest.selected_repo = 'repo-other';
+      if (scenario === 'duplicate') f.manifest.repositories.push(structuredClone(f.manifest.repositories[0]));
+      if (scenario === 'native-ref') f.manifest.repositories[0].sources.head.ref = '3'.repeat(40);
+      if (scenario === 'input-ref') f.manifest.repositories[0].native.base_input = 'other-branch';
+      await f.capture();
+    }
+    assert.equal((await f.read()).baseSha, undefined); assert.equal((await f.read()).headSha, undefined);
+  });
+});
+
+test('legacy published identity rejects invalid receipts, ambiguous tables, foreign Repos and conflicting fixed metadata', async t => {
+  for (const scenario of ['changed-body', 'bad-policy', 'partial-fixed', 'conflicting-fixed', 'duplicate-table', 'duplicate-base', 'foreign-seed', 'short-sha', 'wrong-location', 'editable-only']) await t.test(scenario, async child => {
+    const f = await legacyMergeFixture(child);
+    if (scenario === 'changed-body') await writeFile(f.report, f.body.replace('1'.repeat(40), '3'.repeat(40)));
+    else if (scenario === 'bad-policy') { f.job.report_receipt.policy = 'foreign/v1'; await f.save(f.job); }
+    else if (scenario === 'partial-fixed') { f.job.fixed_identity = { base_sha: '1'.repeat(40) }; await f.save(f.job); }
+    else if (scenario === 'conflicting-fixed') { f.job.fixed_identity = { base_sha: '3'.repeat(40), head_sha: '2'.repeat(40) }; await f.save(f.job); }
+    else {
+      let body = f.body;
+      if (scenario === 'duplicate-table') body += '\n' + f.table;
+      if (scenario === 'duplicate-base') body += `| ${path.basename(f.repo)} | seed | base | \`${'1'.repeat(40)}\` |\n`;
+      if (scenario === 'foreign-seed') body = body.replace(`| ${path.basename(f.repo)} | seed | base`, '| another-repo | seed | base');
+      if (scenario === 'short-sha') body = body.replace('1'.repeat(40), '1'.repeat(8));
+      if (scenario === 'wrong-location') body = body.replace(`\`${f.repo}\``, `\`${f.base}\``);
+      if (scenario === 'editable-only') body = body.replace(f.table, '').replace('Human notes', f.table);
+      await f.publish(body);
+    }
+    assert.equal((await f.read()).baseSha, undefined); assert.equal((await f.read()).headSha, undefined);
+  });
+});
+
+test('fixed metadata supports older verified renderers while editable notes cannot inject or replace identity', async t => {
+  const f = await legacyMergeFixture(t);
+  await writeFile(f.report, f.body.replace('Human notes', f.table.replace(/1{40}/g, '3'.repeat(40))));
+  assert.equal((await f.read()).baseSha, '1'.repeat(40), 'A fake table in the mutable human region is ignored');
+  f.job.fixed_identity = { base_sha: '1'.repeat(40), head_sha: '2'.repeat(40) };
+  await f.publish('# Older receipt-valid native report without a version table\n');
+  assert.equal((await f.read()).baseSha, '1'.repeat(40), 'A valid native fixed identity does not require upgrading an old renderer');
+  delete f.job.fixed_identity; await f.save(f.job); assert.equal((await f.read()).baseSha, undefined, 'No table plus no metadata stays unknown');
+  const sha256 = await legacyMergeFixture(t, 'a'.repeat(64), 'b'.repeat(64));
+  assert.equal((await sha256.read()).baseSha, 'a'.repeat(64)); assert.equal((await sha256.read()).headSha, 'b'.repeat(64));
+});
 
 test('persisted operation progress and checked semantic counts stay separate, and unknown counts are not zero', async t => {
   const f = await fixture(t);
@@ -201,6 +301,50 @@ test('both reviewer runtimes invalidate the same owned shared cache and preserve
   assert.equal(JSON.parse(await readFile(path.join(release, 'invalidations', key + '.json'), 'utf8')).schema, 'MergeReviewInvalidation/v1');
   await writeFile(path.join(shared, '.review-shared-cache.json'), JSON.stringify({ schema: 'ReviewerSharedCache/v1', directory: path.dirname(shared) }));
   await assert.rejects(invalidateReviewSync(f.root, common), /共享快取所有權/);
+});
+
+test('Host writable roots leave both r2 runtimes acceptable to the real native ownership preflight', async t => {
+  const base = await realpath(await mkdtemp(path.join(os.tmpdir(), 'glw-r2-preflight-')));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const previous = process.env.REVIEW_SHARED_CACHE_DIR; delete process.env.REVIEW_SHARED_CACHE_DIR;
+  t.after(() => { if (previous === undefined) delete process.env.REVIEW_SHARED_CACHE_DIR; else process.env.REVIEW_SHARED_CACHE_DIR = previous; });
+  const fixture = path.resolve(__dirname, '../../../test/fixtures/workflowkit-release-1.5.0/gitlab-workspace-kit-1.5.0.zip');
+  // Isolated compiler output is deeper than the normal out/ tree.
+  const archive = await readFile(fixture).then(() => fixture, () => path.resolve('test/fixtures/workflowkit-release-1.5.0/gitlab-workspace-kit-1.5.0.zip'));
+  assert.equal(createHash('sha256').update(await readFile(archive)).digest('hex'), '2de59b1433e0ff0a347358aa9d823d891dac444a487ad44580d12d58cde909ea');
+  for (const [tool, suffix] of [['merge-reviewer', 'm'], ['release-reviewer', 'r']] as const) {
+    const runtime = path.join(base, 'r2', '012345abcdef-' + suffix), shared = await sharedReviewCacheRoot(runtime);
+    const runner = reviewRunnerRuntime(runtime);
+    // This is the same writable-root shape used by Host review preparation.
+    const binding = { script_path: path.join(base, 'run.py'), script_sha256: 'a'.repeat(64) };
+    for (const root of [runtime, ...reviewRunnerWritableRoots(runtime, binding), shared, path.join(base, 'reviewer-cache-v2')]) await mkdir(root, { recursive: true });
+    if (suffix === 'r') await writeFile(path.join(runtime, '.ownership.lock'), '');
+    const script = `import importlib.util,json,pathlib,sys,zipfile
+archive,base,tool,runtime,runner=sys.argv[1:]
+base=pathlib.Path(base); scripts=base/tool; scripts.mkdir()
+prefix='workflow-kit/payload/.agents/skills/'+tool+'/scripts/'
+with zipfile.ZipFile(archive) as package:
+ for name in package.namelist():
+  if name.startswith(prefix) and name.endswith('.py'):
+   relative=pathlib.PurePosixPath(name[len(prefix):]); assert not relative.is_absolute() and '..' not in relative.parts
+   target=scripts.joinpath(*relative.parts); target.parent.mkdir(parents=True,exist_ok=True); target.write_bytes(package.read(name))
+ source=base/(tool+'-runner.py'); source.write_bytes(package.read('workflow-kit/payload/.agents/gitlab-workspace-kit/run.py'))
+spec=importlib.util.spec_from_file_location('kit_runner',source); module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+assert str(module._session_runtime(['python',str(scripts/'review_session.py'),'start','--runtime-root',runtime]))==runner
+root=pathlib.Path(runtime); before=sorted(p.name for p in root.iterdir()); assert all(name=='.ownership.lock' for name in before),before
+sys.path.insert(0,str(scripts)); import review_coordinator
+assert review_coordinator.runtime(root,create=True)==root.resolve()
+marker=root/('.merge-reviewer-runtime.json' if tool=='merge-reviewer' else '.release-reviewer-runtime.json')
+assert json.loads(marker.read_text())['directory']==str(root.resolve())
+assert not (root/'jobs').exists()
+print(json.dumps({'tool':tool,'before':before,'nativeOwnershipAccepted':True,'runnerSiblingMappingVerified':True}))`;
+    const result = await promisify(execFile)('python', ['-X', 'utf8', '-B', '-c', script, archive, base, tool, runtime, runner],
+      { windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024, env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
+    const proof = JSON.parse(result.stdout); assert.equal(proof.nativeOwnershipAccepted, true); assert.equal(proof.runnerSiblingMappingVerified, true);
+    assert.equal(shared, path.join(base, 'r2', '.review-shared-cache'));
+    assert.ok((await readdir(runtime)).every(name => name === '.ownership.lock' || name === (suffix === 'm' ? '.merge-reviewer-runtime.json' : '.release-reviewer-runtime.json')));
+  }
+  assert.equal(await sharedReviewCacheRoot(path.join(base, 'custom')), path.join(base, 'custom', '.review-shared-cache'), 'unknown legacy layouts retain their mapping');
 });
 
 test('status refuses linked runtime and linked jobs instead of traversing them', async t => {

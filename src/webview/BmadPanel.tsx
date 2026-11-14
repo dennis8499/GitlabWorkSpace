@@ -1,11 +1,12 @@
 /** @jsxImportSource preact */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import type { BmadCatalogNode, BmadCommandRequest, BmadPanelState, BmadProgressStatus, BmadWorkflowSnapshot } from '../workspace/bmadProtocol';
+import type { BmadCatalogNode, BmadCommandRequest, BmadCurrentCandidate, BmadPanelState, BmadProgressStatus, BmadWorkflowSnapshot } from '../workspace/bmadProtocol';
 import type { BmadEnvironmentCheck } from '../workspace/bmadEnvironmentProtocol';
 import type { InstalledWorkflowKitState } from '../workspace/workspaceProtocol';
 import { bmadKitTaskIssue } from '../workspace/bmadKit';
 import { BMAD_CAPABILITY_GUIDES, BMAD_CODEX_COMMAND, BMAD_DOCUMENTATION_LINKS, BMAD_GUIDANCE_VERSION, BMAD_TASK_GUIDES } from '../workspace/bmadGuide';
+import { BMAD_ENTRIES, bmadAutoBuildIssue, bmadEntry, bmadEntrySkills } from '../workspace/bmadEntrypoints';
 import './bmad-panel.css';
 
 export interface BmadPanelProps {
@@ -16,6 +17,7 @@ export interface BmadPanelProps {
   onChange?: (state: BmadPanelState) => void;
   onEnvironmentChange?: (state: BmadPanelState) => void;
   onRefresh: () => void;
+  onCheckBuildAuto?: () => void;
   onCopyCommand: (request: BmadCommandRequest) => void;
   onRunCommand?: (request: BmadCommandRequest) => void;
   onOpenTerminal: () => void;
@@ -50,7 +52,7 @@ import { availabilityProps, blockedWhen, firstBlocker } from './featureAvailabil
 import { normalizeProjectRoot } from './projectUiState';
 
 /** Guidance never changes progress; all project state comes from observed native artifacts. */
-export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvironmentChange = onChange, onRefresh, onCopyCommand, onRunCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
+export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvironmentChange = onChange, onRefresh, onCheckBuildAuto, onCopyCommand, onRunCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
   const [localState, setLocalState] = useState<BmadPanelState>({});
   const ui = state ?? localState;
   const initialSection = useRef<Section>();
@@ -92,12 +94,20 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
   const expanded = ui.expandedPhases ?? phases.map(phase => phase.id);
   const findNode = (skill: string, action = ''): BmadCatalogNode | undefined => nodes.find(node => node.skill === skill && node.action === action);
   const available = (node?: BmadCatalogNode): boolean => !!node && !!snapshot.root && snapshot.installation.state === 'ready'
-    && snapshot.compatibility !== 'unsupported' && snapshot.codex.skills.includes(node.skill);
+    && snapshot.compatibility !== 'unsupported' && snapshot.codex.skills.includes(node.skill) && (node.skill !== 'bmad-build-auto' || !bmadAutoBuildIssue(snapshot));
   const availability = (node?: BmadCatalogNode): string => !node || !snapshot.codex.skills.includes(node.skill)
-    ? '此專案尚未安裝此能力' : snapshot.compatibility === 'unsupported' ? '目前版本無法安全提供此指令'
+    ? '此專案尚未安裝此能力' : node.skill === 'bmad-build-auto' && bmadAutoBuildIssue(snapshot) ? bmadAutoBuildIssue(snapshot)! : snapshot.compatibility === 'unsupported' ? '目前版本無法安全提供此指令'
       : !snapshot.root ? '請先選擇專案資料夾' : snapshot.installation.state !== 'ready' ? '請先補齊 BMAD 初始化' : '已偵測 Codex Skill';
   const copySkill = (node: BmadCatalogNode, work?: { artifactId?: string; storyId?: string }): void => {
     if (available(node) && snapshot.observation.state !== 'error') onCopyCommand({ revision: snapshot.revision, command: 'skill', skill: node.skill, stepId: node.id, ...work });
+  };
+  const candidateRequest = (candidate: BmadCurrentCandidate, node: BmadCatalogNode): BmadCommandRequest => {
+    const blocked = candidate.blockedArtifactId && snapshot.steps.flatMap(step => step.artifacts).find(artifact => artifact.id === candidate.blockedArtifactId);
+    if (blocked) return snapshot.codex.skills.includes('wk-goal')
+      ? { revision: snapshot.revision, command: 'entry', entry: 'goal', operation: 'resume', artifactId: blocked.id }
+      : { revision: snapshot.revision, command: 'task', requirement: `請核對這份 Build Auto 記錄的受阻原因，保留原始工作識別，不直接重派：${JSON.stringify(blocked.path)}` };
+    return { revision: snapshot.revision, command: 'skill', skill: node.skill, stepId: node.id,
+      ...(candidate.storyId ? { storyId: candidate.storyId } : candidate.artifactId ? { artifactId: candidate.artifactId } : {}) };
   };
   const copyGuidance = (skill: string, node?: BmadCatalogNode): void => {
     onCopyCommand({ revision: snapshot.revision, command: 'skill', skill, ...(node ? { stepId: node.id } : {}) });
@@ -125,23 +135,32 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
         <span class={`bmad-availability${available(node) ? ' bmad-available' : ''}`}>{availability(node)}</span></div>
       <p>{guide?.purpose ?? node?.description}</p>
       <div class="bmad-command-line"><code>{nativeCommand(skill, action)}</code>
-        <button type="button" class="secondary" disabled={!!action && !node} onClick={() => copyGuidance(skill, node)} aria-label={`複製 ${nativeCommand(skill, action)}`}>複製指令</button></div>
+        <button type="button" class="secondary" disabled={!!action && !node || skill === 'bmad-build-auto' && !!bmadAutoBuildIssue(snapshot)} onClick={() => copyGuidance(skill, node)} aria-label={`複製 ${nativeCommand(skill, action)}`}>複製指令</button></div>
       {guide && <dl class="bmad-capability-facts"><div><dt>準備什麼</dt><dd>{guide.input}</dd></div><div><dt>會得到什麼</dt><dd>{guide.output}</dd></div><div><dt>下一步</dt><dd>{guide.nextStep}</dd></div></dl>}
     </li>;
   };
   const observationTime = snapshot.observation.lastSuccessfulAt ?? snapshot.observedAt;
   const environmentMatches = !!environment?.root && !!snapshot.root && normalizeProjectRoot(environment.root) === normalizeProjectRoot(snapshot.root);
-  const kitIssue = bmadKitTaskIssue(kit);
+  const selectedEntry = bmadEntry(ui.selectedEntry ?? 'goal')!;
+  const routerReady = snapshot.codex.skills.includes(`wk-${selectedEntry.id}`);
+  const kitIssue = bmadKitTaskIssue(kit, routerReady);
+  const entryNativeReady = bmadEntrySkills(snapshot, selectedEntry.id).length > 0;
+  const selectedAuto = selectedEntry.id === 'build' && ui.selectedBuildMode === 'auto';
+  const entryIssue = selectedEntry.id !== 'goal' && !routerReady || routerReady && !entryNativeReady
+    ? '此入口尚未安裝或外部 BMAD 缺少對應能力，請更新 WorkflowKit 或核對原生 Skills。' : selectedAuto ? bmadAutoBuildIssue(snapshot) : undefined;
+  const taskRequest = (): BmadCommandRequest => routerReady ? { revision: snapshot.revision, command: 'entry', entry: selectedEntry.id,
+    operation: 'start', requirement: ui.requirement ?? '', ...(selectedEntry.id === 'build' ? { nativeSkill: selectedAuto ? 'bmad-build-auto' : 'bmad-build' } : {}) }
+    : { revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' };
   const taskReady = !!snapshot.root && snapshot.installation.state === 'ready' && snapshot.compatibility !== 'unsupported'
-    && snapshot.codex.skills.includes('bmad-help') && snapshot.observation.state !== 'error' && !kitIssue;
+    && (routerReady ? entryNativeReady : snapshot.codex.skills.includes('bmad-help')) && snapshot.observation.state !== 'error' && !kitIssue;
 
   const rootBlocked = blockedWhen(!snapshot.root, '請先在 VS Code 開啟或選擇專案資料夾。');
   const taskBlocked = firstBlocker(rootBlocked,
     blockedWhen(snapshot.installation.state !== 'ready', snapshot.installation.reason || '請先補齊 BMAD 初始化。', 'warning'),
     blockedWhen(snapshot.compatibility === 'unsupported', '目前 BMAD 版本無法安全提供此指令，請開啟 WorkflowKit 設定。', 'warning'),
-    blockedWhen(!snapshot.codex.skills.includes('bmad-help'), snapshot.codex.reason || '尚未安裝 $bmad-help，請準備 Codex Skills。', 'warning'),
+    blockedWhen(!routerReady && !snapshot.codex.skills.includes('bmad-help'), snapshot.codex.reason || '尚未安裝 $bmad-help，請準備 Codex Skills。', 'warning'),
     blockedWhen(snapshot.observation.state === 'error', '專案工作紀錄讀取失敗，請重新偵測。', 'error', snapshot.observation.error),
-    blockedWhen(kitIssue, kitIssue ?? '', 'warning'), blockedWhen(!taskReady, 'BMAD 操作條件尚未確認，請重新偵測。'),
+    blockedWhen(kitIssue, kitIssue ?? '', 'warning'), blockedWhen(entryIssue, entryIssue ?? '', 'warning'), blockedWhen(!taskReady, 'BMAD 操作條件尚未確認，請重新偵測。'),
     blockedWhen(!(ui.requirement ?? '').trim(), '請先描述本次需求。'));
   const bmadBlockers = { '複製 BMAD 提示詞': taskBlocked };
 
@@ -169,6 +188,21 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
         {timeLabel(observationTime) && <time dateTime={observationTime}>上次成功更新 {timeLabel(observationTime)}</time>}
         {snapshot.observation.error && <p>{snapshot.observation.error}</p>}</div>
     </section>
+    <section class="bmad-entrypoints" aria-label="BMAD 五個功能入口">
+      <div class="bmad-entry-grid">{BMAD_ENTRIES.map(entry => <button key={entry.id} type="button" class={`secondary bmad-entry${selectedEntry.id === entry.id ? ' bmad-entry-selected' : ''}`}
+        aria-pressed={selectedEntry.id === entry.id} onClick={() => change({ selectedEntry: entry.id, selectedSection: 'start' })}>
+        <code>{entry.label}</code><strong>{entry.title}</strong><span>{entry.description}</span></button>)}</div>
+      <div class="bmad-inline-actions" aria-label="BMAD 三個常用操作">
+        <button type="button" class="secondary" onClick={() => change({ selectedEntry: 'build', selectedBuildMode: 'build', selectedSection: 'start' })}>開始明確變更</button>
+        <button type="button" class="secondary" onClick={() => {
+          const current = snapshot.currentCandidates.length === 1 ? snapshot.currentCandidates[0] : undefined;
+          const node = current && nodesById.get(current.stepId);
+          if (node && onRunCommand && available(node)) onRunCommand(candidateRequest(current, node));
+          else change({ selectedSection: 'progress' });
+        }}>繼續既有工作</button>
+        <button type="button" class="secondary" onClick={() => { change({ selectedSection: 'progress' }); onRefresh(); }}>查看進度與下一步</button>
+      </div>
+    </section>
     <nav class="bmad-sections" role="tablist" aria-label="BMAD 指南章節">{sections.map((section, index) => <button key={section.id} type="button" role="tab"
       id={`bmad-tab-${section.id}`} aria-controls={`bmad-section-${section.id}`} aria-selected={selectedSection === section.id}
       tabIndex={selectedSection === section.id ? 0 : -1} onClick={() => change({ selectedSection: section.id })}
@@ -180,17 +214,21 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
       }}>{section.label}</button>)}</nav>
 
     {selectedSection === 'start' && <section id="bmad-section-start" class="bmad-section" role="tabpanel" aria-labelledby="bmad-tab-start">
-      <div class="bmad-section-heading"><div><h2>描述這次需求</h2><p>在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。</p></div>
+      <div class="bmad-section-heading"><div><h2>{selectedEntry.id === 'goal' ? '描述這次需求' : selectedEntry.title}</h2><p>{selectedEntry.id === 'goal' ? '智慧總入口依需求選擇流程；只載入目前階段需要的能力。' : selectedEntry.description}</p></div>
         <button type="button" class="secondary" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></div>
       {kit?.bmadMode === 'external' && <p class="bmad-environment-notice">偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。</p>}
       {kitIssue && <p class="bmad-environment-notice" role="status">{kitIssue} {kit?.message}</p>}
       <div class="bmad-prompt-form"><label for="bmad-requirement">本次需求</label>
         <textarea id="bmad-requirement" rows={5} maxLength={8000} value={ui.requirement ?? ''}
           placeholder="例如：請分析並完成結帳流程的退款功能，確認畫面與測試。" onInput={event => change({ requirement: event.currentTarget.value })} />
+        {selectedEntry.id === 'build' && <label for="bmad-build-mode">實作模式 <select id="bmad-build-mode" value={ui.selectedBuildMode ?? 'build'} onChange={event => change({ selectedBuildMode: event.currentTarget.value as 'build' | 'auto' })}>
+          <option value="build">一般 Build</option><option value="auto" disabled={!!bmadAutoBuildIssue(snapshot)}>Build Auto（先建立本機 Commit）</option>
+        </select>{bmadAutoBuildIssue(snapshot) && <span class="bmad-muted">{bmadAutoBuildIssue(snapshot)}</span>}</label>}
+        {selectedEntry.id === 'build' && onCheckBuildAuto && <button type="button" class="secondary" onClick={onCheckBuildAuto}>檢查 Build Auto</button>}
         <p>工作根目錄：<code>{snapshot.root ?? '尚未選擇專案資料夾'}</code>；預設產出放在此目錄的 <code>_bmad-output/</code>。</p>
-        <div class="bmad-inline-actions">{onRunCommand && <FeatureButton type="button" class="primary" blocker={taskBlocked} onClick={() => onRunCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>使用 Codex 執行</FeatureButton>}
+        <div class="bmad-inline-actions">{onRunCommand && <FeatureButton type="button" class="primary" blocker={taskBlocked} onClick={() => onRunCommand(taskRequest())}>使用 Codex 執行</FeatureButton>}
           <details class="workflow-alternatives"><summary>其他方式</summary><button type="button" class="secondary" {...availabilityProps('bmad-actions', taskBlocked)}
-            onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>複製 BMAD 提示詞</button>
+            onClick={() => onCopyCommand(taskRequest())}>複製 BMAD 提示詞</button>
             <button type="button" class="secondary" {...availabilityProps('bmad-root', rootBlocked)} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button>
             <p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞。</p></details></div>
         <FeatureNotices id="bmad-actions" items={bmadBlockers}>{!taskReady && <><button type="button" onClick={onRefresh}>重新偵測</button><button type="button" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></>}</FeatureNotices><p>確認任務設定後開始；到 Codex 頁回覆問題與檢閱成果，到「目前進度」查看已儲存的產物。</p>
@@ -246,7 +284,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
         const artifactId = candidate.artifactId && stepsById.get(candidate.stepId)?.artifacts.some(artifact => artifact.id === candidate.artifactId) ? candidate.artifactId : undefined;
         const storyId = candidate.storyId && snapshot.stories.some(story => story.id === candidate.storyId) ? candidate.storyId : undefined;
         return <li key={`${candidate.stepId}:${candidate.artifactId ?? candidate.storyId ?? index}`} class="bmad-current-card"><span class="bmad-current-label">{node ? nodeTitle(node) : candidate.stepId}</span><h3>{candidate.label}</h3><p>{candidate.reason}</p>
-          {node && <><FeatureButton type="button" class="secondary" blocker={firstBlocker(blockedWhen(!available(node), availability(node), 'warning'), blockedWhen(snapshot.observation.state === 'error', '請先重新偵測工作紀錄。', 'error', snapshot.observation.error))} onClick={() => copySkill(node, storyId ? { storyId } : artifactId ? { artifactId } : undefined)}>複製工作指令</FeatureButton>{node && onRunCommand && available(node) && <button type="button" class="primary" onClick={() => onRunCommand({ revision: snapshot.revision, command: 'skill', skill: node.skill, stepId: node.id, ...(storyId ? { storyId } : artifactId ? { artifactId } : {}) })}>使用 Codex 執行</button>}</>}</li>;
+          {node && <><FeatureButton type="button" class="secondary" blocker={firstBlocker(blockedWhen(!available(node), availability(node), 'warning'), blockedWhen(snapshot.observation.state === 'error', '請先重新偵測工作紀錄。', 'error', snapshot.observation.error))} onClick={() => candidate.blockedArtifactId ? onCopyCommand(candidateRequest(candidate, node)) : copySkill(node, storyId ? { storyId } : artifactId ? { artifactId } : undefined)}>複製工作指令</FeatureButton>{node && onRunCommand && available(node) && <button type="button" class="primary" onClick={() => onRunCommand(candidateRequest({ ...candidate, artifactId, storyId }, node))}>使用 Codex 執行</button>}</>}</li>;
       })}</ul> : <p class="bmad-empty-position">尚未觀察到可確定的目前位置；這不代表沒有執行過 BMAD。可用 <code>$bmad-help</code> 讀取專案並取得建議。</p>}
       {snapshot.recommendations.length > 0 && <div class="bmad-recommendations"><h3>依現有證據建議</h3><ul>{snapshot.recommendations.map(item => <li key={item.stepId}><strong>{nodesById.has(item.stepId) ? nodeTitle(nodesById.get(item.stepId)!) : item.stepId}</strong><span>{item.reason}</span></li>)}</ul></div>}
       <details class="bmad-progress-details"><summary>展開工作與產物 <span>{snapshot.stories.length} 個工作項目 · {artifacts.length} 份產物</span></summary>

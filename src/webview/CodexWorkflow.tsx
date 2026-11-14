@@ -42,9 +42,9 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
   }, [task.id, task.retention]);
   useEffect(() => () => fallbackActions.current?.dispose(), []);
   const requested = useRef<string>();
-  const result = task.result, wiki = payload?.wiki;
+  const result = task.result, wiki = payload?.wiki, linked = !!task.origin;
   useEffect(() => {
-    if (!active || !result || task.retention === 'results-only' || codexTaskActive(task.status) || task.status === 'queued') return;
+    if (!linked || !active || !result || task.retention === 'results-only' || codexTaskActive(task.status) || task.status === 'queued') return;
     const key = JSON.stringify([task.id, task.turnId, result.draftId, result.reportPath, result.handoffPath]);
     if (requested.current === key) return;
     requested.current = key;
@@ -53,12 +53,22 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
       return () => { post({ type: 'cancelProjectWikiPreview', taskId: task.id }); };
     }
     else if (result.reportPath || result.handoffPath) post({ type: 'readCodexResult', taskId: task.id });
-  }, [active, task.id, task.status, task.retention, task.turnId, result?.draftId, result?.reportPath, result?.handoffPath]);
+  }, [linked, active, task.id, task.status, task.retention, task.turnId, result?.draftId, result?.reportPath, result?.handoffPath]);
   if (task.savedResult) return <SavedCodexResult task={task} post={post} />;
   if (!task.origin) return result ? <section class="codex-workflow-result" aria-label="本機工作成果"><p role="status">{result.summary}</p>
-    <div class="button-row"><button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'copy-handoff', taskId: task.id } })}>複製成果與牌卡內容</button>
+    <div class="button-row">{task.isolated && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'open-worktree', taskId: task.id } })}>開啟任務視窗</button>}
+      {task.groupAnalysis && result.state === 'ready' && <button type="button" disabled={!!task.controls?.external} onClick={() => post({ type: 'codexCommand', command: { action: 'publish-group-issues', taskId: task.id } })}>檢閱並建立 Issue</button>}
+      {result.reportPath && <button type="button" onClick={() => post({ type: 'readCodexResult', taskId: task.id })}>開啟需求文件</button>}
+      {task.groupAnalysis && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'open-file', taskId: task.id, path: 'issues.json' } })}>檢閱／編輯 Issue 草稿</button>}
+      {task.bmadProjectChanges && <button type="button" disabled={!!task.controls?.external} onClick={() => post({ type: 'codexCommand', command: { action: 'apply-project-changes', taskId: task.id } })}>檢閱並套用專案規則</button>}
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'copy-handoff', taskId: task.id } })}>複製成果與牌卡內容</button>
       <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'export-result', taskId: task.id } })}>匯出成果包</button></div></section> : null;
-  const busy = codexTaskActive(task.status) || task.status === 'queued' || task.status === 'uncertain';
+  const busy = codexTaskActive(task.status) || task.status === 'queued' || task.status === 'uncertain' || !!task.controls?.external;
+  const reviewReport = task.origin.kind === 'merge-request' && (task.origin.intent ?? 'review') === 'review' && task.review &&
+    result?.state === 'ready' && payload?.taskId === task.id && payload.report?.trim() ? payload.report : undefined;
+  const reviewPublicationBlocked = actions.hasPendingWrite('codex-review:' + task.id) ||
+    [task.publication, ...Object.values(task.publications ?? {})].some(receipt => receipt?.kind === 'review' && receipt.state !== 'not-published') ||
+    ['unknown', 'pending', 'confirmed'].includes(task.recovery?.publication ?? '');
   const checking = wiki?.progress?.status === 'loading';
   const complete = !wiki?.progress || wiki.progress.status === 'ready';
   const pages = wiki?.pages.filter(item => !changedOnly || item.action !== 'unchanged') ?? [];
@@ -68,6 +78,8 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
   const copy = (text: string) => post({ type: 'copy', text });
   return <section class="codex-workflow-result" aria-label="任務來源與成果">
     <div class="button-row">
+      {(task.origin.kind === 'issue' || task.origin.intent === 'fix-comments') && result?.state === 'ready' && <button type="button" class="primary" disabled={busy || !!task.controls?.external}
+        onClick={() => post({ type: 'codexCommand', command: { action: 'confirm-delivery', taskId: task.id } })}>檢閱並確認交付</button>}
       {task.origin.kind === 'issue' && result?.state === 'ready' && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'handoff', taskId: task.id } })}>準備交接與 MR 草稿</button>}
       {(task.origin.kind === 'issue' || task.origin.intent === 'fix-comments') && task.isolated && <button type="button" class="quiet small" onClick={() => post({ type: 'codexCommand', command: { action: 'open-worktree', taskId: task.id } })}>開啟實作目錄</button>}
       {task.origin.kind === 'issue' && <button type="button" class="quiet small" onClick={() => post({ type: 'openCodexChanges', taskId: task.id })}>檢視差異</button>}
@@ -124,7 +136,9 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
         <button class="primary" type="button" disabled={busy || checking || !complete || !!wiki.error || !!wiki.uncertain || wiki.pages.every(item => item.published)} onClick={() => post({ type: 'publishProjectWiki', taskId: task.id, revision: wiki.revision })}>發布至 GitLab Wiki</button>
       </>}
     </details>}
-    {payload?.report && <details open><summary>完整審查報告</summary><CodexMarkdown text={payload.report} onOpenLink={openLink} onOpenFile={openFile} onCopy={copy} /></details>}
+    {payload?.report && <details open><summary>完整審查報告</summary><CodexMarkdown text={payload.report} onOpenLink={openLink} onOpenFile={openFile} onCopy={copy} />
+      {reviewReport && <button type="button" class="primary" disabled={busy || reviewPublicationBlocked}
+        onClick={() => post({ type: 'publishCodexReview', taskId: task.id, body: reviewReport })}>發布審查報告留言</button>}</details>}
     {payload?.handoff && <details open class="codex-handoff"><summary>交接與 MR 草稿</summary><CodexMarkdown text={payload.handoff} onOpenLink={openLink} onOpenFile={openFile} onCopy={copy} />
       <p class="subtle">先檢閱實際差異，並在版控暫存要提交的變更，再準備 CommitReviewer 檢查。提交、推送及建立 MR 由你操作。</p>
       <div class="button-row"><button type="button" class="quiet small" onClick={() => post({ type: 'copy', text: payload.handoff! })}>複製交接草稿</button>

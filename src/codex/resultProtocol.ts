@@ -1,4 +1,5 @@
 import type { CodexTaskResult, CodexTaskStatus } from './protocol';
+import type { CodexDeliveryConfirmation } from './deliveryProtocol';
 
 export const CODEX_RESULT_SCHEMA = 'GitLabWorkspaceCodexResult/v1';
 export const CODEX_RESULT_MAX_BYTES = 128 * 1024 * 1024;
@@ -33,6 +34,18 @@ export interface CodexResultDelivery {
   url?: string;
   receipts?: Array<{ action: string; state: string; key?: string; resourceId?: number; commitSha?: string; bodyHash?: string; url?: string }>;
 }
+/** Historical evidence only. Never import this confirmation into an active task. */
+export interface CodexResultConfirmationAudit {
+  schema: 'GitLabWorkspaceCodexDeliveryConfirmationAudit/v1';
+  historicalOnly: true;
+  authorizesDelivery: false;
+  taskId: string;
+  source?: CodexResultOrigin;
+  confirmation: Readonly<CodexDeliveryConfirmation>;
+  artifactDigest?: string;
+  deliveredCommitSha?: string;
+  commitBundleArtifactId?: string;
+}
 export interface CodexResultRestore {
   schema: 'GitLabWorkspaceCodexChanges/v1';
   /** The retained user repository and this exact base commit are prerequisites. */
@@ -42,6 +55,8 @@ export interface CodexResultRestore {
   objectFormat: 'sha1' | 'sha256';
   patchArtifactId: string;
   inventoryArtifactId: string;
+  /** Independent task clones preserve their local commits before their Git directory is removed. */
+  commitBundleArtifactId?: string;
   validatedAt: string;
 }
 export interface CodexChangeEntry {

@@ -5,6 +5,7 @@ import type { CodexTaskOrigin, CodexTaskResult, CodexWorkflowBinding } from './w
 import type { CodexResultManifest } from './resultProtocol';
 import type { CodexDeliveryState, CodexValidationEvidence } from './deliveryProtocol';
 import type { CodexGroupAnalysisBinding } from './workflowProtocol';
+import type { CodexTaskWorkspaceBinding } from './taskWorkspaceProtocol';
 export type { CodexTaskOrigin, CodexTaskResult } from './workflowProtocol';
 export type { CodexLaunchDraft, CodexLaunchPatch, CodexLaunchCheck } from './launchProtocol';
 
@@ -14,9 +15,9 @@ export type CodexTaskSource = (
   | { kind: 'skill'; featureId: string; inputs: Record<string, string>; revision: string }
   | { kind: 'bmad'; request: BmadCommandRequest }
   | { kind: 'group-analysis'; repositoryIds?: string[] }
-  | { kind: 'issue'; projectId: number; issueIid: number; isolated?: boolean }
+  | { kind: 'issue'; projectId: number; issueIid: number; isolated?: boolean; buildMode?: 'interactive' | 'auto' }
   | { kind: 'project-wiki'; projectId: number; incrementalFrom?: string }
-  | { kind: 'merge-request'; projectId: number; iid: number; intent?: 'review' | 'fix-comments'; discussionIds?: string[] }
+  | { kind: 'merge-request'; projectId: number; iid: number; intent?: 'review' | 'fix-comments'; discussionIds?: string[]; reviewerTool?: ReviewerToolId }
   | { kind: 'review'; action: 'resume' | 'refresh'; tool: ReviewerToolId; requestId: string; revision: string }) & CodexExecutionSelection & {
     /** Host-resolved repository; launch requests carry an opaque repository id. */
     repository?: string;
@@ -28,6 +29,8 @@ export type CodexTaskSource = (
     returnTo?: { mode: 'clone' | 'developer' | 'reviewer' | 'sa' | 'bmad'; issueTab?: 'content' | 'relations' | 'time' };
   };
 export interface CodexTaskSpec {
+  taskWorkspace?: CodexTaskWorkspaceBinding;
+  bmadArtifacts?: { outputRoot: string; projectChangesRoot?: string; seedRoot?: string };
   source: CodexTaskSource;
   title: string;
   root: string;
@@ -103,6 +106,8 @@ export interface CodexTaskState {
   controls?: CodexTaskControls;
   origin?: CodexTaskOrigin;
   result?: CodexTaskResult;
+  groupAnalysis?: { id: string; repositories: Array<{ id: string; name: string; sha: string; projectPath?: string }> };
+  bmadProjectChanges?: boolean;
   retention?: 'results-only';
   savedResult?: CodexResultManifest;
   delivery?: CodexDeliveryState;
@@ -135,9 +140,10 @@ export function canReprepareCodexTask(task: CodexTaskState): boolean {
     !task.uncertainMessages && !task.messageQueue?.some(item => item.state === 'uncertain' || item.state === 'sending');
 }
 export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
-  schema: 'GitLabWorkspaceCodexTask/v1' | 'GitLabWorkspaceCodexTask/v2' | 'GitLabWorkspaceCodexTask/v3';
+  schema: 'GitLabWorkspaceCodexTask/v1' | 'GitLabWorkspaceCodexTask/v2' | 'GitLabWorkspaceCodexTask/v3' | 'GitLabWorkspaceCodexTask/v4';
   spec: CodexTaskSpec;
   ownerPid: number;
+  ownerGeneration?: number;
   pendingMessage?: string;
   queuedMessages?: Array<{ id: string; text: string; state: 'queued' | 'sending' | 'accepted' | 'uncertain' }>;
   dispatchPending?: boolean;
@@ -219,7 +225,7 @@ export type CodexCommand =
   | { action: 'create'; context?: 'none' | 'selection' | 'file' | 'diff' }
   | { action: 'storage' }
   | { action: 'manage-local-connections' }
-  | { action: 'manage' | 'reconcile' | 'diagnostics' | 'fork' | 'goal' | 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare' | 'stop-cleanup' | 'manual-handoff' | 'retry-delivery' | 'export-result' | 'copy-handoff' | 'new-from-result' | 'restore-result'; taskId: string }
+  | { action: 'manage' | 'reconcile' | 'diagnostics' | 'fork' | 'goal' | 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare' | 'stop-cleanup' | 'manual-handoff' | 'retry-delivery' | 'confirm-delivery' | 'publish-group-issues' | 'apply-project-changes' | 'export-result' | 'copy-handoff' | 'new-from-result' | 'restore-result'; taskId: string }
   | { action: 'open-artifact'; taskId: string; artifactId: string }
   | { action: 'metadata'; taskId: string; title?: string; pinned?: boolean; archived?: boolean }
   | { action: 'approvals'; taskId: string; settings: CodexApprovalSettings }
@@ -238,11 +244,14 @@ export function canonicalReviewRequestId(value: string): string {
 export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
   const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, result,
     revision, pinned, archived, progress, recovery, goal, publication, publications, delivery, validation, cleanupState } = record;
-  return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, isolated: !!record.spec.workflow?.worktree, selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin, result,
+  return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, isolated: !!(record.spec.workflow?.worktree || record.spec.workflow?.managedClone || record.spec.taskWorkspace), selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin, result,
     revision, pinned, archived, progress: progress ? { ...progress, diff: undefined, hasDiff: !!progress.diff } : undefined, recovery, goal, publication, publications, delivery, validation, cleanupState,
     pendingMessages: record.queuedMessages?.filter(item => item.state === 'queued' || item.state === 'sending').length,
     uncertainMessages: record.queuedMessages?.filter(item => item.state === 'uncertain').length,
     messageQueue: record.queuedMessages?.flatMap(item => item.state === 'accepted' ? [] : [{ id: item.id, text: item.text, state: item.state }]),
+    ...(record.spec.groupAnalysis ? { groupAnalysis: { id: record.spec.groupAnalysis.id,
+      repositories: record.spec.groupAnalysis.repositories.map(({ id, name, sha, projectPath }) => ({ id, name, sha, projectPath })) } } : {}),
+    bmadProjectChanges: !!record.spec.bmadArtifacts?.projectChangesRoot,
     ...projectTaskJourney(record) };
 }
 

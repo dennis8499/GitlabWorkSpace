@@ -6,6 +6,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { CodexUiDraftStore } from '../../src/codex/uiDraftStore';
+import { CodexDraftSync } from '../../src/webview/codexDraftSync';
+import { restoreCodexUi } from '../../src/webview/codexUiState';
 
 const scope = 'a'.repeat(64), draftKey = (id: string) => JSON.stringify(['draft', id]);
 const update = (id: string, revision: number, text: string | null) => ({ key: draftKey(id), revision, value: text === null ? null : { text, revision } });
@@ -30,6 +32,25 @@ test('drafts and deletion tombstones survive store recreation without replaying 
   assert.deepEqual(await new CodexUiDraftStore(f.directory).read(scope), deleted);
   const stale = await f.store.save(scope, [update('task-a', 1, 'old window')]);
   assert.deepEqual(stale.entries, deleted.entries); assert.equal(stale.conflicts[0].value && (stale.conflicts[0].value as { text: string }).text, 'old window');
+});
+
+test('automatic owner selection hydrates the current store revision before saving a cold preference', async t => {
+  const f = await fixture(t), selection = JSON.stringify(['selection', 'current']);
+  await f.store.save(scope, [{ key: selection, revision: 0, value: 'merge-owner' }]);
+  const cached = await f.store.save(scope, [{ key: selection, revision: 1, value: 'release-owner' }]);
+  await f.store.save(scope, [{ key: selection, revision: 2, value: 'merge-owner' }]);
+  await f.store.save(scope, [{ key: selection, revision: 3, value: 'release-owner' }]);
+  let ui = restoreCodexUi({ selectedTaskId: 'release-owner', draftSync: { scope, bases: cached.entries } });
+  const sync = new CodexDraftSync(ui);
+  assert.equal(sync.automaticSelection('merge-owner', ui), undefined, 'restored metadata is not an authoritative load');
+  ui = sync.load(await f.store.read(scope), ui);
+  ui = sync.automaticSelection('merge-owner', ui)!;
+  const save = sync.next(ui)!;
+  assert.deepEqual(save.updates, [{ key: selection, revision: 4, value: 'merge-owner' }]);
+  const saved = await f.store.save(scope, save.updates);
+  assert.deepEqual(saved.conflicts, []);
+  assert.deepEqual(saved.entries, [{ key: selection, revision: 5, value: 'merge-owner' }]);
+  ui = sync.accepted(saved, ui); assert.equal(ui.selectedTaskId, 'merge-owner'); assert.equal(sync.next(ui), undefined);
 });
 
 test('independent instances merge unrelated entries and retain stale local drafts as durable conflicts', async t => {

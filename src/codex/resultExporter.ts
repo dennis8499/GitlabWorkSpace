@@ -6,6 +6,7 @@ import { ownedStoragePath, removeOwnedStorage } from '../storage/ownedStorage';
 import type { CodexTaskRecord } from './protocol';
 import { CODEX_RESULT_MAX_BYTES, CODEX_RESULT_MAX_FILES, resultPathKey, safeResultPath,
   type CodexArtifact, type CodexChangeInventory, type CodexResultRestore } from './resultProtocol';
+import { verifyManagedClone } from './managedRepository';
 
 export type AddResultArtifact = (relative: string, bytes: Buffer, mediaType: string, name?: string) => Promise<CodexArtifact>;
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -69,13 +70,26 @@ export async function exportCodexTaskChanges(record: CodexTaskRecord, stage: str
   const originalRepository = await realpath(original), workingRoot = await realpath(root);
   const common = (await git(workingRoot, ['rev-parse', '--path-format=absolute', '--git-common-dir'], emptyConfig)).trim();
   const originalCommon = (await git(originalRepository, ['rev-parse', '--path-format=absolute', '--git-common-dir'], emptyConfig)).trim();
-  if (!same(await realpath(common), await realpath(originalCommon))) throw new Error('成果工作目錄不屬於原 Repo。');
+  if (record.spec.workflow?.managedClone) await verifyManagedClone(record.spec);
+  else if (!same(await realpath(common), await realpath(originalCommon))) throw new Error('成果工作目錄不屬於原 Repo。');
   const headSha = (await git(workingRoot, ['rev-parse', '--verify', 'HEAD^{commit}'], emptyConfig)).trim();
   const baseSha = record.spec.origin?.sourceSha ?? headSha;
   if (!oid(baseSha) || !oid(headSha)) throw new Error('成果缺少可核對的 base SHA。');
   await git(originalRepository, ['cat-file', '-e', baseSha + '^{commit}'], emptyConfig);
   const format = (await git(originalRepository, ['rev-parse', '--show-object-format'], emptyConfig)).trim();
   if (format !== 'sha1' && format !== 'sha256') throw new Error('不支援此 Git object format。');
+  let commitBundleArtifactId: string | undefined;
+  if (record.spec.workflow?.managedClone) {
+    await git(workingRoot, ['merge-base', '--is-ancestor', baseSha, headSha], emptyConfig);
+    const bundlePath = path.join(stage, '.commits.bundle');
+    try {
+      // Full HEAD history makes the artifact independently inspectable and preserves every local commit.
+      await git(workingRoot, ['bundle', 'create', bundlePath, 'HEAD'], emptyConfig);
+      await git(workingRoot, ['bundle', 'verify', bundlePath], emptyConfig);
+      const artifact = await add('code/commits.bundle', await regularFile(stage, '.commits.bundle'), 'application/x-git-bundle', '任務本機提交與必要 Git objects');
+      commitBundleArtifactId = artifact.id;
+    } finally { await removeOwnedStorage(stage, bundlePath); }
+  }
   const indexBefore = await git(workingRoot, ['ls-files', '--stage', '-z'], emptyConfig); indexEntries(indexBefore);
   if ((await git(workingRoot, ['ls-files', '-v', '-z'], emptyConfig)).split('\0').some(entry => /^[a-zS] /.test(entry))) throw new Error('Git index 含隱藏變更旗標，無法證明完整成果；保留原工作目錄。');
   const configurationEnvironment = { ...Object.fromEntries(Object.keys(process.env).filter(name => /^GIT_/i.test(name)).map(name => [name, undefined])),
@@ -156,7 +170,7 @@ export async function exportCodexTaskChanges(record: CodexTaskRecord, stage: str
   for (const entry of inventory.entries) if (entry.action === 'write' && digest(await regularFile(workingRoot, entry.path)) !== entry.sha256) throw new Error('成果在保存期間變更，請重試；保留原工作目錄。');
   const inventoryArtifact = await add('code/inventory.json', Buffer.from(JSON.stringify(inventory, null, 2) + '\n'), 'application/json', '檔案還原清單');
   return { schema: 'GitLabWorkspaceCodexChanges/v1', originalRepository, baseSha, headSha, objectFormat: format,
-    patchArtifactId: patchArtifact.id, inventoryArtifactId: inventoryArtifact.id, validatedAt: new Date().toISOString() };
+    patchArtifactId: patchArtifact.id, inventoryArtifactId: inventoryArtifact.id, commitBundleArtifactId, validatedAt: new Date().toISOString() };
 }
 
 /** Shared only with the verified result restorer; always local and without hooks/filters. */

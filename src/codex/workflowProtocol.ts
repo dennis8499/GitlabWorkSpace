@@ -14,6 +14,7 @@ export interface CodexTaskOrigin {
   targetSha?: string;
   branch?: string;
   intent?: 'review' | 'fix-comments';
+  reviewerTool?: 'merge-reviewer' | 'release-reviewer';
   sourceProjectId?: number;
   sourceRemote?: string;
   pushUrl?: string;
@@ -27,6 +28,8 @@ export interface CodexWorkflowBinding {
   reviewWorkspace?: string;
   sourceRoot?: string;
   worktree?: { path: string; branch: string; sourceSha: string; repository: string };
+  /** A task-owned clone has independent Git objects, index and refs. The source cache remains read-only. */
+  managedClone?: { path: string; cacheRepository: string; branch: string; sourceSha: string; remoteUrl: string };
   discussions?: Array<{ id: string; noteIds: number[]; text: string }>;
   temporaryRefs?: Array<{ ref: string; sha: string }>;
   wikiIncremental?: { previousDraftId: string; pages: string[]; changedFiles: string[]; baseSha: string };
@@ -65,9 +68,11 @@ export interface ProjectWikiPreview {
 }
 
 export const workflowOriginKey = (origin: CodexTaskOrigin): string =>
-  JSON.stringify([origin.accountKey, origin.kind, origin.projectId, origin.iid ?? '', origin.repositoryRoot, origin.intent ?? 'review']);
+  JSON.stringify([origin.accountKey, origin.kind, origin.projectId, origin.iid ?? '', origin.repositoryRoot, origin.intent ?? 'review',
+    ...(origin.kind === 'merge-request' && origin.intent !== 'fix-comments' ? [origin.reviewerTool ?? 'merge-reviewer'] : [])]);
 /** Serializable Group input; kept separate from filesystem-backed preparation. */
 export interface CodexGroupRepository { id: string; name: string; path: string; sha: string; snapshotPath: string; projectPath?: string; }
 export interface CodexGroupAnalysisBinding {
   id: string; groupRoot: string; runtimeRoot: string; outputRoot: string; repositories: CodexGroupRepository[];
+  issueDrafts?: boolean;
 }

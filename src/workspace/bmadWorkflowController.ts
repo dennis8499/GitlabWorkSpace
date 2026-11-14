@@ -12,6 +12,8 @@ interface ControllerOptions {
   error(message: string): void;
   read?: typeof readBmadWorkflow;
   directoryExists?(directory: string): Promise<boolean>;
+  persistedArtifactRoots?(root: string): Promise<string[]>;
+  autoBuild?(root: string): Promise<BmadWorkflowSnapshot['autoBuild']>;
 }
 
 /** Observe external BMAD files. This controller never writes project state. */
@@ -108,7 +110,11 @@ export class BmadWorkflowController implements Disposable {
     try {
       const catalog = await (this.catalog ??= this.options.bundledCatalog().catch(error => { this.catalog = undefined; throw error; }));
       signal.throwIfAborted();
-      const snapshot = await (this.options.read ?? readBmadWorkflow)({ root: this.root, bundledCatalog: catalog, signal, cache: this.readCache });
+      const [persistedArtifactRoots, autoBuild] = await Promise.all([
+        this.root ? this.options.persistedArtifactRoots?.(this.root) : undefined,
+        this.root ? this.options.autoBuild?.(this.root) : undefined
+      ]);
+      const snapshot = await (this.options.read ?? readBmadWorkflow)({ root: this.root, bundledCatalog: catalog, signal, cache: this.readCache, persistedArtifactRoots, autoBuild });
       if (!this.current(generation)) return;
       // VS Code ignores native registrations whose base does not exist yet.
       // Keep planned paths in the snapshot for event filtering, and bind them
@@ -166,7 +172,7 @@ export class BmadWorkflowController implements Disposable {
     if (relative.toLowerCase() === 'agents.md') return true;
     const normalized = relative.split(path.sep).join('/').toLowerCase();
     if (normalized === '_bmad' || normalized.startsWith('_bmad/')) return true;
-    if (normalized === '.agents' || normalized === '.agents/skills' || /^\.agents\/skills\/bmad-[a-z0-9-]+(?:\/|$)/.test(normalized)) return true;
+    if (normalized === '.agents' || normalized === '.agents/skills' || /^\.agents\/skills\/(?:bmad|wk)-[a-z0-9-]+(?:\/|$)/.test(normalized)) return true;
     if (normalized.startsWith('.agents/skills/')) return false;
     if (this.value?.watchRootArtifacts && path.dirname(relative) === '.' && /\.(?:md|ya?ml)$/i.test(relative)) return true;
     return !!this.value?.watchDirectories.some(directory => path.relative(root, directory) !== '' &&

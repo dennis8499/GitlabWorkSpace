@@ -45,6 +45,89 @@ const resultTask = () => ({ id: 'saved-task', title: 'Saved analysis', root: 'C:
   savedResult: { id: 'saved-task', title: 'Saved analysis', root: 'C:/removed-source', status: 'completed', reason: 'completed', summary: 'Portable result',
     createdAt: '2026-01-01', updatedAt: '2026-01-01', artifacts: [{ id: 'spec', path: 'spec.md', name: 'SPEC.md', mediaType: 'text/markdown', size: 12, sha256: 'a'.repeat(64) }] } });
 
+test('completed local Group and BMAD results keep documents closed until explicitly opened', async t => {
+  for (const kind of ['Group', 'BMAD']) await t.test(kind, async t => {
+    const task = { id:`local-${kind}`,title:`${kind} analysis`,root:'C:/group',status:'completed',createdAt:'2026-01-01',updatedAt:'2026-01-01',
+      controls:{external:false},groupAnalysis:kind === 'Group' ? {repositories:3} : undefined,
+      result:{state:'ready',summary:`${kind} documents await review`,reportPath:'C:/artifacts/SPEC.md',handoffPath:'C:/artifacts/cards.md'} };
+    const dom = await mount('result', {task}); t.after(() => dom.window.close());
+    assert.match(dom.window.document.body.textContent, new RegExp(task.result.summary));
+    assert.equal(dom.window.sent.length, 0, 'mounting local results must keep the workbench visible instead of opening a document');
+    if (kind === 'Group') assert.equal(button(dom,'檢閱並建立 Issue').disabled,false);
+    button(dom,'開啟需求文件').click();
+    assert.deepEqual(Array.from(dom.window.sent, request => [request.type,request.taskId]), [['readCodexResult',task.id]]);
+    if (kind === 'Group') assert.equal(button(dom,'檢閱並建立 Issue').disabled,false);
+  });
+});
+
+test('linked completed Issue, MR and Wiki results retain automatic payload hydration', async t => {
+  for (const kind of ['issue','merge-request','project-wiki']) await t.test(kind, async t => {
+    const task = { id:`linked-${kind}`,title:'Linked result',root:'C:/repo',status:'completed',createdAt:'2026-01-01',updatedAt:'2026-01-01',
+      controls:{external:false},origin:{kind,projectId:1,projectPath:'group/service',sourceSha:'a'.repeat(40),branch:'feature'},
+      result:{state:'ready',summary:'Review the linked result',reportPath:'C:/artifacts/report.md',handoffPath:'C:/artifacts/handoff.md',
+        ...(kind === 'project-wiki' ? {draftId:'wiki-draft'} : {})} };
+    const dom = await mount('result', {task}); t.after(() => dom.window.close());
+    assert.deepEqual(Array.from(dom.window.sent, request => [request.type,request.taskId]),
+      [[kind === 'project-wiki' ? 'previewProjectWiki' : 'readCodexResult',task.id]]);
+  });
+});
+
+const nativeReviewTask = (tool, patch = {}) => ({ id: `native-${tool}`, title: tool, root: 'C:/group', status: 'completed',
+  createdAt: '2026-01-01', updatedAt: '2026-01-01', controls: { external: false },
+  origin: { kind: 'merge-request', intent: 'review', projectId: 2, iid: 1, projectPath: 'group/service', sourceSha: 'a'.repeat(40), targetSha: 'b'.repeat(40) },
+  review: { tool, requestId: tool === 'merge-reviewer' ? 'a'.repeat(32) : 'b'.repeat(32), revision: 'c'.repeat(64) },
+  result: { state: 'ready', summary: 'Report ready for human review', reportPath: `C:/reports/${tool}.md` }, ...patch });
+
+test('both native Reviewer results publish only their own task and complete report for the same MR', async t => {
+  for (const tool of ['merge-reviewer', 'release-reviewer']) await t.test(tool, async t => {
+    const task = nativeReviewTask(tool), body = `# ${tool}\n\nComplete ${tool} findings.\n`;
+    const dom = await mount('result', { task, payload: { type: 'codexWorkflowResult', taskId: task.id, report: body } }); t.after(() => dom.window.close());
+    const publish = button(dom, '發布審查報告留言'); assert.ok(publish, 'each tool needs its own native publication entry');
+    assert.equal(publish.disabled, false); assert.equal(dom.window.sent.some(request => request.type === 'publishCodexReview'), false);
+    assert.match(dom.window.document.querySelector('details').textContent, new RegExp(`Complete ${tool} findings`));
+    publish.click();
+    assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent.filter(request => request.type === 'publishCodexReview'))),
+      [{ type: 'publishCodexReview', taskId: task.id, body }]);
+  });
+});
+
+test('native Reviewer publication blocks active or external tasks and never resends published or unknown outcomes', async t => {
+  const cases = [
+    ['needs-work', { result: { state: 'needs-work', reportPath: 'C:/reports/partial.md' } }, false],
+    ['external', { controls: { external: true } }, true], ['running', { status: 'running' }, true],
+    ['queued', { status: 'queued' }, true], ['uncertain-task', { status: 'uncertain' }, true],
+    ['published', { result: { state: 'published', reportPath: 'C:/reports/published.md' } }, false],
+    ['uncertain-result', { result: { state: 'uncertain', reportPath: 'C:/reports/unknown.md' } }, false],
+    ['pending-receipt', { publication: { kind: 'review', state: 'pending', key: 'review-key' } }, true],
+    ['confirmed-receipt', { publication: { kind: 'review', state: 'confirmed', key: 'review-key' } }, true],
+    ['unknown-recovery', { recovery: { publication: 'unknown' } }, true]
+  ];
+  for (const [label, patch, visible] of cases) await t.test(label, async t => {
+    const task = nativeReviewTask('release-reviewer', patch);
+    const dom = await mount('result', { task, payload: { type: 'codexWorkflowResult', taskId: task.id, report: '# Release findings' } }); t.after(() => dom.window.close());
+    const publish = button(dom, '發布審查報告留言');
+    if (visible) { assert.ok(publish); assert.equal(publish.disabled, true); publish.click(); }
+    else assert.equal(publish, undefined);
+    assert.equal(dom.window.sent.some(request => request.type === 'publishCodexReview'), false);
+  });
+});
+
+test('native report publication stays hidden for other origins, missing reports and mismatched task payloads', async t => {
+  const base = nativeReviewTask('merge-reviewer');
+  for (const [label, patch, payloadPatch] of [
+    ['Issue', { origin: { ...base.origin, kind: 'issue' } }, {}],
+    ['Wiki', { origin: { ...base.origin, kind: 'project-wiki' } }, {}],
+    ['fix-comments', { origin: { ...base.origin, intent: 'fix-comments' } }, {}],
+    ['missing-review', { review: undefined }, {}], ['empty-report', {}, { report: '  ' }],
+    ['other-task-payload', {}, { taskId: 'other-reviewer-task' }]
+  ]) await t.test(label, async t => {
+    const task = { ...base, ...patch }, payload = { type: 'codexWorkflowResult', taskId: task.id, report: '# Findings', ...payloadPatch };
+    const dom = await mount('result', { task, payload }); t.after(() => dom.window.close());
+    assert.equal(button(dom, '發布審查報告留言'), undefined);
+    assert.equal(dom.window.sent.some(request => request.type === 'publishCodexReview'), false);
+  });
+});
+
 test('saved local results render without GitLab origin and only dispatch artifact actions', async t => {
   const dom = await mount('result', { task: resultTask() }); t.after(() => dom.window.close());
   assert.match(dom.window.document.body.textContent, /Portable result/);
@@ -112,17 +195,51 @@ test('a running publisher still offers the manual stop control without offering 
   assert.equal(dom.window.sent.at(-1).command.action, 'manual-handoff');
 });
 
-test('blocked launch retains manual copy and exposes required Skills and delivery choices', async t => {
-  const draft = { id:'draft', schema:'GitLabWorkspaceCodexLaunch/v1',revision:1,scope:'scope',state:'blocked',source:{kind:'issue',projectId:1,issueIid:2},
+function blockedLaunch(source) {
+  return { id:'draft', schema:'GitLabWorkspaceCodexLaunch/v1',revision:1,scope:'scope',state:'blocked',source,
     title:'Issue #2',requirement:'Implement login',repositories:[{id:'repo',name:'service',path:'C:/service'}],repositoryId:'repo',models:[],isolated:true,checks:[],
     updatedAt:'2026-01-01',availableSkills:[{id:'required',name:'bmad-help',description:'Workflow',required:true},{id:'extra',name:'testing',description:'Tests'}],
     additionalSkillIds:['extra'],testCommands:['npm test'],automaticDelivery:true,error:'Codex not authenticated' };
-  const dom = await mount('launch', { draft }); t.after(() => dom.window.close());
-  const required = [...dom.window.document.querySelectorAll('label')].find(item => item.textContent.includes('bmad-help')).querySelector('input');
-  assert.equal(required.disabled, true); assert.equal(required.checked, true);
-  button(dom, '複製手動執行資料').click();
-  assert.equal(dom.window.sent.at(-1).type, 'copy'); assert.match(dom.window.sent.at(-1).text, /Implement login/);
-  assert.ok(button(dom, '執行並回寫'));
+}
+
+test('App Server-only launches keep required Skills without offering manual execution or automatic publication authority', async t => {
+  for (const source of [{kind:'issue',projectId:1,issueIid:2}, {kind:'project-wiki',projectId:1},
+    {kind:'merge-request',projectId:1,iid:3,intent:'fix-comments'}]) await t.test(source.kind + (source.intent ?? ''), async t => {
+    const dom = await mount('launch', { draft: blockedLaunch(source) }); t.after(() => dom.window.close());
+    const document = dom.window.document;
+    const required = [...document.querySelectorAll('label')].find(item => item.textContent.includes('bmad-help')).querySelector('input');
+    assert.equal(required.disabled, true); assert.equal(required.checked, true);
+    assert.equal(button(dom, '複製手動執行資料'), undefined);
+    assert.equal(document.querySelectorAll('input[type="checkbox"]').length, 2, 'Only required and optional Skills have checkboxes');
+    assert.match(document.body.textContent, /人工確認後交付/);
+    assert.match(document.body.textContent, /既有自動交付設定不代替這次確認/);
+    assert.equal(button(dom, '在獨立視窗執行').type, 'submit');
+    assert.deepEqual(dom.window.sent, [], 'Viewing a blocked launch grants no remote publication or task submission');
+  });
+});
+
+test('Group and both MR reviewers copy evidence-bound manual instructions with human handling of final results', async t => {
+  for (const source of [{kind:'group-analysis',repositoryIds:['repo']},
+    {kind:'merge-request',projectId:1,iid:3,reviewerTool:'merge-reviewer'},
+    {kind:'merge-request',projectId:1,iid:3,reviewerTool:'release-reviewer'}]) await t.test(source.reviewerTool ?? source.kind, async t => {
+    const draft = { ...blockedLaunch(source), repositoryIds:['repo'], sourceSha:'a'.repeat(40), targetSha:'b'.repeat(40),
+      sourceSnapshot:{sourceSha:'a'.repeat(40),repositories:[{id:'repo',sha:'a'.repeat(40)}]} };
+    const dom = await mount('launch', { draft }); t.after(() => dom.window.close());
+    button(dom, '複製手動執行資料').click();
+    assert.equal(dom.window.sent.length, 1); assert.equal(dom.window.sent[0].type, 'copy');
+    const text = dom.window.sent[0].text;
+    assert.match(text, /Implement login/); assert.match(text, /C:\/service/); assert.ok(text.includes('a'.repeat(40)));
+    assert.match(text, /最終文件與報告交由使用者處理/);
+    if (source.kind === 'group-analysis') {
+      assert.match(text, /source-first functional-exploration/); assert.match(text, /IssueDraftBundle\/v1/);
+      assert.match(text, /不得建立 Issue 或修改程式/);
+    } else {
+      assert.ok(text.includes('b'.repeat(40))); assert.ok(text.includes(source.reviewerTool));
+      assert.match(text, /不得提交、推送或寫入 GitLab/);
+    }
+    assert.equal(dom.window.sent.some(request => request.type === 'submitCodexLaunch'), false);
+    assert.equal([...dom.window.document.querySelectorAll('label')].some(label => /自動.*(?:交付|發布|推送)/.test(label.textContent)), false);
+  });
 });
 
 test('Group source confirmation shows each selected repository version and its change', async t => {
@@ -136,7 +253,7 @@ test('Group source confirmation shows each selected repository version and its c
   assert.match(fixed.textContent, /Front end/); assert.match(fixed.textContent, /API service/); assert.ok(fixed.textContent.includes('c'.repeat(40)));
   const changes = dom.window.document.querySelector('[aria-label="Group Repo 版本變更"]');
   assert.match(changes.textContent, /API service/); assert.ok(changes.textContent.includes('b'.repeat(40))); assert.ok(changes.textContent.includes('c'.repeat(40)));
-  assert.equal(button(dom,'開始執行').disabled, true);
+  assert.equal(button(dom,'在獨立視窗執行').disabled, true);
 });
 
 test('approvals render only advertised decisions and retain session scope', async t => {

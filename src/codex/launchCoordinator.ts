@@ -20,6 +20,7 @@ export interface CodexLaunchInspection {
 export interface CodexLaunchOptions {
   directory: string;
   scope(): string;
+  restoreLatest?(): boolean;
   publish(draft?: CodexLaunchDraft): void;
   inspect(source: CodexTaskSource, signal: AbortSignal): Promise<CodexLaunchInspection>;
   prepare(source: CodexTaskSource, signal: AbortSignal): Promise<CodexTaskSpec>;
@@ -47,12 +48,12 @@ function projectDraft(draft: StoredDraft): CodexLaunchDraft {
 export const launchRepositoryId = (value: string): string => digest(process.platform === 'win32' ? value.toLowerCase() : value);
 const linked = (source: CodexTaskSource) => ['issue', 'merge-request', 'project-wiki'].includes(source.kind);
 const identity = (source: CodexTaskSource) => source.kind === 'free' ? { kind: source.kind, repository: source.repository, prompt: source.prompt, contexts: source.contexts } :
-  source.kind === 'issue' ? { kind: source.kind, projectId: source.projectId, iid: source.issueIid } :
-    source.kind === 'merge-request' ? { kind: source.kind, projectId: source.projectId, iid: source.iid, intent: source.intent ?? 'review' } :
+  source.kind === 'issue' ? { kind: source.kind, projectId: source.projectId, iid: source.issueIid, buildMode: source.buildMode ?? 'interactive' } :
+    source.kind === 'merge-request' ? { kind: source.kind, projectId: source.projectId, iid: source.iid, intent: source.intent ?? 'review', reviewerTool: source.reviewerTool ?? 'merge-reviewer' } :
       source.kind === 'project-wiki' ? { kind: source.kind, projectId: source.projectId, incrementalFrom: source.incrementalFrom } : source;
 const preferenceKey = (draft: CodexLaunchDraft) => digest([draft.scope, draft.source.kind,
   'projectId' in draft.source ? draft.source.projectId : draft.source.kind === 'skill' ? draft.source.featureId : 'local',
-  ...(draft.source.kind === 'merge-request' ? [draft.source.intent ?? 'review'] : [])]);
+  ...(draft.source.kind === 'merge-request' ? [draft.source.intent ?? 'review', draft.source.reviewerTool ?? 'merge-reviewer'] : [])]);
 const validIds = (value: unknown, max = 100): value is string[] => Array.isArray(value) && value.length <= max &&
   new Set(value).size === value.length && value.every(item => typeof item === 'string' && item.length > 0 && item.length <= 200 && !item.includes('\0'));
 const validTests = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 20 &&
@@ -77,6 +78,8 @@ export class CodexLaunchCoordinator {
   private readonly checks = new Map<string, AbortController>();
   private readonly submissions = new Map<string, { signature: string; promise: Promise<string> }>();
   private active?: string;
+  private activeFromRestore = false;
+  private selectionGeneration = 0;
   private readonly instance = randomUUID();
   constructor(private readonly options: CodexLaunchOptions) {}
   private file(id: string): string {
@@ -95,14 +98,20 @@ export class CodexLaunchCoordinator {
     if (draft.additionalSkillIds !== undefined && !validIds(draft.additionalSkillIds) || draft.repositoryIds !== undefined && !validIds(draft.repositoryIds, 1000) ||
       draft.testCommands !== undefined && !validTests(draft.testCommands) || draft.automaticDelivery !== undefined && typeof draft.automaticDelivery !== 'boolean') throw new Error('任務準備的技能、測試或交付設定無效。');
     draft.additionalSkillIds ??= []; draft.testCommands ??= []; draft.availableSkills ??= [];
-    draft.automaticDelivery ??= false;
+    draft.automaticDelivery = false;
+    if (draft.source.kind === 'issue') draft.isolated = true;
     return draft;
   }
   private async save(draft: CodexLaunchDraft): Promise<void> {
+    draft.automaticDelivery = false;
+    if (draft.source.kind === 'issue') draft.isolated = true;
     if (draft.scope !== this.options.scope()) throw new Error('帳號或工作區已變更，請返回原任務環境。');
     draft.revision++; draft.updatedAt = new Date().toISOString();
     await atomicNetworkJson(this.file(draft.id), draft);
-    if (this.active === draft.id) this.options.publish(projectDraft(draft));
+    if (this.active === draft.id) {
+      if (this.activeFromRestore && this.options.restoreLatest?.() === false) { this.active = undefined; this.options.publish(undefined); }
+      else this.options.publish(projectDraft(draft));
+    }
   }
   private async control<T>(id: string, work: () => Promise<T>): Promise<T> {
     await mkdir(this.options.directory, { recursive: true, mode: 0o700 });
@@ -121,9 +130,15 @@ export class CodexLaunchCoordinator {
   async latest(): Promise<CodexLaunchDraft | undefined> { const draft = (await this.drafts())[0]; return draft && projectDraft(draft); }
   async list(): Promise<CodexLaunchDraft[]> { return (await this.drafts()).map(projectDraft); }
   async publish(): Promise<void> {
+    const generation = this.selectionGeneration, restored = !this.active || this.activeFromRestore;
+    if (restored && this.options.restoreLatest?.() === false) {
+      this.active = undefined; this.options.publish(undefined); return;
+    }
     let draft: CodexLaunchDraft | undefined;
-    try { draft = this.active ? await this.load(this.active) : await this.latest(); } catch { this.active = undefined; }
-    if (draft) { this.active = draft.id; await this.show(draft.id); } else this.options.publish(undefined);
+    try { draft = this.active ? await this.load(this.active) : await this.latest(); }
+    catch { if (generation === this.selectionGeneration) this.active = undefined; }
+    if (generation !== this.selectionGeneration) return;
+    if (draft) await this.showDraft(draft.id, restored, generation); else this.options.publish(undefined);
   }
   async create(source: CodexTaskSource = { kind: 'free', repository: '', prompt: '' }, openedAt = Date.now(), forkFrom?: CodexTaskSpec): Promise<CodexLaunchDraft> {
     const existing = !forkFrom && (await this.drafts()).find(draft => digest(identity(draft.source)) === digest(identity(source)));
@@ -165,12 +180,23 @@ export class CodexLaunchCoordinator {
     const previous = forkFrom && sourceEvidence(forkFrom);
     if (previous) Object.assign(draft, { sourceSnapshot: previous.snapshot, sourceSha: previous.snapshot.sourceSha, targetSha: previous.snapshot.targetSha,
       sourceDigest: previous.sourceDigest, discussionDigest: previous.discussionDigest });
-    this.active = draft.id; draft.timings!.draftReadyAt = Date.now(); await this.control(draft.id, () => this.save(draft)); return projectDraft(draft);
+    this.active = draft.id; this.activeFromRestore = false; this.selectionGeneration++;
+    draft.timings!.draftReadyAt = Date.now(); await this.control(draft.id, () => this.save(draft)); return projectDraft(draft);
   }
   async show(id: string): Promise<CodexLaunchDraft> {
-    this.active = id;
+    return this.showDraft(id, false);
+  }
+  private async showDraft(id: string, restored: boolean, generation = this.selectionGeneration): Promise<CodexLaunchDraft> {
+    if (!restored) { this.active = id; this.activeFromRestore = false; this.selectionGeneration++; }
     return this.control(id, async () => {
       const draft = await this.load(id);
+      // Native task activation can finish while a shared latest-draft read is
+      // waiting for storage. Only an explicit open may take over that window.
+      if (restored && (generation !== this.selectionGeneration || this.options.restoreLatest?.() === false)) {
+        if (generation === this.selectionGeneration) { this.active = undefined; this.options.publish(undefined); }
+        return projectDraft(draft);
+      }
+      this.active = id; this.activeFromRestore = restored;
       if (draft.state === 'submitting' || draft.state === 'uncertain') {
         const taskId = draft.taskId ?? id;
         if (await this.options.taskExists(taskId)) { draft.state = 'submitted'; draft.taskId = taskId; }
@@ -277,7 +303,7 @@ export class CodexLaunchCoordinator {
       draft.title = inspection.title ?? draft.title; draft.repositories = inspection.repositories; draft.discussions = inspection.discussions;
       await progress('source', 'ready');
       if (!draft.repositories.some(repo => repo.id === draft.repositoryId)) draft.repositoryId = draft.repositories.length === 1 ? draft.repositories[0].id : undefined;
-      if (!draft.repositoryId && draft.repositories.length === 0 && (linked(draft.source) || draft.source.kind === 'free')) throw new Error('尚未找到本機 Repo，請先 Clone 或掃描，再回來繼續準備。');
+      if (!draft.repositoryId && draft.repositories.length === 0 && draft.source.kind === 'free') throw new Error('尚未找到本機 Repo，請先 Clone 或掃描，再回來繼續準備。');
       if (!draft.repositoryId && draft.repositories.length > 1 && (linked(draft.source) || draft.source.kind === 'free')) throw new Error('請選擇本次任務的本機 Repo。');
       if (draft.source.kind === 'group-analysis') {
         draft.repositoryIds ??= draft.repositories.map(repo => repo.id);
@@ -295,6 +321,7 @@ export class CodexLaunchCoordinator {
         draft.sourceSnapshot = evidence.snapshot; draft.sourceDigest = evidence.sourceDigest; draft.discussionDigest = evidence.discussionDigest;
       }
       draft.title = prepared.title; draft.root = prepared.root; draft.workingDirectory = prepared.executionRoot ?? prepared.root;
+      draft.requirementSummary = prepared.requirementSummary;
       draft.branch = prepared.origin?.branch ?? prepared.origin?.sourceBranch; draft.sourceSha = prepared.origin?.sourceSha; draft.targetSha = prepared.origin?.targetSha;
       draft.routed = false; draft.requiresModel = !!prepared.review; draft.supportsModelSelection = true;
       await progress('workflow', 'ready'); await progress('codex', 'checking');
@@ -336,7 +363,7 @@ export class CodexLaunchCoordinator {
     const source: CodexTaskSource = { ...draft.source, model: undefined, effort: undefined, modelEfforts: undefined, requirement: draft.requirement || undefined };
     if (source.kind === 'free') { source.repository = repository ?? ''; source.prompt = draft.requirement; source.requirement = undefined; }
     else if (repository && linked(source)) source.repository = repository;
-    if (source.kind === 'issue') source.isolated = draft.isolated;
+    if (source.kind === 'issue') source.isolated = true;
     if (source.kind === 'group-analysis') source.repositoryIds = draft.repositoryIds;
     source.additionalSkillIds = [...draft.additionalSkillIds ?? []];
     source.testCommands = [...draft.testCommands ?? []];
@@ -395,7 +422,10 @@ export class CodexLaunchCoordinator {
         }).catch(() => {});
         return taskId;
       } catch (error) {
-        current.state = await this.options.taskExists(current.taskId ?? id) ? 'submitted' : 'uncertain'; current.error = error instanceof Error ? error.message : String(error);
+        const taskId = current.taskId ?? id;
+        current.state = await this.options.taskExists(taskId) ? 'submitted' : 'uncertain';
+        if (current.state === 'submitted') current.taskId = taskId;
+        current.error = error instanceof Error ? error.message : String(error);
         await this.save(current); throw error;
       }
     });

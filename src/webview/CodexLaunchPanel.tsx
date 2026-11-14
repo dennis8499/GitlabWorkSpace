@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { CodexLaunchDraft, CodexLaunchPatch } from '../codex/protocol';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
 import type { DispatchResult } from '../workspace/actionController';
-import { codexLaunchManualText } from '../codex/launchProtocol';
+import { canCopyCodexLaunch, codexLaunchManualText } from '../codex/launchProtocol';
 import './codex-launch.css';
 
 type Fields = Required<Pick<CodexLaunchPatch, 'requirement' | 'repositoryId' | 'repositoryIds' | 'additionalSkillIds' | 'testCommands' | 'automaticDelivery' | 'model' | 'effort' | 'isolated' | 'discussionIds'>>;
@@ -106,16 +106,15 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
           {!draft.repositories.length && <p class="subtle">檢查後顯示目前 Group 的本機 Repo。</p>}
           {draft.repositories.map(repo => <label key={repo.id} class="codex-launch-checkbox"><input type="checkbox" checked={value.repositoryIds.includes(repo.id)}
             onChange={event => edit({ repositoryIds: event.currentTarget.checked ? [...value.repositoryIds, repo.id] : value.repositoryIds.filter(id => id !== repo.id) })} />{repo.name} · {repo.path}</label>)}
-          <p class="subtle">分析各 Repo 的本機已提交版本，產生文件與牌卡內容，再由你自行開立 Issue。</p>
+          <p class="subtle">分析各 Repo 的本機已提交版本，產生文件與牌卡草稿；檢閱後再選擇建立 Issue。</p>
         </fieldset> : <><label for="codex-launch-repository">本機 Repo</label>
         <select id="codex-launch-repository" disabled={!['free', 'issue', 'merge-request', 'project-wiki'].includes(source.kind)} value={value.repositoryId} onChange={event => edit({ repositoryId: event.currentTarget.value })}>
           <option value="">{!['free', 'issue', 'merge-request', 'project-wiki'].includes(source.kind) ? '由來源工作流程固定，執行位置見下方檢查結果' : draft.repositories.length ? '選擇本次工作使用的 Repo' : '檢查後顯示可用 Repo'}</option>
           {draft.repositories.map(repo => <option key={repo.id} value={repo.id}>{repo.name} · {repo.path}</option>)}
         </select></>}
-        {source.kind === 'issue' && <label class="codex-launch-checkbox"><input type="checkbox" checked={value.isolated}
-          onChange={event => edit({ isolated: event.currentTarget.checked })} />在隔離 worktree 執行</label>}
+        {source.kind === 'issue' && <p class="subtle">在獨立本機 Repo 副本執行，保留目前工作目錄。</p>}
         {(source.kind === 'issue' && value.isolated || source.kind === 'merge-request' && source.intent === 'fix-comments') &&
-          <p class="subtle">修改與測試在隔離工作區進行；依下方交付設定保存成果並回寫 GitLab。</p>}
+          <p class="subtle">修改與測試在隔離工作區進行；完成後先檢閱成果，再確認遠端交付。</p>}
         {source.kind === 'free' && !!source.contexts?.length && <details><summary>已附加上下文（{source.contexts.length}）</summary>
           {source.contexts.map(item => <details key={item.hash}><summary>{item.kind} · {item.path}</summary><pre>{item.text}</pre></details>)}</details>}
         {draft.discussions && <fieldset><legend>選擇要修正的 MR 討論</legend>
@@ -134,15 +133,13 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
             <span>{skill.name}{skill.required ? '（必要）' : ''}{skill.description && <span class="subtle"> · {skill.description}</span>}</span></label>)}
         </fieldset>
       </details>
-      <details class="codex-launch-advanced"><summary>測試與交付 · {value.testCommands.length} 項測試{linked ? value.automaticDelivery ? ' · 自動回寫' : ' · 人工交付' : ''}</summary>
+      <details class="codex-launch-advanced"><summary>測試與交付 · {value.testCommands.length} 項測試{linked ? ' · 人工確認後交付' : ''}</summary>
         <fieldset disabled={locked || busy}><legend>成果驗證</legend>
           <label for="codex-launch-tests">必要測試命令（每行一項）</label>
           <textarea id="codex-launch-tests" rows={3} maxLength={81920} value={testInput} onFocus={() => { testEditing.current = true; }}
             onBlur={() => { testEditing.current = false; setTestInput(local.current.testCommands.join('\n')); }}
             onInput={event => { const text = event.currentTarget.value; setTestInput(text); edit({ testCommands: text.split(/\r?\n/).map(line => line.trim()).filter(Boolean) }); }} />
-          {linked && <label class="codex-launch-checkbox"><input type="checkbox" checked={value.automaticDelivery}
-            onChange={event => edit({ automaticDelivery: event.currentTarget.checked })} />成果驗證通過後自動回寫 GitLab</label>}
-          {linked && <p class="subtle">{source.kind === 'issue' ? '自動提交與推送工作分支、建立 Draft MR，並回覆來源 Issue。' : source.kind === 'project-wiki' ? '自動發布已核對的 Wiki 頁面。' : source.kind === 'merge-request' && source.intent === 'fix-comments' ? '自動更新原 MR 來源分支，並回覆選定討論。' : '自動發布審查留言及完整報告。'} 發布前仍會核對遠端版本。</p>}
+          {linked && <p class="subtle">先產生成果與驗證結果，由你檢閱確認後才推送或發布至 GitLab。既有自動交付設定不代替這次確認。</p>}
         </fieldset>
       </details>
       <details class="codex-launch-advanced" open={modelBlocked}><summary>模型與思考強度 · {model?.label ?? (value.model || '沿用本機 Codex 設定')}{value.effort ? ` · ${value.effort}` : ''}</summary>
@@ -198,10 +195,11 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
         <button type="button" onClick={() => { const next = fields(latest.current); local.current = next; setValue(next); dirty.current = false; persist.current?.(undefined); setConflict(false); }}>使用目前保存設定</button>
       </section>}
       <footer class="codex-launch-actions"><button type="button" disabled={busy || locked || saving || conflict} onClick={() => run('checkCodexLaunch')}>重新檢查</button>
+        {draft.state === 'submitted' && draft.taskId && <button type="button" onClick={() => post({ type: 'showCodexTask', taskId: draft.taskId! })}>開啟任務視窗</button>}
         {draft.state === 'uncertain' && <button type="button" onClick={() => post({ type: 'showCodexLaunch', draftId: draft.id })}>核對開始結果</button>}
         <button type="submit" class="primary" disabled={busy || locked || saving || conflict || !!draft.sourceChange && !draft.sourceChange.acknowledged || ['free', 'group-analysis'].includes(source.kind) && !value.requirement.trim()}>
-          {draft.state === 'submitting' ? '正在開始…' : draft.state === 'checking' ? '正在檢查…' : linked && value.automaticDelivery ? '執行並回寫' : '開始執行'}</button>
-        <button type="button" onClick={() => post({ type: 'copy', text: codexLaunchManualText(draft, local.current) })}>複製手動執行資料</button>
+          {draft.state === 'submitting' ? '正在開始…' : draft.state === 'checking' ? '正在檢查…' : '在獨立視窗執行'}</button>
+        {canCopyCodexLaunch(source) && <button type="button" onClick={() => post({ type: 'copy', text: codexLaunchManualText(draft, local.current) })}>複製手動執行資料</button>}
         <button type="button" disabled={draft.state === 'submitting' || draft.state === 'uncertain'} onClick={() => post({ type: 'cancelCodexLaunch', draftId: draft.id })}>
           {busy ? '停止檢查並保留草稿' : '稍後繼續'}</button>
         <span class="subtle" role="status">{saving ? '正在保存設定…' : dirty.current ? '尚有設定待保存' : '設定已保存'}</span>

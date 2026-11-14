@@ -106,6 +106,21 @@ test('malformed identities, bodies, nested actions and prototype keys fail close
   for (const request of invalid) { assert.equal(isWorkspaceRequest(request), false); assert.throws(() => parseWorkspaceRequest(request), /訊息格式無效/); }
 });
 
+test('launch forms without a single Repo can save, check and submit their full field snapshot', () => {
+  // Group analysis selects several Repos; fixed-source forms can also have no single selection yet.
+  const patch = { requirement: 'Analyze the committed sources', repositoryId: '', repositoryIds: ['repo-a', 'repo-b'],
+    additionalSkillIds: [], testCommands: [], automaticDelivery: false, model: '', effort: '', isolated: true, discussionIds: [] };
+  for (const type of ['updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch']) {
+    const request = { type, draftId: 'draft-group', revision: 6, patch };
+    assert.equal(isWorkspaceRequest(request), true, type);
+    for (const repositoryId of [null, {}, 'x'.repeat(161), '\0']) {
+      assert.equal(isWorkspaceRequest({ ...request, patch: { ...patch, repositoryId } }), false);
+    }
+    assert.equal(isWorkspaceRequest({ ...request, patch: { ...patch, repositoryIds: [''] } }), false);
+  }
+  assert.equal(isWorkspaceRequest({ type: 'gitOpenFile', repositoryId: '', path: 'file.ts' }), false);
+});
+
 test('nested legitimate Issue actions, Git rebase and MCP forms retain their contract', () => {
   for (const request of [
     { type: 'codexHistory', taskId: 'task-1', force: true }, { type: 'previewProjectWiki', taskId: 'task-1', cursor: 'batch-1' },

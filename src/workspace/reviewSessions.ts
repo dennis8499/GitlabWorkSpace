@@ -34,7 +34,11 @@ interface ReviewJob {
   phase: string;
   updated_at: string;
   inputs: { workspace: string; workspace_file?: string | null; project: string; base: string; head: string };
+  context_dir?: string;
+  selected_repo?: string;
+  evidence_receipt?: { schema?: string; manifest_sha256?: string };
   report_path?: string;
+  report_sha256?: string;
   error?: string;
   network_activity?: { fetch_attempt_count?: number };
   pack_cache_hits?: number;
@@ -42,7 +46,7 @@ interface ReviewJob {
   sync_activity?: Array<{ mode?: string; synced_at?: number }>;
   cleanup_pending?: boolean;
   review_outcome?: unknown;
-  report_receipt?: { review_outcome?: unknown };
+  report_receipt?: { policy?: string; static_body_sha256?: string; review_outcome?: unknown };
   finished_at_epoch?: number;
   budget?: unknown;
   progress?: unknown;
@@ -135,11 +139,104 @@ async function plain(file: string): Promise<void> {
     probe = parent;
   }
 }
-async function json(file: string): Promise<any> {
+async function plainBytes(file: string, maxBytes = 512 * 1024): Promise<Buffer> {
   await plain(file);
   const info = await lstat(file);
-  if (!info.isFile() || info.size > 512 * 1024) throw new Error('審查紀錄格式或大小無效。');
-  return JSON.parse(await readFile(file, 'utf8'));
+  if (!info.isFile() || info.size > maxBytes) throw new Error('審查紀錄格式或大小無效。');
+  const bytes = await readFile(file);
+  if (bytes.length > maxBytes) throw new Error('審查紀錄格式或大小無效。');
+  return bytes;
+}
+async function json(file: string, maxBytes = 512 * 1024): Promise<any> { return JSON.parse((await plainBytes(file, maxBytes)).toString('utf8')); }
+interface FixedReviewIdentity { baseSha: string; headSha: string; capturedAt?: string; }
+const fullSha = (value: unknown): value is string => typeof value === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value);
+const digest = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
+function fixedPair(value: unknown): FixedReviewIdentity | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const identity = value as Record<string, unknown>;
+  if (fullSha(identity.base_sha) && fullSha(identity.head_sha)) return { baseSha: identity.base_sha, headSha: identity.head_sha,
+    ...(typeof identity.capture_completed_at === 'string' ? { capturedAt: identity.capture_completed_at } : {}) };
+}
+function samePair(first: FixedReviewIdentity, second: FixedReviewIdentity): boolean { return first.baseSha === second.baseSha && first.headSha === second.headSha; }
+
+/** Only the fixed body may supply legacy identity; editable human prose never does. */
+async function mergeReportIdentity(job: ReviewJob): Promise<{ identity?: FixedReviewIdentity; hasFixedTable: boolean } | undefined> {
+  if (job.state !== 'published' || !job.report_path) return;
+  await plain(job.report_path);
+  const info = await lstat(job.report_path), actual = await realpath(job.report_path);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 8 * 1024 * 1024 ||
+      !samePath(path.dirname(actual), await realpath(path.join(job.inputs.project, 'review-reports')))) return;
+  const bytes = await plainBytes(actual, 8 * 1024 * 1024), body = bytes.toString('utf8'); if (!Buffer.from(body, 'utf8').equals(bytes)) return;
+  const start = '<!-- merge-confirmations:start -->', end = '<!-- merge-confirmations:end -->';
+  const first = body.indexOf(start), last = body.indexOf(end);
+  let staticBody = body, fixedBody = body;
+  if (first >= 0 || last >= 0) {
+    if (first < 0 || last <= first || body.indexOf(start, first + 1) >= 0 || body.indexOf(end, last + 1) >= 0 ||
+        first > 0 && body[first - 1] !== '\n' || body[last - 1] !== '\n') return;
+    staticBody = body.slice(0, first + start.length) + '\n<editable-human-confirmations>\n' + body.slice(last);
+    fixedBody = body.slice(0, first) + body.slice(last + end.length);
+  }
+  if (job.report_receipt != null) {
+    if (job.report_receipt.policy !== 'merge-report-static-body/v1' || digest(staticBody) !== job.report_receipt.static_body_sha256 ||
+        job.review_outcome && job.report_receipt.review_outcome && !isDeepStrictEqual(job.review_outcome, job.report_receipt.review_outcome)) return;
+  } else if (digest(bytes) !== job.report_sha256) return;
+  const lines = fixedBody.split(/\r?\n/), headings = lines.flatMap((line, index) => line === '### 固定版本' ? [index] : []);
+  if (headings.length === 0) return { hasFixedTable: false };
+  if (headings.length !== 1) return;
+  const marked = (value: string): string | undefined => { const fence = /^`+/.exec(value)?.[0];
+    if (!fence || !value.endsWith(fence) || value.length < fence.length * 2) return;
+    const content = value.slice(fence.length, -fence.length); return content.startsWith(' ') && content.endsWith(' ') ? content.slice(1, -1) : content; };
+  const locations = lines.filter(line => line.startsWith('- 本機路徑：')).map(line => marked(line.slice('- 本機路徑：'.length)));
+  if (locations.length !== 1 || !locations[0] || !samePath(locations[0], job.inputs.project)) return;
+  let index = headings[0] + 1; while (lines[index] === '') index++;
+  if (lines[index++] !== '| Repo | 角色 | 來源 | 完整 SHA |' || lines[index++] !== '| --- | --- | --- | --- |') return;
+  const selectedName = path.basename(job.inputs.project).replace(/\|/g, '\\|'), sources: Record<string, string> = {};
+  for (; lines[index]?.startsWith('|'); index++) {
+    const cells = lines[index].split(/(?<!\\)\|/).slice(1, -1).map(cell => cell.trim()); if (cells.length !== 4) return;
+    if (cells[1] !== 'seed') continue;
+    if (cells[0] !== selectedName) return; // A second selected Repo cannot be mixed into this pair.
+    if (!['base', 'head'].includes(cells[2])) continue;
+    const reference = marked(cells[3]); if (!fullSha(reference) || Object.hasOwn(sources, cells[2])) return;
+    sources[cells[2]] = reference;
+  }
+  const identity = fixedPair({ base_sha: sources.base, head_sha: sources.head });
+  return identity ? { identity, hasFixedTable: true } : undefined;
+}
+
+/** Merge v1 keeps refs in its captured manifest, then removes that context on finish. */
+export async function readReviewFixedIdentity(job: ReviewJob, root: string, tool: ReviewerToolId): Promise<FixedReviewIdentity | undefined> {
+  const provided = Object.hasOwn(job, 'fixed_identity'), fixed = fixedPair(job.fixed_identity);
+  if (provided && !fixed) return; // Invalid metadata must not silently fall back to another source.
+  if (tool !== 'merge-reviewer') return fixed;
+  try {
+    const report = job.state === 'published' ? await mergeReportIdentity(job) : undefined;
+    if (job.state === 'published' && !report) return;
+    // Existing native fixed metadata remains usable with older, receipt-valid
+    // renderers. A present version table must agree; it cannot be ignored.
+    if (provided) return !report?.hasFixedTable || report.identity && samePair(fixed!, report.identity) ? fixed : undefined;
+    if (job.state === 'published' && !report?.identity) return;
+    const context = path.join(root, 'sessions', job.request_id);
+    if (!job.context_dir || !samePath(job.context_dir, context)) return;
+    await plain(context);
+    let contextExists = true;
+    try { if (!(await lstat(context)).isDirectory()) return; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; contextExists = false; }
+    if (!contextExists) return report?.identity; // Only a verified published report survives normal native cleanup.
+    const owner = await json(path.join(context, '.merge-reviewer-owned.json'));
+    if (owner.schema !== 'merge-reviewer-session/v2' || !samePath(owner.directory, context) || !samePath(owner.runtime, root) ||
+        owner.request_id !== job.request_id || !/^[a-f0-9]{32}$/.test(owner.token ?? '')) return;
+    const manifestBytes = await plainBytes(path.join(context, 'manifest.json'), 64 * 1024 * 1024), manifest = JSON.parse(manifestBytes.toString('utf8'));
+    if (job.evidence_receipt?.schema !== 'MergeReviewEvidenceReceipt/v1' || digest(manifestBytes) !== job.evidence_receipt.manifest_sha256 ||
+        manifest.schema !== 'merge-reviewer-workspace-context/v3' || manifest.request_id !== job.request_id || !samePath(manifest.runtime_root, root) ||
+        !samePath(manifest.context_dir, context) || !samePath(manifest.workspace, job.inputs.workspace) || !Array.isArray(manifest.repositories) ||
+        typeof manifest.selected_repo !== 'string' || job.selected_repo !== undefined && manifest.selected_repo !== job.selected_repo) return;
+    const selected = manifest.repositories.filter((repo: any) => repo.id === manifest.selected_repo);
+    if (selected.length !== 1 || selected[0].role !== 'seed' || selected[0].state !== 'captured' || !samePath(selected[0].path, job.inputs.project)) return;
+    const repo = selected[0], identity = fixedPair(repo.native);
+    if (!identity || repo.native.base_input !== job.inputs.base || repo.native.head_input !== job.inputs.head ||
+        repo.sources?.base?.ref !== identity.baseSha || repo.sources?.head?.ref !== identity.headSha || report?.identity && !samePair(identity, report.identity)) return;
+    return { ...identity, ...(typeof manifest.capture_completed_at === 'string' ? { capturedAt: manifest.capture_completed_at } : {}) };
+  } catch { return; } // Missing or conflicting evidence is unknown, never an authorization to bypass the MR SHA gate.
 }
 async function ownedRuntime(root: string, tool: ReviewerToolId = 'merge-reviewer'): Promise<boolean> {
   if (!isReviewerTool(tool)) throw new Error('無效的審查工具。');
@@ -179,6 +276,7 @@ export async function readReviewSessions(root: string, workspace: string, reposi
     let job: ReviewJob;
     try { job = await readReviewJob(root, name.slice(0, -5), workspace, repositories, tool); }
     catch { continue; } // Another declared workspace may share an explicit runtime.
+    const fixed = await readReviewFixedIdentity(job, root, tool);
     results.push({ tool, requestId: job.request_id, repository: path.basename(job.inputs.project), repositoryPath: job.inputs.project,
       base: job.inputs.base, head: job.inputs.head, state: job.state, phase: job.phase, updatedAt: job.updated_at,
       reportPath: job.report_path, error: job.error, fetchCount: job.network_activity?.fetch_attempt_count ?? 0,
@@ -186,9 +284,7 @@ export async function readReviewSessions(root: string, workspace: string, reposi
       reviewOutcome: reviewOutcome(job, tool),
       budget: budgetSummary(job, tool),
       ...inspectionSummary(job),
-      baseSha: /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(job.fixed_identity?.base_sha ?? '') ? job.fixed_identity?.base_sha : undefined,
-      headSha: /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(job.fixed_identity?.head_sha ?? '') ? job.fixed_identity?.head_sha : undefined,
-      capturedAt: job.fixed_identity?.capture_completed_at,
+      baseSha: fixed?.baseSha, headSha: fixed?.headSha, capturedAt: fixed?.capturedAt,
       syncObservations: (job.sync_activity ?? []).filter(row => ['owner', 'joined', 'cached'].includes(row.mode ?? '') &&
         typeof row.synced_at === 'number' && Number.isFinite(row.synced_at)).map(row => ({ mode: row.mode!, at: new Date(row.synced_at! * 1000).toISOString() })) });
   }
@@ -267,6 +363,9 @@ export async function sharedReviewCacheRoot(root: string, override = process.env
   const resolved = path.resolve(root), name = path.basename(resolved);
   if (name === '.review-runtime' || name === '.release-review-runtime') return path.join(path.dirname(resolved), '.review-shared-cache');
   if (name === 'release-reviewer') {
+    return path.join(path.dirname(resolved), '.review-shared-cache');
+  }
+  if (path.basename(path.dirname(resolved)) === 'r2' && /^[a-f0-9]{12}-[mr]$/.test(name)) {
     return path.join(path.dirname(resolved), '.review-shared-cache');
   }
   return path.join(resolved, '.review-shared-cache');

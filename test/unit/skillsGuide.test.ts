@@ -3,12 +3,13 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, resolveReviewerRepository, restoreSkillGuideState, skillGuideTools, getSkillGuideCards } from '../../src/webview/skillsGuideData';
+import { withOutputStyle } from '../../src/workspace/outputStyle';
 
 const context = { groupRoot: 'C:\\工作區 with spaces', workflowKitVersion: '0.15.0', repositories: [
   { name: 'service', path: 'C:\\工作區 with spaces\\service' }
 ], repositoryScanStatus: 'ready' as const };
 
-test('all executable guide prompts route optional output style once and preserve workflow contracts', () => {
+test('default guide prompts preserve workflow contracts without invoking an extra output style Skill', () => {
   for (const profile of ['group', 'repository'] as const) {
     for (const card of getSkillGuideCards(profile)) {
       const inputs = Object.fromEntries(card.fields.map(field => [`${card.id}.${field.id}`,
@@ -16,12 +17,24 @@ test('all executable guide prompts route optional output style once and preserve
           : field.id === 'selfEmails' ? 'dev@example.test' : field.id === 'remote' ? 'origin' : field.id === 'target' ? 'main'
           : field.id === 'base' ? 'main' : field.id === 'head' ? 'feature/change' : field.defaultValue ?? 'fixture']));
       const prompt = buildSkillGuidePrompt(card, inputs, { ...context, profile, root: context.repositories[0].path });
-      assert.equal(prompt.split('載入 $output-style').length - 1, 1, `${profile}/${card.id}`);
-      if (['merge-reviewer', 'release-reviewer'].includes(card.tool)) assert.match(prompt, /撰寫報告時才在/);
-      assert.match(prompt, /未安裝時沿用原 Skill 的 output style/);
+      assert.doesNotMatch(prompt, /\$output-style|output-style\/SKILL\.md/, `${profile}/${card.id}`);
+      assert.match(prompt, /只有使用者明確要求或選取 output-style/);
+      assert.equal(prompt.split('只有使用者明確要求或選取 output-style').length - 1, 1);
+      if (['merge-reviewer', 'release-reviewer'].includes(card.tool)) assert.match(prompt, /輸出風格（報告階段）/);
+      assert.equal(withOutputStyle(prompt), prompt);
+      assert.equal(withOutputStyle(prompt, 'report'), prompt);
       assert.match(prompt, /保留原 Skill 的必要欄位、證據、審查狀態/);
     }
   }
+});
+
+test('an explicit user output style request survives copied prompts without duplicate Skill invocation', () => {
+  const card = getSkillGuideCard('codebase-wiki', 'query');
+  const request = '$output-style style=explanatory\n說明退款流程並附來源。';
+  const prompt = buildSkillGuidePrompt(card, { 'query.question': request }, context);
+  assert.ok(prompt.includes(request));
+  assert.equal(prompt.split('$output-style').length - 1, 1);
+  assert.equal(withOutputStyle(prompt), prompt);
 });
 
 test('both Analysis profiles expose the frozen analysis capabilities while BMAD has its own page', () => {

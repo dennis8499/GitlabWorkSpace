@@ -170,5 +170,12 @@
   .bmad-progress-details > summary > span { display: block; margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .bmad-panel *, .bmad-panel *::before, .bmad-panel *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+.bmad-entrypoints { margin: 14px 0; }
+.bmad-entry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 8px; margin-bottom: 10px; }
+.bmad-entry-grid .bmad-entry { display: flex; flex-direction: column; align-items: flex-start; text-align: left; white-space: normal; gap: 6px; padding: 12px; }
+.bmad-entry code { color: var(--vscode-textLink-foreground); }
+.bmad-entry span { font-size: .9em; font-weight: normal; color: var(--vscode-descriptionForeground); }
+.bmad-entry-selected { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.bmad-prompt-form select { max-width: 100%; margin: 8px; }
 body.vscode-high-contrast .bmad-panel button, body.vscode-high-contrast-light .bmad-panel button { border-color: var(--vscode-contrastBorder, var(--bmad-border)); }
 body.vscode-high-contrast .bmad-task-selected, body.vscode-high-contrast-light .bmad-task-selected { outline: 1px solid var(--vscode-focusBorder, var(--bmad-link)); }

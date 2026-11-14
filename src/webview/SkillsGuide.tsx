@@ -122,7 +122,7 @@ export function SkillsGuide({ state, onChange, onEnvironmentChange = onChange, o
       <p class="skills-root" title={context.root ?? context.groupRoot}>專案根目錄：{context.root ?? context.groupRoot ?? '尚未選擇'}</p>
       <div class="skills-environment-actions"><span>工作流程包 {context.workflowKitVersion ?? '未安裝'}</span>
         <button class="secondary skills-install-button" type="button" onClick={onOpenSettings}>{kitInstalled ? '整包安裝／更新' : '準備環境與 Skills'}</button></div>
-      <p class="subtle">已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 <code>$output-style style=explanatory</code> 指定詳解。</p>
+      <p class="subtle">預設沿用各 Skill 原本風格。明確選用 Output Style 時才載入，例如 <code>$output-style style=explanatory</code>。</p>
       {unavailable && <p class="skills-environment-reason" role="status">{unavailable}</p>}
     </section>
     <nav class="skills-tool-tabs" role="tablist" aria-label="Skills 工具">{skillGuideTools.map((item, index) => <button key={item.id}
@@ -179,8 +179,8 @@ export function SkillsGuide({ state, onChange, onEnvironmentChange = onChange, o
         </p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
           <div class="skills-action-bar">{onRun && <button class="primary" type="button" {...availabilityProps('skills-run', runBlocked)} onClick={() => onRun(card.id)}>使用 Codex 執行</button>}
-            <details class="workflow-alternatives"><summary>其他方式</summary><button class="secondary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
-              onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button><FeatureNotices id="skills-copy" items={{ '複製提示詞': copyBlocked }} /><p class="subtle">在相同專案根目錄的 Codex 對話貼上提示詞。</p></details></div>
+            {card.id !== 'ingest' && <details class="workflow-alternatives"><summary>其他方式</summary><button class="secondary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
+              onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button><FeatureNotices id="skills-copy" items={{ '複製提示詞': copyBlocked }} /><p class="subtle">在相同專案根目錄的 Codex 對話貼上提示詞。</p></details>}</div>
           <FeatureNotices id="skills-run" items={{ '使用 Codex 執行': runBlocked }}>{!available && <button type="button" onClick={onOpenSettings}>準備環境與 Skills</button>}</FeatureNotices>
           <p class="skills-next-step">確認任務設定後開始，進度、待回覆要求與成果會保留在 Codex 頁。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />

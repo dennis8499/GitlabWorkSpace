@@ -29,6 +29,18 @@ test('unresponsive child close has a hard deadline and shares the same failure',
   assert.ok(Date.now() - start < 1000); assert.equal(f.kills(), 1);
   f.child.emit('close');
 });
+
+test('transport retains the sanitized supervisor failure marker and nonzero exit', async () => {
+  const f = fake();
+  f.child.stderr.write('x'.repeat(2048));
+  f.child.stderr.write('GitLabWorkspace Codex supervisor: receipt-write-failed\n');
+  f.child.emit('close', 1, null);
+  await f.client.close();
+  assert.equal(f.client.diagnostics.exit?.code, 1);
+  assert.equal(f.client.diagnostics.exit?.signal, null);
+  assert.ok(f.client.diagnostics.stderr.endsWith('GitLabWorkspace Codex supervisor: receipt-write-failed\n'));
+  assert.equal(f.client.diagnostics.stderr.length, 2048);
+});
 test('transport observes backpressure, cancels unsent writes and redacts structured errors', async () => {
   const writes: string[] = []; let release!: () => void;
   const f = fake((chunk, callback) => { writes.push(chunk.toString()); release = callback; });

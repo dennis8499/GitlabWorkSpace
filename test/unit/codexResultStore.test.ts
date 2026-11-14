@@ -5,7 +5,7 @@ import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, sy
 import os from 'node:os';
 import path from 'node:path';
 import { CodexResultStore } from '../../src/codex/resultStore';
-import { CODEX_RESULT_MAX_BYTES, safeResultPath, type CodexChangeInventory } from '../../src/codex/resultProtocol';
+import { CODEX_RESULT_MAX_BYTES, safeResultPath, type CodexChangeInventory, type CodexResultConfirmationAudit } from '../../src/codex/resultProtocol';
 import type { CodexTaskRecord } from '../../src/codex/protocol';
 
 function git(root: string, ...args: string[]): string {
@@ -55,6 +55,7 @@ test('sealing keeps immutable document results and fresh handoff without retaini
   for (const privateText of ['PRIVATE PROMPT', 'PRIVATE-THREAD', 'PRIVATE TRANSCRIPT', f.runtime]) assert.equal(serialized.includes(privateText), false);
   assert.ok(manifest.artifacts.some(artifact => artifact.path === 'documents/SPEC.md'));
   assert.ok(manifest.artifacts.some(artifact => artifact.path === 'documents/sources.json'));
+  assert.equal(manifest.artifacts.some(artifact => artifact.path === 'delivery/confirmation-audit.json'), false, 'older tasks without confirmation remain readable');
   assert.equal((await f.store.list()).length, 1);
   await rm(f.runtime, { recursive: true, force: true });
   const spec = manifest.artifacts.find(artifact => artifact.path === 'documents/SPEC.md')!;
@@ -89,7 +90,16 @@ test('task changes restore binary, CRLF, deletion, additions and Git modes befor
   git(worktree, 'update-index', '--chmod=+x', 'mode.sh');
   if (process.platform !== 'win32') await chmod(path.join(worktree, 'mode.sh'), 0o755);
   const beforeHead = git(worktree, 'rev-parse', 'HEAD'), beforeIndex = git(worktree, 'ls-files', '--stage'), beforeWorktrees = git(f.project, 'worktree', 'list', '--porcelain');
+  const confirmation = { digest: 'a'.repeat(64), confirmedAt: '2026-11-13T02:30:00.000Z', headSha: beforeHead, targetSha: 'b'.repeat(40), issueDigest: 'c'.repeat(64) };
+  f.record.delivery = { mode: 'automatic', state: 'cancelled', steps: [], confirmation, artifactDigest: 'd'.repeat(64), deliveredCommitSha: beforeHead };
   const manifest = await f.store.seal(f.record, [], 'deleted'); assert.ok(manifest.restore);
+  const auditArtifact = manifest.artifacts.find(artifact => artifact.path === 'delivery/confirmation-audit.json')!;
+  const auditBytes = (await f.store.readArtifact(manifest.id, auditArtifact.id)).bytes;
+  const audit = JSON.parse(auditBytes.toString('utf8')) as CodexResultConfirmationAudit;
+  assert.deepEqual(audit, { schema: 'GitLabWorkspaceCodexDeliveryConfirmationAudit/v1', historicalOnly: true, authorizesDelivery: false,
+    taskId: f.record.id, source: manifest.origin, confirmation, artifactDigest: 'd'.repeat(64), deliveredCommitSha: beforeHead });
+  assert.equal(auditBytes.toString('utf8').includes('PRIVATE'), false, 'audit origin excludes account identity and URL credentials');
+  assert.equal('confirmation' in manifest.delivery!, false, 'the audit is not an active delivery authorization');
   assert.equal(git(worktree, 'rev-parse', 'HEAD'), beforeHead); assert.equal(git(worktree, 'ls-files', '--stage'), beforeIndex);
   assert.equal(git(f.project, 'worktree', 'list', '--porcelain'), beforeWorktrees);
   const inventory = JSON.parse((await f.store.readArtifact(manifest.id, manifest.restore.inventoryArtifactId)).bytes.toString()) as CodexChangeInventory;
@@ -114,12 +124,21 @@ test('task changes restore binary, CRLF, deletion, additions and Git modes befor
   assert.equal(JSON.stringify(manifest).includes('PRIVATE'), false);
   const manualRoot = path.join(f.root, 'manual-workspace'), restoredWorkspace = await f.store.restoreTo(manifest.id, f.project, manualRoot);
   assert.equal(restoredWorkspace.path, manualRoot); assert.match(restoredWorkspace.branch, /^manual\/task-one-/);
+  assert.equal('delivery' in restoredWorkspace, false); assert.equal('confirmation' in restoredWorkspace, false);
+  await assert.rejects(lstat(path.join(manualRoot, 'delivery', 'confirmation-audit.json')), { code: 'ENOENT' });
+  await assert.rejects(lstat(path.join(f.storage, 'codex-tasks')), { code: 'ENOENT' }, 'manual restore cannot create an authorized active task');
   for (const entry of inventory.entries) if (entry.action === 'write') assert.deepEqual(await readFile(path.join(manualRoot, entry.path)), await readFile(path.join(worktree, entry.path)));
   assert.equal(git(manualRoot, 'rev-parse', 'HEAD'), manifest.restore.baseSha);
   assert.match(git(manualRoot, 'ls-files', '--stage', 'mode.sh'), /^100755 /);
   await assert.rejects(f.store.restoreTo(manifest.id, f.project, manualRoot), /尚未存在/);
   await assert.rejects(f.store.restoreTo(manifest.id, restored, path.join(f.root, 'wrong-repository')), /原 Repo/);
   await assert.rejects(f.store.restoreTo(manifest.id, f.project, path.join(f.project, 'nested')), /以外/);
+  assert.deepEqual((await f.store.readArtifact(manifest.id, auditArtifact.id)).bytes, auditBytes, 'restoring leaves the historical audit immutable');
+  await writeFile(path.join(f.store.directory, manifest.id, auditArtifact.path), JSON.stringify({ ...audit, confirmation: { ...confirmation, targetSha: 'e'.repeat(40) } }));
+  await assert.rejects(f.store.readArtifact(manifest.id, auditArtifact.id), /已變更/);
+  await assert.rejects(f.store.read(manifest.id), /hash/);
+  await assert.rejects(f.store.exportTo(manifest.id, path.join(f.root, 'tampered-audit-export')), /hash/);
+  await assert.rejects(f.store.restoreTo(manifest.id, f.project, path.join(f.root, 'tampered-audit-restore')), /hash/);
 });
 
 test('complete export does not silently truncate an inventory after 500 files', async t => {
@@ -291,4 +310,22 @@ test('handoff retains selected skills, source requirement, todo and historical t
   assert.equal(JSON.parse(operationText).operations[0].state, 'prepared'); assert.equal(operationText.includes('PRIVATE'), false);
   const handoff = (await f.store.readArtifact(manifest.id, manifest.artifacts.find(item => item.path === 'handoff.md')!.id)).bytes.toString();
   assert.match(handoff, /required-flow/); assert.match(handoff, /npm.cmd test/); assert.match(handoff, /待辦：Review/); assert.equal(handoff.includes(f.runtime), false);
+});
+
+test('an unknown Group Issue POST blocks final sealing and provisional export lists the pending card', async t => {
+  const f = await fixture(t), id = 'a'.repeat(32), documents = path.join(f.runtime, 'artifacts'); await mkdir(documents);
+  await writeFile(path.join(documents, 'SPEC.md'), '# Requirement\n');
+  await writeFile(path.join(documents, 'issues.json'), JSON.stringify({ schema: 'IssueDraftBundle/v1', analysisId: id, drafts: [] }));
+  f.record.spec.source = { kind: 'group-analysis', requirement: 'Create cards' };
+  f.record.spec.groupAnalysis = { id, groupRoot: f.project, runtimeRoot: f.runtime, outputRoot: documents, issueDrafts: true, repositories: [] };
+  const journalRoot = path.join(f.storage, 'group-issue-publications'); await mkdir(journalRoot);
+  await writeFile(path.join(journalRoot, id + '.json'), JSON.stringify({ schema: 'GitLabWorkspaceGroupIssues/v1', analysisId: id, accountKey: 'account',
+    receipts: { 'draft-one': { draftId: 'draft-one', projectId: 1, projectPath: 'team/repo', payloadDigest: 'b'.repeat(64), state: 'unknown' } } }));
+  await assert.rejects(f.store.seal(f.record, [], 'manual'), /Issue 建立結果尚待核對/);
+  assert.deepEqual(await f.store.list(), []); assert.equal(await readFile(path.join(documents, 'SPEC.md'), 'utf8'), '# Requirement\n');
+  const destination = path.join(f.root, 'pending-group-export'), manifest = await f.store.exportPendingTo(f.record, [], destination);
+  assert.equal(manifest.provisional, true); assert.equal(manifest.result?.state, 'uncertain');
+  const pending = JSON.parse(await readFile(path.join(destination, 'delivery/pending-operations.json'), 'utf8'));
+  assert.deepEqual(pending.operations.find((item: any) => item.action === 'create-issue'), { action: 'create-issue', state: 'pending', outcome: 'unknown', draftId: 'draft-one', projectId: 1 });
+  assert.ok(await lstat(documents)); assert.deepEqual(await f.store.list(), []);
 });

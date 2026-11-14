@@ -38,11 +38,12 @@ export async function restoreCodexResultChanges(reader: ResultReader, taskId: st
   const temporaryParent = await realpath(os.tmpdir()), temporary = await mkdtemp(path.join(temporaryParent, 'glw-restore-'));
   const emptyConfig = path.join(temporary, 'config'); await writeFile(emptyConfig, '', { flag: 'wx' });
   let created = false, succeeded = false;
+  let expectedHead = restore.baseSha;
   const branch = 'manual/' + manifest.id.slice(0, 16) + '-' + randomUUID().slice(0, 8);
   const rollback = async (): Promise<void> => {
     // Only this new, exact worktree is eligible for rollback. Never guess at moved paths.
     if (!same(await realpath(target), target) || (await resultGit(target, ['symbolic-ref', '--quiet', '--short', 'HEAD'], emptyConfig)).trim() !== branch ||
-      (await resultGit(target, ['rev-parse', 'HEAD'], emptyConfig)).trim() !== restore.baseSha) throw new Error('手動還原失敗且目錄所屬已變更；保留新目錄供核對。');
+      (await resultGit(target, ['rev-parse', 'HEAD'], emptyConfig)).trim() !== expectedHead) throw new Error('手動還原失敗且目錄所屬已變更；保留新目錄供核對。');
     await ownedStoragePath(parent, target);
     const inspect = async (directory: string): Promise<void> => {
       for (const item of await readdir(directory, { withFileTypes: true })) {
@@ -52,7 +53,7 @@ export async function restoreCodexResultChanges(reader: ResultReader, taskId: st
     };
     await inspect(target);
     await resultGit(original, ['worktree', 'remove', '--force', '--', target], emptyConfig);
-    await resultGit(original, ['update-ref', '-d', 'refs/heads/' + branch, restore.baseSha], emptyConfig);
+    await resultGit(original, ['update-ref', '-d', 'refs/heads/' + branch, expectedHead], emptyConfig);
   };
   try {
     if (!same((await resultGit(original, ['rev-parse', '--show-toplevel'], emptyConfig)).trim(), original)) throw new Error('原 Repo 根目錄已變更。');
@@ -66,6 +67,14 @@ export async function restoreCodexResultChanges(reader: ResultReader, taskId: st
     const overrides = filters.flatMap(name => ['-c', name + '.clean=', '-c', name + '.smudge=', '-c', name + '.process=', '-c', name + '.required=false']);
     const patch = await reader.readArtifact(taskId, restore.patchArtifactId), patchFile = path.join(temporary, 'changes.patch');
     await writeFile(patchFile, patch.bytes, { flag: 'wx' });
+    if (restore.commitBundleArtifactId) {
+      const bundle = await reader.readArtifact(taskId, restore.commitBundleArtifactId);
+      if (bundle.artifact.path !== 'code/commits.bundle' || digest(bundle.bytes) !== bundle.artifact.sha256) throw new Error('提交封存資料無法驗證。');
+      const bundleFile = path.join(temporary, 'commits.bundle'); await writeFile(bundleFile, bundle.bytes, { flag: 'wx' });
+      await resultGit(original, ['bundle', 'verify', bundleFile], emptyConfig);
+      await resultGit(original, ['bundle', 'unbundle', bundleFile], emptyConfig);
+      await resultGit(original, ['merge-base', '--is-ancestor', restore.baseSha, restore.headSha], emptyConfig);
+    }
     await resultGit(original, ['worktree', 'add', '--no-checkout', '-b', branch, target, restore.baseSha], emptyConfig, overrides); created = true;
     if (!same(await realpath(target), target) || !same(await realpath((await resultGit(target, ['rev-parse', '--path-format=absolute', '--git-common-dir'], emptyConfig)).trim()), common)) throw new Error('新工作目錄的 Git 所屬無法驗證。');
     await resultGit(target, ['read-tree', restore.baseSha], emptyConfig, overrides);
@@ -96,6 +105,13 @@ export async function restoreCodexResultChanges(reader: ResultReader, taskId: st
     }
     if ((await resultGit(target, ['symbolic-ref', '--quiet', '--short', 'HEAD'], emptyConfig)).trim() !== branch ||
       (await resultGit(target, ['rev-parse', 'HEAD'], emptyConfig)).trim() !== restore.baseSha) throw new Error('手動工作分支在還原期間變更。');
+    if (restore.commitBundleArtifactId && restore.headSha !== restore.baseSha) {
+      await resultGit(target, ['update-ref', 'refs/heads/' + branch, restore.headSha, restore.baseSha], emptyConfig);
+      expectedHead = restore.headSha;
+      // The saved patch reconstructs all working bytes from baseline; restoring the
+      // index to the saved HEAD leaves only the original uncommitted changes dirty.
+      await resultGit(target, ['read-tree', restore.headSha], emptyConfig, overrides);
+    }
     succeeded = true;
     return { path: target, branch, baseSha: restore.baseSha };
   } finally {

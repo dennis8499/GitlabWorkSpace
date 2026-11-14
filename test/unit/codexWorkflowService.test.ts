@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { CodexWorkflowService } from '../../src/codex/workflowService';
+import { CodexWorkflowService, CodexReviewNotSentError } from '../../src/codex/workflowService';
 import { ProjectWikiStore } from '../../src/codex/projectWiki';
 import { GitLabClient } from '../../src/api/gitLabClient';
 import { workflowHash } from '../../src/codex/projectWorkflows';
@@ -30,11 +30,17 @@ async function fixture(t: test.TestContext) {
   const task: CodexTaskState = { id: 'wiki', title: 'Wiki', root, status: 'completed', createdAt: '2026-11-06T00:00:00Z',
     updatedAt: '2026-11-06T00:00:00Z', origin, result: await store.create(id, origin, source) };
   const calls: Array<{ method: string; slug: string }> = [], messages: Array<{ taskId: string; wiki?: ProjectWikiPreview }> = [];
+  const branchReads: string[] = [];
+  let branchSha: string | undefined = origin.sourceSha, branchGet: (() => Promise<Response>) | undefined;
   let get: ((slug: string, init?: RequestInit) => Promise<Response> | undefined) | undefined;
   let write: (() => Promise<void>) | undefined;
   const pages = new Map<string, unknown>();
   const client = new GitLabClient(origin.baseUrl, 'fixture-token', async (input, init) => {
     const url = new URL(String(input)), method = init?.method ?? 'GET', body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    if (url.pathname.includes('/repository/branches/')) {
+      branchReads.push(url.pathname);
+      return branchGet ? branchGet() : new Response(JSON.stringify({ name: origin.sourceBranch, commit: { id: branchSha } }));
+    }
     const slug = method === 'POST' ? body.title : decodeURIComponent(url.pathname.split('/wikis/')[1] ?? '');
     calls.push({ method, slug });
     if (method === 'GET') return await get?.(slug, init) ?? new Response(pages.has(slug) ? JSON.stringify(pages.get(slug)) : '{}', { status: pages.has(slug) ? 200 : 404 });
@@ -50,7 +56,8 @@ async function fixture(t: test.TestContext) {
     visible: () => visible, confirmRetry: async () => true, post: message => messages.push(message),
     publishReview: async () => { throw new Error('Unexpected MR write'); }, cancelled: () => { cancelled++; }, failed: () => { failed++; } });
   t.after(() => service.dispose());
-  return { root, store, service, spec, task, calls, messages, counts: () => ({ cancelled, failed }),
+  return { root, store, service, spec, task, calls, messages, branchReads, counts: () => ({ cancelled, failed }),
+    branch: (sha: string | undefined) => { branchSha = sha; }, branchGet: (hook: typeof branchGet) => { branchGet = hook; },
     get: (hook: typeof get) => { get = hook; }, write: (hook: typeof write) => { write = hook; },
     hide: () => { visible = false; service.suspendReads(); }, changeAccount: () => { scope = 'another'; service.suspendReads(); },
     retireOnPublish: () => { retirePublished = true; }, specificationReads: () => specificationReads };
@@ -75,6 +82,16 @@ test('Wiki view cancellation releases its read, preserves checked pages and resu
   assert.equal(f.calls.some(call => call.method !== 'GET'), false);
 });
 
+test('another task window reads the local Wiki draft without API traffic or task mutations', async t => {
+  const f = await fixture(t), result = JSON.stringify(f.task.result);
+  f.task.controls = { external: true, canPause: false, canResume: false, canDelete: false, canAutoAccept: false, autoAccept: false };
+  await f.service.previewWiki({ taskId: f.task.id, refresh: true, confirmRetry: true });
+  assert.deepEqual(f.calls, []);
+  assert.equal(JSON.stringify(f.task.result), result);
+  assert.equal(f.messages.at(-1)?.wiki?.pages.length, 3);
+  assert.equal(f.messages.at(-1)?.wiki?.sourceSha, f.spec.origin!.sourceSha);
+});
+
 test('Wiki joins duplicate view reads and discards responses after the account changes', async t => {
   const f = await fixture(t), started = deferred<void>();
   f.get((_slug, init) => new Promise((_resolve, reject) => {
@@ -95,6 +112,47 @@ test('an accepted Wiki publication finishes after hiding and does not start a ne
   const messages = f.messages.length; f.hide(); finish.resolve(); await publication;
   assert.equal(f.task.result!.state, 'published'); assert.equal(f.calls.filter(call => call.method === 'POST').length, 3);
   assert.equal(f.messages.length, messages);
+  assert.deepEqual(f.branchReads, ['/api/v4/projects/1/repository/branches/main']);
+});
+
+test('native Wiki publication rejects changed or unverifiable GitLab source metadata before touching the saved draft', async t => {
+  for (const sha of ['b'.repeat(40), undefined]) {
+    const f = await fixture(t); await f.service.previewWiki({ taskId: 'wiki' });
+    const revision = f.messages.at(-1)!.wiki!.revision, draft = path.join(f.root, 'drafts', f.spec.workflow!.id + '.json');
+    const before = await readFile(draft), result = structuredClone(f.task.result), reads = f.calls.length;
+    const publication = t.mock.method(f.store, 'publish'); f.branch(sha);
+    await assert.rejects(f.service.publishWiki('wiki', revision), /來源版本.*重新產生.*草稿保留/);
+    assert.deepEqual(f.branchReads, ['/api/v4/projects/1/repository/branches/main']);
+    assert.equal(publication.mock.callCount(), 0);
+    assert.equal(f.calls.length, reads, 'the rejection performs no Wiki reads or writes');
+    assert.deepEqual(await readFile(draft), before, 'the revision and every page baseline remain unchanged');
+    assert.deepEqual(f.task.result, result);
+  }
+});
+
+test('native Wiki publication waits for fresh source metadata and checks the account again before any draft publication', async t => {
+  const f = await fixture(t); await f.service.previewWiki({ taskId: 'wiki' });
+  const revision = f.messages.at(-1)!.wiki!.revision, draft = path.join(f.root, 'drafts', f.spec.workflow!.id + '.json');
+  const before = await readFile(draft), started = deferred<void>(), response = deferred<Response>();
+  const publication = t.mock.method(f.store, 'publish');
+  f.branchGet(() => { started.resolve(); return response.promise; });
+  const pending = f.service.publishWiki('wiki', revision); await started.promise;
+  assert.equal(publication.mock.callCount(), 0);
+  f.changeAccount(); response.resolve(new Response(JSON.stringify({ commit: { id: f.spec.origin!.sourceSha } })));
+  await assert.rejects(pending, /Scope changed/);
+  assert.equal(publication.mock.callCount(), 0); assert.deepEqual(await readFile(draft), before);
+  assert.equal(f.calls.some(call => call.method !== 'GET'), false);
+});
+
+test('native Wiki source lookup failures preserve the draft and never fall back to local seed refs', async t => {
+  const f = await fixture(t); await f.service.previewWiki({ taskId: 'wiki' });
+  const revision = f.messages.at(-1)!.wiki!.revision, draft = path.join(f.root, 'drafts', f.spec.workflow!.id + '.json');
+  const before = await readFile(draft), failure = new Error('Fresh GitLab source lookup failed');
+  const publication = t.mock.method(f.store, 'publish');
+  f.branchGet(async () => { throw failure; });
+  await assert.rejects(f.service.publishWiki('wiki', revision), error => error === failure);
+  assert.equal(publication.mock.callCount(), 0); assert.deepEqual(await readFile(draft), before);
+  assert.equal(f.calls.some(call => call.method !== 'GET'), false);
 });
 
 test('queued reads arriving after hiding never restart Wiki or result reads', async t => {
@@ -172,4 +230,26 @@ test('manual MR publication keeps known unsent reports retryable and rejects cha
   await assert.rejects(f.service.publishReview('review', 'Report'), error => error === failure);
   assert.equal(f.task.result?.state, 'ready'); assert.deepEqual(f.states, []);
   f.changeSource(); await assert.rejects(f.service.publishReview('review', 'Report'), /版本已變更/); assert.equal(f.writes.length, 1);
+});
+
+test('a typed Host rejection before publication intent retains the ready report and its failure message', async t => {
+  const f = await reviewFixture(t), failure = new CodexReviewNotSentError('Fresh Group membership rejected', { cause: new Error('Fixture lookup failed') });
+  (f.service as any).options.publishReview = async () => { throw failure; };
+  await assert.rejects(f.service.publishReview('review', 'Complete report'), error => error === failure);
+  assert.equal(failure.effect, 'none'); assert.equal(f.task.result?.state, 'ready'); assert.equal(f.task.publication, undefined);
+  assert.match(f.task.result?.summary ?? '', /發布未送出.*Fresh Group membership rejected/);
+  assert.deepEqual(f.writes, []); assert.deepEqual(f.states, ['ready']); assert.equal(f.task.retention, undefined);
+});
+
+test('an untyped rejection or any saved publication intent remains uncertain even when called not-sent', async t => {
+  for (const scenario of ['untyped', 'pending', 'historical-receipt']) await t.test(scenario, async child => {
+    const f = await reviewFixture(child), failure = scenario === 'untyped' ? new Error('Ambiguous failure') : new CodexReviewNotSentError('Incorrect no-send label');
+    f.publish(async body => {
+      if (scenario === 'pending') f.task.publication = { kind: 'review', state: 'pending', key: 'intent', bodyHash: workflowHash(body.trim()) };
+      if (scenario === 'historical-receipt') f.task.publications = { older: { kind: 'review', state: 'not-published', key: 'older', bodyHash: workflowHash('earlier report') } };
+      throw failure;
+    });
+    await assert.rejects(f.service.publishReview('review', 'Complete report'), error => error === failure);
+    assert.equal(f.task.result?.state, 'uncertain'); assert.deepEqual(f.states, ['uncertain']); assert.equal(f.task.retention, undefined);
+  });
 });

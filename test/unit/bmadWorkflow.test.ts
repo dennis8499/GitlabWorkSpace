@@ -56,6 +56,43 @@ async function fixture(run: (root: string, write: (relative: string, content: st
 const read = (root?: string) => readBmadWorkflow({ root, bundledCatalog: CATALOG });
 const step = (snapshot: BmadWorkflowSnapshot, skill: string) => snapshot.steps.find(item => snapshot.nodes.find(node => node.id === item.id)?.skill === skill)!;
 
+test('Build Auto is discovered outside the upstream CSV and its own native records retain blocked/done meaning', async () => {
+  await fixture(async (root, write) => {
+    await write('.agents/skills/bmad-build-auto/SKILL.md', '# Native Auto');
+    await write('_bmad/_config/bmad-help.csv', `${CATALOG}\nBMad Core,bmad-help,Help,BH,Help,,,anytime,,,false,,`);
+    await write('_bmad-output/implementation-artifacts/spec-auto.md', '---\nstatus: blocked\nfollowup_review_recommended: false\nblocked_reason: no subagents\n---\n<intent-contract>\n');
+    const blocked = await read(root);
+    assert.ok(blocked.nodes.some(node => node.skill === 'bmad-build-auto'));
+    assert.equal(step(blocked, 'bmad-build-auto').status, 'blocked');
+    assert.equal(step(blocked, 'bmad-build').artifacts.length, 0);
+    assert.ok(blocked.currentCandidates.some(candidate => /no subagents|受阻/.test(candidate.reason)));
+    assert.ok(blocked.currentCandidates.some(candidate => candidate.blockedArtifactId === step(blocked, 'bmad-build-auto').artifacts[0].id &&
+      blocked.nodes.find(node => node.id === candidate.stepId)?.skill === 'bmad-help'));
+    await write('_bmad-output/implementation-artifacts/spec-auto.md', '---\nstatus: done\nfollowup_review_recommended: true\n---\n<intent-contract>\n');
+    const complete = await read(root);
+    assert.equal(step(complete, 'bmad-build-auto').artifacts[0].status, 'complete');
+    assert.match(step(complete, 'bmad-build-auto').artifacts[0].reason, /follow-up review/);
+  });
+});
+
+test('Host-owned saved task roots contribute progress without changing the original Group', async () => {
+  await fixture(async (root) => {
+    const saved = await fs.mkdtemp(path.join(os.tmpdir(), 'bmad-saved-'));
+    try {
+      await fs.mkdir(path.join(saved, '_bmad-output', 'implementation-artifacts'), { recursive: true });
+      await fs.writeFile(path.join(saved, '_bmad-output', 'implementation-artifacts', 'spec-saved.md'), md('in-progress'));
+      await fs.mkdir(path.join(saved, '_bmad-output', 'specs', 'analysis'), { recursive: true });
+      await fs.writeFile(path.join(saved, '_bmad-output', 'specs', 'analysis', 'SPEC.md'), md('draft'));
+      const snapshot = await readBmadWorkflow({ root, bundledCatalog: CATALOG, persistedArtifactRoots: [saved] });
+      assert.equal(snapshot.root, await fs.realpath(root));
+      assert.equal(step(snapshot, 'bmad-build').artifacts.length, 1);
+      assert.equal(step(snapshot, 'bmad-spec').artifacts.length, 1);
+      assert.deepEqual(snapshot.persistedArtifactRoots, [await fs.realpath(saved)]);
+      assert.ok(!snapshot.watchDirectories.includes(saved), 'Immutable saved output is refreshed by the Host index instead of unsafe external watches');
+    } finally { await fs.rm(saved, { recursive: true, force: true }); }
+  });
+});
+
 test('an aborted BMAD read stops before reading the project', async () => {
   const controller = new AbortController(); controller.abort();
   await assert.rejects(readBmadWorkflow({ root: '/unused', bundledCatalog: CATALOG, signal: controller.signal } as Parameters<typeof readBmadWorkflow>[0]), { name: 'AbortError' });

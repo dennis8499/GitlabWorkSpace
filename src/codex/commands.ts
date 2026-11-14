@@ -23,6 +23,6 @@ export function isCodexCommand(value: unknown): value is CodexCommand {
   }
   else if (value.action === 'open-artifact') { allowed.push('artifactId'); if (!string(value.artifactId, 200)) return false; }
   else if (!['manage', 'reconcile', 'diagnostics', 'fork', 'goal', 'handoff', 'handoff-review', 'open-worktree', 'remove-worktree', 'regenerate-wiki', 'mr-fix', 'reprepare', 'open-diff',
-    'stop-cleanup', 'manual-handoff', 'retry-delivery', 'export-result', 'copy-handoff', 'new-from-result', 'restore-result'].includes(value.action)) return false;
+    'stop-cleanup', 'manual-handoff', 'retry-delivery', 'confirm-delivery', 'publish-group-issues', 'apply-project-changes', 'export-result', 'copy-handoff', 'new-from-result', 'restore-result'].includes(value.action)) return false;
   return Object.keys(value).every(key => allowed.includes(key));
 }

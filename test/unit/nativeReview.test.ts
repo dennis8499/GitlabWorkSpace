@@ -51,7 +51,7 @@ async function settled(f: Awaited<ReturnType<typeof fixture>>) {
   const id = await f.bridge.enqueue(f.spec, 'manual');
   const until = Date.now() + 15_000;
   while (!['completed', 'paused', 'failed'].includes(f.bridge.list()[0]?.status ?? '')) {
-    if (Date.now() > until) throw new Error('native review timed out');
+    if (Date.now() > until) throw new Error('native review timed out: ' + JSON.stringify(f.bridge.list().map(row => ({ status: row.status, error: row.error }))));
     await new Promise(resolve => setTimeout(resolve, 15));
   }
   return { id, task: f.bridge.list()[0] };
@@ -132,6 +132,101 @@ test('published cleanup uses the helper hook and never repeats semantic review',
   const { task } = await settled(f);
   assert.equal(task.status, 'completed'); assert.equal(f.cleanups(), 1);
   assert.equal(f.requests.filter(row => row.method === 'turn/start').length, 0);
+});
+
+function bindMergeRequest(spec: CodexTaskSpec): void {
+  const project = spec.review!.repositoryPath!;
+  spec.source = { kind: 'merge-request', projectId: 1, iid: 1 };
+  spec.origin = { kind: 'merge-request', accountKey: 'a'.repeat(64), baseUrl: 'https://gitlab.test', projectId: 1, projectPath: 'team/service',
+    webUrl: 'https://gitlab.test/team/service/-/merge_requests/1', repositoryRoot: project, iid: 1,
+    sourceBranch: 'feature', sourceSha: '2'.repeat(40), targetBranch: 'main', targetSha: '1'.repeat(40), reviewerTool: 'merge-reviewer' };
+  spec.executionRoot = project;
+  spec.workflow = { id: 'c'.repeat(32), runtimeRoot: spec.review!.runtimeRoot!, remote: 'https://gitlab.test/team/service.git' };
+}
+
+test('published MR resume verifies legacy cleaned fixed sources before the zero-turn ready shortcut', async t => {
+  for (const scenario of ['matching', 'wrong-source', 'unknown-source']) await t.test(scenario, async child => {
+    const f = await fixture(child, 'native-review', true), project = f.spec.review!.repositoryPath!, base = '1'.repeat(40), head = '2'.repeat(40);
+    bindMergeRequest(f.spec);
+    const body = scenario === 'unknown-source' ? 'Older report without fixed metadata or a fixed version table\n'
+      : `# Native published report\n- 本機路徑：\`${project}\`\n### 固定版本\n\n| Repo | 角色 | 來源 | 完整 SHA |\n| --- | --- | --- | --- |\n| ${path.basename(project)} | seed | base | \`${base}\` |\n| ${path.basename(project)} | seed | head | \`${scenario === 'matching' ? head : '3'.repeat(40)}\` |\n`;
+    await writeFile(f.report, body); const job = JSON.parse(await readFile(f.jobPath, 'utf8'));
+    assert.equal(job.fixed_identity, undefined); job.report_sha256 = createHash('sha256').update(body).digest('hex'); await writeFile(f.jobPath, JSON.stringify(job));
+    await rm(job.context_dir, { recursive: true }); // Native finish has already cleaned its owned evidence session.
+    const inspected = await inspectNativeReview(f.spec); assert.equal(inspected.complete, scenario === 'matching');
+    const { task } = await settled(f); assert.equal(task.status, 'completed');
+    assert.equal(task.result?.state, scenario === 'matching' ? 'ready' : 'needs-work');
+    assert.equal(f.requests.filter(row => row.method === 'turn/start').length, 0, 'A published result is reconciled without another model turn');
+    if (scenario !== 'matching') assert.match(task.result?.summary ?? '', /固定版本不符合/);
+  });
+});
+
+test('native completion remains authoritative over generic completion callbacks after a real turn', async t => {
+  for (const scenario of ['wrong-source', 'unknown-source', 'callback-needs-work', 'callback-wrong-report']) await t.test(scenario, async child => {
+    const f = await fixture(child); bindMergeRequest(f.spec);
+    const job = JSON.parse(await readFile(f.jobPath, 'utf8'));
+    if (scenario !== 'unknown-source') job.fixed_identity = { base_sha: '1'.repeat(40), head_sha: (scenario === 'wrong-source' ? '3' : '2').repeat(40) };
+    await writeFile(f.jobPath, JSON.stringify(job));
+    (f.bridge as any).options.completed = async () => ({
+      state: scenario === 'callback-needs-work' ? 'needs-work' : 'ready',
+      reportPath: scenario === 'callback-wrong-report' ? path.join(path.dirname(f.report), 'unverified.md') : f.report,
+      summary: scenario === 'callback-needs-work' ? 'Local completion check failed.' : 'Generic callback says ready.',
+      files: ['local-evidence'],
+    });
+    const { task } = await settled(f);
+    assert.equal(task.status, 'completed'); assert.equal(task.result?.state, 'needs-work');
+    assert.equal(task.result?.reportPath, f.report, 'Only the native receipt may select the published report');
+    assert.equal(f.requests.filter(row => row.method === 'turn/start').length, 1);
+    if (scenario === 'wrong-source' || scenario === 'unknown-source') assert.match(task.result?.summary ?? '', /固定版本不符合/);
+    if (scenario === 'callback-needs-work') { assert.equal(task.result?.summary, 'Local completion check failed.'); assert.deepEqual(task.result?.files, ['local-evidence']); }
+    if (scenario === 'callback-wrong-report') { assert.match(task.result?.summary ?? '', /回呼的報告不符合/); assert.equal(task.result?.files, undefined); }
+  });
+});
+
+async function unrecordedReviewFailure(t: test.TestContext) {
+  const f = await fixture(t); bindMergeRequest(f.spec);
+  const job = JSON.parse(await readFile(f.jobPath, 'utf8')); job.fixed_identity = { base_sha: '1'.repeat(40), head_sha: '2'.repeat(40) }; await writeFile(f.jobPath, JSON.stringify(job));
+  const { id } = await settled(f), record = (f.bridge as any).records.get(id);
+  record.result = { ...record.result, state: 'uncertain', summary: 'Earlier callback failed without saving a publication intent' };
+  await (f.bridge as any).save(record);
+  assert.equal(record.status, 'completed'); assert.equal(record.dispatch.state, 'completed'); assert.equal(record.lease.released, true);
+  return { ...f, id, record };
+}
+
+test('public reconciliation recovers an unrecorded native review with only its read-only callback and no App Server', async t => {
+  for (const outcome of ['not-published', 'confirmed']) await t.test(outcome, async child => {
+    const f = await unrecordedReviewFailure(child), before = f.requests.length, history = JSON.stringify(f.record.executionHistory); let reads = 0;
+    (f.bridge as any).options.reconcileUnrecordedReview = async (spec: CodexTaskSpec, report: { body: string; bodyHash: string; reportPath: string }, check: () => void) => {
+      check(); reads++; assert.equal(spec.review?.requestId, f.spec.review!.requestId); assert.equal(report.reportPath, f.report);
+      assert.equal(report.body, await readFile(f.report, 'utf8')); assert.equal(report.bodyHash, createHash('sha256').update(report.body.trim()).digest('hex'));
+      return outcome === 'confirmed' ? { state: outcome, key: 'd'.repeat(64) } : { state: outcome };
+    };
+    await f.bridge.reconcile(f.id); const task = f.bridge.list().find(task => task.id === f.id)!;
+    assert.equal(reads, 1); assert.equal(f.requests.length, before, 'No process, model or turn is needed for the read-only recovery');
+    assert.equal(task.result?.state, outcome === 'confirmed' ? 'published' : 'ready'); assert.equal(task.recovery?.publication, outcome);
+    assert.equal(JSON.stringify((f.bridge as any).records.get(f.id).executionHistory), history);
+    if (outcome === 'confirmed') assert.deepEqual(task.publication, { kind: 'review', state: 'confirmed', key: 'd'.repeat(64), bodyHash: createHash('sha256').update('Fixed reviewed report').digest('hex') });
+    else assert.equal(task.publication, undefined);
+  });
+});
+
+test('unrecorded review recovery never clears saved intents, ambiguous GETs or changed native reports', async t => {
+  for (const scenario of ['pending', 'historical-receipt', 'ambiguous', 'wrong-source', 'report-changed-during-get']) await t.test(scenario, async child => {
+    const f = await unrecordedReviewFailure(child); let reads = 0;
+    if (scenario === 'pending') f.record.publication = { kind: 'review', state: 'pending', key: 'saved-intent', bodyHash: 'c'.repeat(64) };
+    if (scenario === 'historical-receipt') f.record.publications = { old: { kind: 'review', state: 'not-published', key: 'old-intent', bodyHash: 'c'.repeat(64) } };
+    await (f.bridge as any).save(f.record);
+    if (scenario === 'wrong-source') { const job = JSON.parse(await readFile(f.jobPath, 'utf8')); job.fixed_identity.head_sha = '3'.repeat(40); await writeFile(f.jobPath, JSON.stringify(job)); }
+    (f.bridge as any).options.reconcileUnrecordedReview = async () => {
+      reads++; if (scenario === 'ambiguous') throw new Error('Multiple or mismatched GitLab markers');
+      if (scenario === 'report-changed-during-get') await writeFile(f.report, 'changed after the source read');
+      return { state: 'not-published' };
+    };
+    if (scenario === 'pending' || scenario === 'historical-receipt') { await f.bridge.reconcile(f.id); assert.equal(reads, 0); }
+    else await assert.rejects(f.bridge.reconcile(f.id), /markers|完整固定版本|收據/);
+    assert.equal(f.bridge.list().find(task => task.id === f.id)?.result?.state, 'uncertain');
+    assert.equal(f.requests.filter(row => row.method === 'turn/start').length, 1, 'Reconciliation cannot dispatch another model turn');
+  });
 });
 test('authorized missing runtime roots exist before sandbox dispatch without creating jobs', async t => {
   const f = await fixture(t), directory = path.join(f.root, 'future-runtime'); f.spec.writableRoots.push(directory);

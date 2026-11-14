@@ -60,8 +60,8 @@ test('MR review and fix preferences are isolated and unavailable skills fail bef
   assert.equal(review.automaticDelivery, false, 'unverified rollout keeps new remote writes opt-in');
   const selected = await f.launch.check(review.id, review.revision, { repositoryId: f.repositories[0].id, additionalSkillIds: ['testing'], testCommands: ['npm test'], automaticDelivery: true });
   assert.equal(selected.state, 'ready'); await f.launch.submit(review.id, selected.revision);
-  assert.equal(f.queued[0].source.automaticDelivery, true);
-  assert.equal((await f.launch.create({ kind: 'merge-request', projectId: 1, iid: 4 })).automaticDelivery, true, 'explicit opt-in persists for this function');
+  assert.equal(f.queued[0].source.automaticDelivery, false, 'saved launch flags cannot authorize remote publication');
+  assert.equal((await f.launch.create({ kind: 'merge-request', projectId: 1, iid: 4 })).automaticDelivery, false, 'each result requires a new human confirmation');
   const fix = await f.launch.create({ kind: 'merge-request', projectId: 1, iid: 3, intent: 'fix-comments' });
   assert.equal(fix.automaticDelivery, false);
   assert.deepEqual(fix.additionalSkillIds, []); assert.deepEqual(fix.testCommands, []);
@@ -78,6 +78,15 @@ test('manual launch copy is available after Codex failure and uses unsaved input
   const manual = codexLaunchManualText(blocked, { requirement: 'Latest local request', testCommands: ['npm test'] });
   assert.match(manual, /Latest local request/); assert.match(manual, /npm test/); assert.match(manual, /自行|使用者處理/);
   assert.match(manual, /不會接續原 thread/);
+});
+
+test('Issue development and Wiki generation do not become manual copy fallbacks after a Codex failure', async t => {
+  const f = await fixture(t);
+  for (const source of [{ kind: 'issue', projectId: 1, issueIid: 2 }, { kind: 'project-wiki', projectId: 1 }] as const) {
+    const draft = await f.launch.create(source);
+    assert.throws(() => codexLaunchManualText(draft, { requirement: 'Attempt manual fallback' }), /App Server/);
+  }
+  assert.equal(f.queued.length, 0);
 });
 
 test('selection drafts retain new controls and reject malformed persisted command lists', () => {

@@ -17,6 +17,7 @@ export interface BmadCapabilityGuide {
   title: string; purpose: string; input: string; output: string; nextStep: string;
 }
 export const BMAD_CAPABILITY_GUIDES: Record<string, BmadCapabilityGuide> = {
+  'bmad-build-auto': { title: '自動完成一次迭代', purpose: '明確選用的自動實作與多代理檢查；原生流程可先建立本機 Commit。', input: '明確需求或既有工作；需要乾淨工作樹、同步子代理及已驗證 sandbox Git 提交能力。', output: '實作、測試、原生狀態及本機 Commit；受阻時保留原因。', nextStep: '檢閱實作、Commit 與測試後確認遠端交付。done 再派送是 follow-up review；blocked 先核對原因。' },
   'bmad-help': { title: '取得下一步建議', purpose: '依專案產物與你的問題，選擇適合的能力與下一步。', input: '說明目前想完成什麼；也可直接詢問下一步。', output: '目前位置、建議能力與使用方法。', nextStep: '依建議選擇下一項能力，在新的 Codex 對話提供相關文件。' },
   'bmad-build': { title: '實作變更', purpose: '從明確需求、Bug 或 Story 開始，依序釐清、規劃、實作、檢視並呈現成果。', input: '需求、Issue、Story，或要續作的工作文件路徑。', output: '實作程式、驗證結果與帶有原生狀態的工作記錄。', nextStep: '先核對實作與驗證結果；獨立 Code Review 為選用，必要時使用 $bmad-code-review。' },
   'bmad-spec': { title: '整理工作規格', purpose: '把已有需求、筆記、PRD 或其他來源整理為可交接的規格，也可更新或驗證既有規格。', input: '來源文件、筆記或已具體的需求。', output: '規格資料夾中的 SPEC.md 與補充文件；需要時互動拆分 stories.yaml。', nextStep: '規格清楚後交給 $bmad-build；若包含多個可交付項目，可先在 Spec 中互動拆分 Story。' },

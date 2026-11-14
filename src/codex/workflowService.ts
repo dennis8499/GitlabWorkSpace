@@ -24,6 +24,23 @@ interface WorkflowServiceOptions {
   failed(message: string): void;
 }
 
+/** The Host may use this only before persisting any publication intent. */
+export class CodexReviewNotSentError extends Error {
+  readonly effect = 'none' as const;
+  constructor(message: string, options?: ErrorOptions) { super(message, options); this.name = 'CodexReviewNotSentError'; }
+}
+
+/** Publication uses fresh GitLab metadata, never the cache's seed remote refs. */
+export async function assertWikiSourceCurrent(spec: CodexTaskSpec, client: Pick<GitLabClient, 'getRepositoryBranch'>, check: () => void): Promise<void> {
+  const origin = spec.origin;
+  if (origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
+  check();
+  const current = await client.getRepositoryBranch(origin.projectId, origin.sourceBranch); check();
+  if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(origin.sourceSha) || current.commit?.id !== origin.sourceSha) {
+    throw new Error('Wiki 來源版本已變更或無法核對，請同步最新後重新產生；既有草稿保留。');
+  }
+}
+
 /** Owns view reads and publication checks; accepted writes outlive the view. */
 export class CodexWorkflowService {
   private reads = new Map<string, { key: string; controller: AbortController; task: Promise<void> }>();
@@ -75,6 +92,11 @@ export class CodexWorkflowService {
   private async previewNow(request: WikiPreviewRequest, signal: AbortSignal): Promise<void> {
     const spec = await this.specification(request.taskId), check = this.options.check(spec);
     if (spec.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
+    if (this.options.bridge().list().find(task => task.id === request.taskId)?.controls?.external) {
+      const wiki = await this.options.wiki().readLocalPreview(spec.workflow.id, spec.origin); check(); signal.throwIfAborted();
+      if (!this.disposed) this.options.post({ type: 'codexWorkflowResult', taskId: request.taskId, wiki });
+      return;
+    }
     const allowRetry = request.confirmRetry ? await this.options.confirmRetry() : false;
     if (request.confirmRetry && !allowRetry) { this.options.cancelled(); return; }
     signal.throwIfAborted(); check();
@@ -121,8 +143,8 @@ export class CodexWorkflowService {
     const generation = this.generation;
     await this.options.bridge().resultAction(taskId, async spec => {
       const check = this.options.check(spec), client = await this.options.client(); check();
-      if (spec.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
-      return this.options.wiki().publish(spec.workflow.id, spec.origin, revision, client, check);
+      await assertWikiSourceCurrent(spec, client, check);
+      return this.options.wiki().publish(spec.workflow!.id, spec.origin!, revision, client, check);
     });
     if (!this.disposed && generation === this.generation && this.options.visible()) {
       const task = this.options.bridge().list().find(item => item.id === taskId);
@@ -156,6 +178,14 @@ export class CodexWorkflowService {
     const currentReceipt = receipt?.kind === 'review' && receipt.bodyHash === workflowHash(body.trim());
     const pending = receipt?.state === 'pending' || Object.values(task?.publications ?? {}).some(item => item.state === 'pending');
     const confirmed = currentReceipt && receipt.state === 'confirmed' && !pending;
+    if (failure instanceof CodexReviewNotSentError && task?.result?.state === 'ready' && !receipt && !Object.keys(task.publications ?? {}).length) {
+      const notSent = failure;
+      await this.options.bridge().resultAction(taskId, async () => {
+        check();
+        return { ...result, state: 'ready', summary: `報告已保留，發布未送出：${notSent.message.slice(0, 2000)}` };
+      });
+      throw failure;
+    }
     if (confirmed) await this.options.bridge().resultAction(taskId, async () => ({ ...result, state: 'published', summary: '已核對審查報告已發布至 GitLab MR。' }));
     else if (!(currentReceipt && receipt.state === 'not-published' && !pending)) {
       await this.options.bridge().resultAction(taskId, async () => ({ ...result, state: 'uncertain', summary: '審查發布結果尚未核對；保留原報告與執行資料，請先確認 GitLab 結果後再繼續。' }));

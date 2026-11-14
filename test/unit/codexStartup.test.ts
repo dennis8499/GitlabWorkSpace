@@ -132,11 +132,15 @@ test('completion, cancellation, exit and shutdown abort optional reads and suppr
     await until(f.settled, action);
     assert.ok(f.optional.every(call => call.options?.signal?.aborted), action);
     const eventCount = f.events.length, before = f.bridge.progress(action);
+    const mcpBefore = structuredClone((f.bridge as any).environment.mcp);
     for (const call of f.optional) call.pending.resolve(call.method === 'account/rateLimits/read'
       ? { rateLimits: { primary: { usedPercent: 99 } } } : { data: [{ name: 'STALE', authStatus: 'ready' }] });
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(f.bridge.progress(action), before, action);
-    assert.equal(f.events.length, eventCount, action);
+    assert.deepEqual((f.bridge as any).environment.mcp, mcpBefore, action);
+    // File watching and buffered output may still publish legitimate events after execution settles.
+    assert.equal(f.events.slice(eventCount).some(event => event.kind === 'environment' &&
+      event.environment.mcp?.some(server => server.name === 'STALE')), false, action);
   }
 });
 

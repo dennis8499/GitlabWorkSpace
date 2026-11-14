@@ -58,11 +58,12 @@ def verify_bmad_parsers(archive: zipfile.ZipFile) -> None:
     prefixes = ('extension/node_modules/yaml/', 'extension/node_modules/@iarna/toml/')
     reader = 'extension/out/src/workspace/bmadWorkflow.js'
     guide = 'extension/out/src/workspace/bmadGuide.js'
+    entrypoints = 'extension/out/src/workspace/bmadEntrypoints.js'
     catalog = 'extension/resources/bmad/bmad-help.csv'
     with tempfile.TemporaryDirectory(prefix='gitlab-workspace-bmad-vsix-') as temporary:
         root = Path(temporary)
         for name in archive.namelist():
-            if name.endswith('/') or not (name.startswith(prefixes) or name in (reader, guide, catalog)):
+            if name.endswith('/') or not (name.startswith(prefixes) or name in (reader, guide, entrypoints, catalog)):
                 continue
             parts = name.split('/')
             if any(part in ('', '.', '..') or '\\' in part for part in parts):
@@ -112,6 +113,10 @@ def main():
                      'resources/issue-webview/dashboard.css', 'resources/issue-webview/codicon.ttf',
                      'resources/codicons/NOTICE.md', 'out/src/navigationViews.js',
                      'resources/workflow-kit-status.py', 'out/src/workspace/workspacePanel.js',
+                     'resources/bmad/entrypoints.json', 'out/src/workspace/bmadEntrypoints.js',
+                     'out/src/workspace/bmadArtifactStore.js', 'out/src/workspace/bmadContinuation.js',
+                     'out/src/codex/buildAutoProbe.js', 'out/src/codex/managedRepository.js',
+                     'out/src/codex/taskWorkspace.js', 'out/src/codex/groupIssues.js', 'out/src/codex/sourceMetadata.js',
                      'out/src/workspace/workflowKitReleases.js', 'resources/git-askpass.js',
                      'resources/git-askpass.sh', 'resources/git-ssh-askpass.sh',
                      'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1'):

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { readReviewJob } from '../workspace/reviewSessions';
+import { readReviewFixedIdentity, readReviewJob } from '../workspace/reviewSessions';
 import type { CodexTaskSpec } from './protocol';
 import { canonicalRuntime } from './taskValidation';
 import { atomicNetworkJson } from '../api/localNetworkLease';
@@ -87,6 +87,13 @@ export async function inspectNativeReview(spec: CodexTaskSpec): Promise<{ publis
     if (digest(strip(body, '<!-- release-checklist:start -->', '<!-- release-checklist:end -->', false)) !== raw.report_static_sha256) throw new Error('上版報告收據與內容不符。');
   }
   const outcome = raw.review_outcome ?? raw.report_receipt?.review_outcome;
+  if (spec.origin?.kind === 'merge-request') {
+    const identity = await readReviewFixedIdentity(job, runtime, review.tool);
+    if (!identity || identity.baseSha !== spec.origin.targetSha || identity.headSha !== spec.origin.sourceSha) {
+      return { published: true, complete: false, cleanupPending: job.cleanup_pending === true, fingerprint, timings, reportPath: job.report_path,
+        summary: '原生報告的固定版本不符合本次 MR，請重新審查。' };
+    }
+  }
   const complete = outcome?.schema === (review.tool === 'merge-reviewer' ? 'MergeReviewOutcome/v1' : 'ReleaseReviewOutcome/v1') && outcome.review_complete === true &&
     (review.tool === 'release-reviewer' || outcome.outcome_available === true);
   return { published: true, complete, cleanupPending: job.cleanup_pending === true, fingerprint, timings, reportPath: job.report_path, summary: complete ? '報告已發布，原生審查完整。' : '報告已發布，仍有必要缺口；請查看報告。' };

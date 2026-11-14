@@ -202,8 +202,8 @@ test('Issue preview and detail launch development by identity and reopen the act
   assert.match(document.querySelector('.issue-embed .codex-workflow-launch details').textContent, /npm test.*exit 0/);
 });
 
-test('Issue preview and detail configure worktree isolation in the shared preparation step', async t => {
-  for (const location of ['preview', 'detail']) await t.test(location, async t => {
+test('Issue preview and detail preserve independent Clone isolation for Build and explicit Build Auto preparation', async t => {
+  for (const location of ['preview', 'detail']) for (const buildMode of ['build', 'auto']) await t.test(`${location}/${buildMode}`, async t => {
     const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] };
     const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
     const document = view.dom.window.document;
@@ -213,18 +213,22 @@ test('Issue preview and detail configure worktree isolation in the shared prepar
     }
     const panel = document.querySelector(`${location === 'preview' ? '.issue-detail' : '.issue-embed'} .codex-workflow-launch`);
     assert.equal(panel.querySelector('input[type="checkbox"]'), null, 'preparation options have one authoritative editor');
-    panel.querySelector('button').click(); await view.tick();
+    const launch = buildMode === 'auto' ? [...panel.querySelectorAll('button')].find(button => button.textContent === '使用 Build Auto') : panel.querySelector('button');
+    assert.ok(launch); launch.click(); await view.tick();
     const source = view.requests.findLast(request => request.type === 'startCodexTask').source;
-    assert.deepEqual(JSON.parse(JSON.stringify(source)), { kind: 'issue', projectId: 1, issueIid: 1 });
+    assert.deepEqual(JSON.parse(JSON.stringify(source)), { kind: 'issue', projectId: 1, issueIid: 1,
+      ...(buildMode === 'auto' ? { isolated: true, buildMode: 'auto' } : {}) });
     const draft = codexLaunchFixture({ source });
     view.send({ type: 'codexLaunchDraft', draft, open: true }); await view.tick();
-    const checkbox = document.querySelector('.codex-launch-checkbox input');
-    assert.equal(checkbox.checked, true); checkbox.click(); await view.tick();
+    assert.equal(document.querySelector('.codex-launch input[type="checkbox"]'), null, 'Issue isolation cannot be disabled and no automatic publication checkbox is offered');
+    assert.match(document.querySelector('.codex-launch').textContent, /在獨立本機 Repo 副本執行/);
+    assert.equal([...document.querySelectorAll('.codex-launch button')].some(button => button.textContent === '複製手動執行資料'), false);
+    assert.equal(document.querySelector('.codex-launch-actions button[type="submit"]').textContent, '在獨立視窗執行');
     document.querySelector('.codex-launch-actions button[type="button"]').click(); await view.tick();
     const check = view.rawRequests.findLast(request => request.type === 'checkCodexLaunch');
-    assert.equal(check.draftId, draft.id); assert.equal(check.revision, draft.revision); assert.equal(check.patch.isolated, false);
+    assert.equal(check.draftId, draft.id); assert.equal(check.revision, draft.revision); assert.equal(check.patch.isolated, true);
     assert.equal(view.requests.filter(request => request.type === 'startCodexTask').length, 1);
-    assert.equal(view.requests.some(request => request.type === 'submitCodexLaunch'), false, 'changing isolation never starts execution');
+    assert.equal(view.rawRequests.some(request => request.type === 'submitCodexLaunch'), false, 'Opening and checking preparation never starts execution');
   });
 });
 
@@ -2265,6 +2269,203 @@ test('Codex keeps a global return path to a prepared task without navigating on 
   assert.equal(document.querySelector('.page').dataset.mode, 'clone'); assert.match(document.querySelector('.codex-launch-return').textContent, /Retained preparation/);
   document.querySelector('.codex-launch-return button').click(); await view.tick();
   assert.equal(document.querySelector('.page').dataset.mode, 'codex'); assert.equal(document.querySelector('.codex-launch-container').hidden, false);
+});
+
+test('a cold managed Wiki keeps its own task through a persisted blocked MR and late UI hydration', async t => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os'), path = await import('node:path');
+  const { CodexLaunchCoordinator } = await import('../../out/src/codex/launchCoordinator.js');
+  const directory = await mkdtemp(path.join(tmpdir(), 'glw-cold-draft-ui-')); t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(path.join(directory, 'launches'));
+  const draft = codexLaunchFixture({ id: 'f553532c-3971-4faa-a4c9-05fd79197dda', state: 'blocked',
+    source: { kind: 'merge-request', projectId: 2, iid: 1, reviewerTool: 'merge-reviewer' }, title: 'Blocked MR !1', scope: 'user-2-same-group' });
+  const draftFile = path.join(directory, 'launches', draft.id + '.json'), before = JSON.stringify(draft); await writeFile(draftFile, before);
+  let view, restoreLatest = true;
+  const messages = [], forbidden = async () => { throw new Error('Restoring a preparation cannot run a model or inspect a remote source'); };
+  const coordinator = new CodexLaunchCoordinator({ directory: path.dirname(draftFile), scope: () => draft.scope, restoreLatest: () => restoreLatest,
+    publish: draft => { const message = { type: 'codexLaunchDraft', draft }; messages.push(message); view?.send(message); },
+    inspect: forbidden, prepare: forbidden, environment: forbidden, models: forbidden, enqueue: forbidden, taskExists: forbidden });
+  t.after(() => coordinator.dispose());
+  await coordinator.publish(); assert.equal(messages[0].draft.id, draft.id, 'ordinary startup can see the real persisted MR preparation');
+  view = await mount({ mode: 'codex', codexUi: { selectedTaskId: 'old-group', drafts: {}, pending: {} } }, snapshot('codex'), {}, () => {}, { autoDrafts: false });
+  t.after(() => view.dom.window.close());
+  const old = { id: 'old-group', title: 'Old Group', root: 'C:/workspace', status: 'completed', createdAt: '2026-11-14', updatedAt: '2026-11-14', controls: { external: true } };
+  const own = { ...old, id: 'managed-wiki', title: 'Own Wiki', controls: { external: false } };
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); view.send(messages[0]); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, '__launch');
+  let release, entered;
+  const gate = new Promise(resolve => { release = resolve; }), began = new Promise(resolve => { entered = resolve; });
+  const load = coordinator.load.bind(coordinator);
+  coordinator.load = async (...args) => { const result = await load(...args); entered(); await gate; return result; };
+  const late = coordinator.publish(); await began;
+  restoreLatest = false; const binding = coordinator.publish();
+  view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick(); release(); await Promise.all([binding, late]); await view.tick();
+  const request = view.rawRequests.find(request => request.type === 'loadCodexUiDrafts');
+  view.send({ type: 'codexUiDrafts', requestId: request.requestId, snapshot: { scope: draft.scope, conflicts: [],
+    entries: [{ key: JSON.stringify(['selection', 'current']), revision: 4, value: old.id }] } }); await view.tick();
+  const document = view.dom.window.document, select = document.querySelector('.codex-mobile-tasks select');
+  assert.equal(select.value, own.id); assert.equal(document.querySelector('.codex-launch-container')?.hidden ?? true, true);
+  assert.equal(view.savedState.codexUi.selectedTaskId, own.id); assert.equal(await readFile(draftFile, 'utf8'), before);
+  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
+  select.value = old.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  assert.equal(select.value, old.id, 'later manual task selection remains available');
+  const explicit = await coordinator.show(draft.id); view.send({ type: 'codexLaunchDraft', draft: explicit, open: true }); await view.tick();
+  assert.equal(select.value, '__launch'); assert.equal(document.querySelector('.codex-launch-container').hidden, false, 'explicit continue still opens the retained preparation');
+});
+
+test('managed task selection received immediately after the first snapshot survives listener enablement', async t => {
+  const old = linkedWorkflowTask('merge-request', { id: 'completed-merge', title: 'Previous Merge', controls: { external: true } });
+  const own = linkedWorkflowTask('merge-request', { id: 'new-release-owner', title: 'Own Release', controls: { external: false } });
+  let delivered = false;
+  const data = { ...snapshot('codex'), activeAccountId: 'account-2',
+    managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'account-2' } };
+  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, window => {
+    window.addEventListener('message', event => {
+      if (event.data?.type !== 'snapshot' || delivered) return;
+      delivered = true;
+      // Host readiness sends the first snapshot, then its retained task-start
+      // notice. The second message need not wait for Preact's enabled effect.
+      window.setTimeout(() => window.dispatchEvent(new window.MessageEvent('message', { data: { type: 'codexTaskStarted', taskId: own.id } })), 0);
+    });
+  }, { autoDrafts: false });
+  t.after(() => view.dom.window.close());
+  assert.equal(delivered, true);
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
+  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'); assert.ok(load);
+  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'new-owner-account-root', conflicts: [],
+    entries: [{ key: JSON.stringify(['selection', 'current']), revision: 4, value: old.id }] } }); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, own.id,
+    'the owner notice cannot disappear before the first enabled listener exists');
+  assert.equal(view.savedState.codexUi.selectedTaskId, own.id);
+  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
+});
+
+test('managed task selection beside a connected snapshot survives scope hydration without carrying old drafts', async t => {
+  const old = linkedWorkflowTask('merge-request', { id: 'old-scope-merge', title: 'Previous Merge', controls: { external: true } });
+  const own = linkedWorkflowTask('merge-request', { id: 'connected-release-owner', title: 'Own Release', controls: { external: false } });
+  const offline = { ...snapshot('codex'), connected: false, baseUrl: undefined, currentUser: undefined, activeAccountId: undefined,
+    instanceUserScope: 'offline-instance', connectedScope: undefined };
+  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: { [old.id]: { text: 'Old account draft', revision: 1 } }, pending: {} } },
+    offline, {}, () => {}, { autoDrafts: false });
+  t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
+  const connected = { ...snapshot('codex'), instanceUserScope: 'connected-user-2', activeAccountId: 'account-2', connectedScope: 'new-team-scope',
+    managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'account-2' } };
+  // Native account initialization changes the frontend scope. Its immediately
+  // following task-start notice can still be handled by the old effect.
+  view.sendSnapshot(connected); view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick();
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
+  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'); assert.ok(load);
+  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'connected-user-2-root', conflicts: [],
+    entries: [{ key: JSON.stringify(['selection', 'current']), revision: 8, value: old.id }] } }); await view.tick();
+  const select = view.dom.window.document.querySelector('.codex-mobile-tasks select');
+  assert.equal(select.value, own.id, 'scope reset and delayed storage cannot erase the explicit owner selection');
+  assert.equal(view.savedState.codexUi.drafts[old.id], undefined, 'the unrelated account draft remains isolated');
+  select.value = old.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  assert.equal(select.value, old.id, 'a later explicit manual selection still takes precedence');
+  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
+});
+
+test('managed task cold focus uses the first hydrated selection revision instead of a restored stale CAS base', async t => {
+  const selection = JSON.stringify(['selection', 'current']);
+  const old = linkedWorkflowTask('merge-request', { id: 'stored-release', controls: { external: true } });
+  const own = linkedWorkflowTask('merge-request', { id: 'cold-merge-owner', controls: { external: false } });
+  const data = { ...snapshot('codex'), activeAccountId: 'owner-account',
+    managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'owner-account' } };
+  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {},
+    draftSync: { scope: 'shared-cold-owner-scope', bases: [{ key: selection, revision: 2, value: old.id }] } } },
+  data, {}, () => {}, { autoDrafts: false });
+  t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } });
+  view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick();
+  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'); assert.ok(load);
+  // Another window changed this shared preference twice while this view was
+  // closed. Only automatic owner focus may adopt its freshly loaded CAS base.
+  const remote = { key: selection, revision: 4, value: old.id };
+  view.send({ type: 'codexUiDrafts', requestId: load.requestId,
+    snapshot: { scope: 'shared-cold-owner-scope', entries: [remote], conflicts: [] } }); await view.tick();
+  const save = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts' && request.updates.some(entry => entry.key === selection)); assert.ok(save);
+  const update = save.updates.find(entry => entry.key === selection);
+  const conflict = update.revision === remote.revision ? [] : [{ id: 'cold-selection-cas-conflict', key: selection,
+    value: update.value, createdAt: '2026-11-14T11:03:19.251Z' }];
+  view.send({ type: 'codexUiDrafts', requestId: save.requestId, snapshot: { scope: 'shared-cold-owner-scope',
+    entries: conflict.length ? [remote] : [{ ...update, revision: 5 }], conflicts: conflict } }); await view.tick();
+  const document = view.dom.window.document;
+  assert.equal(document.querySelector('.codex-mobile-tasks select').value, own.id);
+  assert.equal(document.querySelector('.codex-draft-sync').dataset.state, 'saved',
+    'system owner focus must not manufacture a selection conflict against a known newer revision');
+  assert.equal(update.revision, 4, 'the automatic preference uses the initial authoritative revision');
+  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
+});
+
+test('managed task pending focus cannot rebase a manual choice made before initial hydration', async t => {
+  const selection = JSON.stringify(['selection', 'current']);
+  const old = linkedWorkflowTask('merge-request', { id: 'manual-cas-old', controls: { external: true } });
+  const manual = linkedWorkflowTask('merge-request', { id: 'manual-cas-choice', controls: { external: true } });
+  const own = linkedWorkflowTask('merge-request', { id: 'manual-cas-owner', controls: { external: false } });
+  const data = { ...snapshot('codex'), managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team' } };
+  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {},
+    draftSync: { scope: 'manual-cold-owner-scope', bases: [{ key: selection, revision: 2, value: old.id }] } } },
+  data, {}, () => {}, { autoDrafts: false });
+  t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, manual, own] } }); await view.tick();
+  const select = view.dom.window.document.querySelector('.codex-mobile-tasks select');
+  select.value = manual.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick();
+  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts');
+  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'manual-cold-owner-scope', conflicts: [],
+    entries: [{ key: selection, revision: 4, value: old.id }] } }); await view.tick();
+  assert.equal(select.value, manual.id, 'late owner notices and hydration preserve the explicit choice');
+  const save = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');
+  assert.deepEqual(JSON.parse(JSON.stringify(save.updates)), [{ key: selection, revision: 2, value: manual.id }],
+    'manual selection keeps normal CAS protection instead of using automatic rebasing');
+});
+
+test('managed task focus waits for its local owner catalog and does not repeat after manual selection', async t => {
+  const old = linkedWorkflowTask('merge-request', { id: 'focus-old', controls: { external: true } });
+  const own = linkedWorkflowTask('merge-request', { id: 'focus-own', controls: { external: false } });
+  const data = { ...snapshot('codex'), activeAccountId: 'owner-account', managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'owner-account' } };
+  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, () => {}, { autoDrafts: false });
+  t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old] } }); await view.tick();
+  const select = () => view.dom.window.document.querySelector('.codex-mobile-tasks select'); assert.equal(select().value, old.id);
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, { ...own, controls: { external: true } }] } }); await view.tick();
+  assert.equal(select().value, old.id, 'a foreign owner with the same task id is insufficient');
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
+  assert.equal(select().value, own.id, 'the delayed local owner consumes the durable focus once');
+  select().value = old.id; select().dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  view.sendSnapshot(data); view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
+  assert.equal(select().value, old.id, 'later snapshots and catalogs preserve the manual choice');
+});
+
+test('managed task focus rejects mismatched roots and accounts while ordinary views retain selection', async t => {
+  for (const mismatch of ['root', 'account', 'ordinary']) await t.test(mismatch, async sub => {
+    const old = linkedWorkflowTask('merge-request', { id: 'affinity-old', controls: { external: true } });
+    const own = linkedWorkflowTask('merge-request', { id: 'affinity-own', controls: { external: false } });
+    const focus = { taskId: own.id, originRoot: mismatch === 'root' ? 'C:/another-group' : 'C:/workspace/team', accountId: 'owner-account' };
+    const data = { ...snapshot('codex'), activeAccountId: mismatch === 'account' ? 'another-account' : 'owner-account',
+      ...(mismatch === 'ordinary' ? {} : { managedTaskFocus: focus }) };
+    const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, () => {}, { autoDrafts: false });
+    sub.after(() => view.dom.window.close());
+    view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
+    assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, old.id);
+    if (mismatch !== 'ordinary') {
+      view.sendSnapshot({ ...data, activeAccountId: 'owner-account', managedTaskFocus: { ...focus, originRoot: 'C:/workspace/team' } }); await view.tick();
+      view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
+      assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, own.id, 'the earlier mismatch did not consume the pending focus');
+    }
+  });
+});
+
+test('managed task focus respects an explicit manual choice made before its owner arrives', async t => {
+  const old = linkedWorkflowTask('merge-request', { id: 'manual-before-owner', controls: { external: true } });
+  const own = linkedWorkflowTask('merge-request', { id: 'late-owner', controls: { external: false } });
+  const data = { ...snapshot('codex'), managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team' } };
+  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, () => {}, { autoDrafts: false });
+  t.after(() => view.dom.window.close()); view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old] } }); await view.tick();
+  const select = view.dom.window.document.querySelector('.codex-mobile-tasks select'); select.value = old.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); view.sendSnapshot(data); await view.tick();
+  assert.equal(select.value, old.id, 'manual selection cancels a focus which is still waiting for its catalog');
 });
 
 test('Codex transcript opens repository file lines and copies complete code blocks through Host commands', async t => {

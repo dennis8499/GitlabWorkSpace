@@ -174,6 +174,7 @@ export function CodexWorkspace({ controller: c, active, onNavigate, layout = 'wo
       {task.delivery && <p role="status" aria-live="polite">交付：{({ pending: '等待交付', running: '正在回寫 GitLab', published: '已確認交付', 'needs-attention': '需要處理', cancelled: '已停止自動交付' })[task.delivery.state]}{task.delivery.error ? ` · ${task.delivery.error}` : ''}</p>}
       {task.cleanupState && <p role="status" aria-live="polite">清理：{({ pending: '等待清理', running: '保存成果並清理中', complete: '已清理，只保留成果', 'needs-attention': '需要處理，可重試清理' })[task.cleanupState]}</p>}
       <div class="codex-controls" role="group" aria-label="任務控制">
+        {!resultsOnly && task.isolated && <button type="button" class="quiet" onClick={() => post({ type: 'codexCommand', command: { action: 'open-worktree', taskId: task.id } })}>開啟任務視窗</button>}
         {primary && <button class="primary" type="button" disabled={!primaryEnabled} title={primary.reason} aria-busy={task.status === 'pausing'} onClick={runPrimary}>{primary.label}</button>}
         {!resultsOnly && primary?.kind !== 'pause' && task.controls?.canPause && <button type="button" class="quiet" onClick={() => post({ type: 'pauseCodexTask', taskId: task.id })}>暫停</button>}
         {!resultsOnly && <button type="button" class="quiet" disabled={!!task.controls?.external || task.cleanupState === 'running'}

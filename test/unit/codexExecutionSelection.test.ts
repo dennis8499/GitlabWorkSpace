@@ -75,17 +75,20 @@ test('Auto maps sparse model efforts upward and records a cap only above its max
   assert.throws(() => selectRoutingEffort('high', ['custom']), /無法排序/);
 });
 
-test('Host creation opens the shared launch draft without preparing or dispatching and preserves native recovery', async () => {
+test('Host creation opens the shared launch draft and native recovery opens its owning task window before dispatch', async () => {
   const fakeVscode: any = { window: { showQuickPick: async () => { throw new Error('Native picker must not open'); } } };
   const loader = require('node:module'), original = loader._load;
   loader._load = (name: string, ...args: unknown[]) => name === 'vscode' ? fakeVscode : original(name, ...args);
   let WorkspacePanel: any;
   try { ({ WorkspacePanel } = require('../../src/workspace/workspacePanel')); } finally { loader._load = original; }
-  const panel = Object.create(WorkspacePanel.prototype), drafts: CodexTaskSource[] = [], queued: CodexTaskSpec[] = [];
+  const panel = Object.create(WorkspacePanel.prototype), drafts: CodexTaskSource[] = [], windows: CodexTaskSpec[] = [];
   let prepares = 0;
   panel.openCodexLaunch = async (source: CodexTaskSource) => { drafts.push(source); };
   panel.prepareCodexTask = async (source: CodexTaskSource) => { prepares++; return { ...spec(true), source }; };
-  panel.getCodexBridge = () => ({ enqueue: async (prepared: CodexTaskSpec) => { queued.push(prepared); return 'recovered'; } });
+  panel.getCodexBridge = () => { throw new Error('The original window must not dispatch the recovered task'); };
+  panel.openIsolatedCodexWorkspace = async (prepared: CodexTaskSpec, id: string) => {
+    assert.match(id, /^[a-f0-9-]{36}$/); windows.push(prepared); return 'recovered';
+  };
   const sources: CodexTaskSource[] = [
     { kind: 'free', repository: 'repo', prompt: 'Work' }, { kind: 'skill', featureId: 'query', inputs: {}, revision: 'r' },
     { kind: 'bmad', request: { command: 'task', revision: 'r' } }, { kind: 'issue', projectId: 1, issueIid: 2 },
@@ -94,9 +97,10 @@ test('Host creation opens the shared launch draft without preparing or dispatchi
     { kind: 'review', tool: 'merge-reviewer', action: 'refresh', revision: 'r', requestId: 'a'.repeat(32) }
   ];
   for (const source of sources) assert.equal(await panel.createSelectedCodexTask(source), undefined);
-  assert.deepEqual(drafts, sources); assert.equal(prepares, 0); assert.equal(queued.length, 0);
+  assert.deepEqual(drafts, sources); assert.equal(prepares, 0); assert.equal(windows.length, 0);
   assert.equal(await panel.createSelectedCodexTask({ kind: 'review', tool: 'merge-reviewer', action: 'resume', revision: 'r', requestId: 'a'.repeat(32) }), 'recovered');
-  assert.equal(prepares, 1); assert.equal(queued.length, 1); assert.equal(drafts.length, sources.length);
+  assert.equal(prepares, 1); assert.equal(windows.length, 1); assert.equal(drafts.length, sources.length);
+  assert.equal(windows[0].source.kind, 'review'); assert.equal((windows[0].source as Extract<CodexTaskSource, { kind: 'review' }>).action, 'resume');
 });
 test('free creation preserves the requirement and context when model selection is cancelled', async () => {
   const attempts: CodexTaskSource[] = [], opened: string[] = [];

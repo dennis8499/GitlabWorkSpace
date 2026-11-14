@@ -15,6 +15,8 @@ import { disposeNativeDocuments } from './git/nativeDocuments';
 import { OperationTracker, operationLabels } from './workspace/operations';
 import { OperationReceiptFileStore } from './workspace/operationReceiptStore';
 import { cleanupLegacyLogs } from './storage/legacyLogs';
+import path from 'node:path';
+import { readTaskWorkspace } from './codex/taskWorkspace';
 
 let activeOperations: OperationTracker | undefined;
 let shutdownCodex: (() => Promise<void>) | undefined;
@@ -154,6 +156,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       if (selected) await vscode.commands.executeCommand('gitlabWorkspace.' + selected.command);
     })
   );
+  const taskWorkspaceFile = vscode.workspace.workspaceFile;
+  if (taskWorkspaceFile?.scheme === 'file' && path.basename(taskWorkspaceFile.fsPath) === 'task.code-workspace') {
+    try {
+      const manifest = await readTaskWorkspace(context.globalStorageUri.fsPath, taskWorkspaceFile.fsPath);
+      await workspacePanel.openTaskWorkspace(manifest);
+    } catch (error) {
+      notifications.publish({ level: 'error', title: '開啟 Codex 任務', message: readableError(error) });
+    }
+  }
   if (testMode) return {
     getWorkspaceForTesting: () => getWorkspace(),
     getNavigationForTesting: () => navigation,

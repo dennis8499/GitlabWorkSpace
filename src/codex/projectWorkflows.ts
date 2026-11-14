@@ -12,6 +12,8 @@ import { removeOwnedStorage } from '../storage/ownedStorage';
 import { projectRemoteMatches } from '../git/cloneService';
 import type { PythonRuntime } from '../workspace/pythonRuntime';
 import type { CodexOutputItem, CodexTaskResult, CodexTaskSpec } from './protocol';
+import { startManagedClone, verifyManagedClone } from './managedRepository';
+import { normalizeNativeCommand } from './nativeCommand';
 
 const exec = promisify(execFile);
 const workflowContext = new AsyncLocalStorage<{ signal?: AbortSignal; networkEnvironment?: NodeJS.ProcessEnv; assertCurrent?(): void }>();
@@ -25,7 +27,7 @@ export const sameWorkflowPath = (a: string, b: string): boolean => process.platf
 export async function workflowGit(root: string, args: string[], timeout = 20_000): Promise<string> {
   const context = workflowContext.getStore(); context?.assertCurrent?.();
   const result = await captureGitProcess('git', ['-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, signal: context?.signal, timeoutMs: timeout, maxStdoutBytes: 8 * 1024 * 1024,
-    env: { ...(args[0] === 'fetch' ? context?.networkEnvironment ?? process.env : process.env), GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', LANG: 'C' } })
+    env: { ...(args[0] === 'fetch' ? context?.networkEnvironment ?? process.env : process.env), GIT_NO_REPLACE_OBJECTS: '1', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', LANG: 'C' } })
     .catch(error => { if (/process.tree|quarantin|execution receipt/i.test((error as Error).message)) Object.assign(error, { workflowCleanupUncertain: true }); throw error; });
   context?.assertCurrent?.();
   if (result.code !== 0) throw new Error(`Git ${args[0]} 未完成（exit ${result.code}），請核對 Repo、分支及 Git 登入狀態。`);
@@ -126,6 +128,7 @@ export async function startIssueWorkflow(spec: CodexTaskSpec): Promise<void> {
     await mkdir(renderRoot, { recursive: true });
     if (!sameWorkflowPath(await realpath(renderRoot), renderRoot)) throw new Error('BMAD render 目錄不可指向其他專案。');
   }
+  if (workflow.managedClone) { await startManagedClone(spec); return; }
   if (workflow.worktree) {
     await ensureLocalCommit(origin.repositoryRoot, origin.sourceSha, workflow.remote, `refs/heads/${origin.sourceBranch}`);
     await startManagedWorktree(spec); return;
@@ -156,6 +159,30 @@ export async function startIssueWorkflow(spec: CodexTaskSpec): Promise<void> {
     await workflowGit(origin.repositoryRoot, ['checkout', '-b', origin.branch!, origin.sourceSha]);
   }
   await atomicNetworkJson(receiptPath, { branch: origin.branch, sourceSha: origin.sourceSha });
+}
+
+/** Both legacy worktrees and new independent task clones retain their own ownership proof. */
+export async function verifyManagedExecutionRepository(spec: CodexTaskSpec): Promise<string> {
+  return spec.workflow?.managedClone ? verifyManagedClone(spec) : verifyManagedWorktree(spec);
+}
+
+export interface ImplementationCommit { sha: string; parents: string[]; tree: string; subject: string; message: string; }
+/** The baseline is immutable; only descendants created by this task may be delivered. */
+export async function implementationCommits(spec: CodexTaskSpec, head = 'HEAD'): Promise<ImplementationCommit[]> {
+  const origin = spec.origin!, root = await verifyManagedExecutionRepository(spec);
+  if (!/^(?:HEAD|[a-f0-9]{40}(?:[a-f0-9]{24})?)$/.test(head)) throw new Error('提交核對目標無效。');
+  await workflowGit(root, ['merge-base', '--is-ancestor', origin.sourceSha, head]);
+  const shas = (await workflowGit(root, ['rev-list', '--reverse', `${origin.sourceSha}..${head}`])).trim().split(/\r?\n/).filter(Boolean);
+  if (shas.length > 1000) throw new Error('任務新增提交超過核對範圍。');
+  const commits: ImplementationCommit[] = [];
+  for (const sha of shas) {
+    const raw = await workflowGit(root, ['show', '-s', '--format=%H%x00%P%x00%T%x00%s%x00%B', sha]);
+    const [actual, parents, tree, subject, ...message] = raw.split('\0');
+    if (actual !== sha || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(tree)) throw new Error('任務提交資料無法驗證。');
+    if (origin.kind === 'issue' && (!origin.iid || !subject.includes(`(#${origin.iid})`))) throw new Error(`任務提交 ${sha.slice(0, 8)} 的標題缺少 (#${origin.iid})。`);
+    commits.push({ sha, parents: parents.split(' ').filter(Boolean), tree, subject, message: message.join('\0').trimEnd() });
+  }
+  return commits;
 }
 
 export async function verifyManagedWorktree(spec: CodexTaskSpec): Promise<string> {
@@ -222,10 +249,42 @@ export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRunti
   await atomicNetworkJson(receiptPath, { sha: origin.sourceSha, repository: origin.repositoryRoot });
 }
 
+/** Recognize real Python test entry points without treating quoted program text as a runner. */
+function pythonTestCommand(command: string): boolean | undefined {
+  const invocation = command.trim()
+    .replace(/^(?:(?:cd|chdir)(?:\s+\/d)?|Set-Location(?:\s+-LiteralPath)?)\s+(?:"[^"\r\n$`;&|<>(){}]+"|'[^'\r\n$`;&|<>(){}]+'|[^\s"'\r\n$`;&|<>(){}]+)\s*(?:\r?\n|;|&&)\s*/i, '')
+    .replace(/^&\s*/, '');
+  const token = /^(?:"([^"\r\n]*)"|'([^'\r\n]*)'|([^\s"'\r\n]+))/;
+  const first = token.exec(invocation), executable = first && (first[1] ?? first[2] ?? first[3]).split(/[\\/]/).at(-1);
+  if (!executable || !/^python(?:3(?:\.\d+)?)?(?:\.(?:exe|cmd))?$/i.test(executable)) return undefined;
+  if (/[\r\n;&|<>`$]/.test(invocation)) return false;
+  const args: string[] = []; let remaining = invocation;
+  while (remaining) {
+    const match = token.exec(remaining); if (!match) return false;
+    args.push(match[1] ?? match[2] ?? match[3]); remaining = remaining.slice(match[0].length);
+    if (remaining && !/^\s/.test(remaining)) return false;
+    remaining = remaining.trimStart();
+  }
+  let index = 1;
+  for (; index < args.length; index++) {
+    if (/^-[BEIbsSuq]+$/.test(args[index])) continue;
+    if (/^-Xutf8(?:=1)?$/.test(args[index])) continue;
+    if (args[index] === '-X' && /^utf8(?:=1)?$/.test(args[index + 1] ?? '')) { index++; continue; }
+    if (args[index] === '--') { index++; break; }
+    if (args[index] === '-m') return /^(?:unittest|pytest)$/i.test(args[index + 1] ?? '');
+    break;
+  }
+  // Optimization disables assert-based tests; -c and arbitrary scripts cannot be evidence.
+  const file = args[index]?.split(/[\\/]/).at(-1) ?? '';
+  return index === args.length - 1 && !args[index].startsWith('-') && /^(?:test_[^\\/]+|[^\\/]+_test)\.py$/i.test(file);
+}
+
 function testCommand(command: string): boolean {
-  if (/\b(?:echo|printf|write-output|get-content|cat)\s/i.test(command)) return false;
+  const effectiveCommand = normalizeNativeCommand(command) ?? command;
+  if (/\b(?:echo|printf|write-output|get-content|cat)\s/i.test(effectiveCommand)) return false;
+  const python = pythonTestCommand(effectiveCommand); if (python !== undefined) return python;
   const names = 'npm|pnpm|yarn|bun|cargo|go|dotnet|mvn|gradle|node|python3?|pytest|vitest|jest|mocha|ctest';
-  const normalized = command.replace(/\\(["'])/g, '$1')
+  const normalized = effectiveCommand.replace(/\\(["'])/g, '$1')
     .replace(new RegExp(`(["'])(?:[^"'\\r\\n]*[\\\\/])?(${names})(?:\\.(?:exe|cmd))?\\1`, 'gi'), '$2')
     .replace(new RegExp(`\\b(${names})\\.(?:exe|cmd)\\b`, 'gi'), '$1');
   return /(?:\b(?:pytest|vitest|jest|mocha|ctest)\b|\b(?:npm|pnpm|yarn|bun|cargo|go|dotnet|mvn|gradle)\s+(?:run\s+)?test\b|\bnode\s+[^\n]*--test\b|\bpython(?:3)?\s+[^\n]*\b(?:unittest|pytest)\b)/i.test(normalized);
@@ -233,7 +292,7 @@ function testCommand(command: string): boolean {
 
 export async function collectIssueResult(spec: CodexTaskSpec, outputs: readonly CodexOutputItem[]): Promise<CodexTaskResult> {
   const origin = spec.origin!;
-  const root = spec.workflow?.worktree ? await verifyManagedWorktree(spec) : origin.repositoryRoot;
+  const root = spec.workflow?.worktree || spec.workflow?.managedClone ? await verifyManagedExecutionRepository(spec) : origin.repositoryRoot;
   const branch = (await workflowGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => '')).trim();
   if (branch !== origin.branch) return { state: 'needs-work', summary: `工作分支已變更；請核對 ${origin.branch} 的修改。` };
   const tracked = await workflowGit(root, ['diff', '--no-renames', '--name-only', '-z', origin.sourceSha]);
@@ -253,7 +312,7 @@ export async function collectIssueResult(spec: CodexTaskSpec, outputs: readonly 
 }
 
 export async function implementationDigest(spec: CodexTaskSpec, files: readonly string[]): Promise<string> {
-  const root = spec.workflow?.worktree ? await verifyManagedWorktree(spec) : spec.origin!.repositoryRoot;
+  const root = spec.workflow?.worktree || spec.workflow?.managedClone ? await verifyManagedExecutionRepository(spec) : spec.origin!.repositoryRoot;
   const hash = createHash('sha256'); hash.update(spec.origin!.sourceSha);
   const tracked = await workflowGit(root, ['diff', '--no-renames', '--name-only', '-z', spec.origin!.sourceSha]);
   const untracked = await workflowGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);

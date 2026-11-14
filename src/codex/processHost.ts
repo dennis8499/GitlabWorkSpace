@@ -12,6 +12,15 @@ const child = spawn(executable, ['app-server', '--listen', 'stdio://'], {
 });
 let stopping = false;
 let stopped: Promise<boolean> | undefined;
+let nativeExited = false, pipesSettled = false;
+function settleOwnedPipes(processTreeConfirmed: boolean): void {
+  // A killed native process can leave inherited pipe handles open. Completion
+  // of its owned tree and its own exit must both precede releasing these pipes.
+  if (!processTreeConfirmed || !nativeExited || pipesSettled) return;
+  pipesSettled = true;
+  child.stdout.unpipe(process.stdout); child.stderr.unpipe(process.stderr);
+  child.stdin.destroy(); child.stdout.destroy(); child.stderr.destroy();
+}
 function stop(): void {
   if (stopping) return;
   stopping = true;
@@ -38,6 +47,7 @@ function stop(): void {
   } else {
     try { process.kill(-child.pid, 'SIGKILL'); stopped = Promise.resolve(true); } catch { child.kill('SIGKILL'); stopped = Promise.resolve(false); }
   }
+  void stopped.then(settleOwnedPipes);
 }
 // Keep the native process alive until the supervisor has terminated its whole tree.
 process.stdin.pipe(child.stdin, { end: false });
@@ -49,14 +59,26 @@ process.stdout.once('error', stop);
 child.stdin.on('error', stop);
 process.once('SIGTERM', stop);
 process.once('SIGINT', stop);
+child.once('exit', () => {
+  nativeExited = true;
+  if (stopped) void stopped.then(settleOwnedPipes);
+});
 child.once('error', () => { if (!child.pid) stopped = Promise.resolve(true); process.exitCode = 1; process.stdin.destroy(); });
 child.once('close', code => {
   void (async () => {
     const processTreeConfirmed = await stopped ?? false;
-    if (receiptPath && /^[a-z0-9-]{16,128}$/i.test(nonce) && processTreeConfirmed) {
-      try { writeFileSync(receiptPath, JSON.stringify({ schema: 'GitLabWorkspaceCodexProcess/v1', nonce, processTreeConfirmed }), { flag: 'wx', mode: 0o600 }); }
-      catch { /* The parent retains its lease if the receipt cannot be saved. */ }
+    let failure: 'native-exited-before-stop' | 'tree-stop-unconfirmed' | 'receipt-write-failed' | undefined;
+    if (!processTreeConfirmed) failure = stopped ? 'tree-stop-unconfirmed' : 'native-exited-before-stop';
+    else if (receiptPath) {
+      if (!/^[a-z0-9-]{16,128}$/i.test(nonce)) failure = 'receipt-write-failed';
+      else try { writeFileSync(receiptPath, JSON.stringify({ schema: 'GitLabWorkspaceCodexProcess/v1', nonce, processTreeConfirmed }), { flag: 'wx', mode: 0o600 }); }
+      catch { failure = 'receipt-write-failed'; }
     }
-    process.exitCode = stopping ? 0 : code ?? 1; process.stdin.destroy();
+    if (failure) {
+      // Stable, non-sensitive markers survive the transport's sanitized stderr
+      // tail. Native exit or a requested stop alone is never tree-stop proof.
+      try { process.stderr.write(`GitLabWorkspace Codex supervisor: ${failure}\n`); } catch { /* The exit code still reports failure. */ }
+    }
+    process.exitCode = failure ? 1 : stopping ? 0 : code ?? 1; process.stdin.destroy();
   })();
 });

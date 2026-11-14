@@ -408,6 +408,8 @@ function App() {
   modeRef.current = mode;
   requestMode = mode;
   const codex = useCodexWorkspace({ post, actions, initialState: initial?.codexUi,
+    managedTaskFocus: snapshot?.managedTaskFocus, accountId: snapshot?.activeAccountId,
+    root: snapshot?.projectContext?.root ?? snapshot?.groupRoot,
     scope: `${snapshot?.instanceUserScope ?? ''}:${snapshot?.activeAccountId ?? ''}:${snapshot?.projectContext?.root ?? snapshot?.groupRoot ?? ''}`,
     enabled: !!snapshot && !localProjectBlocker(snapshot.workspaceCapabilities), visible: mode === 'codex', onOpen: () => modeChange('codex'),
     onStateChange: codexUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), codexUi }) });
@@ -1503,6 +1505,7 @@ function App() {
               kit={snapshot.workflowKit}
               onOpenSettings={() => openSettings(undefined, 'workflowkit')}
               onRefresh={() => post({ type: 'refreshBmad' })}
+              onCheckBuildAuto={() => post({ type: 'refreshBmad', probeBuildAuto: true })}
               onCopyCommand={request => post({ type: 'copyBmadCommand', ...request })}
               onRunCommand={request => post({ type: 'startCodexTask', source: { kind: 'bmad', request } })}
               onOpenTerminal={() => snapshot.bmad && post({ type: 'openBmadTerminal', revision: snapshot.bmad.revision })}

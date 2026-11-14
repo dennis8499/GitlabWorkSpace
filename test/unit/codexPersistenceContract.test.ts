@@ -41,6 +41,19 @@ test('new Group, skill, delivery and validation contracts survive task-store rou
   assert.deepEqual(records[0].validation, f.record.validation); assert.deepEqual(f.store.problems, []);
 });
 
+test('Group writable roots require the output and permit only the exact helper runtime', async t => {
+  const f = await fixture(t), helperRuntime = path.join(f.group, '.gitlab-workspace', 'runtime');
+  for (const roots of [[f.outputRoot], [f.outputRoot, helperRuntime], [helperRuntime, f.outputRoot]]) {
+    const record = structuredClone(f.record); record.spec.writableRoots = roots;
+    assert.equal(validStoredCodexProjection(record), true);
+  }
+  for (const roots of [[], [helperRuntime], [f.outputRoot, f.group], [f.outputRoot, path.dirname(helperRuntime)],
+    [f.outputRoot, path.join(f.repository, '.git')], [f.outputRoot, path.join(helperRuntime, 'tmp')]]) {
+    const record = structuredClone(f.record); record.spec.writableRoots = roots;
+    assert.equal(validStoredCodexProjection(record), false, JSON.stringify(roots));
+  }
+});
+
 test('new persisted contracts reject malformed paths, fingerprints, identities and incomplete receipts', async t => {
   const f = await fixture(t);
   const mutations: Array<(record: CodexTaskRecord) => void> = [

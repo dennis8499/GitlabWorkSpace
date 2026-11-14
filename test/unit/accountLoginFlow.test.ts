@@ -308,6 +308,52 @@ test('a hidden webview retains the sanitized login result for its next ready eve
   assert.ok(!JSON.stringify(host.pendingViewNotices).includes('one-secret'));
 });
 
+for (const panelState of ['cold', 'hidden'] as const) {
+  test(`a ${panelState} native task window receives its task selection once after ready`, async () => {
+    const { host } = fixture(), sent: any[] = [];
+    host.post = WorkspacePanel!.prototype['post']; host.webviewReady = false; host.viewReadAbort = new AbortController();
+    const panel = { visible: panelState !== 'hidden', webview: { postMessage: (message: unknown) => { sent.push(message); return Promise.resolve(true); } } };
+    host.panel = panelState === 'cold' ? undefined : panel; host.refresh = async () => undefined;
+    const selection = { type: 'codexTaskStarted', taskId: 'new-native-owner-task' };
+    host.post(selection);
+    assert.deepEqual(host.pendingViewNotices, [selection]); assert.equal(sent.length, 0);
+    panel.visible = true; host.panel = panel;
+    await host.dispatchMessage({ type: 'ready' });
+    assert.deepEqual(sent.filter(message => message.type === 'codexTaskStarted'), [selection]);
+    assert.deepEqual(host.pendingViewNotices, []);
+    await host.dispatchMessage({ type: 'ready' });
+    assert.deepEqual(sent.filter(message => message.type === 'codexTaskStarted'), [selection], 'duplicate ready cannot replay task selection');
+    assert.equal(sent.some(message => ['startCodexTask', 'submitCodexLaunch', 'resumeCodexTask'].includes(message.type)), false);
+  });
+}
+
+test('a disposed Host neither retains nor sends a new native task selection', () => {
+  const { host } = fixture(), sent: unknown[] = [];
+  host.post = WorkspacePanel!.prototype['post']; host.disposed = true; host.webviewReady = false;
+  host.panel = { visible: false, webview: { postMessage: (message: unknown) => sent.push(message) } };
+  host.post({ type: 'codexTaskStarted', taskId: 'closed-owner-task' });
+  assert.deepEqual(host.pendingViewNotices, []); assert.deepEqual(sent, []);
+});
+
+test('managed task focus binding is absent before verification and rejects a different root, account or Group', () => {
+  const { host } = fixture();
+  host.session = { baseUrl: 'https://gitlab.test', activeAccountId: 'account-a' };
+  host.currentUser = { id: 2 }; let scope: string | undefined = 'account-a-group-17'; host.connectedScopeKey = () => scope;
+  const root = path.resolve('owner-group'), manifest = { binding: { taskId: 'claimed-owner', originRoot: root, accountId: 'account-a' } };
+  host.managedTaskWorkspaceId = manifest.binding.taskId;
+  assert.equal(host.managedTaskFocusSnapshot(root), undefined, 'an early activation id alone is not a verified owner focus');
+  host.bindManagedTaskFocus(manifest);
+  assert.deepEqual(host.managedTaskFocusSnapshot(root), { taskId: 'claimed-owner', originRoot: root, accountId: 'account-a' });
+  assert.equal(host.managedTaskFocusSnapshot(path.resolve('another-group')), undefined);
+  host.session.activeAccountId = 'account-b'; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
+  host.session.activeAccountId = 'account-a'; scope = 'account-a-group-18'; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
+  scope = 'account-a-group-17'; host.accountTransitionBusy = true; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
+  host.accountTransitionBusy = false; host.currentUser = undefined; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
+  host.bindManagedTaskFocus({ ...manifest, retired: { resultId: 'verified-retired-result' } }, 'verified-retired-result');
+  assert.equal(host.managedTaskFocusSnapshot(root).taskId, 'verified-retired-result', 'retired workspaces focus the verified saved result id');
+  assert.equal(host.currentUser, undefined, 'reading a verified local saved result does not require a new remote login');
+});
+
 
 test('native Settings opens an allowlisted ID without a Dashboard or network read', async () => {
   const { host, probes } = fixture(), calls: unknown[][] = [];
@@ -345,13 +391,107 @@ test('empty Issue commands provide recovery actions and cancelled login never qu
   host.loadNavigationData = async () => undefined; host.connectedScopeKey = () => 'group'; host.issues = []; host.workspaceSections = { issues: { status: 'ready' } };
   let choices: string[] = [];
   vscode.window.showInformationMessage = async (_message, ...actions) => { choices = actions; return undefined; };
-  await host.openIssueFromCommand(); assert.equal(choices.length, 2);
+  await host.openIssueFromCommand(); assert.equal(choices.length, 3);
   host.workspaceSections.projects = { status: 'error', error: '403 project scope denied' };
   choices = [];
   await assert.rejects(host.openIssueFromCommand(), /403 project scope denied/);
   assert.deepEqual(choices, [], 'failed project scope is never presented as an empty Issue list');
   host.workspaceSections = { issues: { status: 'idle' } };
   await assert.rejects(host.openIssueFromCommand(), /尚未完成載入/);
+});
+
+function nativeIssueCommandFixture(t: import('node:test').TestContext) {
+  const value = fixture(), { host, session } = value;
+  const prior = { showQuickPick: vscode.window.showQuickPick, showInformationMessage: vscode.window.showInformationMessage,
+    showInputBox: vscode.window.showInputBox };
+  t.after(() => Object.assign(vscode.window, prior));
+  const state = { epoch: 1, accountId: 'account-one', baseUrl: 'https://gitlab.test', group: { id: 17, full_path: 'team' } };
+  Object.defineProperties(session, { baseUrl: { get: () => state.baseUrl }, activeAccountId: { get: () => state.accountId },
+    connectionEpoch: { get: () => state.epoch }, selectedGroup: { get: () => state.group } });
+  host.currentUser = { id: 1, name: 'User 1' }; host.loadedScopeKey = 'https://gitlab.test|1|17';
+  host.workspaceSections = { projects: { status: 'ready' }, issues: { status: 'ready' } };
+  host.projects = [{ id: 2, name: 'Service', path_with_namespace: 'team/service' },
+    { id: 3, name: 'Client', path_with_namespace: 'team/subgroup/client' }, { id: 4, name: 'Other', path_with_namespace: 'other/project' }];
+  host.issues = []; host.mergeRequests = []; host.loadNavigationData = async () => undefined;
+  const opened: number[][] = [], pickers: Array<{ items: any[]; options: any }> = [], inputs: any[] = [];
+  host.openIssue = async (projectId: number, iid: number) => opened.push([projectId, iid]);
+  vscode.window.showInformationMessage = async () => '依專案與編號開啟';
+  vscode.window.showQuickPick = async (items, options) => { pickers.push({ items, options }); return items[0]; };
+  vscode.window.showInputBox = async options => { inputs.push(options); return '1'; };
+  return { ...value, state, opened, pickers, inputs };
+}
+
+test('native project/IID entry opens an unassigned Issue through verified Group metadata without changing My Work', async t => {
+  const f = nativeIssueCommandFixture(t), issue = { project_id: 2, iid: 1, title: 'Unassigned Issue', assignees: [] };
+  f.host.openIssue = WorkspacePanel!.prototype['openIssue'];
+  const shown: unknown[] = [], reads: string[] = [];
+  f.host.issuePanels.showIssue = async (value: unknown) => shown.push(value);
+  f.session.cachedRead = async <T>(key: string, read: (client: any, signal: AbortSignal) => Promise<T>) => {
+    reads.push(key); return read({ getIssue: async (projectId: number, iid: number) => {
+      assert.equal(projectId, 2); assert.equal(iid, 1); return issue;
+    } }, new AbortController().signal);
+  };
+  await f.host.openIssueFromCommand();
+  assert.deepEqual(f.pickers[0].items.map(item => item.label), ['team/service', 'team/subgroup/client']);
+  assert.equal(f.pickers[0].options.title, '選擇 Issue 所屬專案');
+  assert.deepEqual(reads, ['project/2/issue/1']); assert.deepEqual(shown, [issue]);
+  assert.deepEqual(f.host.issues, [], 'opening one explicit Issue must preserve the assigned My Work query results');
+  assert.equal(f.host.selectedIssue.project.id, 2); assert.equal(f.inputs[0].validateInput('1'), undefined);
+});
+
+test('a nonempty native Issue picker also offers project/IID entry while retaining assigned choices', async t => {
+  const f = nativeIssueCommandFixture(t); f.host.issues = [{ project_id: 2, iid: 9, title: 'Assigned Issue' }];
+  vscode.window.showQuickPick = async (items, options: any) => { f.pickers.push({ items, options });
+    return options.title === '開啟 Issue 詳情' ? items.find(item => item.label === '依專案與編號開啟') : items[0]; };
+  await f.host.openIssueFromCommand(); assert.deepEqual(f.opened, [[2, 1]]);
+  assert.deepEqual(f.pickers[0].items.map(item => item.label), ['#9 Assigned Issue', '依專案與編號開啟']);
+  assert.equal(f.host.issues.length, 1);
+});
+
+test('native project/IID entry cancels safely and rejects malformed or unsafe Issue numbers', async t => {
+  for (const value of [undefined, '', ' ', '0', '-1', '1.5', '1e3', '9007199254740992']) await t.test(String(value), async sub => {
+    const f = nativeIssueCommandFixture(sub); vscode.window.showInputBox = async options => { f.inputs.push(options); return value; };
+    if (value === undefined) await f.host.openIssueFromCommand();
+    else { await assert.rejects(f.host.openIssueFromCommand(), /正整數 Issue 編號/); assert.ok(f.inputs[0].validateInput(value)); }
+    assert.deepEqual(f.opened, []);
+  });
+  await t.test('project cancellation', async sub => { const f = nativeIssueCommandFixture(sub); vscode.window.showQuickPick = async () => undefined;
+    await f.host.openIssueFromCommand(); assert.deepEqual(f.opened, []); assert.deepEqual(f.inputs, []); });
+});
+
+test('native Issue navigation fences account/Group changes at every pending selection', async t => {
+  for (const stage of ['navigation-load', 'empty-choice', 'issue-choice', 'project-choice', 'iid-input', 'account-transition', 'disposed']) await t.test(stage, async sub => {
+    const f = nativeIssueCommandFixture(sub), priorPick = vscode.window.showQuickPick, priorInput = vscode.window.showInputBox;
+    if (stage === 'navigation-load') f.host.loadNavigationData = async () => { f.state.epoch++; };
+    if (stage === 'empty-choice') vscode.window.showInformationMessage = async () => { f.state.epoch++; return '依專案與編號開啟'; };
+    if (stage === 'issue-choice') { f.host.issues = [{ project_id: 2, iid: 9, title: 'Assigned Issue' }];
+      vscode.window.showQuickPick = async items => { f.state.accountId = 'account-two'; return items.find(item => item.label === '依專案與編號開啟'); }; }
+    if (stage === 'project-choice' || stage === 'disposed') vscode.window.showQuickPick = async (items, options) => {
+      const selected = await priorPick(items, options); if (stage === 'disposed') f.host.disposed = true;
+      else f.state.group = { id: 18, full_path: 'other' }; return selected;
+    };
+    if (stage === 'iid-input' || stage === 'account-transition') vscode.window.showInputBox = async options => {
+      const selected = await priorInput(options); if (stage === 'iid-input') f.state.epoch++; else f.host.accountTransitionBusy = true; return selected;
+    };
+    await f.host.openIssueFromCommand(); assert.deepEqual(f.opened, []);
+    if (['navigation-load', 'empty-choice', 'issue-choice'].includes(stage)) assert.deepEqual(f.inputs, []);
+  });
+});
+
+test('native project/IID selection requires a current verified project inventory and rechecks membership', async t => {
+  for (const state of ['loading', 'error', 'stale']) await t.test(state, async sub => {
+    const f = nativeIssueCommandFixture(sub);
+    if (state === 'stale') f.host.loadedScopeKey = 'https://gitlab.test|1|18'; else f.host.workspaceSections.projects.status = state;
+    await assert.rejects(f.host.openIssueFromCommand(), /Group 專案/); assert.deepEqual(f.opened, []); assert.deepEqual(f.pickers, []);
+  });
+  await t.test('project removed while IID input is pending', async sub => { const f = nativeIssueCommandFixture(sub);
+    vscode.window.showInputBox = async () => { f.host.projects = []; return '1'; };
+    await assert.rejects(f.host.openIssueFromCommand(), /專案已不屬於/); assert.deepEqual(f.opened, []);
+  });
+  await t.test('foreign project cannot be returned by the native picker', async sub => { const f = nativeIssueCommandFixture(sub);
+    vscode.window.showQuickPick = async () => ({ projectId: 4, label: 'other/project' });
+    await assert.rejects(f.host.openIssueFromCommand(), /專案已不屬於/); assert.deepEqual(f.opened, []); assert.deepEqual(f.inputs, []);
+  });
 });
 
 

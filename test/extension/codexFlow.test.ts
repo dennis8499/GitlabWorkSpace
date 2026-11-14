@@ -15,6 +15,7 @@ suite('Codex one-click packaged extension', function () {
     if (process.env.GLW_CODEX_LIVE !== '1') this.skip();
     const root = process.env.GLW_CODEX_LIVE_ROOT!, evidence = process.env.GLW_CODEX_LIVE_EVIDENCE!, port = Number(process.env.GLW_CODEX_LIVE_PORT);
     const enabled = new Set((process.env.GLW_CODEX_LIVE_TOOLS ?? 'wiki,merge-reviewer,release-reviewer,bmad,commit-reviewer').split(','));
+    if (![...enabled].some(tool => ['wiki', 'merge-reviewer', 'release-reviewer', 'bmad', 'commit-reviewer'].includes(tool))) { this.skip(); return; }
     assert.match(path.basename(root), /^gitlab-codex-real-[a-z0-9]+$/i);
     await mkdir(evidence, { recursive: true });
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace')!;

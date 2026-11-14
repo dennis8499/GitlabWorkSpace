@@ -182,7 +182,10 @@ export interface WorkflowKitReleaseSummary {
   error?: string;
 }
 
+/** Initial owner-view selection, published only after its managed binding is verified. */
+export interface ManagedTaskFocus { taskId: string; originRoot: string; accountId?: string; }
 export interface WorkspaceSnapshot {
+  managedTaskFocus?: ManagedTaskFocus;
   hostNavigationGeneration?: number;
   codexWorkspaceLayout?: 'workspace' | 'classic';
   workspaceCapabilities?: WorkspaceCapabilities;
@@ -354,7 +357,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'resetProjectRoot' }
   | { type: 'selectCloneRoot' }
   | { type: 'resetCloneRoot' }
-  | { type: 'refreshBmad' }
+  | { type: 'refreshBmad'; probeBuildAuto?: boolean }
   | ({ type: 'copyBmadCommand' } & { [Key in keyof BmadCommandRequest]: BmadCommandRequest[Key] })
   | { type: 'openBmadTerminal'; revision: string }
   | { type: 'openBmadArtifact'; revision: string; stepId: string; path: string }

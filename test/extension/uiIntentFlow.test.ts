@@ -17,6 +17,13 @@ const instrumentation = String.raw`(() => {
   window.addEventListener('unhandledrejection', event => errors.push(String(event.reason)));
   window.addEventListener('securitypolicyviolation', event => violations.push(event.violatedDirective));
   const current = () => document.querySelector('.page[data-mode]')?.dataset.mode;
+  const phases = new Map();
+  const diagnostics = id => ({ phase: phases.get(id), mode: current(), visibilityState: document.visibilityState,
+    documentFocused: document.hasFocus(), errors: [...errors], violations: [...violations] });
+  const checkpoint = (request, phase) => {
+    phases.set(request.id, phase);
+    bridge.postMessage({ type: 'uiIntentProbePhase', id: request.id, ...diagnostics(request.id) });
+  };
   const observe = () => {
     const mode = current();
     if (mode && history[history.length - 1] !== mode) history.push(mode);
@@ -29,25 +36,38 @@ const instrumentation = String.raw`(() => {
       await new Promise(resolve => setTimeout(resolve, 25));
     }
   }
+  const painted = () => new Promise(resolve => {
+    const timer = setTimeout(resolve, 150);
+    requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(timer); resolve(); }));
+  });
   async function inspect(request) {
+    checkpoint(request, 'await-app-shell');
     await wait(() => document.querySelector('.app-shell'));
+    checkpoint(request, 'app-shell-ready');
     if (request.action === 'click') {
       const button = document.querySelector('.mode-navigation button[data-mode="' + request.mode + '"]');
       if (!button) throw new Error('Missing navigation mode ' + request.mode);
       button.click();
     }
+    checkpoint(request, 'await-mode');
     await wait(() => current() === request.expectedMode);
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    checkpoint(request, 'await-paint');
+    await painted();
     if (request.action === 'watch') { history.length = 0; observe(); }
+    checkpoint(request, 'settling');
     if (request.settleMs) await new Promise(resolve => setTimeout(resolve, request.settleMs));
     observe();
+    checkpoint(request, 'complete');
     return { mode: current(), activeNavigation: document.querySelector('.mode-navigation button[aria-current="page"]')?.dataset.mode,
       history: [...history], errors: [...errors], violations: [...violations] };
   }
   window.addEventListener('message', event => {
     if (event.data?.type !== 'uiIntentProbe') return;
-    inspect(event.data).then(result => bridge.postMessage({ type: 'uiIntentProbeResult', id: event.data.id, result }),
-      error => bridge.postMessage({ type: 'uiIntentProbeResult', id: event.data.id, result: { error: error.message, mode: current(), history, errors, violations } }));
+    const respond = result => {
+      bridge.postMessage({ type: 'uiIntentProbeResult', id: event.data.id, result }); phases.delete(event.data.id);
+    };
+    inspect(event.data).then(respond,
+      error => respond({ error: error.message, ...diagnostics(event.data.id), history: [...history] }));
   });
 })();`;
 
@@ -79,6 +99,7 @@ suite('Production Webview UI intent IPC without GitLab credentials', function ()
     const hostValues: UiIntentValues = { mode: 'developer', projectSource: 'gitlab', mergeRequestFilter: 'all', workflowKitSource: 'github' };
     const heldResults: UiIntentResult[] = [], hostErrors: unknown[] = [];
     const pending = new Map<number, (result: any) => void>();
+    const probePhases = new Map<number, unknown>();
     let readyCount = 0, sequence = 0, snapshotVersion = 0, operationRevision = 0;
     const post = (message: unknown) => panel.webview.postMessage(message);
     const sendSnapshot = (activeMode: WorkspaceSnapshot['activeMode'], generation = hostIntents.generation) => post({
@@ -86,6 +107,7 @@ suite('Production Webview UI intent IPC without GitLab credentials', function ()
       snapshot: { ...snapshot, activeMode, hostNavigationGeneration: generation }
     });
     const listener = panel.webview.onDidReceiveMessage((request: any) => {
+      if (request.type === 'uiIntentProbePhase') { probePhases.set(request.id, request); return; }
       if (request.type === 'uiIntentProbeResult') { pending.get(request.id)?.(request.result); pending.delete(request.id); return; }
       if (request.type === 'ready') { readyCount++; void sendSnapshot('developer', 0); }
       if (request.type === 'setMode') {
@@ -116,9 +138,14 @@ suite('Production Webview UI intent IPC without GitLab credentials', function ()
     const inspect = async (action: 'click' | 'watch' | 'check', expectedMode: string, mode?: string, settleMs = 0): Promise<any> => {
       const id = ++sequence;
       const result = await new Promise<any>((resolve, reject) => {
-        const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`No ${action}/${expectedMode} Webview result`)); }, 25_000);
-        pending.set(id, value => { clearTimeout(timeout); resolve(value); });
-        void post({ type: 'uiIntentProbe', id, action, expectedMode, mode, settleMs });
+        const diagnostics = () => JSON.stringify({ probe: probePhases.get(id) ?? { phase: 'await-probe-delivery' },
+          panelVisible: panel.visible, panelActive: panel.active, workbenchFocused: vscode.window.state.focused });
+        const fail = (error: unknown) => { clearTimeout(timeout); pending.delete(id); probePhases.delete(id); reject(error); };
+        const timeout = setTimeout(() => fail(new Error(`No ${action}/${expectedMode} Webview result; ${diagnostics()}`)), 25_000);
+        pending.set(id, value => { clearTimeout(timeout); probePhases.delete(id); resolve(value); });
+        void post({ type: 'uiIntentProbe', id, action, expectedMode, mode, settleMs }).then(delivered => {
+          if (!delivered) fail(new Error(`UI intent ${action}/${expectedMode} probe was not delivered; ${diagnostics()}`));
+        }, error => fail(error));
       });
       assert.equal(result.error, undefined, JSON.stringify(result));
       assert.deepEqual(result.errors, []); assert.deepEqual(result.violations, []);

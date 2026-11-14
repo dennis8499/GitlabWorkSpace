@@ -30,10 +30,11 @@ export function validCodexTemporaryRef(value: unknown, repository = false): bool
 }
 
 export function validCodexGroupAnalysis(value: unknown, root: string): boolean {
-  if (!object(value) || !keys(value, ['id', 'groupRoot', 'runtimeRoot', 'outputRoot', 'repositories']) || !uuid(value.id) || !absolute(value.groupRoot) ||
+  if (!object(value) || !keys(value, ['id', 'groupRoot', 'runtimeRoot', 'outputRoot', 'repositories', 'issueDrafts']) || !optional(value.issueDrafts, item => typeof item === 'boolean') || !uuid(value.id) || !absolute(value.groupRoot) ||
     !same(value.groupRoot, root) || !absolute(value.runtimeRoot) || path.basename(value.runtimeRoot) !== value.id ||
-    path.basename(path.dirname(value.runtimeRoot)) !== 'codex-group-analysis' || !absolute(value.outputRoot) || !inside(value.groupRoot, value.outputRoot) ||
-    inside(value.runtimeRoot, value.outputRoot) || !Array.isArray(value.repositories) || !value.repositories.length || value.repositories.length > 100) return false;
+    path.basename(path.dirname(value.runtimeRoot)) !== 'codex-group-analysis' || !absolute(value.outputRoot) ||
+    !(inside(value.groupRoot, value.outputRoot) && !inside(value.runtimeRoot, value.outputRoot) || same(value.outputRoot, path.join(value.runtimeRoot, 'artifacts'))) ||
+    !Array.isArray(value.repositories) || !value.repositories.length || value.repositories.length > 100) return false;
   const seen = new Set<string>();
   return value.repositories.every(repo => {
     if (!object(repo) || !keys(repo, ['id', 'name', 'path', 'sha', 'snapshotPath', 'projectPath']) || !opaque(repo.id) || seen.has(repo.id) ||
@@ -46,19 +47,24 @@ export function validCodexGroupAnalysis(value: unknown, root: string): boolean {
 }
 
 function validDelivery(value: unknown): boolean {
-  if (!object(value) || !keys(value, ['mode', 'state', 'steps', 'artifactDigest', 'deliveredCommitSha', 'url', 'error']) ||
+  if (!object(value) || !keys(value, ['mode', 'state', 'steps', 'artifactDigest', 'deliveredCommitSha', 'url', 'error', 'confirmation']) ||
     !['automatic', 'manual'].includes(String(value.mode)) || !['pending', 'running', 'published', 'needs-attention', 'cancelled'].includes(String(value.state)) ||
-    !optional(value.artifactDigest, digest) || !optional(value.deliveredCommitSha, sha) || !fields(value, ['url', 'error'], item => text(item, 8192)) || !Array.isArray(value.steps) || value.steps.length > 200) return false;
+    !optional(value.artifactDigest, digest) || !optional(value.deliveredCommitSha, sha) || !fields(value, ['url', 'error'], item => text(item, 8192)) ||
+    !optional(value.confirmation, item => object(item) && keys(item, ['digest', 'confirmedAt', 'headSha', 'targetSha', 'issueDigest']) && digest(item.digest) && date(item.confirmedAt) && optional(item.headSha, sha) && optional(item.targetSha, sha) && optional(item.issueDigest, digest)) ||
+    !Array.isArray(value.steps) || value.steps.length > 200) return false;
   const seen = new Set<string>();
   const valid = value.steps.every(step => {
     if (!object(step) || !keys(step, ['id', 'kind', 'state', 'key', 'bodyHash', 'resourceId', 'url', 'sha', 'parentSha', 'treeSha', 'error']) ||
       !opaque(step.id) || seen.has(step.id) || !['commit', 'push', 'merge-request', 'issue-note', 'review-note', 'reply', 'upload', 'wiki'].includes(String(step.kind)) ||
-      !['prepared', 'sending', 'confirmed', 'uncertain'].includes(String(step.state)) || !digest(step.key) || !optional(step.bodyHash, digest) ||
+      !['prepared', 'sending', 'confirmed', 'uncertain'].includes(String(step.state)) || !digest(step.key) ||
+      !optional(step.bodyHash, ['push', 'merge-request'].includes(String(step.kind)) ? sha : digest) ||
       !optional(step.resourceId, id => Number.isSafeInteger(id) && Number(id) > 0) || !fields(step, ['url', 'error'], item => text(item, 8192)) ||
       !fields(step, ['sha', 'parentSha', 'treeSha'], sha)) return false;
     seen.add(step.id);
     if (step.state === 'confirmed') {
-      if (step.kind === 'commit' && (!sha(step.sha) || !sha(step.parentSha) || !sha(step.treeSha))) return false;
+      // Adopting a reviewed HEAD does not create a Host commit or parent receipt.
+      // An optional parent is already validated above; SHA and tree stay required.
+      if (step.kind === 'commit' && (!sha(step.sha) || !sha(step.treeSha))) return false;
       if (step.kind === 'push' && !sha(step.sha)) return false;
       if (['merge-request', 'issue-note', 'review-note', 'reply'].includes(String(step.kind)) && !step.resourceId) return false;
       if (step.kind === 'upload' && !text(step.url, 8192)) return false;
@@ -75,6 +81,12 @@ function validAdditions(value: ObjectValue): boolean {
     !optional(source.additionalSkillIds, item => ids(item, 100)) || !optional(source.testCommands, tests) ||
     !optional(source.repositoryIds, item => source.kind === 'group-analysis' && ids(item, 1000)) ||
     !optional(spec.preparationKey, item => text(item, 4096)) ||
+    !optional(spec.bmadArtifacts, item => object(item) && keys(item, ['outputRoot', 'projectChangesRoot', 'seedRoot']) && absolute(item.outputRoot) &&
+      uuid(path.basename(item.outputRoot)) && path.basename(path.dirname(item.outputRoot)) === 'codex-bmad-artifacts' &&
+      optional(item.projectChangesRoot, root => absolute(root) && same(root, path.join(item.outputRoot as string, 'project'))) &&
+      optional(item.seedRoot, root => absolute(root) && path.basename(root) === '_bmad-output' && /^[a-zA-Z0-9_-]{1,160}$/.test(path.basename(path.dirname(root))) &&
+        path.basename(path.dirname(path.dirname(root))) === createHash('sha256').update(path.resolve(spec.root as string)).digest('hex') &&
+        path.basename(path.dirname(path.dirname(path.dirname(root)))) === 'bmad-artifacts')) ||
     !optional(spec.requirementSummary, item => string(item) && item.length <= 8000 && !item.includes('\0')) ||
     !optional(spec.projectRules, item => list(item, 1, rule => object(rule) && keys(rule, ['path', 'fingerprint']) && absolute(rule.path) && digest(rule.fingerprint) &&
       ['AGENTS.md', 'AGENTS.override.md'].some(name => same(rule.path as string, path.join(spec.root as string, name))))) ||
@@ -90,11 +102,16 @@ function validAdditions(value: ObjectValue): boolean {
     if (!text(source.requirement, 32000) || !validCodexGroupAnalysis(spec.groupAnalysis, spec.root as string) || spec.origin || spec.workflow) return false;
     const binding = spec.groupAnalysis as ObjectValue;
     if (!absolute(spec.executionRoot) || !same(spec.executionRoot, binding.outputRoot as string) || !Array.isArray(spec.writableRoots) ||
-      !spec.writableRoots.length || spec.writableRoots.some(root => !absolute(root) || !same(root, binding.outputRoot as string))) return false;
+      !spec.writableRoots.some(root => absolute(root) && same(root, binding.outputRoot as string)) || spec.writableRoots.some(root => !absolute(root) ||
+        !same(root, binding.outputRoot as string) && !same(root, path.join(binding.groupRoot as string, '.gitlab-workspace', 'runtime')))) return false;
   } else if (spec.groupAnalysis !== undefined) return false;
   if (Array.isArray(source.additionalSkillIds) && source.additionalSkillIds.some(id => !Array.isArray(spec.additionalSkills) || !spec.additionalSkills.some(skill => object(skill) && skill.id === id))) return false;
   if (!optional(spec.workflow, item => object(item) && optional(item.temporaryRefs, refs => list(refs, 1000, ref => validCodexTemporaryRef(ref))))) return false;
   const workflow = spec.workflow;
+  if (object(workflow) && !optional(workflow.managedClone, clone => object(clone) && keys(clone, ['path', 'cacheRepository', 'branch', 'sourceSha', 'remoteUrl']) &&
+    absolute(clone.path) && absolute(clone.cacheRepository) && text(clone.branch, 2048) && sha(clone.sourceSha) && text(clone.remoteUrl, 8192) &&
+    absolute(workflow.runtimeRoot) && same(clone.path, path.join(workflow.runtimeRoot, 'repository')) && absolute(spec.executionRoot) && same(spec.executionRoot, clone.path) &&
+    object(spec.origin) && absolute(spec.origin.repositoryRoot) && same(clone.cacheRepository, spec.origin.repositoryRoot) && clone.sourceSha === spec.origin.sourceSha && clone.branch === spec.origin.branch)) return false;
   if (object(workflow) && Array.isArray(workflow.temporaryRefs) && workflow.temporaryRefs.some(ref => !object(ref) || !string(workflow.id) ||
     !(String(ref.ref).endsWith('-' + workflow.id) || String(ref.ref).includes('-' + workflow.id + '-')))) return false;
   if (Array.isArray(value.temporaryRefs) && value.temporaryRefs.some(ref => !object(ref) ||
@@ -123,10 +140,18 @@ export function validStoredCodexProjection(value: unknown): boolean {
   if (!object(value) || !['title', 'createdAt', 'updatedAt'].every(key => string(value[key])) ||
     !fields(value, ['threadId', 'turnId', 'error', 'ownerInstance', 'pendingMessage']) ||
     !fields(value, ['pinned', 'archived', 'dispatchPending', 'pendingMessageIsUser'], item => typeof item === 'boolean') ||
-    !optional(value.revision, integer) || !object(value.spec) || !object(value.spec.source) ||
+    !optional(value.revision, integer) || !optional(value.ownerGeneration, item => integer(item) && Number(item) > 0) || !object(value.spec) || !object(value.spec.source) ||
     !['free', 'skill', 'bmad', 'group-analysis', 'issue', 'project-wiki', 'merge-request', 'review'].includes(String(value.spec.source.kind))) return false;
-  if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2', 'GitLabWorkspaceCodexTask/v3'].includes(String(value.schema)) ||
-    hasCodexV3Metadata(value) && value.schema !== 'GitLabWorkspaceCodexTask/v3' || !validAdditions(value)) return false;
+  if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2', 'GitLabWorkspaceCodexTask/v3', 'GitLabWorkspaceCodexTask/v4'].includes(String(value.schema)) ||
+    hasCodexV3Metadata(value) && !['GitLabWorkspaceCodexTask/v3', 'GitLabWorkspaceCodexTask/v4'].includes(String(value.schema)) || !validAdditions(value)) return false;
+  const taskWorkspace = value.spec.taskWorkspace;
+  const specification = value.spec;
+  if (!optional(taskWorkspace, item => object(item) && keys(item, ['schema', 'taskId', 'directory', 'workspaceFile', 'originRoot', 'accountId']) &&
+    value.schema === 'GitLabWorkspaceCodexTask/v4' && item.schema === 'GitLabWorkspaceTaskWorkspace/v1' && item.taskId === value.id &&
+    absolute(item.directory) && path.basename(item.directory) === item.taskId && path.basename(path.dirname(item.directory)) === 'codex-workspaces' &&
+    absolute(item.workspaceFile) && same(item.workspaceFile, path.join(item.directory, 'task.code-workspace')) && absolute(item.originRoot) &&
+    absolute(specification.root) && same(item.originRoot, specification.root) && optional(item.accountId, account => text(account, 256)) &&
+    text(value.ownerInstance, 256) && integer(value.ownerGeneration) && Number(value.ownerGeneration) > 0 && integer(value.revision) && Number(value.revision) > 0)) return false;
   const origin = value.spec.origin;
   if (!optional(value.spec.launch, item => object(item) && integer(item.openedAt) && fields(item, ['draftReadyAt', 'checkedMs', 'submittedAt'], integer))) return false;
   if (!optional(origin, item => object(item) && ['projectPath', 'webUrl', 'sourceBranch'].every(key => string(item[key])) &&

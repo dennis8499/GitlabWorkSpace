@@ -242,3 +242,24 @@ test('section tabs support keyboard navigation and persist the chosen section', 
   view.document.activeElement.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await view.tick();
   assert.equal(view.saved.selectedSection, 'capabilities'); assert.equal(view.document.activeElement.id, 'bmad-tab-capabilities');
 });
+
+test('five entries share the launcher while three shortcuts and Auto capability checks stay explicit', async t => {
+  const snapshot = withoutProgress(); snapshot.codex.skills.push('wk-goal', 'wk-plan', 'wk-build', 'wk-verify', 'wk-project', 'bmad-build-auto');
+  const runs = []; let probes = 0;
+  const view = await mount(t, { snapshot, controlled: true, state: { selectedSection: 'start', requirement: '新增退款流程' },
+    onRunCommand: request => runs.push(copy(request)), onCheckBuildAuto: () => probes++ });
+  assert.equal(view.document.querySelectorAll('.bmad-entry-grid button').length, 5);
+  await view.click('開始明確變更');
+  await view.click('使用 Codex 執行');
+  assert.equal(runs.at(-1).command, 'entry'); assert.equal(runs.at(-1).entry, 'build'); assert.equal(runs.at(-1).nativeSkill, 'bmad-build');
+  assert.equal(view.document.querySelector('#bmad-build-mode option[value="auto"]').disabled, true);
+  await view.click('檢查 Build Auto'); assert.equal(probes, 1);
+  snapshot.autoBuild = { state: 'ready', synchronousSubagents: true, gitSandbox: 'verified', reason: 'Sandbox probe passed' };
+  await view.render({ snapshot });
+  const select = view.document.querySelector('#bmad-build-mode'); select.value = 'auto';
+  select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  await view.click('使用 Codex 執行'); assert.equal(runs.at(-1).nativeSkill, 'bmad-build-auto');
+  await view.click('查看進度與下一步');
+  assert.equal(view.document.querySelector('#bmad-tab-progress').getAttribute('aria-selected'), 'true');
+  assert.equal(runs.length, 2, 'Viewing progress does not start another model task');
+});

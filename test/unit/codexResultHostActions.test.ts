@@ -87,6 +87,35 @@ test('saved handoff and new task use durable artifact paths while a missing repo
   assert.equal(f.created.length, 1); assert.equal(f.exports.length, 1); assert.equal(f.events.length, 0);
 });
 
+test('new work from a cloned task result starts with its original Group rather than the shared cache', async t => {
+  const f = await fixture(t); f.manifest.restore!.commitBundleArtifactId = 'commits';
+  f.manifest.root = f.directory;
+  await f.actions.run({ action: 'new-from-result', taskId: f.manifest.id });
+  assert.equal(f.created.length, 1); assert.equal(f.created[0].kind, 'free');
+  assert.equal(f.created[0].kind === 'free' && f.created[0].repository, f.directory);
+  assert.equal((f.nativePicks[0][0] as { description: string }).description, f.directory);
+  assert.equal(f.events.length, 0, 'creating a follow-up does not restore or mutate the source cache');
+});
+
+test('native fork is offered only for ordinary free conversations and forged managed requests never read turns', async () => {
+  const root = os.tmpdir(), base: CodexTaskSpec = { source: { kind: 'free', repository: root, prompt: 'Continue' }, root,
+    title: 'Conversation', workspaceKey: 'fixture', prompt: 'Continue', writableRoots: [root], environmentKey: 'fixture' };
+  const managed = { ...base, taskWorkspace: { schema: 'GitLabWorkspaceTaskWorkspace/v1' as const, taskId: 'task', directory: root,
+    workspaceFile: path.join(root, 'task.code-workspace'), originRoot: root } };
+  const linked = { ...base, source: { kind: 'issue' as const, projectId: 1, issueIid: 42 } };
+  for (const spec of [base, managed, linked]) {
+    let reads = 0; const menus: Array<Array<{ value: string }>> = [];
+    const task = { id: 'task', title: spec.title, status: 'paused', controls: { canResume: true } };
+    const bridge = { specification: async () => spec, list: () => [task], turns: async () => { reads++; return []; } };
+    const options = { bridge: () => bridge, check: () => {} } as unknown as CodexHostActionOptions;
+    const vscode = { workspace: { isTrusted: true }, window: { showQuickPick: async (items: Array<{ value: string }>) => { menus.push(items); return undefined; } } } as unknown as typeof VSCode;
+    const actions = new CodexHostActions(options, vscode); await actions.run({ action: 'manage', taskId: task.id });
+    assert.equal(menus[0].some(item => item.value === 'fork'), spec === base);
+    if (spec !== base) await assert.rejects(actions.run({ action: 'fork', taskId: task.id }), /持久成果.*新任務/);
+    assert.equal(reads, 0);
+  }
+});
+
 test('manual handoff still exports a sealed result when cleanup requires attention', async t => {
   const f = await fixture(t); f.failCleanup(); f.manifest.restore = undefined;
   await f.actions.run({ action: 'manual-handoff', taskId: f.manifest.id });
@@ -132,4 +161,34 @@ test('connection management is a parameterless local control and bypasses active
   const delivery = controller.dispatch({ type: 'codexCommand', command: { action: 'retry-delivery', taskId: 'saved-task' } });
   assert.equal(delivery.status, 'started'); assert.equal(controller.dispatch(request).status, 'started'); assert.equal(sent.length, 2);
   controller.dispose();
+});
+
+test('delivery confirmation shows reviewed target differences, complete commit messages and validation before authorizing its exact digest', async () => {
+  const targetDetail = `目標分支：main\n固定測試基準：${'1'.repeat(40)}\n本次確認的目標版本：${'2'.repeat(40)}\n目標分支已前進；尚未驗證與目前目標整合後的結果。本次保留原基準，不會自動 rebase。\n查看差異：https://gitlab.test/team/repo/-/compare/${'1'.repeat(40)}...${'2'.repeat(40)}`;
+  const preview = { digest: 'd'.repeat(64), summary: 'Ready change\n\n' + targetDetail,
+    commits: [{ sha: 'a'.repeat(40), subject: 'First (#42)', message: 'First (#42)\n\nReviewed body with migration detail.\nTrailer: retained' },
+      { sha: 'b'.repeat(40), subject: 'Second (#42)', message: 'Second (#42)\n\nA separate follow-up body.' }],
+    plannedCommitMessage: 'Finish requirement (#42)\n\nGitLab-Workspace-Task: task-42',
+    validation: { cwd: os.tmpdir(), testedAt: '2026-11-13T10:20:30.000Z', artifactDigest: 'e'.repeat(64),
+      commands: [{ command: 'npm test -- --runInBand', exitCode: 0, cwd: path.join(os.tmpdir(), 'repo') }] } };
+  for (const decision of [undefined, '確認並交付']) {
+    const confirmations: Array<{ id: string; digest: string }> = [], details: string[] = [];
+    const bridge = { previewDelivery: async (id: string) => { assert.equal(id, 'task-42'); return preview; },
+      confirmDelivery: async (id: string, digest: string) => { confirmations.push({ id, digest }); } };
+    const options = { bridge: () => bridge } as unknown as CodexHostActionOptions;
+    const vscode = { workspace: { isTrusted: true }, window: {
+      showWarningMessage: async (_message: string, options: { modal: boolean; detail: string }) => {
+        assert.equal(options.modal, true); details.push(options.detail); assert.equal(confirmations.length, 0); return decision;
+      }
+    } } as unknown as typeof VSCode;
+    await new CodexHostActions(options, vscode).run({ action: 'confirm-delivery', taskId: 'task-42' });
+    assert.equal(details.length, 1);
+    assert.ok(details[0].includes(targetDetail), 'the human sees both target versions and the comparison before authorization');
+    for (const commit of preview.commits) { assert.ok(details[0].includes(commit.sha)); assert.ok(details[0].includes(commit.message)); }
+    assert.ok(details[0].includes(preview.plannedCommitMessage)); assert.match(details[0], /乾淨工作樹直接採用已驗證 HEAD/);
+    assert.ok(details[0].includes(preview.validation.testedAt)); assert.ok(details[0].includes(preview.validation.artifactDigest));
+    assert.ok(details[0].includes(preview.validation.cwd)); assert.ok(details[0].includes(preview.validation.commands[0].cwd));
+    assert.match(details[0], /exit 0 · npm test -- --runInBand/);
+    assert.deepEqual(confirmations, decision ? [{ id: 'task-42', digest: preview.digest }] : []);
+  }
 });

@@ -70,6 +70,18 @@ test('includes subgroup projects and filters assigned group issues to those proj
   assert.deepEqual(issues.map((issue) => issue.iid), [1]);
 });
 
+test('explicit Group project membership searches opt into shared projects without changing ordinary search policy', async () => {
+  const urls: URL[] = [];
+  const client = new GitLabClient('https://gitlab.example.test', token, async input => {
+    urls.push(new URL(String(input))); return new Response(JSON.stringify([]));
+  });
+  await client.searchGroupProjectsPage(17, 'service');
+  await client.searchGroupProjectsPage(17, 'service', undefined, true);
+  assert.equal(urls[0].searchParams.get('with_shared'), 'false');
+  assert.equal(urls[1].searchParams.get('with_shared'), 'true');
+  assert.ok(urls.every(url => url.pathname === '/api/v4/groups/17/projects' && url.searchParams.get('include_subgroups') === 'true'));
+});
+
 test('paginates Group Issue Boards and retains their names and hidden-list settings', async () => {
   const requested: URL[] = [];
   const client = new GitLabClient('https://gitlab.example.test', token, async (input) => {

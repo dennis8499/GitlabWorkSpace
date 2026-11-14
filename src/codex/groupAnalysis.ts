@@ -8,6 +8,7 @@ import { exportCommitSnapshot, sameWorkflowPath, workflowGit, workflowHash } fro
 import { atomicNetworkJson } from '../api/localNetworkLease';
 import { insideStorage, ownedStoragePath } from '../storage/ownedStorage';
 import type { CodexGroupRepository } from './workflowProtocol';
+import { captureGroupIssueSourceInventory, readGroupIssueDrafts } from './groupIssues';
 export type { CodexGroupRepository, CodexGroupAnalysisBinding } from './workflowProtocol';
 
 /** Match BMAD's layered output_folder setting without modifying its configuration. */
@@ -55,7 +56,7 @@ export async function prepareGroupAnalysis(options: {
   const candidates = options.repositories.filter(repo => !requested || requested.has(repo.id));
   if (!candidates.length || candidates.length > 100 || requested && candidates.length !== requested.size) throw new Error('請選擇目前 Group 中 1 到 100 個有效 Repo。');
   const id = randomUUID(), runtimeRoot = path.join(options.storage, 'codex-group-analysis', id);
-  const outputRoot = path.join(await groupSpecsDirectory(root), id), repositories: CodexGroupRepository[] = [];
+  const outputRoot = path.join(runtimeRoot, 'artifacts'), repositories: CodexGroupRepository[] = [];
   for (const repo of candidates) {
     signal?.throwIfAborted();
     const canonical = await realpath(repo.path);
@@ -68,15 +69,26 @@ export async function prepareGroupAnalysis(options: {
     repositories.push({ ...repo, path: canonical, sha, snapshotPath: path.join(runtimeRoot, 'sources', key) });
   }
   if (!repositories.length) throw new Error('目前 Group 沒有可分析的已提交 Repo。');
-  const skillPath = path.join(root, '.agents', 'skills', 'bmad-spec', 'SKILL.md'); await access(skillPath);
+  const skillPath = path.join(root, '.agents', 'skills', 'codebase-wiki', 'SKILL.md'); await access(skillPath);
+  const specificationSkill = path.join(root, '.agents', 'skills', 'bmad-spec', 'SKILL.md'); await access(specificationSkill);
+  const quotePath = (value: string) => JSON.stringify(value.replaceAll('\\', '/'));
+  const specificationRoot = path.dirname(specificationSkill), runner = quotePath(path.join(root, '.agents', 'gitlab-workspace-kit', 'run.py'));
+  const bmadScript = (name: string) => quotePath(path.join(root, '_bmad', 'scripts', name));
   const skill = await readFile(skillPath, 'utf8');
-  const binding = { id, groupRoot: root, runtimeRoot, outputRoot, repositories };
+  const binding = { id, groupRoot: root, runtimeRoot, outputRoot, repositories, issueDrafts: true };
   const prompt = [
-    '$bmad-spec 依下列需求執行 Group 跨專案需求影響分析，保留問答釐清能力。',
+    '$codebase-wiki 先執行 source-first functional-exploration，依下列需求探索固定來源；不需既有 Wiki。保留問答釐清能力。',
+    `先只載入 functional-exploration 工作流程。逐 Repo 以原安裝根 ${root} 的絕對 runner/helper 路徑執行 scan/validate，明確指定 --root 為下方對應來源快照；報告存到 ${outputRoot}，不能寫入來源快照以免造成來源漂移。`,
+    `功能與證據探索完成後，才讀取 ${specificationSkill} 並依該 Spec Skill 整理規格與 Issue 文件；不要一次讀取所有 BMAD Skills。`,
+    `Spec 階段的路徑角色固定：BMAD {project-root} = ${quotePath(root)}，是原 Group 的技能與設定安裝根；{skill-root} = ${quotePath(specificationRoot)}；{spec-folder} = ${quotePath(outputRoot)}，是本次任務成果目錄。即使 cwd 位於成果目錄，也不得由 cwd 重新推導 {project-root}。`,
+    `原生 Spec activation 依序使用原 Group 的絕對 runner/helper 路徑：\npython -X utf8 -B ${runner} -- uv run ${bmadScript('resolve_customization.py')} --skill ${quotePath(specificationRoot)} --project-root ${quotePath(root)} --key workflow\npython -X utf8 -B ${runner} -- uv run ${bmadScript('resolve_config.py')} --project-root ${quotePath(root)}\n保留原生 activation_steps_prepend/append、persistent_facts 與後續階段依賴。設定解析失敗須明列缺口並停止 Spec 階段，不得默默改用預設值或略過原 Group 設定。`,
+    `原生 memlog 仍使用原 Group 的 ${bmadScript('memlog.py')}，但 init 與 append 都必須傳 --workspace ${quotePath(outputRoot)}；例如 python -X utf8 -B ${runner} -- uv run ${bmadScript('memlog.py')} init --workspace ${quotePath(outputRoot)} --field topic="本次需求"。依原生流程將決策寫入成果目錄的 .memlog.md，再衍生 SPEC.md 與 companion 文件。`,
+    '原 Group 的 BMAD 設定與技能只供讀取；本次僅指定任務的 spec-folder，不搬移、複製或改寫原 Group 的 _bmad 設定來配合輸出，也不得依原設定的 output_folder 將本次成果寫回原 Group。程式來源仍只讀取下方固定提交快照。',
     `使用者需求：\n${source.requirement}`,
     '來源僅使用下方固定提交快照。原 Group 是技能安裝位置；不要從原工作目錄讀取未提交內容。',
     ...repositories.map(repo => `${repo.name} (${repo.projectPath ?? repo.path}) @ ${repo.sha}\n唯讀來源：${repo.snapshotPath}`),
-    `文件僅保存到 ${outputRoot}，至少產生 SPEC.md、cards.md、sources.json。`,
+    `文件僅保存到 ${outputRoot}，至少產生 SPEC.md、cards.md、sources.json、issues.json。`,
+    `issues.json 使用 {"schema":"IssueDraftBundle/v1","analysisId":"${id}","drafts":[{"id":"穩定唯一ID","projectPath":"來源的projectPath或name","title":"標題","description":"需求與範圍","acceptanceCriteria":["可驗收條件"],"sourceEvidence":[{"path":"該Repo內相對檔案路徑","claim":"依據"}],"labels":[]}]}。每張草稿只能指向一個來源 Repo，且必須有實際存在的來源證據。`,
     'SPEC.md 必須包含需求、現況與預期、受影響專案/模組、檔案證據、介面、依賴/實作順序、驗收條件、測試計畫、風險與待確認事項。',
     'cards.md 依專案與功能提供可複製的牌卡標題、描述及驗收內容，拆分與實際開卡由使用者決定。不要建立 Issue、修改程式、提交、推送或發布。',
     'sources.json 格式為 {"repositories":[{"id":"來源清單的ID","sha":"固定SHA","evidence":[{"path":"Repo內相對路徑","claim":"影響說明或不受影響的依據"}]}]}；每個選定專案都須列出分析結論、來源與證據。',
@@ -84,14 +96,15 @@ export async function prepareGroupAnalysis(options: {
     '資料缺少、快照無法完整分析或仍有影響實作的需求問題時先提問/明列缺口，不能宣稱已完成。'
   ].join('\n\n');
   return { source, title: 'Group 需求影響分析', root, executionRoot: outputRoot, workspaceKey: workflowHash(root),
-    writableRoots: [outputRoot], skill: { name: 'bmad-spec', path: skillPath }, groupAnalysis: binding,
+    writableRoots: [outputRoot], skill: { name: 'codebase-wiki', path: skillPath }, groupAnalysis: binding,
     prompt, environmentKey: workflowHash(JSON.stringify([root, binding, skill, source.requirement])),
     delivery: { mode: 'manual', testCommands: [] } };
 }
 
 export async function startGroupAnalysis(spec: CodexTaskSpec, storage: string, python: PythonRuntime, signal?: AbortSignal): Promise<void> {
   const binding = spec.groupAnalysis!;
-  if (binding.runtimeRoot !== path.join(storage, 'codex-group-analysis', binding.id) || !insideStorage(binding.groupRoot, binding.outputRoot)) throw new Error('Group 分析目錄不屬於此任務。');
+  if (binding.runtimeRoot !== path.join(storage, 'codex-group-analysis', binding.id) ||
+    !(binding.issueDrafts ? binding.outputRoot === path.join(binding.runtimeRoot, 'artifacts') : insideStorage(binding.groupRoot, binding.outputRoot))) throw new Error('Group 分析目錄不屬於此任務。');
   await mkdir(binding.runtimeRoot, { recursive: true });
   await ownedStoragePath(storage, binding.runtimeRoot);
   for (const repo of binding.repositories) {
@@ -107,7 +120,8 @@ export async function startGroupAnalysis(spec: CodexTaskSpec, storage: string, p
     }
   }
   await mkdir(binding.outputRoot, { recursive: true });
-  await ownedStoragePath(binding.groupRoot, binding.outputRoot);
+  await ownedStoragePath(binding.issueDrafts ? storage : binding.groupRoot, binding.outputRoot);
+  if (binding.issueDrafts) await captureGroupIssueSourceInventory(spec);
 }
 
 export async function collectGroupAnalysis(spec: CodexTaskSpec): Promise<CodexTaskResult> {
@@ -133,6 +147,8 @@ export async function collectGroupAnalysis(spec: CodexTaskSpec): Promise<CodexTa
       const target = path.resolve(repo.snapshotPath, evidence.path); await ownedStoragePath(repo.snapshotPath, target); await access(target);
     }
   }
-  return { state: 'ready', summary: `已整合 ${sources.repositories.length} 個專案的異動需求與開發文件；請依牌卡建議自行開立 Issue。`,
-    reportPath: path.join(binding.outputRoot, 'SPEC.md'), handoffPath: path.join(binding.outputRoot, 'cards.md'), files: ['SPEC.md', 'cards.md', 'sources.json'] };
+  if (binding.issueDrafts) await readGroupIssueDrafts(spec);
+  return { state: 'ready', summary: `已整合 ${sources.repositories.length} 個專案的需求與 Issue 文件；等待你檢閱並選擇建立 Issue。`,
+    reportPath: path.join(binding.outputRoot, 'SPEC.md'), handoffPath: path.join(binding.outputRoot, 'cards.md'),
+    files: ['SPEC.md', 'cards.md', 'sources.json', ...(binding.issueDrafts ? ['issues.json'] : [])] };
 }

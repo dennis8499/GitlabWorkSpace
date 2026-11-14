@@ -805,6 +805,7 @@ type CdpRemoteObject = { result?: { value?: unknown }; exceptionDetails?: { text
 
 class RawCdpConnection {
   private sequence = 0;
+  private closed = false;
   private readonly pending = new Map<number, { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }>();
 
   private constructor(private readonly socket: WebSocket) {
@@ -819,6 +820,7 @@ class RawCdpConnection {
       else pending.resolve(message.result ?? {});
     });
     socket.addEventListener('close', () => {
+      this.closed = true;
       for (const pending of this.pending.values()) pending.reject(new Error('The VS Code CDP connection closed.'));
       this.pending.clear();
     });
@@ -834,13 +836,20 @@ class RawCdpConnection {
   }
 
   send(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<Record<string, unknown>> {
+    if (this.closed || this.socket.readyState !== WebSocket.OPEN) return Promise.reject(new Error('The VS Code CDP connection closed.'));
     const id = ++this.sequence;
     const promise = new Promise<Record<string, unknown>>((resolve, reject) => this.pending.set(id, { resolve, reject }));
-    this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+    try { this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })); }
+    catch (error) { this.pending.get(id)?.reject(error instanceof Error ? error : new Error('The VS Code CDP write failed.')); this.pending.delete(id); }
     return promise;
   }
 
-  close(): void { this.socket.close(); }
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const pending of this.pending.values()) pending.reject(new Error('The VS Code CDP connection closed.'));
+    this.pending.clear(); this.socket.close();
+  }
 }
 
 class WebviewCdp {

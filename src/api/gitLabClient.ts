@@ -271,8 +271,8 @@ export class GitLabClient {
     return this.getPage<GitLabProject>(`groups/${encodeURIComponent(String(groupId))}/projects?include_subgroups=true&with_shared=false&per_page=100`, cursor);
   }
 
-  searchGroupProjectsPage(groupId: number, query: string, cursor?: string): Promise<GitLabPage<GitLabProject>> {
-    return this.getPage<GitLabProject>(`groups/${encodeURIComponent(String(groupId))}/projects?include_subgroups=true&with_shared=false&search=${encodeURIComponent(query)}&per_page=20`, cursor);
+  searchGroupProjectsPage(groupId: number, query: string, cursor?: string, withShared = false): Promise<GitLabPage<GitLabProject>> {
+    return this.getPage<GitLabProject>(`groups/${encodeURIComponent(String(groupId))}/projects?include_subgroups=true&with_shared=${withShared}&search=${encodeURIComponent(query)}&per_page=20`, cursor);
   }
 
   listAssignedGroupIssuesPage(groupId: number, cursor?: string, state: 'opened' | 'all' = 'opened'): Promise<GitLabPage<GitLabIssue>> {

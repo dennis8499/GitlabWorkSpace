@@ -8,7 +8,7 @@ import { CodexWorkspaceLease } from './workspaceLease';
 import { exportCodexTaskChanges } from './resultExporter';
 import { restoreCodexResultChanges, type CodexManualWorkspace } from './resultRestore';
 import { CODEX_RESULT_MAX_BYTES, CODEX_RESULT_MAX_FILES, CODEX_RESULT_SCHEMA, resultPathKey, safeResultPath, validResultId,
-  type CodexArtifact, type CodexResultDelivery, type CodexResultManifest, type CodexResultOrigin, type CodexResultReason } from './resultProtocol';
+  type CodexArtifact, type CodexResultConfirmationAudit, type CodexResultDelivery, type CodexResultManifest, type CodexResultOrigin, type CodexResultReason } from './resultProtocol';
 
 const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 const same = (a: string, b: string) => process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
@@ -144,7 +144,7 @@ export class CodexResultStore {
       };
       const group = (record.spec as typeof record.spec & { groupAnalysis?: { outputRoot: string; runtimeRoot: string; repositories?: Array<{ id: string; sha: string; snapshotPath: string }> } }).groupAnalysis;
       const temporaryValues = [record.threadId, ...(record.routingThreadIds ?? []), record.spec.workflow?.runtimeRoot,
-        record.spec.workflow?.worktree?.path, record.spec.review?.requestId, record.spec.prompt, group?.runtimeRoot,
+        record.spec.workflow?.worktree?.path, record.spec.workflow?.managedClone?.path, record.spec.review?.requestId, record.spec.prompt, group?.runtimeRoot,
         ...(group?.repositories?.map(repo => repo.snapshotPath) ?? [])].filter((value): value is string => !!value);
       const clean = (value: unknown, limit = 8000): string => {
         let output = text(value, limit); for (const temporary of temporaryValues) output = output.split(temporary).join('[已清理的執行資料]'); return output;
@@ -166,7 +166,8 @@ export class CodexResultStore {
         manifest.result = { ...(manifest.result ?? { summary }), state: 'uncertain' };
       }
       const readSource = async (file: string): Promise<Buffer> => {
-        const allowed = [record.root, record.spec.executionRoot, record.spec.origin?.repositoryRoot, record.spec.workflow?.runtimeRoot].filter((value): value is string => !!value);
+        const allowed = [record.root, record.spec.executionRoot, record.spec.origin?.repositoryRoot, record.spec.workflow?.runtimeRoot,
+          record.spec.groupAnalysis?.outputRoot, record.spec.bmadArtifacts?.outputRoot].filter((value): value is string => !!value);
         for (const root of allowed) {
           const relative = path.relative(root, file);
           if (relative && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep)) return snapshotSource(root, file);
@@ -177,7 +178,7 @@ export class CodexResultStore {
         const report = await add('reports/' + safeResultPath(path.basename(record.result.reportPath)), await readSource(record.result.reportPath), 'text/markdown');
         manifest.result!.reportPath = path.join(destination, ...report.path.split('/'));
       }
-      const copyMarkdown = async (root: string, prefix: string, required = false): Promise<void> => {
+      const copyMarkdown = async (root: string, prefix: string, required = false, structured = false): Promise<void> => {
         let info;
         try { info = await lstat(root); } catch (error) { if (!required && missingFile(error)) return; throw error; }
         if (!info.isDirectory() || info.isSymbolicLink() || !same(await realpath(root), root)) throw new Error('文件成果目錄不可重新導向。');
@@ -189,7 +190,8 @@ export class CodexResultStore {
             const next = relative ? relative + '/' + item.name : item.name; safeResultPath(next);
             if (item.isSymbolicLink()) throw new Error('文件成果包含重新導向，保留原件。');
             if (item.isDirectory()) await walk(next, depth + 1);
-            else if (item.isFile() && /\.md$/i.test(item.name)) await add(prefix + '/' + next, await snapshotSource(root, path.join(root, ...next.split('/'))), 'text/markdown', next);
+            else if (item.isFile() && (/\.md$/i.test(item.name) || structured && /\.(?:ya?ml|json|toml|txt)$/i.test(item.name))) await add(prefix + '/' + next,
+              await snapshotSource(root, path.join(root, ...next.split('/'))), /\.md$/i.test(item.name) ? 'text/markdown' : /\.json$/i.test(item.name) ? 'application/json' : 'text/plain', next);
             else if (!item.isFile()) throw new Error('文件成果包含不支援的檔案類型。');
           }
         };
@@ -206,6 +208,26 @@ export class CodexResultStore {
         await add('documents/repositories.json', Buffer.from(JSON.stringify({ schema: 'GitLabWorkspaceCodexGroupSources/v1', repositories }, null, 2) + '\n'),
           'application/json', 'Group 固定來源與基準（含未完成分析的 Repo）');
         await copyMarkdown(group.outputRoot, 'documents', reason === 'completed');
+        if (group.issueDrafts) {
+          try { await add('documents/issues.json', await snapshotSource(group.outputRoot, path.join(group.outputRoot, 'issues.json'), 256 * 1024), 'application/json', 'Issue 草稿'); }
+          catch (error) { if (reason === 'completed' || !missingFile(error) && !(error instanceof Error && error.message === '成果檔案遺失。')) throw error; }
+          try { await add('documents/source-inventory.json', await snapshotSource(group.runtimeRoot, path.join(group.runtimeRoot, 'source-inventory.json'), 16 * 1024 * 1024), 'application/json', 'Host 固定來源檔案指紋'); }
+          catch (error) { if (reason === 'completed' || !missingFile(error) && !(error instanceof Error && error.message === '成果檔案遺失。')) throw error; }
+          const receiptRoot = path.join(sourceStorage, 'group-issue-publications');
+          try {
+            const bytes = await snapshotSource(receiptRoot, path.join(receiptRoot, group.id + '.json'), 2 * 1024 * 1024);
+            const journal = JSON.parse(bytes.toString('utf8'));
+            if (journal.schema !== 'GitLabWorkspaceGroupIssues/v1' || journal.analysisId !== group.id || !journal.receipts ||
+              typeof journal.receipts !== 'object' || Array.isArray(journal.receipts)) throw new Error('Issue 發布收據無法驗證，保留原環境。');
+            if (Object.values(journal.receipts).some((receipt: any) => !receipt || !['prepared', 'sending', 'confirmed', 'unknown'].includes(receipt.state))) throw new Error('Issue 發布收據狀態無法驗證，保留原環境。');
+            const pending = Object.values(journal.receipts).filter((receipt: any) => ['sending', 'unknown'].includes(receipt?.state)) as Array<Record<string, unknown>>;
+            if (pending.length && !provisional) throw new Error('Issue 建立結果尚待核對，不能正式封存或清理；可先匯出暫存交接成果。');
+            for (const receipt of pending) operations.push({ action: 'create-issue', state: 'pending', outcome: receipt.state,
+              draftId: text(receipt.draftId, 128), projectId: receipt.projectId, ...(typeof receipt.iid === 'number' ? { resourceId: receipt.iid } : {}) });
+            await add('delivery/group-issues.json', bytes, 'application/json', '逐張 Issue 發布收據');
+          }
+          catch (error) { if (!missingFile(error) && !(error instanceof Error && error.message === '成果檔案遺失。')) throw error; }
+        }
         if (record.result?.files?.includes('sources.json')) {
           const evidence = JSON.parse((await snapshotSource(group.outputRoot, path.join(group.outputRoot, 'sources.json'), 2 * 1024 * 1024)).toString('utf8'));
           if (!Array.isArray(evidence.repositories) || evidence.repositories.length > 100) throw new Error('Group 成果的固定來源證據無法驗證。');
@@ -241,7 +263,26 @@ export class CodexResultStore {
         if (!saved) await copyMarkdown(path.join(record.spec.workflow.sourceRoot ?? path.dirname(record.spec.executionRoot!), 'wiki'), 'wiki', !!record.result?.draftId);
       }
       if (record.spec.workflow?.worktree) await copyMarkdown(path.join(record.spec.workflow.worktree.path, '_bmad-output'), 'documents');
+      if (record.spec.workflow?.managedClone) await copyMarkdown(path.join(record.spec.workflow.managedClone.path, '_bmad-output'), 'documents', false, true);
+      if (record.spec.bmadArtifacts) await copyMarkdown(record.spec.bmadArtifacts.outputRoot, 'documents', false, true);
       manifest.restore = await exportCodexTaskChanges(record, stage, add);
+      if (record.delivery?.confirmation) {
+        const value = record.delivery.confirmation, artifactDigest = record.delivery.artifactDigest ?? record.validation?.artifactDigest;
+        const oid = (sha: string) => /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(sha), digest = (sha: string) => /^[a-f0-9]{64}$/.test(sha);
+        if (!digest(value.digest) || !Number.isFinite(Date.parse(value.confirmedAt)) || value.headSha !== undefined && !oid(value.headSha) ||
+          value.targetSha !== undefined && !oid(value.targetSha) || value.issueDigest !== undefined && !digest(value.issueDigest) ||
+          artifactDigest !== undefined && !digest(artifactDigest) || record.delivery.deliveredCommitSha !== undefined && !oid(record.delivery.deliveredCommitSha)) {
+          throw new Error('成果的歷史人工確認紀錄無法驗證；保留原任務。');
+        }
+        const audit: CodexResultConfirmationAudit = { schema: 'GitLabWorkspaceCodexDeliveryConfirmationAudit/v1', historicalOnly: true, authorizesDelivery: false,
+          taskId: record.id, source: manifest.origin, confirmation: { digest: value.digest, confirmedAt: value.confirmedAt,
+            ...(value.headSha === undefined ? {} : { headSha: value.headSha }), ...(value.targetSha === undefined ? {} : { targetSha: value.targetSha }),
+            ...(value.issueDigest === undefined ? {} : { issueDigest: value.issueDigest }) },
+          ...(artifactDigest === undefined ? {} : { artifactDigest }),
+          ...(record.delivery.deliveredCommitSha === undefined ? {} : { deliveredCommitSha: record.delivery.deliveredCommitSha }),
+          ...(manifest.restore?.commitBundleArtifactId ? { commitBundleArtifactId: manifest.restore.commitBundleArtifactId } : {}) };
+        await add('delivery/confirmation-audit.json', Buffer.from(JSON.stringify(audit, null, 2) + '\n'), 'application/json', '歷史人工確認紀錄（不授權接續發布）');
+      }
       if (provisional || operations.length || record.delivery) await add(provisional ? 'delivery/pending-operations.json' : 'delivery/operations.json',
         Buffer.from(JSON.stringify({ provisional, state: record.delivery?.state ?? 'not-configured', operations }, null, 2) + '\n'), 'application/json', '已知發布操作狀態');
       const skills = [record.spec.skill ? { ...record.spec.skill, required: true } : undefined,
@@ -323,7 +364,8 @@ export class CodexResultStore {
     if (manifest.result?.handoffPath && !same(manifest.result.handoffPath, path.join(expectedRoot, 'handoff.md'))) throw new Error('交接說明路徑不屬於已保存成果。');
     if (manifest.restore && (manifest.restore.schema !== 'GitLabWorkspaceCodexChanges/v1' || !path.isAbsolute(manifest.restore.originalRepository) ||
       !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(manifest.restore.baseSha) || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(manifest.restore.headSha) ||
-      !['sha1', 'sha256'].includes(manifest.restore.objectFormat) || !ids.has(manifest.restore.patchArtifactId) || !ids.has(manifest.restore.inventoryArtifactId))) throw new Error('成果還原綁定無法驗證。');
+      !['sha1', 'sha256'].includes(manifest.restore.objectFormat) || !ids.has(manifest.restore.patchArtifactId) || !ids.has(manifest.restore.inventoryArtifactId) ||
+      manifest.restore.commitBundleArtifactId !== undefined && !manifest.artifacts.some(artifact => artifact.id === manifest.restore!.commitBundleArtifactId && artifact.path === 'code/commits.bundle'))) throw new Error('成果還原綁定無法驗證。');
   }
   private async verify(root: string, manifest: CodexResultManifest, expectedRoot = this.resultRoot(manifest.id)): Promise<void> {
     this.validate(manifest, manifest.id, expectedRoot);

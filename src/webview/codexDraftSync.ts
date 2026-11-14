@@ -93,6 +93,16 @@ export class CodexDraftSync {
       if (same(next.get(entryKey), this.bases.get(entryKey)?.value)) this.dirty.delete(entryKey); else this.dirty.add(entryKey);
     }
   }
+  /** Verified owner focus is a system preference, not an edit made against the restored cache. */
+  automaticSelection(taskId: string, ui: CodexUiState): CodexUiState | undefined {
+    const selection = key('selection', 'current');
+    if (!this.loaded || this.conflicts.some(conflict => conflict.key === selection) || this.submitted?.some(entry => entry.key === selection)) return;
+    const received = this.remote.get(selection);
+    if (received) this.bases.set(selection, received); else this.bases.delete(selection);
+    this.changedHere.add(selection);
+    if (same(taskId, received?.value)) this.dirty.delete(selection); else this.dirty.add(selection);
+    return { ...ui, selectedTaskId: taskId, draftSync: this.metadata() };
+  }
   load(snapshot: CodexUiDraftSnapshot, ui: CodexUiState): CodexUiState {
     if (this.scope && this.scope !== snapshot.scope) {
       const current = codexDraftEntries(ui); this.bases.clear(); this.remote.clear(); this.dirty.clear(); ui = { drafts: {}, pending: {} };
