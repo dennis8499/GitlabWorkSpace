@@ -2,10 +2,20 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { readReviewFixedIdentity, readReviewJob } from '../workspace/reviewSessions';
-import type { CodexTaskSpec } from './protocol';
+import type { CodexTaskRecord, CodexTaskSpec } from './protocol';
 import { canonicalRuntime } from './taskValidation';
 import { atomicNetworkJson } from '../api/localNetworkLease';
 import { legacyIdentityDigest, type ModelRoutingState } from './modelRouting';
+import { isLauncherTimingKey } from './reviewLaunchTimings';
+
+/** Job rereads are authoritative for helper counters; launcher measurements belong to native output. */
+export function mergeNativeReviewTimings(previous: CodexTaskRecord['nativeReviewTimings'], current: CodexTaskRecord['nativeReviewTimings']): CodexTaskRecord['nativeReviewTimings'] {
+  if (!previous && !current) return;
+  const phases = new Set(['step_seconds', 'read_seconds', 'search_seconds', 'check_diagnostic_seconds', 'finish_total_seconds', 'validation_publish_seconds']);
+  const launcher = Object.fromEntries(Object.entries(previous?.helperSeconds ?? {}).filter(([key, value]) => (isLauncherTimingKey(key) || phases.has(key)) && Number.isFinite(value) && value >= 0));
+  return { firstDraftAt: current?.firstDraftAt ?? previous?.firstDraftAt ?? null, capturedAt: current?.capturedAt ?? previous?.capturedAt ?? null,
+    publishedAt: current?.publishedAt ?? previous?.publishedAt ?? null, helperSeconds: { ...launcher, ...current?.helperSeconds ?? {} } };
+}
 
 const digest = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 const same = (a: string, b: string): boolean => process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);

@@ -58,6 +58,10 @@ export interface CodexDeliveryState {
   confirmation?: CodexDeliveryConfirmation;
 }
 export interface CodexValidationEvidence {
+  requirementDigest?: string;
+  profileDigest?: string;
+  /** Explicit local human verification; an empty command list is never a successful test. */
+  manual?: { confirmedAt: string; checks: string[] };
   cwd: string;
   artifactDigest: string;
   testedAt: string;

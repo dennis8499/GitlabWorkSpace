@@ -288,6 +288,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'loadCodexUiDrafts'; requestId: string }
   | { type: 'saveCodexUiDrafts'; requestId: string; scope: string; updates: import('../codex/uiDraftProtocol').CodexUiDraftEntry[]; resolveConflictIds?: string[] }
   | { type: 'startCodexTask'; source: import('../codex/protocol').CodexTaskSource }
+  | { type: 'openLocalWiki'; repository: string }
   | { type: 'createCodexLaunch'; source?: import('../codex/protocol').CodexTaskSource }
   | { type: 'updateCodexLaunch'; draftId: string; revision: number; patch: import('../codex/protocol').CodexLaunchPatch }
   | { type: 'checkCodexLaunch'; draftId: string; revision?: number; patch?: import('../codex/protocol').CodexLaunchPatch }

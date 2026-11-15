@@ -92,7 +92,7 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
   };
   const source = draft.source;
   const kind = { free: '程式工作', issue: 'Issue 開發', 'merge-request': source.kind === 'merge-request' && source.intent === 'fix-comments' ? 'MR 討論修正' : 'MR 審查',
-    'project-wiki': '專案 Wiki', skill: 'Skills 工作', bmad: 'BMAD 工作', review: '接續審查', 'group-analysis': 'Group 需求影響分析' }[source.kind];
+    'project-wiki': '產生 GitLab Wiki 草稿', skill: 'Skills 工作', bmad: 'BMAD 工作', review: '接續審查', 'group-analysis': 'Group 需求影響分析' }[source.kind];
   const linked = ['issue', 'merge-request', 'project-wiki'].includes(source.kind);
   return <section class="codex-launch" aria-label="任務準備">
     <header><p class="eyebrow">{kind} · 任務準備</p><h2>{draft.title}</h2>
@@ -133,12 +133,15 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
             <span>{skill.name}{skill.required ? '（必要）' : ''}{skill.description && <span class="subtle"> · {skill.description}</span>}</span></label>)}
         </fieldset>
       </details>
-      <details class="codex-launch-advanced"><summary>測試與交付 · {value.testCommands.length} 項測試{linked ? ' · 人工確認後交付' : ''}</summary>
+      <details class="codex-launch-advanced"><summary>驗證與交付 · {value.testCommands.length} 項驗證{linked ? ' · 人工確認後交付' : ''}</summary>
         <fieldset disabled={locked || busy}><legend>成果驗證</legend>
-          <label for="codex-launch-tests">必要測試命令（每行一項）</label>
+          <label for="codex-launch-tests">必要驗證命令（每行一項）</label>
           <textarea id="codex-launch-tests" rows={3} maxLength={81920} value={testInput} onFocus={() => { testEditing.current = true; }}
             onBlur={() => { testEditing.current = false; setTestInput(local.current.testCommands.join('\n')); }}
             onInput={event => { const text = event.currentTarget.value; setTestInput(text); edit({ testCommands: text.split(/\r?\n/).map(line => line.trim()).filter(Boolean) }); }} />
+          <p class="subtle">可填入建置、lint 或測試命令；依實際變更選擇必要檢查。</p>
+          {!testInput.trim() && !!draft.suggestedTestCommands?.length && <button type="button" class="secondary" disabled={saving || conflict}
+            onClick={() => { const commands = [...draft.suggestedTestCommands!]; setTestInput(commands.join('\n')); edit({ testCommands: commands }); }}>採用建議驗證命令</button>}
           {linked && <p class="subtle">先產生成果與驗證結果，由你檢閱確認後才推送或發布至 GitLab。既有自動交付設定不代替這次確認。</p>}
         </fieldset>
       </details>

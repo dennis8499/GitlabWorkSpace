@@ -7,6 +7,8 @@ import { useActionSelector } from './useActions';
 import { CodexMarkdown } from './CodexMarkdown';
 import { codexReplyKey, editCodexReply, settleCodexReplies, type CodexWorkflowUi } from './codexWorkflowUi';
 import type { WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
+import type { ValidationAttempt, WorkContext, WorkLink } from '../codex/workContextProtocol';
+import { isDocumentationOnly } from '../codex/documentationVerification';
 import './codex-panel.css';
 import './codex-workflow.css';
 
@@ -56,6 +58,8 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
   }, [linked, active, task.id, task.status, task.retention, task.turnId, result?.draftId, result?.reportPath, result?.handoffPath]);
   if (task.savedResult) return <SavedCodexResult task={task} post={post} />;
   if (!task.origin) return result ? <section class="codex-workflow-result" aria-label="本機工作成果"><p role="status">{result.summary}</p>
+    <CodexWorkEvidence task={task} post={post} />
+    <CodexNextSteps task={task} post={post} />
     <div class="button-row">{task.isolated && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'open-worktree', taskId: task.id } })}>開啟任務視窗</button>}
       {task.groupAnalysis && result.state === 'ready' && <button type="button" disabled={!!task.controls?.external} onClick={() => post({ type: 'codexCommand', command: { action: 'publish-group-issues', taskId: task.id } })}>檢閱並建立 Issue</button>}
       {result.reportPath && <button type="button" onClick={() => post({ type: 'readCodexResult', taskId: task.id })}>開啟需求文件</button>}
@@ -64,6 +68,9 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
       <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'copy-handoff', taskId: task.id } })}>複製成果與牌卡內容</button>
       <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'export-result', taskId: task.id } })}>匯出成果包</button></div></section> : null;
   const busy = codexTaskActive(task.status) || task.status === 'queued' || task.status === 'uncertain' || !!task.controls?.external;
+  const manualDocumentation = !busy && (task.origin.kind === 'issue' || task.origin.intent === 'fix-comments') &&
+    isDocumentationOnly(result?.files ?? []) && !task.workContext?.verification?.commands.length &&
+    !(task.validation as { manual?: unknown } | undefined)?.manual && !['running', 'published'].includes(task.delivery?.state ?? '');
   const reviewReport = task.origin.kind === 'merge-request' && (task.origin.intent ?? 'review') === 'review' && task.review &&
     result?.state === 'ready' && payload?.taskId === task.id && payload.report?.trim() ? payload.report : undefined;
   const reviewPublicationBlocked = actions.hasPendingWrite('codex-review:' + task.id) ||
@@ -78,6 +85,7 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
   const copy = (text: string) => post({ type: 'copy', text });
   return <section class="codex-workflow-result" aria-label="任務來源與成果">
     <div class="button-row">
+      {manualDocumentation && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'confirm-documentation', taskId: task.id } })}>人工驗收文件變更</button>}
       {(task.origin.kind === 'issue' || task.origin.intent === 'fix-comments') && result?.state === 'ready' && <button type="button" class="primary" disabled={busy || !!task.controls?.external}
         onClick={() => post({ type: 'codexCommand', command: { action: 'confirm-delivery', taskId: task.id } })}>檢閱並確認交付</button>}
       {task.origin.kind === 'issue' && result?.state === 'ready' && <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'handoff', taskId: task.id } })}>準備交接與 MR 草稿</button>}
@@ -87,6 +95,8 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
       {result?.url && <button type="button" class="quiet small" onClick={() => post({ type: 'openExternal', url: result.url! })}>在 GitLab 查看 Wiki</button>}</div>
     <p class="subtle codex-root">{task.origin.projectPath} · {task.origin.branch ?? task.origin.sourceBranch} · {task.origin.sourceSha.slice(0, 12)}</p>
     {result && <p role="status">{result.summary}</p>}
+    <CodexWorkEvidence task={task} post={post} />
+    <CodexNextSteps task={task} post={post} />
     {!!result?.files?.length && <details><summary>修改檔案（{result.files.length}）</summary><ul class="codex-result-files">{result.files.map(file =>
       <li key={file}><button type="button" class="quiet small" onClick={() => post({ type: 'codexCommand', command: { action: 'open-file', taskId: task.id, path: file } })}>{file}</button></li>)}</ul></details>}
     {result?.replyDrafts?.map(reply => {
@@ -146,6 +156,65 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
   </section>;
 }
 
+/** Read-only evidence and explicit navigation; rendering never starts the next task. */
+export function CodexWorkEvidence({ task, post }: { task: CodexTaskState; post: Post }) {
+  const value = task as CodexTaskState & { workContext?: WorkContext; validationAttempts?: ValidationAttempt[]; workLinks?: WorkLink[] };
+  const requirement = value.workContext?.requirement, profile = value.workContext?.verification;
+  const manual = task.validation?.manual && requirement && task.validation.requirementDigest === requirement.contentDigest ? task.validation.manual : undefined;
+  const attempts = value.validationAttempts ?? [], related = (value.workLinks ?? []).filter(link => link.taskId !== task.id);
+  const labels: Record<ValidationAttempt['state'], string> = { passed: '通過', failed: '失敗', blocked: '等待處理', interrupted: '已中斷', incomplete: '尚未完成' };
+  const kinds: Record<string, string> = { issue: 'Issue 開發', 'group-analysis': '需求探索', 'merge-request': 'MR 工作', 'project-wiki': 'Wiki', review: '審查', skill: '工作流程', bmad: '開發流程', free: '程式工作' };
+  if (!requirement && !attempts.length && !related.length) return null;
+  return <div class="codex-work-evidence">
+    {requirement && <details><summary>本次需求與驗收條件（{requirement.criteria.length}）</summary>
+      <p>{requirement.title}</p>
+      {requirement.source.url && <button type="button" class="quiet small" onClick={() => post({ type: 'openExternal', url: requirement.source.url! })}>查看來源需求</button>}
+      <p class="subtle">這是本次執行採用的來源內容；來源需求更新後，接續前會重新核對。</p>
+      {requirement.description && <pre class="codex-source-description">{requirement.description}</pre>}
+      {requirement.supplement && <><p>本次補充</p><pre>{requirement.supplement}</pre></>}
+      {!!requirement.criteria.length && <><ul>{requirement.criteria.map(criterion => <li key={criterion.id}>{criterion.text} · {manual?.checks.includes(criterion.text) ? '已人工核對' : '尚待逐條核對'}</li>)}</ul>
+        <p class="subtle">測試通過不代表每項需求已完成驗收。</p></>}
+      {profile && <p>驗證方式：{({ code: '程式檢查', docs: '文件檢查', manual: '人工驗收' })[profile.kind]} · {profile.commands.length} 項命令{profile.manualChecks.length ? ` · ${profile.manualChecks.length} 項人工檢查` : ''}</p>}
+      {profile?.manualChecks.map((check, index) => <p key={index}>{manual?.checks.includes(check) ? '已人工核對' : '待人工核對'}：{check}</p>)}
+      {manual && <p class="subtle">已完成文件人工驗收；未將人工核對視為自動檢查通過。</p>}
+      {profile?.reason && <p>{profile.reason}</p>}
+    </details>}
+    {!!attempts.length && <details><summary>驗證紀錄（{attempts.length}）</summary>{attempts.map(attempt => <div key={attempt.id}>
+      <p>第 {attempt.cycle} 次 · {labels[attempt.state]}</p>
+      {attempt.reason && <p class={attempt.state === 'passed' ? 'subtle' : 'warning'}>{attempt.reason}</p>}
+      {attempt.commands.map((command, index) => <p key={index}><code>{command.command}</code> · {command.exitCode === undefined ? '尚無執行結果' : `exit ${command.exitCode}`}{command.signal ? ` · ${command.signal}` : ''}</p>)}
+    </div>)}</details>}
+    {!!related.length && <details><summary>相關工作（{related.length}）</summary><div class="button-row">{related.map(link => <button key={link.taskId} type="button" class="quiet small"
+      onClick={() => post({ type: 'showCodexTask', taskId: link.taskId })}>{kinds[link.kind] ?? link.kind} · {link.taskId.slice(0, 8)}</button>)}</div></details>}
+  </div>;
+}
+
+export function CodexNextSteps({ task, post }: { task: CodexTaskState; post: Post }) {
+  const followUps = task.savedResult?.result?.followUps ?? task.result?.followUps ?? [];
+  const busy = codexTaskActive(task.status) || task.status === 'queued' || task.status === 'uncertain' || !!task.controls?.external;
+  if (!followUps.length) return null;
+  return <details class="codex-next-steps"><summary>後續工作（{followUps.length}）</summary>{followUps.map((item, index) => {
+    const scoped = typeof item.scope === 'string' && /^[a-f0-9]{64}$/.test(item.scope);
+    return <div key={index}>
+    <p>{item.title}</p><div class="button-row">
+      {item.kind === 'issue' && <>
+        <button type="button" class="quiet small" onClick={() => post({ type: 'openExternal', url: item.url })}>在 GitLab 查看 Issue</button>
+        {scoped && item.iid !== undefined && <button type="button" disabled={busy} onClick={() => post({ type: 'startCodexTask', source: { kind: 'issue', projectId: item.projectId, issueIid: item.iid!, expectedScope: item.scope! } })}>使用 Codex 開發</button>}
+      </>}
+      {item.kind === 'merge-request' && <>
+        <button type="button" class="quiet small" onClick={() => post({ type: 'openExternal', url: item.url })}>查看 MR</button>
+        {scoped && item.iid !== undefined && <>
+          <button type="button" disabled={busy} onClick={() => post({ type: 'startCodexTask', source: { kind: 'merge-request', projectId: item.projectId, iid: item.iid!, reviewerTool: 'merge-reviewer', expectedScope: item.scope! } })}>Merge Review</button>
+          <button type="button" disabled={busy} onClick={() => post({ type: 'startCodexTask', source: { kind: 'merge-request', projectId: item.projectId, iid: item.iid!, reviewerTool: 'release-reviewer', expectedScope: item.scope! } })}>Release Review</button>
+        </>}
+      </>}
+      {item.kind === 'wiki' && <button type="button" class="quiet small" onClick={() => post({ type: 'openExternal', url: item.url })}>查看 Wiki</button>}
+    </div>
+    {!scoped && item.kind !== 'wiki' && <p class="subtle">這份歷史成果未保存來源帳號，請從原專案啟動新的工作。</p>}
+  </div>;
+  })}</details>;
+}
+
 function SavedCodexResult({ task, post }: { task: CodexTaskState; post: Post }) {
   const [artifactLimit, setArtifactLimit] = useState(100);
   const artifactList = useRef<HTMLUListElement>(null), nextArtifactFocus = useRef<{ taskId: string; index: number }>();
@@ -160,6 +229,7 @@ function SavedCodexResult({ task, post }: { task: CodexTaskState; post: Post }) 
   return <section class="codex-workflow-result" aria-label="已保存成果">
     <p role="status">{saved.summary}</p>
     <p class="subtle">成果已獨立保存，可離線閱讀與匯出。後續需求會以成果建立新的任務。</p>
+    <CodexNextSteps task={task} post={post} />
     <div class="button-row">
       <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'export-result', taskId: task.id } })}>匯出成果包</button>
       <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'copy-handoff', taskId: task.id } })}>複製接續摘要與牌卡內容</button>

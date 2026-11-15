@@ -221,7 +221,27 @@ export function buildWikiGuideContext(context: WikiGuideContext): string {
 }
 
 export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValues, context?: WikiGuideContext): string {
-  return withOutputStyle(buildWikiGuideTaskPrompt(cardId, inputs, context));
+  return withOutputStyle([buildWikiGuideTaskPrompt(cardId, inputs, context), localWikiScopePrompt(cardId, inputs, context)].filter(Boolean).join('\n\n'));
+}
+
+function localWikiScopePrompt(cardId: string, inputs: WikiGuideInputValues, context?: WikiGuideContext): string {
+  const selected = inputs['wiki.sourceRepo'];
+  if (!selected) return '';
+  const normalize = (value: string) => {
+    const normalized = value.replaceAll('\\', '/').replace(/\/+$/, '');
+    return /^(?:[a-z]:|\/\/)/i.test(normalized) ? normalized.toLowerCase() : normalized;
+  };
+  const repo = context?.repositories.find(item => normalize(item.path) === normalize(selected));
+  if (!repo || !context?.root) throw new Error('本地 Wiki 的來源 Repo 已變更，請從目前工作區重新開啟。');
+  return [
+    `本地 Wiki：使用目前${context.profile === 'repository' ? '單一 Repo' : ' Group'}工作區 ${JSON.stringify(context.root)} 下既有的 wiki/；來源限定 ${JSON.stringify(repo.path)}。`,
+    '執行目錄只是隔離的 helper runtime，不是專案根目錄；來源、wiki/、Skill scripts 及 runner 都從上方明確宣告的工作區根目錄解析為絕對路徑。scanner 明確傳 --root，lint 明確傳 --repo-root 與絕對 Wiki 路徑；不得由 cwd 推導另一份 Wiki。',
+    context.profile === 'repository' ? '不向父 Group 擴張，不搬移既有 Wiki。' : '共用 Group root 的 Wiki，來源使用 Repo/path；不得在各 Repo 另建 wiki/，不搬移或合併既有 Wiki。',
+    '本地工作不需要 GitLab 登入或啟用 GitLab Wiki；本輪不發布遠端文件。',
+    cardId === 'query' ? '先讀索引與 1–5 個相關頁面；Wiki 不存在、不完整或過時時照實回答缺口，必要才回查本次來源。查詢不要求全量 coverage、不執行 Ingest、不寫檔。' :
+      cardId === 'ingest' ? '這是來源範圍內的局部更新，不要求全 Group coverage、不更新其他來源的頁面。沿用安全 scanner 與 writer，納入允許的 dirty、untracked、ignored 原始來源；內容 digest 決定來源版本，不能只用 HEAD SHA 判定有效。保留人工 notes 與既有段落，更新相關頁面、索引並追加日誌；提交前比對來源及 Wiki，遇到並行修改保留差異。' :
+        '品質檢查只讀檔與產生結果，不修復、不啟動 Ingest、不要求全量 coverage；先說明所選 Repo 的相關問題，其他既有頁面的問題另列。'
+  ].join('\n');
 }
 
 function buildWikiGuideTaskPrompt(cardId: string, inputs: WikiGuideInputValues, context?: WikiGuideContext): string {

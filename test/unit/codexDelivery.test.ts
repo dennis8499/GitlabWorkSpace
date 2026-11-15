@@ -7,6 +7,8 @@ import { CodexDeliveryService, confirmCodexDelivery, deliveryComment } from '../
 import { GitLabClient } from '../../src/api/gitLabClient';
 import type { CodexTaskRecord } from '../../src/codex/protocol';
 import type { CodexDeliveryState } from '../../src/codex/deliveryProtocol';
+import { createRequirementSnapshot } from '../../src/codex/workContext';
+import type { GitLabIssue } from '../../src/api/types';
 
 async function fixture(t: test.TestContext, report = '# Review\n\nComplete report.') {
   const root = await mkdtemp(path.join(os.tmpdir(), 'codex-delivery-'));
@@ -60,6 +62,28 @@ test('changed MR head blocks all writes without discarding the verified report',
   const result = await f.service.deliver(f.record, f.checkpoint, () => {});
   assert.equal(result.state, 'ready'); assert.equal(f.record.delivery?.state, 'needs-attention');
   assert.equal(f.calls.filter(call => call.method !== 'GET').length, 0);
+});
+
+test('a linked Issue edit immediately before the review POST blocks publication and never resends', async t => {
+  const f = await fixture(t); let reads = 0;
+  const description = 'Approved requirement';
+  f.record.spec.workContext = { schema: 'GitLabWorkspaceWorkContext/v1', requirement: createRequirementSnapshot({
+    source: { kind: 'issue', identity: JSON.stringify(['https://gitlab.test', 'test', 1, 'issue', 7]) }, title: 'Requirement', description }) };
+  t.mock.method(f.client, 'getIssue', async () => ({ project_id: 1, iid: 7, title: 'Requirement', description: ++reads >= 4 ? 'Changed requirement' : description } as GitLabIssue));
+  await f.service.deliver(f.record, f.checkpoint, () => {});
+  assert.equal(reads, 4); assert.equal(f.record.delivery?.state, 'needs-attention'); assert.equal(f.record.delivery?.steps[0].state, 'prepared');
+  assert.match(f.record.delivery?.error ?? '', /來源需求/); assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  await f.service.deliver(f.record, f.checkpoint, () => {}); assert.equal(f.calls.some(call => call.method === 'POST'), false);
+});
+
+test('a linked requirement edit before report upload prevents both attachment and note writes', async t => {
+  const f = await fixture(t, 'Full report\n'.repeat(5000)); let reads = 0;
+  f.record.spec.workContext = { schema: 'GitLabWorkspaceWorkContext/v1', requirement: createRequirementSnapshot({
+    source: { kind: 'issue', identity: JSON.stringify(['https://gitlab.test', 'test', 1, 'issue', 7]) }, title: 'Requirement', description: 'Approved' }) };
+  t.mock.method(f.client, 'getIssue', async () => ({ project_id: 1, iid: 7, title: 'Requirement', description: ++reads >= 2 ? 'Changed' : 'Approved' } as GitLabIssue));
+  await f.service.deliver(f.record, f.checkpoint, () => {});
+  assert.equal(f.record.delivery?.steps.find(step => step.kind === 'upload')?.state, 'prepared');
+  assert.equal(f.calls.some(call => call.method === 'POST'), false); assert.equal(f.notes.length, 0);
 });
 
 test('unknown report upload remains pending and retries never blindly upload again', async t => {

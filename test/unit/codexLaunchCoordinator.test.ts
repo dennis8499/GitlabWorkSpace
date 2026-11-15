@@ -81,6 +81,54 @@ test('opening a source persists preparation before I/O and model changes do not 
   assert.equal(await f.launch.submit(draft.id), draft.id);
 });
 
+test('check suggestions remain optional until explicit adoption and existing commands avoid suggestion reads', async t => {
+  const f = await fixture(t); let reads = 0;
+  f.options.suggestChecks = async () => { reads++; return ['npm test', 'npm run lint']; };
+  const draft = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
+  let checked = await f.launch.check(draft.id, draft.revision);
+  assert.deepEqual(checked.suggestedTestCommands, ['npm test', 'npm run lint']); assert.deepEqual(checked.testCommands, []);
+  assert.equal(f.queued.length, 0); assert.equal(reads, 1);
+  checked = await f.launch.check(draft.id, checked.revision); assert.equal(reads, 1, 'same-source suggestions avoid another read');
+  const adopted = await f.launch.update(draft.id, checked.revision, { testCommands: checked.suggestedTestCommands });
+  checked = await f.launch.check(draft.id, adopted.revision); assert.equal(reads, 1);
+  await f.launch.submit(draft.id, checked.revision); assert.deepEqual(f.queued[0].source.testCommands, ['npm test', 'npm run lint']);
+  const explicit = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 3, testCommands: ['npm run typecheck'] });
+  await f.launch.check(explicit.id, explicit.revision); assert.equal(reads, 1, 'explicit and saved commands do not request suggestions');
+});
+
+test('a suggestion lookup failure does not block preparation or change required commands', async t => {
+  const f = await fixture(t); f.options.suggestChecks = async () => { throw new Error('manifest unavailable'); };
+  const draft = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
+  const ready = await f.launch.check(draft.id, draft.revision);
+  assert.equal(ready.state, 'ready'); assert.deepEqual(ready.suggestedTestCommands, []); assert.deepEqual(ready.testCommands, []); assert.equal(f.queued.length, 0);
+});
+
+test('verification suggestions are refreshed when the pinned repository version changes', async t => {
+  const f = await fixture(t), prepare = f.options.prepare; let sha = 'a'.repeat(40), reads = 0;
+  f.options.prepare = async (source, signal) => ({ ...await prepare(source, signal), origin: { kind: 'issue', accountKey: 'account-one',
+    baseUrl: 'https://gitlab.test', projectId: 1, iid: 2, projectPath: 'team/repo', repositoryRoot: f.repository,
+    webUrl: 'https://gitlab.test/team/repo/-/issues/2', sourceBranch: 'main', sourceSha: sha, branch: 'issue/2' } });
+  f.options.suggestChecks = async () => { reads++; return [sha.startsWith('a') ? 'npm test' : 'npm run lint']; };
+  const draft = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
+  const first = await f.launch.check(draft.id, draft.revision); assert.deepEqual(first.suggestedTestCommands, ['npm test']);
+  sha = 'b'.repeat(40); const second = await f.launch.check(draft.id, first.revision);
+  assert.equal(reads, 2); assert.deepEqual(second.suggestedTestCommands, ['npm run lint']); assert.deepEqual(second.testCommands, []);
+});
+
+test('negative verification suggestions are cached for an unchanged source without changing required checks', async t => {
+  const f = await fixture(t); let reads = 0; f.options.suggestChecks = async () => { reads++; return []; };
+  const draft = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
+  const first = await f.launch.check(draft.id, draft.revision), second = await f.launch.check(draft.id, first.revision);
+  assert.equal(reads, 1); assert.deepEqual(second.suggestedTestCommands, []); assert.deepEqual(second.testCommands, []);
+});
+
+test('uncertain suggestion subprocess cleanup blocks preparation and never queues model work', async t => {
+  const f = await fixture(t); f.options.suggestChecks = async () => { throw Object.assign(new Error('source probe child stop unknown'), { workflowCleanupUncertain: true }); };
+  const draft = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 }), blocked = await f.launch.check(draft.id, draft.revision);
+  assert.equal(blocked.state, 'blocked'); assert.match(blocked.error ?? '', /child stop unknown/);
+  assert.deepEqual(blocked.testCommands, []); assert.equal(blocked.suggestedTestCommands, undefined); assert.equal(f.queued.length, 0);
+});
+
 test('a missing local repository delegates preparation to the cache resolver and preserves draft requirements', async t => {
   const f = await fixture(t); f.unavailable();
   const opened = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });

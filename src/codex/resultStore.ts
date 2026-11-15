@@ -7,6 +7,9 @@ import type { CodexOutputItem, CodexTaskRecord, CodexTaskResult } from './protoc
 import { CodexWorkspaceLease } from './workspaceLease';
 import { exportCodexTaskChanges } from './resultExporter';
 import { restoreCodexResultChanges, type CodexManualWorkspace } from './resultRestore';
+import { evaluateCriteria, validValidationAttempts, validWorkContext, validWorkId } from './workContext';
+import type { ValidationAttempt, WorkContext } from './workContextProtocol';
+import { isLocalWikiQualityReceipt } from '../workspace/localWikiQuality';
 import { CODEX_RESULT_MAX_BYTES, CODEX_RESULT_MAX_FILES, CODEX_RESULT_SCHEMA, resultPathKey, safeResultPath, validResultId,
   type CodexArtifact, type CodexResultConfirmationAudit, type CodexResultDelivery, type CodexResultManifest, type CodexResultOrigin, type CodexResultReason } from './resultProtocol';
 
@@ -54,6 +57,9 @@ function cleanResult(value: CodexTaskResult | undefined, clean: (value: unknown,
     ...(value.tests ? { tests: value.tests.slice(0, 100).map(test => ({ command: clean(test.command, 2000), exitCode: test.exitCode })) } : {}),
     ...(url(value.url) ? { url: url(value.url) } : {}),
     ...(value.replyDrafts ? { replyDrafts: value.replyDrafts.map(reply => ({ discussionId: text(reply.discussionId, 200), body: clean(reply.body, 50_000) })) } : {}),
+    ...(value.followUps ? { followUps: value.followUps.slice(0, 100).map(item => ({ kind: item.kind, projectId: item.projectId,
+      ...(typeof item.scope === 'string' && /^[a-f0-9]{64}$/.test(item.scope) ? { scope: item.scope } : {}),
+      ...(item.iid === undefined ? {} : { iid: item.iid }), url: url(item.url) ?? '', title: clean(item.title, 1000) })) } : {}),
     ...(value.evidence ? { evidence: { sourceSha: value.evidence.sourceSha, branch: text(value.evidence.branch, 1000), digest: value.evidence.digest, verifiedAt: value.evidence.verifiedAt } } : {}) };
 }
 async function writeDurable(file: string, bytes: Buffer): Promise<void> {
@@ -153,6 +159,51 @@ export class CodexResultStore {
       const manifest: CodexResultManifest = { schema: CODEX_RESULT_SCHEMA, id: record.id, title: text(record.title, 200), root: record.root,
         status: record.status, createdAt: record.createdAt, updatedAt: new Date().toISOString(), reason, summary,
         origin: origin(record), result: cleanResult(record.result, clean), delivery: delivery(record), artifacts };
+      if (record.result?.wikiQuality !== undefined) {
+        const receipt = record.result.wikiQuality;
+        if (!isLocalWikiQualityReceipt(receipt)) throw new Error('Wiki 品質收據無法核對；保留執行資料。');
+        await add('validation/wiki-quality.json', Buffer.from(JSON.stringify({ schema: 'GitLabWorkspaceLocalWikiQualityArtifact/v1',
+          historicalOnly: true, authorizesDelivery: false, receipt: { ...receipt,
+            findings: receipt.findings.map(item => ({ ...item, message: clean(item.message, 8192) })),
+            checks: receipt.checks.map(item => ({ ...item, command: clean(item.command, 2048) })),
+            ...(receipt.coverage ? { coverage: { ...receipt.coverage, errors: receipt.coverage.errors.map(item => clean(item, 8192)) } } : {})
+          } }, null, 2) + '\n'), 'application/json', '完整 Wiki 品質檢查收據');
+      }
+      const context = (record.spec as typeof record.spec & { workContext?: WorkContext }).workContext;
+      const attempts = (record as typeof record & { validationAttempts?: ValidationAttempt[] }).validationAttempts;
+      if (context !== undefined) {
+        if (!validWorkContext(context)) throw new Error('需求來源與驗證設定無法核對；保留執行資料。');
+        if (context.workId) manifest.workId = context.workId;
+        const requirement = context.requirement, source = requirement.source;
+        const snapshot = { source: { kind: source.kind, identityDigest: sha256(Buffer.from(source.identity)),
+          ...(url(source.url) ? { url: url(source.url) } : {}), ...(source.revision ? { revision: clean(source.revision, 4096) } : {}) },
+          title: clean(requirement.title, 4096), description: clean(requirement.description, 128_000),
+          ...(requirement.supplement === undefined ? {} : { supplement: clean(requirement.supplement, 32_000) }),
+          capturedAt: requirement.capturedAt, contentDigest: requirement.contentDigest,
+          criteria: requirement.criteria.map(item => ({ id: item.id, text: clean(item.text, 4096), contentDigest: item.contentDigest })) };
+        const profile = context.verification;
+        await add('provenance/work-context.json', Buffer.from(JSON.stringify({ schema: 'GitLabWorkspaceWorkProvenance/v1', historicalOnly: true, authorizesDelivery: false,
+          workId: context.workId ?? null, requirement: snapshot,
+          verification: profile ? { ...profile, commands: profile.commands.map(command => clean(command, 4096)), manualChecks: profile.manualChecks.map(item => clean(item, 4096)),
+            ...(profile.reason ? { reason: clean(profile.reason, 4096) } : {}) } : null,
+          criteria: evaluateCriteria(requirement, record.validation?.manual && record.validation.requirementDigest === requirement.contentDigest
+            ? requirement.criteria.filter(item => record.validation!.manual!.checks.includes(item.text)).map(item => ({ criterionId: item.id,
+              criterionDigest: item.contentDigest, state: 'passed' as const, evidence: ['human-verification:' + record.validation!.manual!.confirmedAt] })) : []),
+          digestUse: 'original-host-snapshot-before-redaction; historical-evidence-only' }, null, 2) + '\n'),
+        'application/json', '來源需求、驗證設定與驗收證據摘要');
+      }
+      if (attempts !== undefined) {
+        if (!validValidationAttempts(attempts)) throw new Error('驗證嘗試紀錄無法核對；保留執行資料。');
+        await add('validation/attempts.json', Buffer.from(JSON.stringify({ schema: 'GitLabWorkspaceValidationAttempts/v1', historicalOnly: true, authorizesDelivery: false,
+          attempts: attempts.map(attempt => ({ id: attempt.id, cycle: attempt.cycle, startedAt: attempt.startedAt,
+            ...(attempt.completedAt ? { completedAt: attempt.completedAt } : {}), cwd: clean(attempt.cwd, 4096),
+            ...(attempt.artifactDigest ? { artifactDigest: attempt.artifactDigest } : {}), ...(attempt.requirementDigest ? { requirementDigest: attempt.requirementDigest } : {}),
+            ...(attempt.profileDigest ? { profileDigest: attempt.profileDigest } : {}), state: attempt.state, ...(attempt.reason ? { reason: clean(attempt.reason, 8000) } : {}),
+            commands: attempt.commands.map(command => ({ command: clean(command.command, 8192), ...(command.cwd ? { cwd: clean(command.cwd, 4096) } : {}),
+              ...(command.exitCode === undefined ? {} : { exitCode: command.exitCode }), ...(command.signal ? { signal: clean(command.signal, 100) } : {}),
+              ...(command.startedAtMs === undefined ? {} : { startedAtMs: command.startedAtMs }), ...(command.completedAtMs === undefined ? {} : { completedAtMs: command.completedAtMs }) })) })) }, null, 2) + '\n'),
+        'application/json', '各次驗證結果與失敗紀錄');
+      }
       const operation = (value: { kind: string; state: string; key: string; resourceId?: number; sha?: string; url?: string; bodyHash?: string }) => ({
         kind: text(value.kind, 100), state: text(value.state, 100), operationKeyHash: sha256(Buffer.from(value.key)),
         ...(Number.isSafeInteger(value.resourceId) ? { resourceId: value.resourceId } : {}),
@@ -296,6 +347,11 @@ export class CodexResultStore {
       for (const temporary of temporaryValues.filter(value => value !== record.spec.prompt)) requirementSummary = requirementSummary.split(temporary).join('[已清理的執行資料]');
       const validation = record.validation ? { cwd: text(record.validation.cwd, 4096), cwdUse: 'historical-evidence-only',
         artifactDigest: record.validation.artifactDigest, testedAt: record.validation.testedAt,
+        ...(record.validation.requirementDigest ? { requirementDigest: record.validation.requirementDigest } : {}),
+        ...(record.validation.profileDigest ? { profileDigest: record.validation.profileDigest } : {}),
+        ...(record.validation.manual ? { manual: { confirmedAt: record.validation.manual.confirmedAt,
+          checks: record.validation.manual.checks.map(check => clean(check, 4096)) } } : {}),
+        ...(record.validation.noChanges ? { noChanges: true } : {}),
         commands: record.validation.commands.slice(0, 100).map(item => ({ command: clean(item.command, 2000), exitCode: item.exitCode,
           ...(item.cwd ? { cwd: text(item.cwd, 4096) } : {}),
           ...(Number.isSafeInteger(item.startedAtMs) ? { startedAtMs: item.startedAtMs } : {}),
@@ -306,7 +362,7 @@ export class CodexResultStore {
         restorePrerequisite: manifest.restore ? { originalRepository: manifest.restore.originalRepository, baseSha: manifest.restore.baseSha } : null,
         unknown: [...(!requirementSummary ? ['原需求摘要未提供'] : []), ...(!skills.length ? ['必要 Skills 未記錄'] : []),
           ...(skills.some(skill => !skill.fingerprint) ? ['部分 Skills 執行時 fingerprint 未記錄，接續前須重新核對'] : []),
-          ...(!testCommands.length ? ['指定的測試命令未記錄'] : []), ...(!plan.length ? ['已完成與待辦計畫未記錄'] : []), ...(!validation ? ['最後原生驗證證據未記錄'] : [])] }, null, 2) + '\n'),
+          ...(!testCommands.length && !validation?.manual ? ['指定的測試命令未記錄'] : []), ...(!plan.length ? ['已完成與待辦計畫未記錄'] : []), ...(!validation ? ['最後驗證證據未記錄'] : [])] }, null, 2) + '\n'),
       'application/json', '需求、Skills、測試與已完成待辦摘要');
       const handoff = ['# ' + manifest.title, '', manifest.summary, '',
         ...(provisional ? ['這是暫存交接成果，發布結果尚未核對。原工作環境仍須保留；先依 delivery/pending-operations.json 在 GitLab 核對已送出的操作，確認後才人工繼續，避免重複發布。這份套件不授權清理或恢復自動發布。', ''] : []),
@@ -314,9 +370,9 @@ export class CodexResultStore {
         ...artifacts.map(artifact => `- [${artifact.name.replace(/[[\]]/g, '')}](${artifact.path.split('/').map(encodeURIComponent).join('/')})`), '',
         '## 接續前核對', '',
         ...(skills.length ? skills.map(skill => `- ${skill.required ? '必要' : '額外'} Skill：${skill.name}；fingerprint：${skill.fingerprint ?? '未知，須重新核對'}`) : ['- 必要 Skills 未記錄；須依目前專案重新確認。']),
-        ...(testCommands.length ? testCommands.map(command => '- 指定測試：' + command) : ['- 指定測試命令未知；須依目前專案確認。']),
+        ...(testCommands.length ? testCommands.map(command => '- 指定測試：' + command) : validation?.manual ? ['- 本次文件變更採人工驗收；未執行自動檢查。'] : ['- 指定測試命令未知；須依目前專案確認。']),
         ...(plan.length ? plan.map(item => `- ${item.status === 'completed' ? '已完成' : item.status === 'inProgress' ? '進行中' : '待辦'}：${item.step}`) : ['- 已完成與待辦計畫未記錄；請先核對現有成果。']),
-        validation ? `- 最後驗證時間：${validation.testedAt}；來源 digest：${validation.artifactDigest}。task-summary.json 的 cwd 僅為歷史執行證據，接續請使用新工作目錄。` : '- 最後原生驗證證據未記錄；接續後須重新驗證。',
+        validation ? `- 最後${validation.manual ? '人工驗收' : '驗證'}時間：${validation.testedAt}；來源 digest：${validation.artifactDigest}。task-summary.json 的 cwd 僅為歷史執行證據，接續請使用新工作目錄。` : '- 最後驗證證據未記錄；接續後須重新驗證。',
         '- 在新工作目錄依目前專案文件重新安裝依賴。', '',
         ...(manifest.restore ? ['## 手動接續', '', `保留的原 Repo：${JSON.stringify(manifest.restore.originalRepository)}`,
           `必要基礎版本：\`${manifest.restore.baseSha}\`。這份套件只包含本次變更，不是整個 Repo 的備份。`, '',
@@ -342,7 +398,8 @@ export class CodexResultStore {
       typeof manifest.title !== 'string' || manifest.title.length > 200 || typeof manifest.summary !== 'string' || manifest.summary.length > 8000 ||
       !['completed', 'manual', 'deleted'].includes(manifest.reason) || !Array.isArray(manifest.artifacts) || manifest.artifacts.length > CODEX_RESULT_MAX_FILES) throw new Error('成果清單格式無法驗證。');
     if (manifest.provisional !== undefined && (manifest.provisional !== true || manifest.result?.state !== 'uncertain')) throw new Error('暫存交接成果狀態無法驗證。');
-    const allowed = new Set(['schema', 'id', 'title', 'root', 'status', 'createdAt', 'updatedAt', 'reason', 'provisional', 'summary', 'origin', 'result', 'delivery', 'restore', 'artifacts']);
+    if (manifest.workId !== undefined && !validWorkId(manifest.workId)) throw new Error('成果工作關聯識別無效。');
+    const allowed = new Set(['schema', 'id', 'title', 'root', 'status', 'createdAt', 'updatedAt', 'reason', 'provisional', 'summary', 'workId', 'origin', 'result', 'delivery', 'restore', 'artifacts']);
     if (Object.keys(manifest).some(key => !allowed.has(key))) throw new Error('成果清單含非成果資料。');
     const forbidden = new Set(['prompt', 'threadId', 'turnId', 'runtimeRoot', 'requestId', 'transcript', 'accountKey', 'baseUrl', 'spec', 'ownerPid']);
     const inspect = (value: unknown): void => {

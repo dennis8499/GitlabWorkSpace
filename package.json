@@ -14,6 +14,7 @@
     "onCommand:gitlabWorkspace.createCodexTask",
     "onCommand:gitlabWorkspace.createCodexTaskFromSelection",
     "onCommand:gitlabWorkspace.openRepository",
+    "onCommand:gitlabWorkspace.openLocalWiki",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
     "onCommand:gitlabWorkspace.syncLocalDefaultBranches",
@@ -115,6 +116,11 @@
         "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openRepository",
         "title": "開啟 Repo 版控"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.openLocalWiki",
+        "title": "本地 Wiki"
       },
       {
         "category": "GitLab Workspace",
@@ -342,6 +348,11 @@
         {
           "command": "gitlabWorkspace.openRepository",
           "group": "inline",
+          "when": "view == gitlabWorkspace.repositories && viewItem == gitlabWorkspace.repository"
+        },
+        {
+          "command": "gitlabWorkspace.openLocalWiki",
+          "group": "knowledge@1",
           "when": "view == gitlabWorkspace.repositories && viewItem == gitlabWorkspace.repository"
         },
         {
@@ -583,5 +594,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.51.0"
+  "version": "0.52.0"
 }

@@ -17,7 +17,7 @@ export function CodexWorkflowLaunch({ tasks, source, post, compact = false, disa
   tasks: readonly CodexTaskState[]; source: LinkedSource; post: Post; compact?: boolean; disabled?: boolean; skillsContext?: SkillsContext;
 }) {
   const task = taskForSource(tasks, source), busy = task && (codexTaskActive(task.status) || task.status === 'queued');
-  const label = { issue: '使用 Codex 開發', 'project-wiki': '建立／更新 Wiki', 'merge-request': '一鍵 Code Review' }[source.kind];
+  const label = { issue: '使用 Codex 開發', 'project-wiki': '產生 GitLab Wiki 草稿', 'merge-request': '一鍵 Code Review' }[source.kind];
   return <section class={`codex-workflow-launch ${compact ? 'compact' : ''}`} aria-label={label}>
     <div class="button-row"><button type="button" class={compact ? 'quiet small' : 'primary'} disabled={disabled}
       onClick={() => post(busy ? { type: 'showCodexTask', taskId: task.id } : { type: 'startCodexTask', source })}>

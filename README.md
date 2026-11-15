@@ -2,7 +2,7 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
-0.51.0 整合獨立 Codex 任務視窗、Repo Wiki、Group 需求探索與 Issue 草稿、Issue 開發及雙 Reviewer。Issue 使用獨立 Clone，遠端寫入綁定人工確認與成果收據；BMAD 提供五入口、三個常用操作及按需載入。搭配 WorkflowKit 1.10.0 使用，詳見 [版本說明](docs/releases/v0.51.0.md)及[驗證範圍](docs/work/work-20261114-task-workflows/verification.md)。
+0.52.0 串起需求探索與 Issue 草稿、功能實作、MergeReviewer、ReleaseReviewer 及本地 Codebase LLM Wiki。保留獨立入口與首次準備後的一鍵操作，新增需求版本與驗證證據、有界修復迴圈、純文件人工驗收及可追溯的下一步；GitLab 寫入仍須人工檢閱確認。詳見 [版本說明](docs/releases/v0.52.0.md)及[驗證範圍](docs/work/work-20261115-workflow-experience/verification.md)。
 
 ## 目錄
 
@@ -16,6 +16,8 @@
 - [授權](#授權)
 
 ## 功能
+
+0.52.0 的本地 Wiki 原生入口可離線使用；既有任務與獨立工具不必補建整條流程。操作見 [Codex 工作台](docs/codex-bridge.md)，實作與驗證範圍見[本輪紀錄](docs/work/work-20261115-workflow-experience/verification.md)。
 
 - 開啟工作台會先進入共用 Dashboard，顯示本機 Repo、Git／Skills／BMAD 狀態與 GitLab 選用登入入口；已選 Group 時也會載入遠端專案、Issue 與 MR 摘要。
 - 瀏覽 GitLab 群組及其子群組中的專案。
@@ -251,7 +253,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 5. 在 VS Code 開啟本機專案資料夾，以原生 **設定** 的 `gitlabWorkspace.projectRoot` 管理共用根目錄；留白使用所選資料夾。Git 根目錄使用 repository profile，一般資料夾使用 Group profile，本機根目錄不由 GitLab 帳號或 Group 決定。在 **工具與環境** 選擇 WorkflowKit 來源，按「檢查最新正式版」，再按「下載並安裝」。安裝前會檢查介面、附件摘要及舊工具安裝歸屬。
 6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製後自行在相同根目錄啟動 Codex CLI，再貼上執行。也可選擇 Wiki 圖表、知識維護或分支審查功能。BMAD 頁面則輸入需求、複製提示詞，並在相同根目錄啟動 Codex；預設產物位於 `_bmad-output/`。
 7. 從原生 **我的工作** 點 Issue／MR 可直接開啟詳情，也可從工作台預覽清單進入。命令 **開啟 Issue 詳情** 未帶參數時提供目前 Group 的搜尋選單。Issue／MR 分頁以方向鍵移焦點，再用 Enter／Space 啟用；MR 審查使用固定來源與目標 SHA。
-8. 需要保存新知識時，從 **Skills 功能指引** 選擇 Ingest 或 Synthesis，請 Codex 依實際來源更新 Wiki、index／log 與人工 notes。既有工作及交付紀錄保留，但不再提供續作或交付任務入口。
+8. 需要保存新知識時，從本機 Repo 列或命令選單開啟 **本地 Wiki**，選擇查詢、建立／更新或品質檢查；也可從 **Skills 功能指引** 選擇 Ingest 或 Synthesis。任務視窗保留接續、檢閱差異及交付入口；交付至 GitLab 前仍須人工確認。
 
 查看操作紀錄時，從工作台 **工具與環境 → 開啟 Log**，或執行命令 **GitLab Workspace: 開啟 Log**，即可開啟並聚焦原生 Output 的「GitLab Workspace」通道。背景記錄與錯誤不會自動展開 Output，也不會切換工作台頁面。原生 Log 的保存與輪替交由 VS Code 管理；舊版自行保存的 JSONL 檔案不再讀取、不遷移，也不自動刪除。
 

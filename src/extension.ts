@@ -136,6 +136,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       const id = typeof value === 'string' ? value : value?.kind === 'repository' ? value.repository.id : await navigation?.findRepository();
       if (id) await getWorkspace().navigateTo('git', id);
     }),
+    registerLoggedCommand('gitlabWorkspace.openLocalWiki', (value?: string | RepositoryNode) => getWorkspace().openLocalWiki(
+      typeof value === 'string' ? value : value?.kind === 'repository' ? value.repository.path : undefined)),
     registerLoggedCommand('gitlabWorkspace.refreshRepositories', () => navigation?.refreshRepositories()),
     registerLoggedCommand('gitlabWorkspace.refreshMyWork', () => navigation?.refreshMyWork()),
     registerLoggedCommand('gitlabWorkspace.loadMoreMyWork', (node?: WorkNode) => navigation?.loadMore(node)),

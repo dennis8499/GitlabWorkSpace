@@ -6,6 +6,8 @@ import type { CodexResultManifest } from './resultProtocol';
 import type { CodexDeliveryState, CodexValidationEvidence } from './deliveryProtocol';
 import type { CodexGroupAnalysisBinding } from './workflowProtocol';
 import type { CodexTaskWorkspaceBinding } from './taskWorkspaceProtocol';
+import type { WorkContext, ValidationAttempt, WorkLink } from './workContextProtocol';
+import type { LocalWikiBaseline } from '../workspace/localWikiQualityProtocol';
 export type { CodexTaskOrigin, CodexTaskResult } from './workflowProtocol';
 export type { CodexLaunchDraft, CodexLaunchPatch, CodexLaunchCheck } from './launchProtocol';
 
@@ -26,9 +28,12 @@ export type CodexTaskSource = (
     testCommands?: string[];
     automaticDelivery?: boolean;
     oneClick?: boolean;
+    expectedScope?: string;
     returnTo?: { mode: 'clone' | 'developer' | 'reviewer' | 'sa' | 'bmad'; issueTab?: 'content' | 'relations' | 'time' };
   };
 export interface CodexTaskSpec {
+  workContext?: WorkContext;
+  localWikiBaseline?: LocalWikiBaseline;
   taskWorkspace?: CodexTaskWorkspaceBinding;
   bmadArtifacts?: { outputRoot: string; projectChangesRoot?: string; seedRoot?: string };
   source: CodexTaskSource;
@@ -45,7 +50,8 @@ export interface CodexTaskSpec {
   writableRoots: string[];
   environmentKey: string;
   preparationKey?: string;
-  review?: { tool: ReviewerToolId; requestId: string; revision: string; runtimeRoot?: string; workspaceRoot?: string; repositoryPath?: string };
+  review?: { tool: ReviewerToolId; requestId: string; revision: string; runtimeRoot?: string; workspaceRoot?: string; repositoryPath?: string;
+    launchBinding?: { path: string; sha256: string } };
   commitReview?: { runtimeRoot: string };
   routing?: ModelRoutingBinding;
   executionRoot?: string;
@@ -89,6 +95,10 @@ export interface CodexTaskControls {
   approvals?: CodexApprovalSettings;
 }
 export interface CodexTaskState {
+  workContext?: WorkContext;
+  validationAttempts?: ValidationAttempt[];
+  implementationCycles?: number;
+  workLinks?: WorkLink[];
   id: string;
   title: string;
   root: string;
@@ -225,7 +235,7 @@ export type CodexCommand =
   | { action: 'create'; context?: 'none' | 'selection' | 'file' | 'diff' }
   | { action: 'storage' }
   | { action: 'manage-local-connections' }
-  | { action: 'manage' | 'reconcile' | 'diagnostics' | 'fork' | 'goal' | 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare' | 'stop-cleanup' | 'manual-handoff' | 'retry-delivery' | 'confirm-delivery' | 'publish-group-issues' | 'apply-project-changes' | 'export-result' | 'copy-handoff' | 'new-from-result' | 'restore-result'; taskId: string }
+  | { action: 'manage' | 'reconcile' | 'diagnostics' | 'fork' | 'goal' | 'handoff' | 'handoff-review' | 'open-worktree' | 'remove-worktree' | 'regenerate-wiki' | 'mr-fix' | 'reprepare' | 'stop-cleanup' | 'manual-handoff' | 'retry-delivery' | 'confirm-delivery' | 'confirm-documentation' | 'publish-group-issues' | 'apply-project-changes' | 'export-result' | 'copy-handoff' | 'new-from-result' | 'restore-result'; taskId: string }
   | { action: 'open-artifact'; taskId: string; artifactId: string }
   | { action: 'metadata'; taskId: string; title?: string; pinned?: boolean; archived?: boolean }
   | { action: 'approvals'; taskId: string; settings: CodexApprovalSettings }
@@ -243,9 +253,12 @@ export function canonicalReviewRequestId(value: string): string {
 }
 export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
   const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, result,
-    revision, pinned, archived, progress, recovery, goal, publication, publications, delivery, validation, cleanupState } = record;
-  return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, isolated: !!(record.spec.workflow?.worktree || record.spec.workflow?.managedClone || record.spec.taskWorkspace), selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin, result,
+    revision, pinned, archived, progress, recovery, goal, publication, publications, delivery, validation, cleanupState,
+    validationAttempts, implementationCycles } = record;
+  return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, isolated: !!(record.spec.workflow?.worktree || record.spec.workflow?.managedClone || record.spec.taskWorkspace), selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin,
+    result: result?.wikiQuality ? { ...result, wikiQuality: undefined } : result,
     revision, pinned, archived, progress: progress ? { ...progress, diff: undefined, hasDiff: !!progress.diff } : undefined, recovery, goal, publication, publications, delivery, validation, cleanupState,
+    workContext: record.spec.workContext, validationAttempts, implementationCycles,
     pendingMessages: record.queuedMessages?.filter(item => item.state === 'queued' || item.state === 'sending').length,
     uncertainMessages: record.queuedMessages?.filter(item => item.state === 'uncertain').length,
     messageQueue: record.queuedMessages?.flatMap(item => item.state === 'accepted' ? [] : [{ id: item.id, text: item.text, state: item.state }]),

@@ -7,7 +7,7 @@ import os from 'node:os';
 import { watch, type FSWatcher } from 'node:fs';
 import { CodexAppServer, type RpcMessage } from './appServer';
 import { CodexProtocolAdapter, codexCapabilities, invalidateCodexModelCatalog } from './adapter';
-import { importLegacyReviewCheckpoint, inspectNativeReview, prepareReviewWritableRoots } from './nativeReview';
+import { importLegacyReviewCheckpoint, inspectNativeReview, mergeNativeReviewTimings, prepareReviewWritableRoots } from './nativeReview';
 import { projectCodexProgress } from './progress';
 import { boundTranscriptCache, codexItemBytes } from './historyBudget';
 import type { CodexApprovalSettings, CodexGoal, CodexTaskSource } from './protocol';
@@ -30,11 +30,17 @@ import type { CodexDeliveryState, CodexDeliveryTargetPreview } from './deliveryP
 import { implementationDigest, sameWorkflowPath, readWorkflowReport, workflowHash } from './projectWorkflows';
 import { implementationCommits } from './projectWorkflows';
 import { confirmCodexDelivery, deliveryCommitMessage, deliveryConfirmationDigest, issueDeliveryDigest, issueDeliverySummary } from './delivery';
-import { matchesNativeCommand } from './nativeCommand';
 import { GitLabReadCache as ReadCache, abortedReadError } from '../api/gitLabReadCache';
 import { networkRuntimeRoot } from '../api/localNetworkLease';
 import { cleanupTaskStorage, type CodexCleanupPlan } from './taskCleanup';
 import { ProjectWikiStore } from './projectWiki';
+import { collectFinalVerification, FinalVerificationError, unchangedVerificationFailure } from './finalVerification';
+import { freezeVerificationProfile } from './workContext';
+import type { ValidationAttempt } from './workContextProtocol';
+import { WorkContextStore } from './workStore';
+import { workAccountScope, workSourceIdentity } from './workIntegration';
+import { isDocumentationOnly } from './documentationVerification';
+import { launcherHelperSeconds, parseReviewLaunchTimings } from './reviewLaunchTimings';
 
 type CodexConnection = { client: CodexAppServer; version: string; executable: string };
 interface CodexStartupTimings {
@@ -278,14 +284,27 @@ export class CodexBridge {
   }
   list(): CodexTaskState[] {
     const values = [...this.persisted.values(), ...[...this.savedResults.values()].filter(result => !this.persisted.has(result.id)).map(result => this.resultProjection(result))];
-    return values.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(value => {
-      if (value.retention === 'results-only') return value;
+    const groups = new Map<string, Array<{ taskId: string; kind: string; linkedAt: string }>>();
+    values.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    for (const value of values) {
+      const workId = value.workContext?.workId ?? value.savedResult?.workId;
+      if (!workId) continue;
+      const key = JSON.stringify([value.root, workId]), group = groups.get(key) ?? [];
+      if (group.length < 51) group.push({ taskId: value.id, kind: value.origin?.kind ?? value.workContext?.requirement.source.kind ?? 'task', linkedAt: value.createdAt });
+      groups.set(key, group);
+    }
+    const linked = (value: CodexTaskState) => {
+      const workId = value.workContext?.workId ?? value.savedResult?.workId;
+      return workId ? groups.get(JSON.stringify([value.root, workId]))?.filter(item => item.taskId !== value.id).slice(0, 50) : undefined;
+    };
+    return values.map(value => {
+      if (value.retention === 'results-only') return { ...value, workLinks: linked(value) };
       const saved = this.savedResults.get(value.id), current = this.records.get(value.id);
       if (saved && current?.closing) return { ...this.resultProjection(saved), cleanupState: current.cleanupState, error: current.error };
       const busy = codexTaskActive(value.status) || value.status === 'queued';
       const external = !!current?.spec.taskWorkspace && !this.ownsRecord(current) || busy && !this.owned.has(value.id);
       const settling = this.executions.has(value.id) || this.controlling.has(value.id) || this.finalizers.has(value.id) || !!this.records.get(value.id)?.closing || lockedDelivery(current);
-      return { ...structuredClone(value), queuePosition: this.queue.includes(value.id) ? this.queue.indexOf(value.id) + 1 : undefined, controls: {
+      return { ...structuredClone(value), workLinks: linked(value), queuePosition: this.queue.includes(value.id) ? this.queue.indexOf(value.id) + 1 : undefined, controls: {
         external, canPause: busy && !external && value.status !== 'pausing',
         canResume: !external && !busy && !settling && value.result?.state !== 'uncertain' && !pendingPublication(value), canDelete: !external && !busy && !settling && value.status !== 'uncertain' && value.result?.state !== 'uncertain' && !pendingPublication(value) && (!this.records.get(value.id)?.lease || this.records.get(value.id)?.lease?.released === true),
         canAutoAccept: !external && !this.records.get(value.id)?.closing && !this.finalizers.has(value.id) && value.status !== 'pausing', autoAccept: this.autoAccept.has(value.id),
@@ -398,7 +417,11 @@ export class CodexBridge {
     try {
       check(); record.cleanupState = undefined;
       record.result = await this.options.deliver(record, async state => { record.delivery = structuredClone(state); await this.save(record); }, check);
+      const mr = record.delivery?.steps.find(step => step.kind === 'merge-request' && step.state === 'confirmed');
+      if (mr?.resourceId && mr.url && record.spec.origin) record.result.followUps = [{ kind: 'merge-request', projectId: record.spec.origin.projectId,
+        iid: mr.resourceId, url: mr.url, title: `MR !${mr.resourceId}`, scope: workAccountScope(record.spec.origin) }];
       await this.save(record);
+      await this.indexWork(record);
     } finally {
       this.deliveryAborts.delete(id); await reservation.primary.release();
       for (const extra of reservation.extras) await extra.release();
@@ -827,9 +850,51 @@ export class CodexBridge {
     if (spec.review) record.reviewTimeline = [{ phase: 'queued', status: 'queued', startedAt: now }];
     await this.store.save(record); this.records.set(record.id, record); this.owned.add(record.id); this.queue.push(record.id); this.queuedAt.set(record.id, Date.now());
     this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
+    await this.indexWork(record);
     this.emit({ kind: 'tasks', tasks: this.list() }); this.schedule(); return record.id;
   }
+  private async indexWork(record: CodexTaskRecord): Promise<void> {
+    const workId = record.spec.workContext?.workId;
+    if (!workId) return;
+    try {
+      const index = new WorkContextStore(path.join(this.options.storage, 'codex-work-links'));
+      await index.attach(record.root, workId, record.id, record.spec.source.kind);
+      if (record.spec.origin) {
+        await index.bindSource(record.root, workSourceIdentity(record.spec.origin), workId);
+        const mr = record.delivery?.steps.find(step => step.kind === 'merge-request' && step.state === 'confirmed');
+        if (mr?.resourceId) await index.bindSource(record.root, workSourceIdentity({ ...record.spec.origin, kind: 'merge-request', iid: mr.resourceId }), workId);
+      }
+    } catch {
+      this.output(record.id, { id: 'work-index-' + randomUUID(), kind: 'notice', text: '工作關聯索引未完成；任務、交付收據與成果已保留，可從原入口查看。' });
+    }
+  }
   async specification(id: string): Promise<CodexTaskSpec> { await this.initialize(); return structuredClone(this.record(id).spec); }
+  async documentationPreview(id: string): Promise<{ artifactDigest: string; checks: string[] }> {
+    this.requireTrusted(); await this.initialize();
+    const record = this.record(id); this.assertOwner(record);
+    if (!implementationTask(record.spec) || !isDocumentationOnly(record.result?.files ?? []) ||
+      (record.spec.workContext?.verification?.commands.length ?? 0) > 0 || (record.spec.delivery?.testCommands?.length ?? 0) > 0 ||
+      codexTaskActive(record.status) || record.status === 'queued' || this.executions.has(id) || record.closing || lockedDelivery(record)) {
+      throw new Error('人工驗收只適用於已停止、沒有核定命令的純文件變更；程式與設定變更仍須執行必要檢查。');
+    }
+    const checks = record.spec.workContext?.requirement.criteria.map(item => item.text) ?? [];
+    return { artifactDigest: await implementationDigest(record.spec, record.result!.files!),
+      checks: checks.length ? [...checks] : ['文件符合本次需求', '文件內容與連結已人工核對'] };
+  }
+  async confirmDocumentation(id: string, expectedArtifactDigest: string, checks: string[]): Promise<void> {
+    await this.store.control(id, async () => {
+      await this.reload();
+      const preview = await this.documentationPreview(id), record = this.record(id);
+      if (preview.artifactDigest !== expectedArtifactDigest || JSON.stringify(preview.checks) !== JSON.stringify(checks)) throw new Error('文件或驗收項目已變更，請重新檢閱。');
+      const profile = freezeVerificationProfile({ kind: 'manual', commands: [], manualChecks: checks, reason: '使用者逐項人工驗收純文件變更。' });
+      const now = new Date().toISOString();
+      record.validation = { cwd: await realpath(record.spec.executionRoot ?? record.spec.origin!.repositoryRoot), artifactDigest: preview.artifactDigest,
+        testedAt: now, commands: [], manual: { confirmedAt: now, checks: [...checks] },
+        requirementDigest: record.spec.workContext?.requirement.contentDigest, profileDigest: profile.digest };
+      record.result = { ...record.result!, state: 'ready', summary: '純文件變更已由你逐項人工驗收；未執行自動檢查，GitLab 交付仍須檢閱並確認。' };
+      record.delivery = undefined; await this.save(record);
+    });
+  }
   async resultAction(id: string, action: (spec: CodexTaskSpec) => Promise<CodexTaskResult>): Promise<void> {
     this.requireTrusted(); await this.initialize();
     await this.store.control(id, async () => {
@@ -1186,7 +1251,7 @@ export class CodexBridge {
         reviewProgress = await inspectNativeReview(record.spec);
         if (reviewProgress.cleanupPending) throw new Error('報告已發布，原生清理仍待重試。');
       }
-      record.nativeReviewTimings = reviewProgress?.timings;
+      record.nativeReviewTimings = mergeNativeReviewTimings(record.nativeReviewTimings, reviewProgress?.timings);
       if (reviewProgress?.terminal) throw new Error('原生審查已取消或失敗，不能接續。');
       if (reviewProgress?.published && record.pendingMessageIsUser) message =
         `原生報告已發布，沿用固定報告回答使用者補充；保留原 request ${record.spec.review!.requestId}、證據與發布收據。\n` + message;
@@ -1194,6 +1259,10 @@ export class CodexBridge {
         record.result = { state: reviewProgress.complete ? 'ready' : 'needs-work', reportPath: reviewProgress.reportPath, summary: reviewProgress.summary };
         record.status = 'completed';
       } else for (let round = 0; round < (implementationTask(record.spec) || record.spec.review ? 3 : 1); round++) {
+      if (implementationTask(record.spec)) {
+        if ((record.implementationCycles ?? 0) >= 3) throw new FinalVerificationError('已達三輪本地實作與驗證；成果已保存，請檢閱後重新準備後續任務。', false, 'blocked');
+        record.implementationCycles = (record.implementationCycles ?? 0) + 1;
+      }
       record.turnId = undefined;
       active.turnStatus = undefined;
       if (record.goal && record.goal.status !== 'complete') record.goal.status = 'active';
@@ -1227,9 +1296,16 @@ export class CodexBridge {
       const verificationStarted = Date.now();
       let result = await this.options.completed?.(record.spec, record.id,
         mergeCodexTranscript(this.histories.get(record.id)?.items ?? [], this.outputs.get(record.id) ?? []));
-      if (implementationTask(record.spec) && result?.files?.length) {
-        await this.validateFinal(record, active, client, result.files);
-        result = await this.options.completed?.(record.spec, record.id, mergeCodexTranscript(this.histories.get(record.id)?.items ?? [], this.outputs.get(record.id) ?? []));
+      if (implementationTask(record.spec) && Array.isArray(result?.files) &&
+        (result.files.some(file => !/^(?:_bmad(?:-output)?|\.agents|\.codex)\//.test(file)) || result.files.length === 0 && result.state === 'ready')) {
+        record.result = result;
+        try {
+          await this.validateFinal(record, active, client, result.files);
+          result = await this.options.completed?.(record.spec, record.id, mergeCodexTranscript(this.histories.get(record.id)?.items ?? [], this.outputs.get(record.id) ?? []));
+        } catch (error) {
+          if (!(error instanceof FinalVerificationError) || !error.retryable) throw error;
+          result = { ...result, state: 'needs-work', summary: error.message };
+        }
       }
       active.startup.verificationMs = (active.startup.verificationMs ?? 0) + Date.now() - verificationStarted;
       if (result) record.result = result;
@@ -1240,7 +1316,7 @@ export class CodexBridge {
           await this.options.cleanupReview(record.spec, active.abort.signal);
           inspected = await inspectNativeReview(record.spec);
         }
-        record.nativeReviewTimings = inspected.timings;
+        record.nativeReviewTimings = mergeNativeReviewTimings(record.nativeReviewTimings, inspected.timings);
         const differentReport = !!result?.reportPath && (!inspected.reportPath || !sameWorkflowPath(result.reportPath, inspected.reportPath));
         record.result = {
           ...(inspected.published && !differentReport ? result : undefined),
@@ -1255,7 +1331,7 @@ export class CodexBridge {
         reviewProgress = inspected;
         message = `沿用原 request ${record.spec.review.requestId}、固定 SHA、目前模型與強度。先讀原生 status --summary 與 checkpoint，接續未完成證據、草稿、check、finish；已發布時核對收據後交付。可取得的必要證據需完成，真正缺失才保留缺口。`;
       } else {
-        if (!implementationTask(record.spec) || result?.state !== 'needs-work' || round === 2) { record.status = 'completed'; break; }
+        if (!implementationTask(record.spec) || result?.state !== 'needs-work' || round === 2 || (record.implementationCycles ?? 0) >= 3) { record.status = 'completed'; break; }
         message = `${result.summary}\n請沿用原 Issue 與工作分支，接續 BMAD 的實作及測試。已有規格時直接接續 Build；修正失敗測試並以實際命令驗證。不得自動提交、推送或建立 MR。`;
       }
       }
@@ -1263,7 +1339,7 @@ export class CodexBridge {
       if (error && typeof error === 'object' && 'workflowCleanupUncertain' in error) active.cleanupFailed = true;
       if (record.spec.origin && !record.spec.review && active.turnStatus === 'completed' && !active.abort.signal.aborted && !active.cleanupFailed) {
         record.status = 'completed'; record.error = this.errorText(error);
-        record.result = { state: 'needs-work', summary: `成果尚未就緒：${record.error}` };
+        record.result = { ...record.result, state: 'needs-work', summary: `成果尚未就緒：${record.error}` };
       }
       else if (record.spec.routing && (record.status as CodexTaskState['status']) === 'failed') record.error = this.errorText(error);
       else if (record.spec.review && active.turnStatus === 'completed' && !active.abort.signal.aborted && !active.cleanupFailed) {
@@ -1325,10 +1401,22 @@ export class CodexBridge {
   private async validateFinal(record: CodexTaskRecord, active: ActiveExecution, client: CodexAppServer, files: string[]): Promise<void> {
     const cwd = await realpath(record.spec.executionRoot ?? record.spec.origin!.repositoryRoot);
     const existing = mergeCodexTranscript(this.histories.get(record.id)?.items ?? [], this.outputs.get(record.id) ?? []);
-    const configured = record.spec.delivery?.testCommands?.filter(command => command.trim()) ?? [];
+    const profile = record.spec.workContext?.verification;
+    const configured = (profile?.commands ?? record.spec.delivery?.testCommands)?.filter(command => command.trim()) ?? [];
     const commands = configured.length ? configured : [...new Set(existing.filter(item => item.kind === 'command' && item.exitCode === 0 && item.cwd && sameWorkflowPath(item.cwd, cwd) && /\b(test|pytest|vitest|jest|mocha|ctest|unittest)\b/i.test(item.command ?? '')).map(item => item.command!))].slice(-16);
-    if (!commands.length) throw new Error('缺少已核定的測試入口；請設定測試命令後接續，成果已保留。');
     const digest = await implementationDigest(record.spec, files);
+    const attempt: ValidationAttempt = { id: randomUUID(), cycle: record.implementationCycles ?? 1, startedAt: new Date().toISOString(), cwd,
+      artifactDigest: digest, requirementDigest: record.spec.workContext?.requirement.contentDigest,
+      profileDigest: profile?.digest ?? freezeVerificationProfile({ kind: 'code', commands }).digest,
+      state: 'incomplete', commands: commands.map(command => ({ command })) };
+    (record.validationAttempts ??= []).push(attempt);
+    if (record.validationAttempts.length > 100) record.validationAttempts.splice(0, record.validationAttempts.length - 100);
+    record.validation = undefined;
+    if (!commands.length) {
+      attempt.state = 'blocked'; attempt.reason = '缺少已核定的驗證入口；可使用適用的 build、lint 或 test 命令，成果已保留。';
+      attempt.completedAt = new Date().toISOString(); await this.save(record);
+      throw new FinalVerificationError(attempt.reason, false, attempt.state);
+    }
     record.validation = undefined; active.validationItems = []; active.validationStarted = Date.now();
     record.turnId = undefined; active.turnStatus = undefined; record.progress = { ...record.progress, phase: 'verifying' }; await this.save(record);
     const finished = new Promise<void>(resolve => { active.finish = resolve; });
@@ -1337,14 +1425,35 @@ export class CodexBridge {
         input: [{ type: 'text', text: `執行最後驗證。只在 ${cwd} 原樣執行下列已核定命令，不修改來源、不提交或推送；需要權限時沿用正常核准流程，失敗或需求問題如實回報。\n${commands.map(command => JSON.stringify(command)).join('\n')}` }],
         ...(record.spec.model ? { model: record.spec.model } : {}), ...(record.spec.effort ? { effort: record.spec.effort } : {}),
         ...active.turnSettings }, { signal: active.abort.signal });
-      record.turnId = dispatched.turn?.id; if (!record.turnId) throw new Error('最後驗證未取得有效回合。');
-      await finished; active.abort.signal.throwIfAborted();
-      const items = active.validationItems.filter(item => item.turnId === record.turnId && item.final && item.exitCode === 0 && item.cwd && sameWorkflowPath(item.cwd, cwd));
-      const evidence = commands.map(command => items.find(item => matchesNativeCommand(item.command ?? '', command)));
-      if (active.turnStatus !== 'completed' || evidence.some(item => !item) || digest !== await implementationDigest(record.spec, files)) throw new Error('最後驗證缺少原生執行證據、測試失敗或來源已改變；不會自動提交。');
+      record.turnId = dispatched.turn?.id; if (!record.turnId) throw new FinalVerificationError('最後驗證未取得有效回合。', false, 'incomplete');
+      attempt.turnId = record.turnId; await this.save(record);
+      await finished;
+      Object.assign(attempt, collectFinalVerification(commands, active.validationItems, cwd, record.turnId,
+        active.turnStatus === 'completed' && !active.abort.signal.aborted));
+      if (digest !== await implementationDigest(record.spec, files) || profile?.digest !== record.spec.workContext?.verification?.digest ||
+        attempt.requirementDigest !== record.spec.workContext?.requirement.contentDigest) {
+        attempt.state = 'blocked'; attempt.reason = '來源成果、需求或驗證設定已變更，請重新檢閱後驗證。';
+      }
+      const previous = record.validationAttempts.at(-2);
+      const stalled = unchangedVerificationFailure(previous, attempt);
+      if (stalled) attempt.reason = '相同成果的相同檢查再次失敗且沒有進展；請檢閱保存的證據後處理。';
+      attempt.completedAt = new Date().toISOString(); await this.save(record);
+      if (attempt.state !== 'passed') throw new FinalVerificationError(attempt.reason ?? '最後驗證未通過。', attempt.state === 'failed' && !stalled, attempt.state);
+      const evidence = attempt.commands;
+      const noChanges = files.length === 0 && record.result?.state === 'ready';
+      if (!files.length && !noChanges) throw new FinalVerificationError('目前沒有可交付變更，尚無需求原已符合的核對結果。', false, 'incomplete');
       record.validation = { cwd, artifactDigest: digest, testedAt: new Date().toISOString(), turnId: record.turnId,
-        commands: evidence.map(item => ({ command: item!.command!, exitCode: item!.exitCode!, cwd: item!.cwd, itemId: item!.id, startedAtMs: item!.startedAtMs, completedAtMs: item!.completedAtMs })) };
+        requirementDigest: attempt.requirementDigest, profileDigest: attempt.profileDigest, ...(noChanges ? { noChanges: true } : {}),
+        commands: evidence.map(item => ({ command: item.command, exitCode: item.exitCode!, cwd: item.cwd, itemId: item.itemId, startedAtMs: item.startedAtMs, completedAtMs: item.completedAtMs })) };
       await this.save(record);
+    } catch (error) {
+      if (!attempt.completedAt) {
+        Object.assign(attempt, collectFinalVerification(commands, active.validationItems ?? [], cwd, attempt.turnId ?? '', false));
+        attempt.state = active.abort.signal.aborted ? 'interrupted' : error instanceof FinalVerificationError ? error.state : 'blocked';
+        attempt.reason = error instanceof Error ? error.message : String(error); attempt.completedAt = new Date().toISOString();
+        await this.save(record);
+      }
+      throw error;
     } finally { active.validationItems = undefined; active.validationStarted = undefined; }
   }
   private receiveNotification(record: CodexTaskRecord, message: RpcMessage): void {
@@ -1519,6 +1628,14 @@ export class CodexBridge {
     }
     const record = this.records.get(taskId);
     if (!record || !item.id) return;
+    const launch = record.spec.review?.launchBinding;
+    if (launch && item.kind === 'command' && item.final && typeof item.exitCode === 'number' &&
+      item.command?.includes('--review-request') && item.command.includes('--expected-request-sha256') &&
+      item.command.includes(launch.sha256) && item.command.replaceAll('\\\\', '\\').includes(launch.path)) {
+      const metrics = parseReviewLaunchTimings(item.text, { exitCode: item.exitCode });
+      if (metrics) record.nativeReviewTimings = mergeNativeReviewTimings(record.nativeReviewTimings,
+        { firstDraftAt: null, capturedAt: null, publishedAt: null, helperSeconds: launcherHelperSeconds(metrics) });
+    }
     item = { ...item, threadId: item.threadId ?? record.threadId, turnId: item.turnId ?? record.turnId };
     const items = this.outputs.get(taskId) ?? [], previous = items.find(value => codexOutputKey(value) === codexOutputKey(item));
     if (previous) {

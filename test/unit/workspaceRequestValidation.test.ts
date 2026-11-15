@@ -4,6 +4,11 @@ import { isWorkspaceRequest, parseWorkspaceRequest } from '../../src/workspace/w
 import type { WorkspaceRequest } from '../../src/workspace/workspaceProtocol';
 
 const repo = 'a'.repeat(32), sha = 'b'.repeat(40);
+test('follow-up source scopes accept exact digests and reject malformed identities', () => {
+  const request = { type: 'startCodexTask', source: { kind: 'issue', projectId: 1, issueIid: 2, expectedScope: 'a'.repeat(64) } };
+  assert.equal(isWorkspaceRequest(request), true);
+  for (const expectedScope of ['a'.repeat(63), 'not-a-scope', 'a'.repeat(64) + '\n', 7]) assert.equal(isWorkspaceRequest({ ...request, source: { ...request.source, expectedScope } }), false);
+});
 const issue = { projectId: 1, issueIid: 2 }, mr = { projectId: 1, iid: 2 };
 const review = { revision: 'root:1', requestId: 'review-1', tool: 'merge-reviewer' as const };
 /** Public UI contract examples, independent of validator implementation. */
@@ -30,6 +35,7 @@ const requests = {
   cancelProjectWikiPreview: { type: 'cancelProjectWikiPreview', taskId: 'task-1' },
   publishCodexReview: { type: 'publishCodexReview', taskId: 'task-1', body: 'Review summary' },
   startCodexTask: { type: 'startCodexTask', source: { kind: 'skill', featureId: 'query', inputs: { question: 'Explain' }, revision: 'root:1' } },
+  openLocalWiki: { type: 'openLocalWiki', repository: 'C:/workspace/service' },
   listCodexTasks: { type: 'listCodexTasks' }, codexHistory: { type: 'codexHistory', taskId: 'task-1' },
   sendCodexMessage: { type: 'sendCodexMessage', taskId: 'task-1', text: 'Continue' }, cancelCodexTask: { type: 'cancelCodexTask', taskId: 'task-1' },
   pauseCodexTask: { type: 'pauseCodexTask', taskId: 'task-1' }, deleteCodexTask: { type: 'deleteCodexTask', taskId: 'task-1' },

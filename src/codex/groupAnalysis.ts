@@ -115,7 +115,9 @@ export async function startGroupAnalysis(spec: CodexTaskSpec, storage: string, p
     if (previous) { if (previous.sha !== repo.sha || previous.path !== repo.path) throw new Error('Group 來源快照收據不符。'); }
     else {
       await mkdir(path.dirname(repo.snapshotPath), { recursive: true });
-      await exportCommitSnapshot(repo.path, repo.sha, repo.snapshotPath, python);
+      await exportCommitSnapshot(repo.path, repo.sha, repo.snapshotPath, python, {
+        directory: path.join(storage, 'immutable-source-cache'), scope: JSON.stringify(['local-group', binding.groupRoot]), signal
+      });
       await atomicNetworkJson(receipt, { sha: repo.sha, path: repo.path });
     }
   }

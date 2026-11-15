@@ -8,6 +8,7 @@ export interface CodexLaunchCheck {
   repair?: 'login' | 'clone' | 'scan' | 'tools' | 'codex-login' | 'sandbox' | 'executable';
 }
 export interface CodexLaunchSourceSnapshot {
+  requirementDigest?: string;
   sourceSha: string;
   repositories?: Array<{ id: string; sha: string }>;
   targetSha?: string;
@@ -37,6 +38,8 @@ export interface CodexLaunchDraft {
   availableSkills?: CodexLaunchSkill[];
   additionalSkillIds?: string[];
   testCommands?: string[];
+  /** Detected entry points; these become required checks only after an explicit edit. */
+  suggestedTestCommands?: string[];
   automaticDelivery?: boolean;
   /** Set by the Host only when a matching saved execution preference was loaded. */
   hasPreferences?: boolean;

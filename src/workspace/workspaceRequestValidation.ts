@@ -116,7 +116,7 @@ const json: Check = value => {
 };
 const testCommands: Check = value => array(item => string(4096, 1)(item) && !/[\r\n]/.test(String(item)), 20)(value);
 const taskSourceCommon: Shape = { requirement: optional(text), additionalSkillIds: optional(array(identity, 100)), testCommands: optional(testCommands),
-  automaticDelivery: optional(boolean), oneClick: optional(boolean) };
+  automaticDelivery: optional(boolean), oneClick: optional(boolean), expectedScope: optional(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)) };
 const sourceObject = (shape: Shape): Check => object({ ...taskSourceCommon, ...shape });
 const taskSource: Check = value => record(value) && (
   value.kind === 'skill' ? sourceObject({ kind: one('skill'), featureId: identity, inputs: dictionary(text, 100), revision: key })(value)
@@ -140,7 +140,7 @@ export const workspaceRequestSchemas = {
   loadCodexUiDrafts: { requestId: identity },
   saveCodexUiDrafts: { requestId: identity, scope: value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value), updates: array(uiDraftUpdate, 100), resolveConflictIds: optional(array(identity, 100)) },
   codexCommand: { command: isCodexCommand },
-  startCodexTask: { source: taskSource }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key), force: optional(boolean) },
+  startCodexTask: { source: taskSource }, openLocalWiki: { repository: path }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key), force: optional(boolean) },
   createCodexLaunch: { source: optional(taskSource) },
   pickCodexLaunch: {},
   updateCodexLaunch: { draftId: identity, revision: integer, patch: launchPatch },

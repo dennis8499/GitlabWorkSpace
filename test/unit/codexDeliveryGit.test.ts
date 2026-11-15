@@ -12,6 +12,7 @@ import { CodexTaskStore } from '../../src/codex/taskStore';
 import { implementationDigest, startManagedWorktree } from '../../src/codex/projectWorkflows';
 import type { CodexTaskRecord } from '../../src/codex/protocol';
 import type { GitLabIssue, GitLabIssueDiscussion, GitLabMergeRequest } from '../../src/api/types';
+import { createRequirementSnapshot, freezeVerificationProfile } from '../../src/codex/workContext';
 
 const git = (root: string, ...args: string[]) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', windowsHide: true });
 
@@ -144,6 +145,49 @@ test('MR fix verifies its own newly pushed SHA and replies without opening a sec
   assert.equal(f.record.delivery?.state, 'published', f.record.delivery?.error ?? '');
   assert.equal(result.state, 'published'); assert.equal(f.discussion.notes.length, 2); assert.equal(f.mrs.length, 0);
   assert.equal(git(f.bare, 'rev-parse', 'feature').trim(), f.record.delivery!.deliveredCommitSha);
+});
+
+test('human verified documentation can be delivered without inventing a successful test command', async t => {
+  const f = await fixture(t);
+  await writeFile(path.join(f.worktree, 'source.txt'), 'initial\n');
+  await writeFile(path.join(f.worktree, 'README.md'), '# Verified documentation\n');
+  f.record.result = { state: 'ready', summary: 'Documentation reviewed by a human.', files: ['README.md'], tests: [] };
+  const requirement = createRequirementSnapshot({ source: { kind: 'issue', identity: JSON.stringify([f.record.spec.origin!.baseUrl, f.record.spec.origin!.accountKey,
+    f.record.spec.origin!.projectId, 'issue', f.record.spec.origin!.iid]) }, title: f.issue.title, description: f.issue.description ?? '' });
+  f.record.spec.workContext = { schema: 'GitLabWorkspaceWorkContext/v1', requirement };
+  const checks = ['The document matches the issue', 'Links and content were reviewed'];
+  const profile = freezeVerificationProfile({ kind: 'manual', commands: [], manualChecks: checks, reason: '使用者逐項人工驗收純文件變更。' });
+  const now = new Date().toISOString();
+  f.record.validation = { cwd: f.worktree, artifactDigest: await implementationDigest(f.record.spec, ['README.md']), testedAt: now,
+    requirementDigest: requirement.contentDigest, profileDigest: profile.digest, commands: [], manual: { confirmedAt: now, checks } };
+  await f.confirm();
+  const result = await f.service.deliver(f.record, async () => {}, () => {});
+  assert.equal(result.state, 'published', f.record.delivery?.error ?? '');
+  assert.equal(f.mrs.length, 1); assert.equal(f.record.validation.commands.length, 0);
+  assert.equal(git(f.bare, 'show', `${f.record.delivery!.deliveredCommitSha}:README.md`), '# Verified documentation\n');
+});
+
+test('manual documentation evidence cannot bypass checks for a code change or a changed requirement', async t => {
+  const f = await fixture(t);
+  await writeFile(path.join(f.worktree, 'source.txt'), 'initial\n');
+  await writeFile(path.join(f.worktree, 'service.ts'), 'export const changed = true;\n');
+  f.record.result = { state: 'ready', summary: 'Manual review is not sufficient for code.', files: ['service.ts'] };
+  const now = new Date().toISOString(), checks = ['Reviewed'];
+  const profile = freezeVerificationProfile({ kind: 'manual', commands: [], manualChecks: checks, reason: '使用者逐項人工驗收純文件變更。' });
+  f.record.validation = { cwd: f.worktree, artifactDigest: await implementationDigest(f.record.spec, ['service.ts']), testedAt: now,
+    profileDigest: profile.digest, commands: [], manual: { confirmedAt: now, checks } };
+  await f.confirm(); await f.service.deliver(f.record, async () => {}, () => {});
+  assert.equal(f.record.delivery?.state, 'needs-attention'); assert.equal(f.gitPushes.length, 0); assert.equal(f.writes.length, 0);
+
+  await rm(path.join(f.worktree, 'service.ts'));
+  await writeFile(path.join(f.worktree, 'README.md'), '# Reviewed document\n');
+  f.record.result.files = ['README.md'];
+  f.record.validation.artifactDigest = await implementationDigest(f.record.spec, ['README.md']);
+  const requirement = createRequirementSnapshot({ source: { kind: 'issue', identity: 'fixture' }, title: 'Changed requirement', description: 'New acceptance.' });
+  f.record.spec.workContext = { schema: 'GitLabWorkspaceWorkContext/v1', requirement };
+  f.record.validation.requirementDigest = 'a'.repeat(64);
+  await f.confirm(); await f.service.deliver(f.record, async () => {}, () => {});
+  assert.equal(f.gitPushes.length, 0); assert.equal(f.writes.length, 0);
 });
 
 test('fork MR delivery uses its verified source URL without adding or rewriting a Git remote', async t => {

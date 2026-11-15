@@ -11,7 +11,7 @@ import type { CodexLaunchCheck, CodexLaunchDraft, CodexLaunchPatch, CodexLaunchS
 import type { CodexTaskSource, CodexTaskSpec } from './protocol';
 
 type Repository = CodexLaunchDraft['repositories'][number];
-type StoredDraft = CodexLaunchDraft & { sourceDigest?: string; discussionDigest?: string };
+type StoredDraft = CodexLaunchDraft & { sourceDigest?: string; discussionDigest?: string; suggestionSourceDigest?: string };
 export interface CodexLaunchInspection {
   title?: string;
   repositories: Repository[];
@@ -24,6 +24,7 @@ export interface CodexLaunchOptions {
   publish(draft?: CodexLaunchDraft): void;
   inspect(source: CodexTaskSource, signal: AbortSignal): Promise<CodexLaunchInspection>;
   prepare(source: CodexTaskSource, signal: AbortSignal): Promise<CodexTaskSpec>;
+  suggestChecks?(spec: CodexTaskSpec, signal?: AbortSignal): Promise<string[]>;
   environment(root: string, signal: AbortSignal): Promise<void>;
   models(root: string, signal: AbortSignal): Promise<CodexLaunchDraft['models']>;
   skills?(root: string, source: CodexTaskSource, signal?: AbortSignal): Promise<NonNullable<CodexLaunchDraft['availableSkills']>>;
@@ -38,12 +39,13 @@ function sourceEvidence(spec: CodexTaskSpec): { snapshot: CodexLaunchSourceSnaps
     return { snapshot, discussionDigest: undefined, sourceDigest: digest(snapshot) };
   }
   if (!spec.origin) return;
-  const snapshot = { sourceSha: spec.origin.sourceSha, targetSha: spec.origin.targetSha, updatedAt: spec.origin.updatedAt, title: spec.title.slice(0, 500) };
+  const snapshot = { sourceSha: spec.origin.sourceSha, targetSha: spec.origin.targetSha,
+    ...(spec.workContext ? { requirementDigest: spec.workContext.requirement.contentDigest } : { updatedAt: spec.origin.updatedAt }), title: spec.title.slice(0, 500) };
   const discussionDigest = spec.workflow?.discussions ? digest(spec.workflow.discussions) : undefined;
   return { snapshot, discussionDigest, sourceDigest: digest([snapshot, discussionDigest]) };
 }
 function projectDraft(draft: StoredDraft): CodexLaunchDraft {
-  const value = structuredClone(draft); delete value.sourceDigest; delete value.discussionDigest; return value;
+  const value = structuredClone(draft); delete value.sourceDigest; delete value.discussionDigest; delete value.suggestionSourceDigest; return value;
 }
 export const launchRepositoryId = (value: string): string => digest(process.platform === 'win32' ? value.toLowerCase() : value);
 const linked = (source: CodexTaskSource) => ['issue', 'merge-request', 'project-wiki'].includes(source.kind);
@@ -96,7 +98,8 @@ export class CodexLaunchCoordinator {
       throw new Error('任務準備資料不屬於目前帳號或工作區。');
     }
     if (draft.additionalSkillIds !== undefined && !validIds(draft.additionalSkillIds) || draft.repositoryIds !== undefined && !validIds(draft.repositoryIds, 1000) ||
-      draft.testCommands !== undefined && !validTests(draft.testCommands) || draft.automaticDelivery !== undefined && typeof draft.automaticDelivery !== 'boolean') throw new Error('任務準備的技能、測試或交付設定無效。');
+      draft.testCommands !== undefined && !validTests(draft.testCommands) || draft.suggestedTestCommands !== undefined && !validTests(draft.suggestedTestCommands) ||
+      draft.automaticDelivery !== undefined && typeof draft.automaticDelivery !== 'boolean') throw new Error('任務準備的技能、測試或交付設定無效。');
     draft.additionalSkillIds ??= []; draft.testCommands ??= []; draft.availableSkills ??= [];
     draft.automaticDelivery = false;
     if (draft.source.kind === 'issue') draft.isolated = true;
@@ -311,6 +314,18 @@ export class CodexLaunchCoordinator {
       }
       await progress('repository', 'ready'); await progress('workflow', 'checking');
       const source = this.source(draft), prepared = await this.options.prepare(source, signal); signal.throwIfAborted();
+      const suggestionSource = digest([prepared.origin?.accountKey, prepared.origin?.repositoryRoot ?? source.repository ?? prepared.executionRoot ?? prepared.root, prepared.origin?.sourceSha]);
+      if (draft.suggestionSourceDigest !== suggestionSource) { draft.suggestedTestCommands = undefined; draft.suggestionSourceDigest = suggestionSource; }
+      if (!draft.testCommands?.length && draft.suggestedTestCommands === undefined && this.options.suggestChecks) {
+        try {
+          const suggested = await this.options.suggestChecks(prepared, signal); signal.throwIfAborted();
+          draft.suggestedTestCommands = validTests(suggested) ? [...new Set(suggested)] : [];
+        } catch (error) {
+          signal.throwIfAborted();
+          if (error && typeof error === 'object' && 'workflowCleanupUncertain' in error) throw error;
+          draft.suggestedTestCommands = [];
+        }
+      }
       const evidence = sourceEvidence(prepared);
       if (evidence) {
         const previous = draft.sourceSnapshot ?? (draft.sourceSha ? { sourceSha: draft.sourceSha, targetSha: draft.targetSha } : undefined);

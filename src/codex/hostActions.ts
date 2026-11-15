@@ -105,6 +105,20 @@ export class CodexHostActions {
       if (confirmation === '確認並交付') await bridge.confirmDelivery(command.taskId, preview.digest);
       return;
     }
+    if (command.action === 'confirm-documentation') {
+      const spec = await bridge.specification(command.taskId); this.options.check(spec);
+      const preview = await bridge.documentationPreview(command.taskId);
+      await this.options.diff(spec, command.taskId);
+      const choices = preview.checks.map((label, index) => ({ label, index }));
+      const selected = await this.vscode.window.showQuickPick(choices, { title: '人工驗收文件變更',
+        placeHolder: '先檢閱文件差異，再勾選每一項已人工核對的需求與內容', canPickMany: true, ignoreFocusOut: true });
+      if (!selected) return;
+      if (selected.length !== choices.length || choices.some(item => !selected.some(chosen => chosen.index === item.index))) {
+        await this.vscode.window.showInformationMessage('尚未核對全部文件驗收項目，成果保留供接續；未標示驗收完成。'); return;
+      }
+      await bridge.confirmDocumentation(command.taskId, preview.artifactDigest, preview.checks);
+      return;
+    }
     if (command.action === 'publish-group-issues') {
       if (!this.options.publishGroupIssues) throw new Error('目前未啟用需求探索的 Issue 發布。');
       await this.options.publishGroupIssues(command.taskId); return;

@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import { browserModuleBoundary, browserSharedModules } from './scripts/browser-module-boundary.mjs';
 
 export default tseslint.config(
   { ignores: ['node_modules/**', 'out/**', 'dist/**', '.*/**', 'docs/**', 'test/fixtures/**', 'test/overlays/**',
@@ -18,6 +19,8 @@ export default tseslint.config(
     '@typescript-eslint/no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }]
   } },
   { files: ['src/webview/**/*.{ts,tsx}'], languageOptions: { globals: globals.browser } },
+  { files: ['src/webview/**/*.{ts,tsx}', ...browserSharedModules], plugins: { 'browser-boundary': { rules: { 'no-host-runtime': browserModuleBoundary } } },
+    rules: { 'browser-boundary/no-host-runtime': 'error' } },
   { files: ['test/**/*.{ts,js,cjs,mjs}'], languageOptions: { globals: { ...globals.node, ...globals.mocha } },
     rules: { '@typescript-eslint/no-require-imports': 'off' } },
   { files: ['**/*.cjs'], rules: { '@typescript-eslint/no-require-imports': 'off' } },

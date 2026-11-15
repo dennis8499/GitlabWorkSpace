@@ -6,6 +6,9 @@ import type { GitLabIssue, GitLabIssueDiscussion, GitLabMergeRequest } from '../
 import type { CodexTaskRecord, CodexTaskResult } from './protocol';
 import type { CodexDeliveryState, CodexDeliveryStep, CodexDeliveryTargetPreview, CodexIssueDeliverySnapshot } from './deliveryProtocol';
 import { implementationCommits, implementationDigest, readWorkflowReport, sameWorkflowPath, verifyManagedExecutionRepository, workflowGit } from './projectWorkflows';
+import { isDocumentationOnly } from './documentationVerification';
+import { freezeVerificationProfile } from './workContext';
+import { assertCurrentWorkRequirement } from './workRequirement';
 
 export interface CodexDeliveryOptions {
   client(): Promise<GitLabClient>;
@@ -236,6 +239,7 @@ export class CodexDeliveryService {
           if (upload.state !== 'confirmed') {
             await this.assertConfirmation(record, state, { report }); check();
             upload.state = 'sending'; await save(); check();
+            await this.assertWriteReady(record, state, upload, client, save, check, undefined, report);
             try {
               const written = await client.uploadProjectFile(origin.projectId, `review-${record.id}.md`, Buffer.from(report), 'text/markdown');
               upload.url = written.markdown; upload.state = 'confirmed'; await save();
@@ -267,6 +271,7 @@ export class CodexDeliveryService {
 
   private async assertCurrent(record: CodexTaskRecord, client: GitLabClient, delivered: string | undefined, check: () => void): Promise<string> {
     const origin = record.spec.origin!; check();
+    await assertCurrentWorkRequirement(record.spec, client); check();
     if (origin.kind === 'issue') {
       const issue = issueDeliverySnapshot(await client.getIssue(origin.projectId, origin.iid!)); check();
       if (issue.state !== 'opened') throw new Error('來源 Issue 已關閉，請先核對需求與交付範圍。');
@@ -303,8 +308,16 @@ export class CodexDeliveryService {
     const cwd = await verifyManagedExecutionRepository(record.spec); check();
     const digest = await implementationDigest(record.spec, result.files ?? []); check();
     const evidence = record.validation;
+    const manual = evidence?.manual;
+    const manualDocumentation = !!manual && isDocumentationOnly(result.files ?? []) && manual.checks.length > 0 &&
+      Number.isFinite(Date.parse(manual.confirmedAt)) && evidence.commands.length === 0 &&
+      !(record.spec.workContext?.verification?.commands.length || record.spec.delivery?.testCommands?.length) &&
+      evidence.profileDigest === freezeVerificationProfile({ kind: 'manual', commands: [], manualChecks: manual.checks,
+        reason: '使用者逐項人工驗收純文件變更。' }).digest;
     if (!evidence || !sameWorkflowPath(evidence.cwd, cwd) || evidence.artifactDigest !== digest ||
-      !Number.isFinite(Date.parse(evidence.testedAt)) || !evidence.commands.length || evidence.commands.some(command => command.exitCode !== 0 || command.cwd && !sameWorkflowPath(command.cwd, cwd)) ||
+      record.spec.workContext && evidence.requirementDigest !== record.spec.workContext.requirement.contentDigest ||
+      !manualDocumentation && record.spec.workContext?.verification && evidence.profileDigest !== record.spec.workContext.verification.digest ||
+      !Number.isFinite(Date.parse(evidence.testedAt)) || !evidence.commands.length && !manualDocumentation || evidence.commands.some(command => command.exitCode !== 0 || command.cwd && !sameWorkflowPath(command.cwd, cwd)) ||
       !evidence.noChanges && result.state !== 'ready') throw new Error('最終修改尚無相同工作目錄與成果版本的成功測試證據。');
     if (state.artifactDigest && state.artifactDigest !== digest) throw new Error('成果已在交付途中變更；請重新測試。');
     state.artifactDigest = digest; await save();

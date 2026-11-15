@@ -85,6 +85,8 @@ export interface CodexResultManifest {
   /** Salvage export only: never authorizes deletion or implies publication was reconciled. */
   provisional?: true;
   summary: string;
+  /** Optional navigation only. A standalone result need not belong to a pipeline. */
+  workId?: string;
   origin?: CodexResultOrigin;
   result?: CodexTaskResult;
   delivery?: CodexResultDelivery;

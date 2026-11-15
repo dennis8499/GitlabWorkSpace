@@ -1,3 +1,5 @@
+import type { LocalWikiQualityReceipt } from '../workspace/localWikiQualityProtocol';
+
 export interface CodexTaskOrigin {
   kind: 'issue' | 'project-wiki' | 'merge-request';
   accountKey: string;
@@ -40,11 +42,17 @@ export interface CodexTaskResult {
   summary: string;
   files?: string[];
   tests?: Array<{ command: string; exitCode: number }>;
+  /** Complete bounded machine evidence; immutable result exports retain it as an artifact. */
+  wikiQuality?: LocalWikiQualityReceipt;
   reportPath?: string;
   draftId?: string;
   revision?: string;
   url?: string;
   replyDrafts?: Array<{ discussionId: string; body: string }>;
+  /** Explicit next-step links. They never dispatch work until the user clicks. */
+  followUps?: Array<{ kind: 'issue' | 'merge-request' | 'wiki'; projectId: number; iid?: number; url: string; title: string;
+    /** Account/server identity digest for Host matching; never an authorization. */
+    scope?: string }>;
   handoffPath?: string;
   evidence?: { sourceSha: string; branch: string; digest: string; verifiedAt: string };
 }

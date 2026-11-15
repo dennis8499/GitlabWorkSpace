@@ -3150,7 +3150,7 @@ test('offline local Repo inventory exposes every copy, scan progress, cancellati
   assert.equal(document.querySelectorAll('.local-repo-row').length, 2);
   assert.match(document.querySelector('.local-repositories-panel').textContent, /12 個資料夾/);
   assert.match(document.querySelector('.local-repositories-panel').textContent, /Git 未啟用/);
-  assert.equal(document.querySelectorAll('.local-repo-row button')[1].disabled, true);
+  assert.equal(document.querySelectorAll('.local-repo-row')[1].querySelector('button').disabled, true);
   document.querySelector('.local-repo-row button').click();
   assert.equal(view.requests.at(-1).type, 'gitOpenRepository');
   assert.equal(view.requests.at(-1).path, 'C:/workspace/alpha');
@@ -3160,6 +3160,25 @@ test('offline local Repo inventory exposes every copy, scan progress, cancellati
   await view.tick();
   document.querySelector('.repository-scan-trigger').click();
   assert.equal(view.requests.at(-1).type, 'scanRepositories');
+});
+
+test('local Wiki shortcuts remain available offline and keep source selection separate from remote drafts', async t => {
+  const data = { ...snapshot('clone'), connected: false, baseUrl: undefined, group: undefined,
+    localWorkspaceRepositories: [{ path: 'C:/workspace/服務 A', name: '服務 A', remotes: [], repositoryId: 'local-repo' }] };
+  const view = await mount({ mode: 'clone' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const shortcut = document.querySelector('.local-wiki-launch');
+  assert.ok(shortcut);
+  assert.equal(shortcut.disabled, false);
+  assert.equal(document.querySelector('.local-repositories-panel .codex-workflow-launch'), null);
+  shortcut.click(); await view.tick();
+  const request = view.requests.findLast(item => item.type === 'openLocalWiki');
+  assert.equal(request.repository, 'C:/workspace/服務 A');
+  assert.equal(view.requests.some(item => item.type === 'startCodexTask'), false);
+  const remote = await mount({ mode: 'clone' }, snapshot('clone'));
+  t.after(() => remote.dom.window.close());
+  assert.ok([...remote.dom.window.document.querySelectorAll('.codex-workflow-launch button')].some(button => button.textContent === '產生 GitLab Wiki 草稿'));
 });
 
 test('Issue preview reports loading and retry states while the work list stays visible', async (t) => {

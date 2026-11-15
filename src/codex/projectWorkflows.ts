@@ -13,7 +13,8 @@ import { projectRemoteMatches } from '../git/cloneService';
 import type { PythonRuntime } from '../workspace/pythonRuntime';
 import type { CodexOutputItem, CodexTaskResult, CodexTaskSpec } from './protocol';
 import { startManagedClone, verifyManagedClone } from './managedRepository';
-import { normalizeNativeCommand } from './nativeCommand';
+import { matchesNativeCommand, normalizeNativeCommand } from './nativeCommand';
+import { withImmutableSourceArchive, type ImmutableSourceCacheOptions } from './immutableSourceCache';
 
 const exec = promisify(execFile);
 const workflowContext = new AsyncLocalStorage<{ signal?: AbortSignal; networkEnvironment?: NodeJS.ProcessEnv; assertCurrent?(): void }>();
@@ -76,18 +77,26 @@ export async function ensureLocalCommit(root: string, sha: string,
 }
 
 /** Extract one fixed local commit, excluding all working-tree modifications. */
-export async function exportCommitSnapshot(repository: string, sha: string, destination: string, python: PythonRuntime): Promise<void> {
-  await ensureLocalCommit(repository, sha);
-  const tree = await workflowGit(repository, ['ls-tree', '-r', '-z', sha]);
-  if (tree.split('\0').some(entry => entry.startsWith('160000 '))) throw new Error('固定來源包含尚未物化的 Git submodule；請先提供完整來源，不能以不完整快照完成分析。');
+export async function exportCommitSnapshot(repository: string, sha: string, destination: string, python: PythonRuntime,
+  cache?: ImmutableSourceCacheOptions): Promise<void> {
+  const signal = cache?.signal ?? workflowContext.getStore()?.signal;
+  signal?.throwIfAborted();
+  await withWorkflowExecution({ ...workflowContext.getStore(), signal }, () => ensureLocalCommit(repository, sha));
   const parent = await realpath(path.dirname(destination));
   if (!sameWorkflowPath(parent, path.dirname(destination))) throw new Error('來源快照父目錄不可重新導向。');
   await mkdir(destination, { recursive: true });
   if (!sameWorkflowPath(await realpath(destination), destination) || (await lstat(destination)).isSymbolicLink()) throw new Error('來源快照目錄不可重新導向。');
   const archive = path.join(parent, `.snapshot-${workflowHash(destination).slice(0, 24)}.zip`);
   let cleanupUncertain = false;
-  try {
-    await workflowGit(repository, ['archive', '--format=zip', '--output', archive, sha], 60_000);
+  const capture = async (archive: string): Promise<string> => {
+    signal?.throwIfAborted();
+    const tree = await withWorkflowExecution({ ...workflowContext.getStore(), signal }, () => workflowGit(repository, ['ls-tree', '-r', '-z', sha]));
+    if (tree.split('\0').some(entry => entry.startsWith('160000 '))) throw new Error('固定來源包含尚未物化的 Git submodule；請先提供完整來源，不能以不完整快照完成分析。');
+    await withWorkflowExecution({ ...workflowContext.getStore(), signal }, () => workflowGit(repository, ['archive', '--format=zip', '--output', archive, sha], 60_000));
+    return tree;
+  };
+  const extract = async (archive: string): Promise<void> => {
+    signal?.throwIfAborted();
     const script = [
       'import pathlib,stat,sys,zipfile', 'root=pathlib.Path(sys.argv[2]).resolve()',
       'assert all(not p.is_symlink() for p in root.rglob("*")), "snapshot contains symlink"',
@@ -102,8 +111,12 @@ export async function exportCommitSnapshot(repository: string, sha: string, dest
       ' z.extractall(root)'
     ].join('\n');
     await exec(python.executable, [...python.args, '-I', '-c', script, archive, destination], {
-      env: python.env, signal: workflowContext.getStore()?.signal, windowsHide: true, timeout: 60_000, maxBuffer: 64_000
+      env: python.env, signal, windowsHide: true, timeout: 60_000, maxBuffer: 64_000
     });
+  };
+  try {
+    if (cache) await withImmutableSourceArchive({ ...cache, signal }, repository, sha, capture, source => extract(source.archive));
+    else { await capture(archive); await extract(archive); }
   } catch (error) { cleanupUncertain = !!error && typeof error === 'object' && 'workflowCleanupUncertain' in error; throw error; }
   finally { if (!cleanupUncertain) await removeOwnedStorage(parent, archive); }
 }
@@ -244,7 +257,11 @@ export async function startWikiWorkflow(spec: CodexTaskSpec, python: PythonRunti
   await mkdir(root, { recursive: true });
   await ensureLocalCommit(origin.repositoryRoot, origin.sourceSha, workflow.remote, `refs/heads/${origin.sourceBranch}`);
   await removeOwnedStorage(workflow.runtimeRoot, path.join(workflow.runtimeRoot, 'source.zip'));
-  await exportCommitSnapshot(origin.repositoryRoot, origin.sourceSha, root, python);
+  await exportCommitSnapshot(origin.repositoryRoot, origin.sourceSha, root, python, {
+    directory: path.join(path.basename(path.dirname(workflow.runtimeRoot)) === 'codex-workflows'
+      ? path.dirname(path.dirname(workflow.runtimeRoot)) : workflow.runtimeRoot, 'immutable-source-cache'),
+    scope: JSON.stringify(['gitlab', origin.baseUrl, origin.accountKey, origin.projectId])
+  });
   if (workflow.sourceRoot) await mkdir(spec.executionRoot!, { recursive: true });
   await atomicNetworkJson(receiptPath, { sha: origin.sourceSha, repository: origin.repositoryRoot });
 }
@@ -299,16 +316,22 @@ export async function collectIssueResult(spec: CodexTaskSpec, outputs: readonly 
   const untracked = await workflowGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
   const files = [...new Set((tracked + untracked).split('\0').filter(Boolean))];
   const implementation = files.some(file => !/^(?:_bmad(?:-output)?|\.agents|\.codex)\//.test(file));
-  const tests = [...new Map(outputs.filter(item => item.kind === 'command' && item.exitCode !== undefined && testCommand(item.command ?? ''))
+  const configured = spec.workContext?.verification?.commands ?? spec.delivery?.testCommands ?? [];
+  const tests = [...new Map(outputs.filter(item => item.kind === 'command' && item.exitCode !== undefined &&
+    (configured.length ? !!item.cwd && sameWorkflowPath(item.cwd, root) && configured.some(command => matchesNativeCommand(item.command ?? '', command)) : testCommand(item.command ?? '')))
     .map(item => ({ command: item.command!.slice(0, 2000), exitCode: item.exitCode! })).map(item => [item.command, item])).values()].slice(-30);
-  const passed = tests.length > 0 && tests.every(test => test.exitCode === 0);
-  const evidence = implementation && passed ? { sourceSha: origin.sourceSha, branch: origin.branch!, digest: await implementationDigest(spec, files), verifiedAt: new Date().toISOString() } : undefined;
-  return { state: implementation && passed ? 'ready' : 'needs-work', files, tests,
+  const passed = tests.length > 0 && tests.every(test => test.exitCode === 0) &&
+    (!configured.length || configured.every(command => tests.some(test => matchesNativeCommand(test.command, command))));
+  const noChanges = files.length === 0 && configured.length > 0 && outputs.some(item => item.kind === 'agent' &&
+    /already (?:satisfied|implemented)|no (?:code )?changes (?:needed|required)|原已符合|已(?:經)?符合需求|無需修改|不需修改/i.test(item.text));
+  const evidence = (implementation || noChanges) && passed ? { sourceSha: origin.sourceSha, branch: origin.branch!, digest: await implementationDigest(spec, files), verifiedAt: new Date().toISOString() } : undefined;
+  return { state: (implementation || noChanges) && passed ? 'ready' : 'needs-work', files, tests,
     evidence,
-    summary: !implementation ? '目前只有規格或流程文件；尚需接續實作與測試。'
+    summary: noChanges && passed ? '來源未修改，已執行核定檢查；請人工檢閱證據並確認需求原已符合。不建立空 Commit 或 MR。'
+      : !implementation ? '目前只有規格或流程文件；尚需接續實作與驗證。'
       : !tests.length ? `已修改 ${files.length} 個檔案；尚無可核對的測試執行結果。`
-        : !passed ? '已保留修改，但測試未全部通過；請查看執行紀錄並接續修正。'
-          : `已完成修改與測試，共 ${files.length} 個檔案，等待你檢閱及提交。` };
+        : !passed ? '已保留修改，但必要檢查未全部通過；請查看執行紀錄並接續修正。'
+          : `已完成修改與驗證，共 ${files.length} 個檔案，等待你檢閱及提交。` };
 }
 
 export async function implementationDigest(spec: CodexTaskSpec, files: readonly string[]): Promise<string> {

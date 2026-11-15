@@ -7,6 +7,8 @@ import path from 'node:path';
 import { CodexResultStore } from '../../src/codex/resultStore';
 import { CODEX_RESULT_MAX_BYTES, safeResultPath, type CodexChangeInventory, type CodexResultConfirmationAudit } from '../../src/codex/resultProtocol';
 import type { CodexTaskRecord } from '../../src/codex/protocol';
+import { createRequirementSnapshot, freezeVerificationProfile } from '../../src/codex/workContext';
+import type { LocalWikiQualityReceipt } from '../../src/workspace/localWikiQualityProtocol';
 
 function git(root: string, ...args: string[]): string {
   return execFileSync('git', ['-C', root, '-c', 'core.hooksPath=', '-c', 'user.name=Result Test', '-c', 'user.email=result@test.invalid',
@@ -56,6 +58,7 @@ test('sealing keeps immutable document results and fresh handoff without retaini
   assert.ok(manifest.artifacts.some(artifact => artifact.path === 'documents/SPEC.md'));
   assert.ok(manifest.artifacts.some(artifact => artifact.path === 'documents/sources.json'));
   assert.equal(manifest.artifacts.some(artifact => artifact.path === 'delivery/confirmation-audit.json'), false, 'older tasks without confirmation remain readable');
+  assert.equal(manifest.artifacts.some(artifact => artifact.path === 'validation/wiki-quality.json'), false, 'older results need no Wiki quality receipt');
   assert.equal((await f.store.list()).length, 1);
   await rm(f.runtime, { recursive: true, force: true });
   const spec = manifest.artifacts.find(artifact => artifact.path === 'documents/SPEC.md')!;
@@ -64,6 +67,92 @@ test('sealing keeps immutable document results and fresh handoff without retaini
   const destination = path.join(f.root, 'exported'); await f.store.exportTo(manifest.id, destination);
   assert.equal(await readFile(path.join(destination, spec.path), 'utf8'), '# Specification\n');
   await assert.rejects(f.store.exportTo(manifest.id, destination), /尚未存在/);
+});
+
+test('sealed results preserve requirement provenance and every validation outcome without executable session authority', async t => {
+  const f = await fixture(t), requirement = createRequirementSnapshot({ source: { kind: 'issue', identity: 'PRIVATE-account:issue:2',
+    url: 'https://user:PRIVATE@gitlab.test/team/repo/-/issues/2?private_token=PRIVATE' }, title: 'Update issue workflow',
+    description: '## Acceptance Criteria\n- [ ] Preserve selected issues\n\naccess_token=PRIVATE', capturedAt: '2026-11-15T01:00:00.000Z' });
+  Object.assign(f.record.spec, { workContext: { schema: 'GitLabWorkspaceWorkContext/v1', workId: 'work-one', requirement,
+    verification: freezeVerificationProfile({ kind: 'code', commands: ['npm test'], manualChecks: ['Inspect the issue selection'] }) } });
+  f.record.result!.followUps = [{ kind: 'merge-request', projectId: 4, iid: 3, scope: 'd'.repeat(64), title: 'Review delivered changes', url: 'https://user:PRIVATE@gitlab.test/team/repo/-/merge_requests/3?private_token=PRIVATE' }];
+  Object.assign(f.record, { validationAttempts: [
+    { id: 'attempt-failed', cycle: 1, startedAt: '2026-11-15T01:00:00.000Z', completedAt: '2026-11-15T01:00:01.000Z', cwd: f.runtime,
+      requirementDigest: requirement.contentDigest, state: 'failed', reason: 'First check failed', turnId: 'PRIVATE-turn-one', commands: [{ command: 'npm test', exitCode: 1, itemId: 'PRIVATE-item-one' }] },
+    { id: 'attempt-passed', cycle: 2, startedAt: '2026-11-15T01:00:02.000Z', completedAt: '2026-11-15T01:00:03.000Z', cwd: f.runtime,
+      artifactDigest: 'a'.repeat(64), requirementDigest: requirement.contentDigest, state: 'passed', turnId: 'PRIVATE-turn-two', commands: [{ command: 'npm test', exitCode: 0, itemId: 'PRIVATE-item-two' }] }
+  ] });
+  const result = await f.store.seal(f.record, [], 'manual'); assert.equal(result.workId, 'work-one');
+  assert.deepEqual(result.result!.followUps, [{ kind: 'merge-request', projectId: 4, iid: 3, scope: 'd'.repeat(64), title: 'Review delivered changes', url: 'https://gitlab.test/team/repo/-/merge_requests/3' }]);
+  const provenanceFile = result.artifacts.find(item => item.path === 'provenance/work-context.json')!, attemptsFile = result.artifacts.find(item => item.path === 'validation/attempts.json')!;
+  const provenanceText = (await f.store.readArtifact(result.id, provenanceFile.id)).bytes.toString('utf8'), provenance = JSON.parse(provenanceText);
+  const attemptsText = (await f.store.readArtifact(result.id, attemptsFile.id)).bytes.toString('utf8'), attempts = JSON.parse(attemptsText);
+  assert.equal(provenance.requirement.contentDigest, requirement.contentDigest); assert.equal(provenance.requirement.source.url, 'https://gitlab.test/team/repo/-/issues/2');
+  assert.deepEqual(provenance.criteria.map((item: { state: string }) => item.state), ['unknown']);
+  assert.equal(provenance.verification.manualChecks[0], 'Inspect the issue selection');
+  assert.deepEqual(attempts.attempts.map((item: { state: string; commands: Array<{ exitCode: number }> }) => [item.state, item.commands[0].exitCode]), [['failed', 1], ['passed', 0]]);
+  for (const artifact of [provenance, attempts]) { assert.equal(artifact.historicalOnly, true); assert.equal(artifact.authorizesDelivery, false); }
+  for (const content of [provenanceText, attemptsText]) { assert.equal(content.includes('PRIVATE'), false); assert.equal(content.includes('turnId'), false); assert.equal(content.includes('itemId'), false); assert.equal(content.includes(f.runtime), false); }
+  await rm(f.runtime, { recursive: true, force: true }); await f.store.exportTo(result.id, path.join(f.root, 'provenance-export'));
+  assert.equal(JSON.parse(await readFile(path.join(f.root, 'provenance-export', 'validation', 'attempts.json'), 'utf8')).attempts.length, 2);
+  assert.equal(JSON.parse(await readFile(path.join(f.root, 'provenance-export', 'manifest.json'), 'utf8')).result.followUps[0].scope, 'd'.repeat(64));
+});
+
+test('sealed Wiki results retain the complete quality receipt in an independent exportable artifact', async t => {
+  const f = await fixture(t);
+  const receipt: LocalWikiQualityReceipt = { schema: 'GitLabWorkspaceLocalWikiQuality/v1', scope: 'inspection', changedPages: [], unrelatedFindings: 0,
+    findings: Array.from({ length: 25 }, (_, index) => ({ severity: 'warning', code: 'stale_source', message: `Finding ${index}`, page: 'modules/a.md' })),
+    checks: [{ command: 'Codebase Wiki lint', exitCode: 1 }] };
+  f.record.result!.wikiQuality = receipt;
+  const manifest = await f.store.seal(f.record, [], 'manual');
+  const artifact = manifest.artifacts.find(item => item.path === 'validation/wiki-quality.json');
+  assert.ok(artifact);
+  assert.equal(manifest.result?.wikiQuality, undefined, 'the manifest remains compact while the full receipt is an artifact');
+  await rm(f.runtime, { recursive: true, force: true });
+  const saved = JSON.parse((await f.store.readArtifact(manifest.id, artifact.id)).bytes.toString('utf8'));
+  assert.equal(saved.historicalOnly, true); assert.equal(saved.authorizesDelivery, false);
+  assert.deepEqual(saved.receipt, receipt);
+  const exported = path.join(f.root, 'wiki-quality-export'); await f.store.exportTo(manifest.id, exported);
+  assert.deepEqual(JSON.parse(await readFile(path.join(exported, artifact.path), 'utf8')).receipt.findings, receipt.findings);
+});
+
+test('malformed Wiki quality receipts cannot be sealed and leave the original task data intact', async t => {
+  const f = await fixture(t), sentinel = path.join(f.runtime, 'keep.txt'); await writeFile(sentinel, 'preserve original');
+  f.record.result!.wikiQuality = { schema: 'GitLabWorkspaceLocalWikiQuality/v1', scope: 'partial', changedPages: ['../outside.md'],
+    findings: [], unrelatedFindings: 0, checks: [] };
+  await assert.rejects(f.store.seal(f.record, [], 'manual'), /Wiki 品質收據無法核對/);
+  assert.equal(await readFile(sentinel, 'utf8'), 'preserve original');
+});
+
+test('malformed provenance or success attempts block sealing and keep original task files', async t => {
+  const f = await fixture(t), sentinel = path.join(f.runtime, 'keep.txt'); await writeFile(sentinel, 'keep original');
+  const snapshot = createRequirementSnapshot({ source: { kind: 'issue', identity: 'issue:1' }, title: 'Issue', description: '' });
+  Object.assign(f.record.spec, { workContext: { schema: 'GitLabWorkspaceWorkContext/v1', requirement: { ...snapshot, description: 'Tampered' } } });
+  await assert.rejects(f.store.seal(f.record, [], 'manual'), /需求來源/);
+  delete (f.record.spec as typeof f.record.spec & { workContext?: unknown }).workContext;
+  Object.assign(f.record, { validationAttempts: [{ id: 'attempt-one', cycle: 1, startedAt: '2026-11-15T01:00:00.000Z', cwd: f.runtime, state: 'passed', commands: [] }] });
+  await assert.rejects(f.store.seal(f.record, [], 'manual'), /驗證嘗試/);
+  assert.equal(await readFile(sentinel, 'utf8'), 'keep original');
+});
+
+test('manual document evidence is archived as human review and does not pass changed requirement snapshots', async t => {
+  const f = await fixture(t), requirement = createRequirementSnapshot({ source: { kind: 'issue', identity: 'issue:2' }, title: 'Document issues', description: '', criteria: ['Describe issue selection'] });
+  f.record.spec.workContext = { schema: 'GitLabWorkspaceWorkContext/v1', requirement, verification: freezeVerificationProfile({ kind: 'docs', commands: [] }) };
+  f.record.validation = { cwd: f.runtime, artifactDigest: 'a'.repeat(64), requirementDigest: requirement.contentDigest, profileDigest: 'b'.repeat(64),
+    testedAt: '2026-11-15T01:00:00.000Z', commands: [], manual: { confirmedAt: '2026-11-15T01:00:00.000Z', checks: ['Describe issue selection'] } };
+  const readJson = async (id: string, relative: string) => {
+    const manifest = await f.store.read(id), artifact = manifest.artifacts.find(item => item.path === relative)!;
+    return JSON.parse((await f.store.readArtifact(id, artifact.id)).bytes.toString('utf8'));
+  };
+  await f.store.seal(f.record, [], 'manual');
+  const summary = await readJson(f.record.id, 'task-summary.json'), provenance = await readJson(f.record.id, 'provenance/work-context.json');
+  assert.deepEqual(summary.validation.manual.checks, ['Describe issue selection']); assert.deepEqual(summary.validation.commands, []);
+  assert.equal(summary.validation.requirementDigest, requirement.contentDigest); assert.equal(summary.validation.profileDigest, 'b'.repeat(64));
+  assert.equal(summary.unknown.includes('指定的測試命令未記錄'), false); assert.equal(provenance.criteria[0].state, 'passed');
+  assert.match(provenance.criteria[0].evidence[0], /^human-verification:/);
+  f.record.id = 'task-manual-stale'; f.record.spec.workContext = { ...f.record.spec.workContext, requirement: createRequirementSnapshot({ source: { kind: 'issue', identity: 'issue:2' },
+    title: 'Changed requirement', description: '', criteria: ['Describe issue selection'] }) };
+  await f.store.seal(f.record, [], 'manual'); assert.equal((await readJson(f.record.id, 'provenance/work-context.json')).criteria[0].state, 'unknown');
 });
 
 test('interrupted Group analysis retains every captured repository base before model documents exist', async t => {

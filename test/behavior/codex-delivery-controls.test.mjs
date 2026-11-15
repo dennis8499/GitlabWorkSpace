@@ -35,10 +35,115 @@ async function mount(kind, props) {
     build: { write: false, minify: false, lib: { entry: 'virtual:codex-delivery-controls', name: 'CodexDeliveryControls', formats: ['iife'] } } });
   const result = await bundle, script = (Array.isArray(result) ? result[0] : result).output.find(item => item.type === 'chunk' && item.isEntry).code;
   const dom = new JSDOM('<main></main>', { runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://fixture.invalid' });
+  dom.window.structuredClone = structuredClone;
   dom.window.sent = []; dom.window.eval(script); await dom.window.CodexDeliveryControls.mount(dom.window.document.querySelector('main'), kind, props);
   return dom;
 }
 const button = (dom, text) => [...dom.window.document.querySelectorAll('button')].find(item => item.textContent.includes(text));
+const localEvidenceTask = () => ({ id: 'local-evidence', title: 'Issue analysis', root: 'C:/group', status: 'completed', createdAt: '2026-11-15', updatedAt: '2026-11-15',
+  controls: { external: false }, result: { state: 'ready', summary: 'Review before continuing' },
+  workContext: { schema: 'GitLabWorkspaceWorkContext/v1', workId: 'work-one', requirement: { schema: 'GitLabWorkspaceRequirementSnapshot/v1',
+    source: { kind: 'issue', identity: 'issue:2', url: 'https://gitlab.test/team/repo/-/issues/2' }, title: 'Keep issue selection', description: 'Preserve the current issue selection',
+    capturedAt: '2026-11-15T01:00:00.000Z', contentDigest: 'a'.repeat(64), criteria: [{ id: 'ac-one', text: 'Keeps the selected issue', contentDigest: 'b'.repeat(64) }] },
+    verification: { kind: 'docs', commands: ['npm run lint:docs'], manualChecks: ['Inspect selected issue'], reason: 'Documentation only' } },
+  validationAttempts: [{ id: 'attempt-failed', cycle: 1, state: 'failed', reason: 'Selection check failed', commands: [{ command: 'npm run lint:docs', exitCode: 1 }] },
+    { id: 'attempt-passed', cycle: 2, state: 'passed', commands: [{ command: 'npm run lint:docs', exitCode: 0 }] }],
+  workLinks: [{ taskId: 'local-evidence', kind: 'group-analysis' }, { taskId: 'linked-build', kind: 'issue' }] });
+
+test('requirement evidence retains failures and leaves individual criteria pending after checks pass', async t => {
+  const task = localEvidenceTask(), dom = await mount('result', { task }); t.after(() => dom.window.close());
+  const content = dom.window.document.body.textContent;
+  assert.match(content, /Keeps the selected issue · 尚待逐條核對/); assert.match(content, /第 1 次 · 失敗/); assert.match(content, /第 2 次 · 通過/);
+  assert.match(content, /待人工核對：Inspect selected issue/); assert.equal(dom.window.sent.length, 0);
+  button(dom, 'Issue 開發 · linked-b').click();
+  assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent)), [{ type: 'showCodexTask', taskId: 'linked-build' }]);
+});
+
+test('created Issue and delivered MR next steps require explicit clicks and preserve distinct Reviewer intent', async t => {
+  const scope = 'd'.repeat(64);
+  const task = localEvidenceTask(); task.result.followUps = [
+    { kind: 'issue', projectId: 3, iid: 7, scope, url: 'https://gitlab.test/team/repo/-/issues/7', title: 'Created issue' },
+    { kind: 'merge-request', projectId: 3, iid: 8, scope, url: 'https://gitlab.test/team/repo/-/merge_requests/8', title: 'Delivered MR' }
+  ];
+  const dom = await mount('result', { task }); t.after(() => dom.window.close()); assert.equal(dom.window.sent.length, 0);
+  button(dom, '使用 Codex 開發').click(); button(dom, 'Merge Review').click(); button(dom, 'Release Review').click();
+  assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent)), [
+    { type: 'startCodexTask', source: { kind: 'issue', projectId: 3, issueIid: 7, expectedScope: scope } },
+    { type: 'startCodexTask', source: { kind: 'merge-request', projectId: 3, iid: 8, reviewerTool: 'merge-reviewer', expectedScope: scope } },
+    { type: 'startCodexTask', source: { kind: 'merge-request', projectId: 3, iid: 8, reviewerTool: 'release-reviewer', expectedScope: scope } }
+  ]);
+  button(dom, '在 GitLab 查看 Issue').click();
+  assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent.at(-1))), { type: 'openExternal', url: task.result.followUps[0].url });
+  assert.equal(dom.window.sent.some(request => request.type === 'openIssue'), false);
+});
+
+test('external or unsettled tasks cannot start follow-up work from a result card', async t => {
+  for (const patch of [{ status: 'uncertain' }, { controls: { external: true } }]) {
+    const task = { ...localEvidenceTask(), ...patch }; task.result.followUps = [{ kind: 'issue', projectId: 3, iid: 7, scope: 'd'.repeat(64), url: 'https://gitlab.test/issue/7', title: 'Created issue' }];
+    const dom = await mount('result', { task }); t.after(() => dom.window.close());
+    const launch = button(dom, '使用 Codex 開發'); assert.equal(launch.disabled, true); launch.click();
+    assert.equal(dom.window.sent.some(item => item.type === 'startCodexTask'), false);
+  }
+});
+
+test('legacy or invalid account scopes keep only original links and cannot dispatch numeric-ID work', async t => {
+  for (const scope of [undefined, 'invalid-scope']) {
+    const task = localEvidenceTask(); task.result.followUps = [
+      { kind: 'issue', projectId: 3, iid: 7, scope, url: 'https://original.gitlab.test/team/repo/-/issues/7', title: 'Historical issue' },
+      { kind: 'merge-request', projectId: 3, iid: 8, scope, url: 'https://original.gitlab.test/team/repo/-/merge_requests/8', title: 'Historical MR' }
+    ];
+    const dom = await mount('result', { task }); t.after(() => dom.window.close()); assert.equal(dom.window.sent.length, 0);
+    for (const text of ['使用 Codex 開發', 'Merge Review', 'Release Review']) assert.equal(button(dom, text), undefined);
+    button(dom, '在 GitLab 查看 Issue').click(); button(dom, '查看 MR').click();
+    assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent)), task.result.followUps.map(item => ({ type: 'openExternal', url: item.url })));
+  }
+});
+
+test('saved next steps retain the archived account scope across realms instead of deriving a current-account scope', async t => {
+  const task = localEvidenceTask(), originalScope = 'a'.repeat(64), anotherScope = 'b'.repeat(64);
+  task.retention = 'results-only'; task.result.followUps = [{ kind: 'merge-request', projectId: 3, iid: 8, scope: anotherScope, url: 'https://another.gitlab.test/mr/8', title: 'Current realm' }];
+  task.savedResult = { id: task.id, title: task.title, root: task.root, status: 'completed', createdAt: task.createdAt, updatedAt: task.updatedAt, reason: 'completed', summary: 'Archived work', artifacts: [],
+    result: { state: 'published', summary: 'Original realm', followUps: [{ kind: 'merge-request', projectId: 3, iid: 8, scope: originalScope, url: 'https://original.gitlab.test/team/repo/-/merge_requests/8', title: 'Original realm' }] } };
+  const dom = await mount('result', { task }); t.after(() => dom.window.close()); assert.equal(dom.window.sent.length, 0);
+  button(dom, 'Release Review').click();
+  assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent)), [{ type: 'startCodexTask', source: { kind: 'merge-request', projectId: 3, iid: 8,
+    reviewerTool: 'release-reviewer', expectedScope: originalScope } }]);
+});
+
+test('documentation-only issues offer explicit manual acceptance without claiming checks passed', async t => {
+  const task = localEvidenceTask(); task.origin = { kind: 'issue', projectPath: 'team/repo', sourceSha: 'a'.repeat(40), sourceBranch: 'main' };
+  task.result = { state: 'needs-work', summary: 'Needs manual review', files: ['README.md', 'docs/screen.png'] };
+  task.workContext.verification.commands = []; task.validationAttempts = [];
+  const dom = await mount('result', { task }); t.after(() => dom.window.close());
+  const manual = button(dom, '人工驗收文件變更'); assert.ok(manual); assert.equal(button(dom, '檢閱並確認交付'), undefined);
+  assert.equal(dom.window.sent.length, 0); manual.click();
+  assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent)), [{ type: 'codexCommand', command: { action: 'confirm-documentation', taskId: task.id } }]);
+});
+
+test('manual acceptance is unavailable for mixed code configured commands active or already accepted documents', async t => {
+  for (const variant of ['code', 'configured', 'running', 'accepted', 'external', 'empty']) {
+    const task = localEvidenceTask(); task.origin = { kind: 'issue', projectPath: 'team/repo', sourceSha: 'a'.repeat(40), sourceBranch: 'main' };
+    task.result = { state: 'needs-work', summary: 'Needs verification', files: ['README.md'] }; task.workContext.verification.commands = [];
+    if (variant === 'code') task.result.files.push('src/main.ts');
+    if (variant === 'configured') task.workContext.verification.commands = ['npm run lint:docs'];
+    if (variant === 'running') task.status = 'running';
+    if (variant === 'accepted') task.validation = { manual: { checks: ['Verified'] } };
+    if (variant === 'external') task.controls.external = true;
+    if (variant === 'empty') task.result.files = [];
+    const dom = await mount('result', { task }); t.after(() => dom.window.close());
+    assert.equal(button(dom, '人工驗收文件變更'), undefined, variant); assert.equal(dom.window.sent.some(request => request.type === 'codexCommand'), false);
+  }
+});
+
+test('human-reviewed criteria are labeled only for the exact requirement snapshot', async t => {
+  for (const matches of [true, false]) {
+    const task = localEvidenceTask(); task.validation = { requirementDigest: matches ? task.workContext.requirement.contentDigest : 'c'.repeat(64),
+      manual: { confirmedAt: '2026-11-15T01:00:00.000Z', checks: ['Keeps the selected issue', 'Inspect selected issue'] } };
+    const dom = await mount('result', { task }); t.after(() => dom.window.close());
+    assert.match(dom.window.document.body.textContent, matches ? /Keeps the selected issue · 已人工核對/ : /Keeps the selected issue · 尚待逐條核對/);
+    assert.equal(dom.window.sent.length, 0);
+  }
+});
 const resultTask = () => ({ id: 'saved-task', title: 'Saved analysis', root: 'C:/removed-source', status: 'completed', createdAt: '2026-01-01', updatedAt: '2026-01-01',
   threadId: 'deleted-thread', retention: 'results-only', cleanupState: 'complete', controls: { canResume: true, canAutoAccept: true },
   result: { state: 'ready', summary: 'Saved summary', draftId: 'removed-wiki', reportPath: 'C:/removed/report.md' },
@@ -201,6 +306,26 @@ function blockedLaunch(source) {
     updatedAt:'2026-01-01',availableSkills:[{id:'required',name:'bmad-help',description:'Workflow',required:true},{id:'extra',name:'testing',description:'Tests'}],
     additionalSkillIds:['extra'],testCommands:['npm test'],automaticDelivery:true,error:'Codex not authenticated' };
 }
+
+test('suggested verification commands fill an empty field only after explicit adoption', async t => {
+  const draft = { ...blockedLaunch({kind:'issue',projectId:1,issueIid:2}), testCommands:[], suggestedTestCommands:['npm test','npm run lint'] };
+  const dom = await mount('launch', { draft }); t.after(() => dom.window.close());
+  const field = dom.window.document.querySelector('#codex-launch-tests');
+  assert.equal(field.value, ''); assert.deepEqual(dom.window.sent, []);
+  button(dom, '採用建議驗證命令').click(); await dom.window.CodexDeliveryControls.flush();
+  assert.equal(field.value, 'npm test\nnpm run lint'); assert.equal(button(dom, '採用建議驗證命令'), undefined);
+  button(dom, '重新檢查').click();
+  const update = dom.window.sent.find(item => item.type === 'checkCodexLaunch');
+  assert.deepEqual(Array.from(update.patch.testCommands), ['npm test','npm run lint']);
+  assert.equal(dom.window.sent.some(item => item.type === 'submitCodexLaunch'), false);
+});
+
+test('verification command suggestions never replace an existing entry', async t => {
+  const draft = { ...blockedLaunch({kind:'issue',projectId:1,issueIid:2}), testCommands:['npm run typecheck'], suggestedTestCommands:['npm test'] };
+  const dom = await mount('launch', { draft }); t.after(() => dom.window.close());
+  assert.equal(button(dom, '採用建議驗證命令'), undefined);
+  assert.equal(dom.window.document.querySelector('#codex-launch-tests').value, 'npm run typecheck'); assert.deepEqual(dom.window.sent, []);
+});
 
 test('App Server-only launches keep required Skills without offering manual execution or automatic publication authority', async t => {
   for (const source of [{kind:'issue',projectId:1,issueIid:2}, {kind:'project-wiki',projectId:1},

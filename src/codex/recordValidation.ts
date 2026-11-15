@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { validValidationAttempts, validWorkContext } from './workContext';
+import { isLocalWikiBaseline, isLocalWikiQualityReceipt } from '../workspace/localWikiQuality';
 /** Stored records are untrusted even when their JSON and envelope are valid. */
 type ObjectValue = Record<string, unknown>;
 const object = (value: unknown): value is ObjectValue => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -77,7 +79,12 @@ function validDelivery(value: unknown): boolean {
 function validAdditions(value: ObjectValue): boolean {
   const spec = value.spec as ObjectValue, source = spec.source as ObjectValue;
   if (!absolute(spec.root)) return false;
+  if (!optional(spec.review, review => object(review) && optional(review.launchBinding, binding => object(binding) &&
+    keys(binding, ['path', 'sha256']) && absolute(binding.path) && digest(binding.sha256)))) return false;
+  if (!optional(spec.workContext, validWorkContext) || !optional(spec.localWikiBaseline, isLocalWikiBaseline) || !optional(value.validationAttempts, validValidationAttempts) ||
+      !optional(value.implementationCycles, item => integer(item) && Number(item) <= 3)) return false;
   if (!fields(source, ['requirement'], item => text(item, 32000)) || !fields(source, ['automaticDelivery', 'oneClick'], item => typeof item === 'boolean') ||
+    !optional(source.expectedScope, digest) ||
     !optional(source.additionalSkillIds, item => ids(item, 100)) || !optional(source.testCommands, tests) ||
     !optional(source.repositoryIds, item => source.kind === 'group-analysis' && ids(item, 1000)) ||
     !optional(spec.preparationKey, item => text(item, 4096)) ||
@@ -120,7 +127,10 @@ function validAdditions(value: ObjectValue): boolean {
       (String(ref.ref).endsWith('-' + spec.workflow.id) || String(ref.ref).includes('-' + spec.workflow.id + '-'))))) return false;
   if (!optional(spec.origin, item => object(item) && optional(item.sourceProjectId, id => Number.isSafeInteger(id) && Number(id) > 0) &&
     optional(item.sourceRemote, remote => text(remote, 200) && /^[a-z0-9][a-z0-9._/-]*$/i.test(remote)) && optional(item.pushUrl, url => text(url, 4096) && !/[\0\r\n]/.test(url)))) return false;
-  return optional(value.validation, item => object(item) && keys(item, ['cwd', 'artifactDigest', 'testedAt', 'commands', 'turnId', 'noChanges']) &&
+  return optional(value.validation, item => object(item) && keys(item, ['cwd', 'artifactDigest', 'testedAt', 'commands', 'turnId', 'noChanges', 'requirementDigest', 'profileDigest', 'manual']) &&
+    optional(item.requirementDigest, digest) && optional(item.profileDigest, digest) &&
+    optional(item.manual, manual => object(manual) && keys(manual, ['confirmedAt', 'checks']) && date(manual.confirmedAt) &&
+      list(manual.checks, 100, check => text(check, 4096)) && manual.checks.length > 0 && Array.isArray(item.commands) && item.commands.length === 0) &&
     absolute(item.cwd) && digest(item.artifactDigest) && date(item.testedAt) && optional(item.turnId, opaque) && optional(item.noChanges, flag => typeof flag === 'boolean') &&
     list(item.commands, 100, command => object(command) && keys(command, ['command', 'exitCode', 'cwd', 'itemId', 'startedAtMs', 'completedAtMs']) &&
       text(command.command, 20_000) && Number.isSafeInteger(command.exitCode) && optional(command.cwd, absolute) && optional(command.itemId, opaque) &&
@@ -131,10 +141,10 @@ export function hasCodexV3Metadata(value: unknown): boolean {
   if (!object(value) || !object(value.spec) || !object(value.spec.source)) return false;
   const spec = value.spec, source = spec.source as ObjectValue;
   return source.kind === 'group-analysis' || ['additionalSkillIds', 'testCommands', 'automaticDelivery', 'oneClick', 'repositoryIds'].some(key => source[key] !== undefined) ||
-    ['additionalSkills', 'delivery', 'groupAnalysis', 'preparationKey', 'projectRules', 'requirementSummary'].some(key => spec[key] !== undefined) ||
+    ['additionalSkills', 'delivery', 'groupAnalysis', 'preparationKey', 'projectRules', 'requirementSummary', 'workContext'].some(key => spec[key] !== undefined) ||
     object(spec.skill) && spec.skill.fingerprint !== undefined || object(spec.workflow) && spec.workflow.temporaryRefs !== undefined ||
     object(spec.origin) && ['sourceProjectId', 'sourceRemote', 'pushUrl'].some(key => (spec.origin as ObjectValue)[key] !== undefined) ||
-    ['delivery', 'validation', 'closing', 'cleanupState', 'ownedThreadIds', 'temporaryRefs'].some(key => value[key] !== undefined);
+    ['delivery', 'validation', 'validationAttempts', 'implementationCycles', 'closing', 'cleanupState', 'ownedThreadIds', 'temporaryRefs'].some(key => value[key] !== undefined);
 }
 export function validStoredCodexProjection(value: unknown): boolean {
   if (!object(value) || !['title', 'createdAt', 'updatedAt'].every(key => string(value[key])) ||
@@ -163,8 +173,12 @@ export function validStoredCodexProjection(value: unknown): boolean {
     optional(item.quota, quota => object(quota) && typeof quota.usedPercent === 'number' && quota.usedPercent >= 0 && quota.usedPercent <= 100 && optional(quota.resetsAt, integer)))) return false;
   if (!optional(value.result, item => object(item) && ['needs-work', 'ready', 'draft', 'published', 'partial', 'uncertain'].includes(String(item.state)) &&
     string(item.summary) && fields(item, ['reportPath', 'draftId', 'revision', 'url', 'handoffPath']) &&
+    optional(item.wikiQuality, isLocalWikiQualityReceipt) &&
     optional(item.files, files => array(files, string)) &&
     optional(item.tests, tests => array(tests, entry => object(entry) && string(entry.command) && Number.isSafeInteger(entry.exitCode))) &&
+    optional(item.followUps, links => list(links, 100, link => object(link) && keys(link, ['kind', 'projectId', 'iid', 'url', 'title', 'scope']) && optional(link.scope, digest) &&
+      ['issue', 'merge-request', 'wiki'].includes(String(link.kind)) && Number.isSafeInteger(link.projectId) && Number(link.projectId) > 0 &&
+      optional(link.iid, iid => Number.isSafeInteger(iid) && Number(iid) > 0) && text(link.url, 8192) && /^https?:\/\//i.test(link.url) && text(link.title, 4096))) &&
     optional(item.replyDrafts, drafts => array(drafts, entry => object(entry) && string(entry.discussionId) && string(entry.body))) &&
     optional(item.evidence, evidence => object(evidence) && ['sourceSha', 'branch', 'digest', 'verifiedAt'].every(key => string(evidence[key]))))) return false;
   if (!optional(value.modelRouting, item => object(item) && ['assessing', 'reviewing', 'complete', 'stopped'].includes(String(item.phase)) &&

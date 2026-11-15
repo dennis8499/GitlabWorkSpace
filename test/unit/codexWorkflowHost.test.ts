@@ -14,6 +14,7 @@ import * as reviewerCapabilities from '../../src/workspace/reviewerCapabilities'
 import * as pythonRuntime from '../../src/workspace/pythonRuntime';
 import * as reviewLaunch from '../../src/workspace/reviewLaunch';
 import { canCopySkillPrompt, getSkillGuideCards } from '../../src/webview/skillsGuideData';
+import { createRequirementSnapshot } from '../../src/codex/workContext';
 
 const loader = require('node:module'), original = loader._load;
 const vscodeApi = { workspace: { getConfiguration: () => ({ get: (_key: string, fallback: unknown) => fallback }) } };
@@ -28,11 +29,11 @@ async function fixture(t: test.TestContext) {
   const repo = path.join(root, 'repo'), cache = path.join(root, 'cache'), skill = path.join(root, '.agents/skills/bmad-help/SKILL.md');
   await mkdir(repo); await mkdir(cache); await mkdir(path.dirname(skill), { recursive: true }); await writeFile(skill, 'test skill');
   const project = { id: 4, name: 'project', path_with_namespace: 'team/project', default_branch: 'main', web_url: 'https://gitlab.test/team/project', http_url_to_repo: 'https://gitlab.test/team/project.git' };
-  const mr = { iid: 8, title: 'Change', source_branch: 'feature', target_branch: 'main', web_url: project.web_url + '/-/merge_requests/8', diff_refs: { head_sha: 'b'.repeat(40) } };
+  const mr = { project_id: 4, iid: 8, title: 'Change', source_branch: 'feature', target_branch: 'main', web_url: project.web_url + '/-/merge_requests/8', diff_refs: { head_sha: 'b'.repeat(40) } };
   const calls: string[] = [];
-  const client = { async getProject() { calls.push('project'); return project; },
+  const client = { baseUrl: 'https://gitlab.test', async getProject() { calls.push('project'); return project; },
     withReadSignal() { return this; }, withRequestBudget() { return this; },
-    async getIssue() { calls.push('issue'); return { iid: 8, title: 'Fix calculation', description: 'Return the correct sum.', labels: ['bug'], updated_at: 'revision-1', web_url: project.web_url + '/-/issues/8' }; },
+    async getIssue() { calls.push('issue'); return { project_id: 4, iid: 8, title: 'Fix calculation', description: 'Return the correct sum.', labels: ['bug'], updated_at: 'revision-1', web_url: project.web_url + '/-/issues/8' }; },
     async getMergeRequest() { calls.push('mr'); return mr; }, async getRepositoryBranch() { calls.push('branch'); return { commit: { id: 'a'.repeat(40) } }; } };
   const panel = Object.create(WorkspacePanel.prototype);
   panel.codexSourceReads = new Map(); panel.refreshCodexSources = false;
@@ -116,7 +117,10 @@ test('selected model and supplemental acceptance criteria retain the same admiss
     requirement: 'Also cover the empty input.', model: 'fixture-model', effort: 'high' };
   const first: CodexTaskSpec = await f.panel.prepareCodexTask(source), rechecked: CodexTaskSpec = await f.panel.prepareCodexTask(first.source, first);
   assert.equal(rechecked.environmentKey, first.environmentKey); assert.equal(rechecked.executionRoot, first.executionRoot);
-  assert.equal(rechecked.prompt, first.prompt); assert.equal(rechecked.prompt.split(source.requirement!).length - 1, 1);
+  assert.equal(rechecked.prompt, first.prompt);
+  assert.equal(rechecked.prompt.split(source.requirement!).length - 1, 1);
+  assert.equal(rechecked.workContext?.requirement.supplement, source.requirement);
+  assert.ok(rechecked.prompt.includes(rechecked.workContext!.requirement.contentDigest));
   assert.equal(rechecked.model, 'fixture-model'); assert.equal(rechecked.effort, 'high');
 });
 
@@ -182,7 +186,7 @@ test('managed MR publication verifies fresh Group membership without requiring a
     const f = await reviewPublicationFixture(t, projectPath);
     await f.panel.publishCodexReview(4, 8, 'Approved complete report', async () => {}, 'review-task');
     assert.deepEqual(f.panel.projects, [f.project], 'only the server-authorized target project is added');
-    assert.deepEqual(f.calls, ['project', 'group-projects', 'group-projects', 'load-mr', 'pending', 'remote-write', 'confirmed']);
+    assert.deepEqual(f.calls, ['mr', 'project', 'group-projects', 'group-projects', 'load-mr', 'pending', 'mr', 'remote-write', 'confirmed']);
     assert.deepEqual(f.receipts.map(receipt => receipt.state), ['pending', 'confirmed']);
   });
 });
@@ -208,6 +212,19 @@ test('managed MR publication does not classify a failed pending-receipt save as 
   f.panel.getCodexBridge().notePublication = async () => { throw failure; };
   await assert.rejects(f.panel.publishCodexReview(4, 8, 'Approved complete report', async () => {}, 'review-task'), error => error === failure);
   assert.deepEqual(f.outcomes, []); assert.equal(f.calls.includes('remote-write'), false);
+});
+
+test('managed review publication rechecks its linked Issue after beforeSend without resending changed requirements', async t => {
+  const f = await reviewPublicationFixture(t), origin = f.spec.origin!;
+  let description = 'Approved Issue requirement', checks = 0;
+  f.spec.workContext = { schema: 'GitLabWorkspaceWorkContext/v1', requirement: createRequirementSnapshot({ source: { kind: 'issue',
+    identity: JSON.stringify([origin.baseUrl, origin.accountKey, 4, 'issue', 7]) }, title: 'Requirement', description }) };
+  f.client.getIssue = async () => ({ project_id: 4, iid: 7, title: 'Requirement', description });
+  const beforeSend = async () => { if (++checks === 2) description = 'Changed Issue requirement'; };
+  await assert.rejects(f.panel.publishCodexReview(4, 8, 'Approved complete report', beforeSend, 'review-task'), /來源需求/);
+  assert.deepEqual(f.receipts.map(receipt => receipt.state), ['pending', 'not-published']); assert.equal(f.calls.includes('remote-write'), false);
+  await assert.rejects(f.panel.publishCodexReview(4, 8, 'Approved complete report', beforeSend, 'review-task'), /來源需求/);
+  assert.equal(f.calls.includes('remote-write'), false); assert.equal(f.receipts.length, 2);
 });
 
 test('unrecorded native review reconciliation only reads fresh membership, fixed refs and one exact marker body', async t => {
