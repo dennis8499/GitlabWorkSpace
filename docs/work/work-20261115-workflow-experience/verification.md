@@ -57,6 +57,12 @@
 
 發行前 `workflow-experience-v0520-prepare` 再次通過 lint、編譯、Webview 型別及產物建置；`python -X utf8 -B scripts/test_release_ci.py -v` 的 26 項來源證據與發布契約測試通過。版本調整沒有修改功能程式碼。
 
+首次發行 CI（[`0edddd1`／run 43689657925](https://github.com/dennis8499/GitlabWorkSpace/actions/runs/43689657925)）的 Python 3.11／VS Code stable cell 發現既有 `Bridge publishes completed tasks only after their state is durably saved` fixture 競態：原攔截器在真正儲存「執行中」後才等待，沒有攔住終態儲存，因此快速 peer 合法儲存完成後可能先於斷言。修正為在實際終態寫入前等待明確 gate，期間檢查 list、事件及磁碟均維持執行中，放行後才接受已落盤的完成狀態；不放寬 production 完成條件。該失敗紀錄保留，修正提交仍須重新完成正式 CI。
+
+同一 run 的 Python 3.14／VS Code stable cell 另發現既有通知焦點測試 `SnackBar queues new content, keeps unread state on dismissal, and View expands the matching message` 沒有等待 passive effect 後續排程的 focus：改用現有 bounded `waitFor` 等待匹配訊息已展開且其 summary 真正取得焦點，保留已讀次數、revision、未讀數及 exact focus 斷言。首輪 Python 3.11／VS Code 1.90 cell 已完整通過；整個 run 仍因另外兩組失敗記為失敗。
+
+兩項修正僅涉及測試。Bridge 重新編譯後整份 35 項通過（`.tmp/workflow-v0520-durable-regression.log`）；記憶體內刻意模擬未落盤先發布完成時，新測試如預期失敗，未修改 production 或編譯產物。通知焦點精確測試 1／1 及 SnackBar 群組 7／7 通過；在 Temp fixture 抑制 summary focus 時，原精確測試仍在既有五秒 deadline 失敗，證明等待沒有放寬焦點契約。後續 lint 再次通過。
+
 保留的先前失敗：
 
 - 沙箱內 `quick` 因 Windows junction、Git loopback 及 Temp 路徑條件失敗；沙箱外專用 Temp 的相同交付案例補驗通過。沒有修改生產鎖或把拒絕讀寫當成成功。

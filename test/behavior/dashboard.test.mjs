@@ -1338,8 +1338,15 @@ test('SnackBar queues new content, keeps unread state on dismissal, and View exp
   [...document.querySelectorAll('.notification-snackbar button')].find(button => button.textContent === '關閉').click(); await view.tick();
   assert.match(document.querySelector('.notification-snackbar').textContent, /Detail second:1/);
   assert.equal(view.requests.filter(request => request.type === 'markNotificationsRead').length, 0);
-  document.querySelector('.notification-snackbar button').focus(); document.querySelector('.notification-snackbar button').click(); await view.tick();
-  const details = [...document.querySelectorAll('.notification-item details')].find(item => item.textContent.includes('Result second'));
+  document.querySelector('.notification-snackbar button').focus(); document.querySelector('.notification-snackbar button').click();
+  const matchingDetails = () => [...document.querySelectorAll('.notification-item details')].find(item => item.textContent.includes('Result second'));
+  // Drawer layout initially focuses Close. Its passive effect schedules the
+  // target summary on a later frame, so wait for the observable keyboard result.
+  await view.waitFor(() => {
+    const target = matchingDetails();
+    return target?.open && document.activeElement === target.querySelector('summary');
+  }, 'View expands the matching message and moves keyboard focus to its summary');
+  const details = matchingDetails();
   assert.equal(details.open, true);
   assert.equal(document.activeElement, details.querySelector('summary'));
   const read = view.requests.filter(request => request.type === 'markNotificationsRead');
@@ -2937,6 +2944,7 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
       } } }));
     },
     tick,
+    waitFor,
     get savedState() { return state; },
     get stateSaves() { return stateSaves; },
     sendSnapshot(value) {
