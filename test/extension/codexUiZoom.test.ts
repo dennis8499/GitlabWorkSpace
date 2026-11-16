@@ -29,6 +29,15 @@ const instrumentation = String.raw`(() => {
     requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(timer); resolve(); }));
   });
   async function focus(node) {
+    // Native DPR/theme notifications can precede the resized iframe layout in
+    // older Electron. Wait for that geometry before exercising focus scrolling.
+    let readyPrevious, readyStable = 0; const readyDeadline = Date.now() + 3000;
+    while (readyStable < 5) {
+      await painted(); const rect = node.getBoundingClientRect();
+      const signature = JSON.stringify([innerWidth, innerHeight, rect.x, rect.y, rect.width, rect.height]);
+      readyStable = signature === readyPrevious ? readyStable + 1 : 0; readyPrevious = signature;
+      if (Date.now() > readyDeadline) throw new Error('Native viewport geometry did not settle before focus');
+    }
     node.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' }); node.focus({ preventScroll: true });
     let previous, stable = 0; const deadline = Date.now() + 3000;
     while (stable < 5) {

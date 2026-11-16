@@ -500,6 +500,11 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 @media (max-height: 400px) {
   /* Wrapped navigation and notices must scroll away from focused content. */
   .workspace-navigation { position: static; }
+  /* Codex uses the shell as its sole content scroller at extreme zoom. A
+     240px inner viewport below wrapped chrome cannot reveal focused controls
+     reliably in older Electron scrollIntoView implementations. */
+  .app-shell:has(.page[data-mode="codex"]) .workbench { flex: 0 0 auto; min-height: 0; overflow: visible; }
+  .app-shell .page[data-mode="codex"] { flex: 0 0 auto; overflow: visible; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 

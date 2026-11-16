@@ -233,9 +233,14 @@
 .codex-workspace[data-layout="classic"] .codex-launch-container { flex: 0 0 auto; }
 .codex-workspace[data-layout="classic"] .codex-launch { overflow: visible; }
 .codex-workspace[data-layout="classic"] .codex-launch-actions { position: static; }
-/* The outer workbench also scrolls at extreme zoom. A second sticky footer can
-   remain below that outer viewport after keyboard focus scrolls its content. */
+/* Let the shell own vertical navigation at extreme zoom. Size containment and
+   nested clipped viewports otherwise leave a focused control below the visible
+   part of the conversation even after scrollIntoView has reached its end. */
 @media (max-height: 400px) {
-  .codex-workspace.codex-panel .codex-conversation { scroll-padding-block: 12px; }
+  .page[data-mode="codex"] .workspace-tasks { flex: 0 0 auto; }
+  .codex-workspace.codex-panel { flex: 0 0 auto; container-type: inline-size; }
+  .codex-workspace.codex-panel .codex-desktop-tasks { align-self: start; height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); }
+  .codex-workspace.codex-panel .codex-conversation { overflow: visible; scroll-padding-block: 0; }
+  .codex-workspace.codex-panel .codex-execution-panel { flex: 0 0 160px; height: 160px; }
   .codex-workspace.codex-panel .codex-message { position: static; max-height: none; overflow: visible; }
 }
