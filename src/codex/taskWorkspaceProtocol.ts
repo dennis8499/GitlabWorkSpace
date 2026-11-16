@@ -10,6 +10,8 @@ export interface CodexTaskWorkspaceBinding {
 }
 export interface CodexTaskWorkspaceManifest {
   schema: 'GitLabWorkspaceTaskLaunch/v1';
+  /** Missing on legacy launches, which continue in their dedicated task window. */
+  windowMode?: 'origin' | 'task';
   binding: CodexTaskWorkspaceBinding;
   source: CodexTaskSource;
   createdAt: string;

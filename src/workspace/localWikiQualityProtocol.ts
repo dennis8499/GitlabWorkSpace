@@ -1,4 +1,4 @@
-export interface WikiPageDigest { path: string; sha256: string; size: number; notes?: string[]; }
+export interface WikiPageDigest { path: string; sha256: string; size: number; notes?: string[]; sources?: string[]; }
 export interface LocalWikiBaseline {
   schema: 'GitLabWorkspaceLocalWikiBaseline/v1';
   binding: string;

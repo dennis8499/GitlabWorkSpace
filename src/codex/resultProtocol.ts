@@ -91,6 +91,10 @@ export interface CodexResultManifest {
   result?: CodexTaskResult;
   delivery?: CodexResultDelivery;
   restore?: CodexResultRestore;
+  /** Validated durable Wiki source and publication evidence, never write authorization. */
+  wikiSeedArtifactId?: string;
+  /** Account/server/project digest used to find a prior published Wiki without retaining credentials. */
+  wikiSeedScope?: string;
   artifacts: CodexArtifact[];
 }
 

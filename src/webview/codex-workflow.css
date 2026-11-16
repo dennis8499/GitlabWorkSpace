@@ -1,4 +1,9 @@
 .codex-workflow-result { min-width: 0; }
+.codex-next-steps { border: 1px solid var(--vscode-panel-border); border-left: 3px solid var(--vscode-focusBorder); border-radius: 4px; padding: 10px 12px; margin: 10px 0; }
+.codex-next-steps h3 { margin: 0 0 6px; }
+.codex-next-steps p { margin: 6px 0; }
+.codex-result-summary, .codex-validation-summary { overflow-wrap: anywhere; }
+.codex-manual-alternative { margin-top: 16px; }
 .codex-workflow-result textarea { width: 100%; box-sizing: border-box; }
 .codex-workflow-result details > label { display: block; margin: .6rem 0; }
 .codex-result-files, .codex-wiki-pages { list-style: none; padding: 0; }

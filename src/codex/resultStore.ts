@@ -10,6 +10,8 @@ import { restoreCodexResultChanges, type CodexManualWorkspace } from './resultRe
 import { evaluateCriteria, validValidationAttempts, validWorkContext, validWorkId } from './workContext';
 import type { ValidationAttempt, WorkContext } from './workContextProtocol';
 import { isLocalWikiQualityReceipt } from '../workspace/localWikiQuality';
+import { parseProjectWikiSeed, projectWikiSeedFromDraft, projectWikiSeedScope, PROJECT_WIKI_SEED_PATH, type ProjectWikiSeed } from './projectWikiSeed';
+import type { CodexTaskOrigin } from './workflowProtocol';
 import { CODEX_RESULT_MAX_BYTES, CODEX_RESULT_MAX_FILES, CODEX_RESULT_SCHEMA, resultPathKey, safeResultPath, validResultId,
   type CodexArtifact, type CodexResultConfirmationAudit, type CodexResultDelivery, type CodexResultManifest, type CodexResultOrigin, type CodexResultReason } from './resultProtocol';
 
@@ -61,6 +63,20 @@ function cleanResult(value: CodexTaskResult | undefined, clean: (value: unknown,
       ...(typeof item.scope === 'string' && /^[a-f0-9]{64}$/.test(item.scope) ? { scope: item.scope } : {}),
       ...(item.iid === undefined ? {} : { iid: item.iid }), url: url(item.url) ?? '', title: clean(item.title, 1000) })) } : {}),
     ...(value.evidence ? { evidence: { sourceSha: value.evidence.sourceSha, branch: text(value.evidence.branch, 1000), digest: value.evidence.digest, verifiedAt: value.evidence.verifiedAt } } : {}) };
+}
+function wikiAttachmentReferences(markdown: string, page: string): string[] {
+  const attachments = new Set<string>();
+  const visible = markdown.replace(/(^```[^\n]*\n[\s\S]*?^```\s*$|^~~~[^\n]*\n[\s\S]*?^~~~\s*$)/gm, '').replace(/`[^`\r\n]*`/g, '');
+  for (const match of visible.matchAll(/!?\[[^\]\r\n]*\]\((?:<([^>\r\n]+)>|([^\s)]+))(?:\s+[^)]*)?\)/g)) {
+    let target = match[1] ?? match[2];
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(target)) continue;
+    try { target = decodeURIComponent(target.split(/[?#]/, 1)[0]); } catch { throw new Error('Wiki 附件連結包含無效編碼。'); }
+    if (!/\.(?:png|jpe?g|gif|webp|svg|avif|bmp|ico|drawio|mmd|mermaid)$/i.test(target)) continue;
+    const relative = path.posix.normalize(path.posix.join(path.posix.dirname(page), target));
+    if (relative === '..' || relative.startsWith('../') || path.posix.isAbsolute(relative)) continue;
+    attachments.add(safeResultPath(relative));
+  }
+  return [...attachments];
 }
 async function writeDurable(file: string, bytes: Buffer): Promise<void> {
   const handle = await open(file, 'wx', 0o600);
@@ -168,6 +184,22 @@ export class CodexResultStore {
             checks: receipt.checks.map(item => ({ ...item, command: clean(item.command, 2048) })),
             ...(receipt.coverage ? { coverage: { ...receipt.coverage, errors: receipt.coverage.errors.map(item => clean(item, 8192)) } } : {})
           } }, null, 2) + '\n'), 'application/json', '完整 Wiki 品質檢查收據');
+        // Shared local Wiki is permanent user data; retain this task's actual page bytes too.
+        const wikiRoot = path.join(record.spec.root, 'wiki');
+        const attachments = new Set<string>();
+        for (const page of receipt.changedPages) {
+          const file = path.join(wikiRoot, ...safeResultPath(page).split('/'));
+          try {
+            const bytes = await snapshotSource(wikiRoot, file);
+            await add('wiki/' + page, bytes, 'text/markdown', page);
+            for (const relative of wikiAttachmentReferences(bytes.toString('utf8'), page)) attachments.add(relative);
+          }
+          catch (error) { if (!missingFile(error) && !(error instanceof Error && error.message === '成果檔案遺失。')) throw error; }
+        }
+        if (attachments.size > 128) throw new Error('本次 Wiki 附件超過保存上限，保留工作區供縮小範圍。');
+        for (const relative of attachments) await add('wiki/' + relative,
+          await snapshotSource(wikiRoot, path.join(wikiRoot, ...relative.split('/')), 16 * 1024 * 1024),
+          /\.svg$/i.test(relative) ? 'image/svg+xml' : 'application/octet-stream', relative);
       }
       const context = (record.spec as typeof record.spec & { workContext?: WorkContext }).workContext;
       const attempts = (record as typeof record & { validationAttempts?: ValidationAttempt[] }).validationAttempts;
@@ -307,6 +339,12 @@ export class CodexResultStore {
               path: safeResultPath(relative), bodyHash: sha256(Buffer.from(page.content)), ...(url(page.url) ? { url: url(page.url) } : {}) });
             await add('wiki/' + safeResultPath(relative), Buffer.from(page.content), 'text/markdown', relative);
           }
+          if (!provisional) {
+            const seed = projectWikiSeedFromDraft(draft, record.spec.origin);
+            manifest.wikiSeedArtifactId = (await add(PROJECT_WIKI_SEED_PATH, Buffer.from(JSON.stringify(seed, null, 2) + '\n'),
+              'application/json', 'Wiki 固定來源、頁面映射與發布收據')).id;
+            manifest.wikiSeedScope = seed.origin.scope;
+          }
           saved = true;
         } catch (error) {
           if (!missingFile(error) && !(error instanceof Error && error.message === '成果檔案遺失。')) throw error;
@@ -399,7 +437,7 @@ export class CodexResultStore {
       !['completed', 'manual', 'deleted'].includes(manifest.reason) || !Array.isArray(manifest.artifacts) || manifest.artifacts.length > CODEX_RESULT_MAX_FILES) throw new Error('成果清單格式無法驗證。');
     if (manifest.provisional !== undefined && (manifest.provisional !== true || manifest.result?.state !== 'uncertain')) throw new Error('暫存交接成果狀態無法驗證。');
     if (manifest.workId !== undefined && !validWorkId(manifest.workId)) throw new Error('成果工作關聯識別無效。');
-    const allowed = new Set(['schema', 'id', 'title', 'root', 'status', 'createdAt', 'updatedAt', 'reason', 'provisional', 'summary', 'workId', 'origin', 'result', 'delivery', 'restore', 'artifacts']);
+    const allowed = new Set(['schema', 'id', 'title', 'root', 'status', 'createdAt', 'updatedAt', 'reason', 'provisional', 'summary', 'workId', 'origin', 'result', 'delivery', 'restore', 'wikiSeedArtifactId', 'wikiSeedScope', 'artifacts']);
     if (Object.keys(manifest).some(key => !allowed.has(key))) throw new Error('成果清單含非成果資料。');
     const forbidden = new Set(['prompt', 'threadId', 'turnId', 'runtimeRoot', 'requestId', 'transcript', 'accountKey', 'baseUrl', 'spec', 'ownerPid']);
     const inspect = (value: unknown): void => {
@@ -416,6 +454,10 @@ export class CodexResultStore {
       paths.add(key); ids.add(artifact.id); total += artifact.size;
     }
     if (total > CODEX_RESULT_MAX_BYTES) throw new Error('成果容量超過限制。');
+    if (manifest.wikiSeedArtifactId !== undefined && (!manifest.artifacts.some(item => item.id === manifest.wikiSeedArtifactId && item.path === PROJECT_WIKI_SEED_PATH) ||
+        manifest.origin?.kind !== 'project-wiki' || manifest.provisional)) throw new Error('Wiki 更新來源成果綁定無效。');
+    if (manifest.wikiSeedScope !== undefined && (typeof manifest.wikiSeedScope !== 'string' || !/^[a-f0-9]{64}$/.test(manifest.wikiSeedScope) ||
+        !manifest.wikiSeedArtifactId || manifest.origin?.kind !== 'project-wiki' || manifest.provisional)) throw new Error('Wiki 更新來源索引無效。');
     if (manifest.result?.reportPath && !manifest.artifacts.some(artifact => artifact.path.startsWith('reports/') &&
       same(manifest.result!.reportPath!, path.join(expectedRoot, ...artifact.path.split('/'))))) throw new Error('報告路徑不屬於已保存成果。');
     if (manifest.result?.handoffPath && !same(manifest.result.handoffPath, path.join(expectedRoot, 'handoff.md'))) throw new Error('交接說明路徑不屬於已保存成果。');
@@ -452,6 +494,28 @@ export class CodexResultStore {
     const bytes = await safeFile(this.resultRoot(taskId), path.join(this.resultRoot(taskId), ...artifact.path.split('/')));
     if (bytes.length !== artifact.size || sha256(bytes) !== artifact.sha256) throw new Error('成果檔案已變更。');
     return { artifact: structuredClone(artifact), bytes };
+  }
+  /** Legacy results without a seed return undefined so callers explicitly choose full regeneration. */
+  async readWikiSeed(taskId: string, origin: CodexTaskOrigin): Promise<ProjectWikiSeed | undefined> {
+    const manifest = await this.load(taskId, false);
+    if (manifest.provisional || manifest.origin?.kind !== 'project-wiki' || manifest.origin.projectId !== origin.projectId ||
+        manifest.origin.sourceSha !== origin.sourceSha || manifest.origin.projectPath !== origin.projectPath) throw new Error('Wiki 成果不屬於目前專案或固定版本。');
+    if (!manifest.wikiSeedArtifactId) return;
+    const { bytes } = await this.readArtifact(taskId, manifest.wikiSeedArtifactId);
+    const seed = parseProjectWikiSeed(JSON.parse(bytes.toString('utf8')), origin);
+    if (manifest.wikiSeedScope !== undefined && manifest.wikiSeedScope !== seed.origin.scope) throw new Error('Wiki 更新來源索引與成果不符。');
+    return seed;
+  }
+  /** Find the latest confirmed source for this project/branch, including an earlier source SHA. */
+  async latestWikiSeed(origin: CodexTaskOrigin): Promise<{ taskId: string; seed: ProjectWikiSeed } | undefined> {
+    const scope = projectWikiSeedScope(origin);
+    const candidates = (await this.list()).filter(manifest => manifest.wikiSeedScope === scope && !manifest.provisional &&
+      manifest.origin?.kind === 'project-wiki' && manifest.origin.projectId === origin.projectId && manifest.origin.projectPath === origin.projectPath &&
+      manifest.origin.sourceBranch === origin.sourceBranch && manifest.result?.state === 'published');
+    const latest = candidates[0]; if (!latest) return;
+    const seed = await this.readWikiSeed(latest.id, { ...origin, sourceSha: latest.origin!.sourceSha });
+    if (!seed || seed.pages.some(page => !page.published)) throw new Error('已發布的 Wiki 更新來源缺少完整發布收據。');
+    return { taskId: latest.id, seed };
   }
   restoreTo(taskId: string, originalRepository: string, destination: string): Promise<CodexManualWorkspace> {
     return restoreCodexResultChanges(this, taskId, originalRepository, destination);

@@ -30,7 +30,7 @@ export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
 export type ToolSource = 'gitea' | 'github';
 export type RemoteToolSource = Exclude<ToolSource, 'bundled'>;
-export const workspaceSettingIds = ['gitlabWorkspace.projectRoot', 'gitlabWorkspace.codex.executablePath', 'gitlabWorkspace.pythonPath',
+export const workspaceSettingIds = ['gitlabWorkspace.projectRoot', 'gitlabWorkspace.codex.executablePath', 'gitlabWorkspace.codex.autoApproveLocalOperations', 'gitlabWorkspace.pythonPath',
   'gitlabWorkspace.repositoryScan.excludeDirectories', 'gitlabWorkspace.reviewRuntimePath'] as const;
 export type WorkspaceSettingId = typeof workspaceSettingIds[number];
 export type ToolArchiveFormat = 'zip' | 'tar.xz';

@@ -239,7 +239,10 @@ function localWikiScopePrompt(cardId: string, inputs: WikiGuideInputValues, cont
     context.profile === 'repository' ? '不向父 Group 擴張，不搬移既有 Wiki。' : '共用 Group root 的 Wiki，來源使用 Repo/path；不得在各 Repo 另建 wiki/，不搬移或合併既有 Wiki。',
     '本地工作不需要 GitLab 登入或啟用 GitLab Wiki；本輪不發布遠端文件。',
     cardId === 'query' ? '先讀索引與 1–5 個相關頁面；Wiki 不存在、不完整或過時時照實回答缺口，必要才回查本次來源。查詢不要求全量 coverage、不執行 Ingest、不寫檔。' :
-      cardId === 'ingest' ? '這是來源範圍內的局部更新，不要求全 Group coverage、不更新其他來源的頁面。沿用安全 scanner 與 writer，納入允許的 dirty、untracked、ignored 原始來源；內容 digest 決定來源版本，不能只用 HEAD SHA 判定有效。保留人工 notes 與既有段落，更新相關頁面、索引並追加日誌；提交前比對來源及 Wiki，遇到並行修改保留差異。' :
+      cardId === 'ingest' ? [inputs['wiki.scope'] === 'repository'
+        ? '這是完整所選 Repo 更新；必須核對所選 Repo 的逐檔 coverage，不要求全 Group coverage、不更新其他來源的頁面。'
+        : '這是來源範圍內的局部更新，不要求全 Group coverage、不更新其他來源的頁面。',
+      '沿用安全 scanner 與 writer，納入允許的 dirty、untracked、ignored 原始來源；內容 digest 決定來源版本，不能只用 HEAD SHA 判定有效。保留人工 notes 與既有段落，更新相關頁面、索引並追加日誌；提交前比對來源及 Wiki，遇到並行修改保留差異。'].join('') :
         '品質檢查只讀檔與產生結果，不修復、不啟動 Ingest、不要求全量 coverage；先說明所選 Repo 的相關問題，其他既有頁面的問題另列。'
   ].join('\n');
 }

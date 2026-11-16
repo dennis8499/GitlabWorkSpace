@@ -35,12 +35,14 @@ async function fixture(t: test.TestContext) {
   return { root, storage, spec, panel, queued };
 }
 
-test('local exploration opens a managed launch without binding an expired GitLab account or starting a model', async t => {
+test('local exploration starts in its origin Group without binding an expired GitLab account or opening a window', async t => {
   const f = await fixture(t);
   assert.equal(await f.panel.openIsolatedCodexWorkspace(f.spec, 'local-exploration'), 'local-exploration');
-  const launch = await readTaskWorkspace(f.storage, opened[0]);
-  assert.equal(launch.binding.accountId, undefined); assert.equal(f.queued.length, 0);
+  assert.equal(f.queued.length, 1); assert.deepEqual(opened, []);
+  const launch = await readTaskWorkspace(f.storage, f.queued[0].taskWorkspace!.workspaceFile);
+  assert.equal(launch.binding.accountId, undefined); assert.equal(launch.windowMode, 'origin');
   assert.equal(launch.preparedSpec?.root, f.root);
+  assert.equal(f.queued[0].root, f.root); assert.equal(f.queued[0].executionRoot, f.spec.executionRoot);
 });
 
 test('reopening a local launch made by an older host does not require its saved GitLab login', async t => {
@@ -52,13 +54,15 @@ test('reopening a local launch made by an older host does not require its saved 
   assert.equal(f.queued[0].taskWorkspace?.taskId, 'offline-reopen');
 });
 
-test('a BMAD window exposes its original working folder and persistent task output separately', async t => {
+test('an origin BMAD launch retains its working folder and persistent output without opening a window', async t => {
   const f = await fixture(t), outputRoot = path.join(f.storage, 'codex-bmad-artifacts', 'bmad-output');
   const spec = { ...f.spec, executionRoot: undefined, bmadArtifacts: { outputRoot } };
   await f.panel.openIsolatedCodexWorkspace(spec, 'bmad-folders');
-  const workspace = JSON.parse(await readFile(opened[0], 'utf8'));
+  assert.equal(f.queued.length, 1); assert.deepEqual(opened, []);
+  const workspace = JSON.parse(await readFile(f.queued[0].taskWorkspace!.workspaceFile, 'utf8'));
   assert.deepEqual(workspace.folders.map((folder: { path: string }) => folder.path), ['workspace', f.root, outputRoot]);
   assert.equal(workspace.settings['gitlabWorkspace.projectRoot'], f.root);
+  assert.equal(f.queued[0].bmadArtifacts?.outputRoot, outputRoot);
 });
 
 test('reopening durable cleanup never recreates the task if cleanup finishes immediately after claim', async t => {

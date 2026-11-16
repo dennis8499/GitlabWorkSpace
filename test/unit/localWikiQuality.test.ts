@@ -113,3 +113,51 @@ test('quality receipt validation rejects foreign fields, unsafe paths and incomp
     assert.equal(isLocalWikiQualityReceipt(value), false);
   }
 });
+
+test('full selected Repo ingest validates only its coverage ledger and preserves other Repo findings', async t => {
+  const f = await fixture(t);
+  if (f.spec.source.kind !== 'skill') assert.fail('fixture');
+  Object.assign(f.spec.source.inputs, { 'wiki.scope': 'repository', 'wiki.sourceRepo': path.join(f.root, 'service') });
+  await f.write('modules/a.md', '---\nsources: [service/a.ts]\n---\nA\n');
+  await f.write('modules/b.md', '---\nsources: [other/b.ts]\n---\nB\n');
+  const baseline = await captureLocalWikiBaseline(f.spec);
+  await Promise.all([f.write('modules/a.md', '---\nsources: [service/a.ts]\n---\nUpdated A\n'), f.write('log.md', 'old operation\nnew operation\n')]);
+  const calls: Array<{ script: string; args: string[] }> = [];
+  const checked = await inspectLocalWikiQuality(f.spec, python, baseline, async (script, args) => {
+    calls.push({ script: path.basename(script), args });
+    return { code: 0, stdout: path.basename(script) === 'lint-wiki.py'
+      ? findings([{ severity: 'critical', code: 'frontmatter', page: 'modules/b.md', message: 'unrelated B' }]) : JSON.stringify({ ok: true, status: 'complete', errors: [] }) };
+  });
+  assert.equal(checked?.result.state, 'ready'); assert.equal(checked?.receipt.scope, 'full');
+  assert.equal(checked?.receipt.unrelatedFindings, 1); assert.equal(checked?.receipt.coverage?.ok, true);
+  assert.deepEqual(calls[1].args.slice(-4), ['--scope', 'group', '--repo', 'service']);
+  assert.match(calls[1].args[calls[1].args.indexOf('--ledger') + 1], /ingest-coverage-[a-f0-9]{16}\.json$/);
+  assert.equal(await readFile(path.join(f.root, 'wiki', 'modules/b.md'), 'utf8'), '---\nsources: [other/b.ts]\n---\nB\n');
+});
+
+test('selected Repo Wiki cannot report success after changing another Repo page or inventing an unmapped page', async t => {
+  const f = await fixture(t);
+  if (f.spec.source.kind !== 'skill') assert.fail('fixture');
+  Object.assign(f.spec.source.inputs, { 'wiki.scope': 'path', 'wiki.sourceRepo': path.join(f.root, 'service'), 'ingest.path': 'service/src' });
+  await f.write('modules/b.md', '---\nsources: [other/b.ts]\n---\nB\n');
+  const baseline = await captureLocalWikiBaseline(f.spec);
+  await Promise.all([f.write('modules/b.md', '---\nsources: [service/src/a.ts]\n---\nOverwritten B\n'),
+    f.write('modules/new.md', 'New page with no source mapping\n'), f.write('log.md', 'old operation\nnew operation\n')]);
+  const checked = await inspectLocalWikiQuality(f.spec, python, baseline, async () => ({ code: 0, stdout: findings() }));
+  assert.equal(checked?.result.state, 'needs-work');
+  assert.deepEqual(checked?.receipt.findings.filter(item => item.code === 'outside_selected_scope').map(item => item.page), ['modules/b.md', 'modules/new.md']);
+});
+
+test('direct Repo partial path updates preserve pages outside the selected source directory', async t => {
+  const f = await fixture(t);
+  if (f.spec.source.kind !== 'skill') assert.fail('fixture');
+  Object.assign(f.spec.source.inputs, { 'wiki.profile': 'repository', 'ingest.path': 'src/payments' });
+  await f.write('modules/a.md', '---\nsources: [src/payments/a.ts]\n---\nPayments\n');
+  await f.write('modules/b.md', '---\nsources: [src/orders/b.ts]\n---\nOrders\n');
+  const baseline = await captureLocalWikiBaseline(f.spec);
+  await Promise.all([f.write('modules/a.md', '---\nsources: [src/payments/a.ts]\n---\nUpdated payments\n'),
+    f.write('modules/b.md', '---\nsources: [src/payments/a.ts]\n---\nOverwritten orders\n'), f.write('log.md', 'old operation\nnew operation\n')]);
+  const checked = await inspectLocalWikiQuality(f.spec, python, baseline, async () => ({ code: 0, stdout: findings() }));
+  assert.equal(checked?.receipt.scope, 'partial'); assert.equal(checked?.result.state, 'needs-work');
+  assert.deepEqual(checked?.receipt.findings.filter(item => item.code === 'outside_selected_scope').map(item => item.page), ['modules/b.md']);
+});

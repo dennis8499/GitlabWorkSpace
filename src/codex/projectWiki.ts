@@ -10,6 +10,7 @@ import { sameWorkflowPath, workflowHash } from './projectWorkflows';
 import { wikiSourceReferences, wikiIncrementalSelection, wikiPageFile } from './wikiIncremental';
 import { missingFile, ownedStoragePath, removeOwnedStorage, removeOwnedAtomicTemps } from '../storage/ownedStorage';
 import { acquireStorageControl } from '../storage/controlLease';
+import { parseProjectWikiSeed, projectWikiSeedFromDraft, type ProjectWikiSeed } from './projectWikiSeed';
 
 interface WikiDraftPage {
   slug: string; title: string; content: string;
@@ -108,6 +109,20 @@ export function projectWikiMarkdown(content: string, file: string, files: readon
 }
 
 export class ProjectWikiStore {
+  async exportSeed(id: string, origin: CodexTaskOrigin): Promise<ProjectWikiSeed> {
+    return projectWikiSeedFromDraft(await this.load(id, origin), origin);
+  }
+  /** Restore source evidence into task-owned storage; no draft or publication authority is imported. */
+  async copyRetainedSeed(seed: ProjectWikiSeed, origin: CodexTaskOrigin, storage: string, runtime: string): Promise<void> {
+    const checked = parseProjectWikiSeed(seed, origin), destination = path.join(runtime, 'wiki-seed.json');
+    await ownedStoragePath(storage, runtime); await mkdir(runtime, { recursive: true }); await ownedStoragePath(storage, runtime);
+    if (await ownedStoragePath(storage, destination)) {
+      const previous = JSON.parse(await readFile(destination, 'utf8'));
+      if (JSON.stringify(parseProjectWikiSeed(previous, origin)) !== JSON.stringify(checked)) throw new Error('任務已有不同的 Wiki 更新來源。');
+      return;
+    }
+    await atomicNetworkJson(destination, checked);
+  }
   async readLocalPreview(id: string, origin: CodexTaskOrigin): Promise<ProjectWikiPreview> {
     return this.projection(await this.load(id, origin));
   }
@@ -177,7 +192,7 @@ export class ProjectWikiStore {
   }
   async copySeed(id: string, origin: CodexTaskOrigin, storage: string, runtime: string): Promise<void> {
     const seed = path.join(runtime, 'wiki-seed.json');
-    if (await ownedStoragePath(storage, seed)) { await this.loadFile(seed, id, origin); return; }
+    if (await ownedStoragePath(storage, seed)) { await this.loadSeedFile(seed, id, origin); return; }
     const lease = await acquireStorageControl(this.file(id) + '.publish', 'wiki-publish');
     try {
       const draft = await this.load(id, origin);
@@ -185,7 +200,7 @@ export class ProjectWikiStore {
       await ownedStoragePath(storage, runtime);
       await mkdir(runtime, { recursive: true });
       await ownedStoragePath(storage, runtime);
-      await atomicNetworkJson(seed, draft);
+      await atomicNetworkJson(seed, projectWikiSeedFromDraft(draft, origin));
     } finally { await lease.release(); }
   }
   async create(id: string, origin: CodexTaskOrigin, executionRoot: string): Promise<CodexTaskResult> {
@@ -247,7 +262,7 @@ export class ProjectWikiStore {
     mode: 'full' | 'incremental'; pages: string[]; reason: string; unchanged: Array<{ file: string; hash: string }>
   }> {
     let previous: WikiDraft;
-    try { previous = seedFile ? await this.loadFile(seedFile, previousId, previousOrigin) : await this.load(previousId, previousOrigin); }
+    try { previous = seedFile ? await this.loadSeedFile(seedFile, previousId, previousOrigin) : await this.load(previousId, previousOrigin); }
     catch (error) { if (!seedFile || !missingFile(error)) throw error; previous = await this.load(previousId, previousOrigin); }
     if (previous.pages.some(page => page.sending)) throw new Error('原 Wiki 發布結果仍待核對。');
     const plan = wikiIncrementalSelection(previous.pages, changed, previous.mappingComplete === true, ancestor);
@@ -267,6 +282,16 @@ export class ProjectWikiStore {
       }
     }
     return { ...plan, unchanged };
+  }
+  private async loadSeedFile(file: string, id: string, origin: CodexTaskOrigin): Promise<WikiDraft> {
+    const info = await lstat(file);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 8 * 1024 * 1024) throw new Error('Wiki 更新來源格式無效。');
+    const value = JSON.parse(await readFile(file, 'utf8'));
+    if (value?.schema !== 'GitLabWorkspaceProjectWikiSeed/v1') return this.loadFile(file, id, origin);
+    const seed = parseProjectWikiSeed(value, origin);
+    if (seed.id !== id) throw new Error('Wiki 更新來源識別不符。');
+    return { schema: 'GitLabWorkspaceProjectWiki/v1', id, origin, revision: '', mappingComplete: seed.mappingComplete,
+      pages: seed.pages.map(page => ({ ...page })) };
   }
   private async remote(client: WikiClient, projectId: number, slug: string): Promise<GitLabWikiPage | undefined> {
     try {

@@ -94,9 +94,20 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
   const kind = { free: '程式工作', issue: 'Issue 開發', 'merge-request': source.kind === 'merge-request' && source.intent === 'fix-comments' ? 'MR 討論修正' : 'MR 審查',
     'project-wiki': '產生 GitLab Wiki 草稿', skill: 'Skills 工作', bmad: 'BMAD 工作', review: '接續審查', 'group-analysis': 'Group 需求影響分析' }[source.kind];
   const linked = ['issue', 'merge-request', 'project-wiki'].includes(source.kind);
+  const localWiki = source.kind === 'skill' && !!source.inputs['wiki.profile'];
+  const sourceRepository = source.kind === 'skill' ? source.inputs['wiki.sourceRepo'] : draft.repositories.find(repository => repository.id === value.repositoryId)?.path;
+  const localWikiRoot = localWiki && draft.root ? draft.root.replace(/[\\/]$/, '') + '/wiki' : undefined;
   return <section class="codex-launch" aria-label="任務準備">
     <header><p class="eyebrow">{kind} · 任務準備</p><h2>{draft.title}</h2>
       <p>確認來源與執行設定後開始。離開畫面後可繼續準備這份任務。</p></header>
+    {localWiki && <p class="codex-source-basis">本地 Codebase Wiki：使用目前本機內容；只處理所選來源，不發布至 GitLab。</p>}
+    {source.kind === 'project-wiki' && <p class="codex-source-basis">GitLab Wiki 草稿：以遠端預設分支的固定版本建立文件，完成後先預覽頁面差異，再確認發布。</p>}
+    {(draft.root || sourceRepository || draft.workingDirectory || localWikiRoot) && <dl class="codex-launch-summary codex-launch-locations" aria-label="任務來源與位置">
+      {draft.root && <><dt>工作區根目錄</dt><dd>{draft.root}</dd></>}
+      {sourceRepository && <><dt>來源 Repo／範圍</dt><dd>{sourceRepository}</dd></>}
+      {draft.workingDirectory && <><dt>實際執行目錄</dt><dd>{draft.workingDirectory}</dd></>}
+      {localWikiRoot && <><dt>本地 Wiki 保存位置</dt><dd>{localWikiRoot}</dd></>}
+    </dl>}
     <form onSubmit={event => { event.preventDefault(); run('submitCodexLaunch'); }}>
       <fieldset disabled={locked || busy}><legend>需求與工作區</legend>
         <label for="codex-launch-requirement">{source.kind === 'free' || source.kind === 'group-analysis' ? '需求與完成條件' : '補充需求與完成條件（選填）'}</label>
@@ -112,7 +123,7 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
           <option value="">{!['free', 'issue', 'merge-request', 'project-wiki'].includes(source.kind) ? '由來源工作流程固定，執行位置見下方檢查結果' : draft.repositories.length ? '選擇本次工作使用的 Repo' : '檢查後顯示可用 Repo'}</option>
           {draft.repositories.map(repo => <option key={repo.id} value={repo.id}>{repo.name} · {repo.path}</option>)}
         </select></>}
-        {source.kind === 'issue' && <p class="subtle">在獨立本機 Repo 副本執行，保留目前工作目錄。</p>}
+        {source.kind === 'issue' && <p class="subtle">在獨立本機 Repo 副本執行，由目前工作區管理進度與成果。</p>}
         {(source.kind === 'issue' && value.isolated || source.kind === 'merge-request' && source.intent === 'fix-comments') &&
           <p class="subtle">修改與測試在隔離工作區進行；完成後先檢閱成果，再確認遠端交付。</p>}
         {source.kind === 'free' && !!source.contexts?.length && <details><summary>已附加上下文（{source.contexts.length}）</summary>
@@ -156,10 +167,9 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
           {model?.efforts.map(effort => <option key={effort} value={effort}>{effort}</option>)}
         </select></label></div>
       </fieldset></details>
-      {(draft.sourceSha || draft.branch || draft.workingDirectory) && <dl class="codex-launch-summary">
+      {(draft.sourceSha || draft.branch) && <dl class="codex-launch-summary">
         {draft.branch && <><dt>工作分支</dt><dd>{draft.branch}</dd></>}
         {draft.sourceSha && <><dt>來源版本</dt><dd><code>{draft.sourceSha.slice(0, 12)}</code>{draft.targetSha && <> → <code>{draft.targetSha.slice(0, 12)}</code></>}</dd></>}
-        {draft.workingDirectory && <><dt>執行位置</dt><dd>{draft.workingDirectory}</dd></>}
       </dl>}
       {!!draft.sourceSnapshot?.repositories?.length && <ul class="codex-launch-repository-heads" aria-label="Group 固定 Repo 版本">{draft.sourceSnapshot.repositories.map(repository => <li key={repository.id}>
         {draft.repositories.find(item => item.id === repository.id)?.name ?? repository.id} · <code>{repository.sha}</code>
@@ -198,10 +208,10 @@ export function CodexLaunchPanel({ draft, post, localDraft, localDraftRevision, 
         <button type="button" onClick={() => { const next = fields(latest.current); local.current = next; setValue(next); dirty.current = false; persist.current?.(undefined); setConflict(false); }}>使用目前保存設定</button>
       </section>}
       <footer class="codex-launch-actions"><button type="button" disabled={busy || locked || saving || conflict} onClick={() => run('checkCodexLaunch')}>重新檢查</button>
-        {draft.state === 'submitted' && draft.taskId && <button type="button" onClick={() => post({ type: 'showCodexTask', taskId: draft.taskId! })}>開啟任務視窗</button>}
+        {draft.state === 'submitted' && draft.taskId && <button type="button" onClick={() => post({ type: 'showCodexTask', taskId: draft.taskId! })}>查看任務</button>}
         {draft.state === 'uncertain' && <button type="button" onClick={() => post({ type: 'showCodexLaunch', draftId: draft.id })}>核對開始結果</button>}
         <button type="submit" class="primary" disabled={busy || locked || saving || conflict || !!draft.sourceChange && !draft.sourceChange.acknowledged || ['free', 'group-analysis'].includes(source.kind) && !value.requirement.trim()}>
-          {draft.state === 'submitting' ? '正在開始…' : draft.state === 'checking' ? '正在檢查…' : '在獨立視窗執行'}</button>
+          {draft.state === 'submitting' ? '正在開始…' : draft.state === 'checking' ? '正在檢查…' : '開始任務'}</button>
         {canCopyCodexLaunch(source) && <button type="button" onClick={() => post({ type: 'copy', text: codexLaunchManualText(draft, local.current) })}>複製手動執行資料</button>}
         <button type="button" disabled={draft.state === 'submitting' || draft.state === 'uncertain'} onClick={() => post({ type: 'cancelCodexLaunch', draftId: draft.id })}>
           {busy ? '停止檢查並保留草稿' : '稍後繼續'}</button>

@@ -25,11 +25,19 @@ test('offline Repo shortcuts share the Group Wiki and only narrow the selected s
     const source = await prepareLocalWikiSource(f.context, repo, 'ingest');
     assert.equal(source.inputs['ingest.path'], path.basename(repo));
     assert.equal(source.inputs['ingest.scope'], '單一路徑');
+    assert.equal(source.inputs['wiki.scope'], 'repository');
+    assert.match(source.inputs['wiki.coverageLedger'], /ingest-coverage-[a-f0-9]{16}\.json$/);
     const prompt = buildWikiGuidePrompt(source.featureId, source.inputs, { profile: 'group', root: f.root, repositories: f.context.repositories });
     assert.ok(prompt.includes(JSON.stringify(repo)));
     assert.match(prompt, /不得在各 Repo 另建 wiki/);
+    assert.match(prompt, /完整所選 Repo 更新.*逐檔 coverage/);
     assert.match(prompt, /不要求全 Group coverage/);
+    assert.doesNotMatch(prompt, /這是來源範圍內的局部更新/);
     assert.match(prompt, /dirty、untracked、ignored/);
+    const partial = buildWikiGuidePrompt('ingest', { ...source.inputs, 'wiki.scope': 'path', 'ingest.path': path.basename(repo) + '/src' },
+      { profile: 'group', root: f.root, repositories: f.context.repositories });
+    assert.match(partial, /這是來源範圍內的局部更新/);
+    assert.doesNotMatch(partial, /完整所選 Repo 更新/);
     assert.deepEqual(await readdir(repo), []);
   }
   assert.deepEqual((await readdir(f.root)).sort(), ['服務 A', '服務 B']);

@@ -21,10 +21,10 @@ async function mount(kind, props) {
           let component, options;
           if (kind === 'workspace') {
             const task = props.task;
-            const controller = { tasks:[task], ui:{selectedTaskId:task.id,drafts:{[task.id]:{text:'Old private draft',revision:1}},pending:{},views:{[task.id]:'execution'}},
+            const controller = { tasks:[task], ui:{selectedTaskId:task.id,drafts:{[task.id]:{text:'Old private draft',revision:1}},pending:{},views:{[task.id]:props.view ?? 'execution'}},
               items:{},interactions:{},history:{},results:{},operations:[],environment:{state:'unknown'},post,
               draftStorage:{loading:false,saving:false,conflicts:[]},launchVisible:false,read:noop,updateUi:noop,select:noop,showLaunch:noop,
-              retryDraftStorage:noop,resolveDraftConflict:noop,storedDraftText:()=>'',draftConflictText:()=>'',edit:noop,submit:noop };
+              retryDraftStorage:noop,resolveDraftConflict:noop,storedDraftText:()=>'',draftConflictText:()=>'',edit:noop,submit:()=>{window.submissions=(window.submissions??0)+1;} };
             component=CodexWorkspace; options={controller,active:true,onNavigate:noop};
           } else if (kind === 'launch') { component=CodexLaunchPanel; options={...props,post}; }
           else if (kind === 'interaction') { component=Interaction; options={...props,values:{},onEdit:noop,post,onAnswer:answer=>post({type:'answer',answer})}; }
@@ -66,6 +66,8 @@ test('created Issue and delivered MR next steps require explicit clicks and pres
     { kind: 'merge-request', projectId: 3, iid: 8, scope, url: 'https://gitlab.test/team/repo/-/merge_requests/8', title: 'Delivered MR' }
   ];
   const dom = await mount('result', { task }); t.after(() => dom.window.close()); assert.equal(dom.window.sent.length, 0);
+  const nextSteps = dom.window.document.querySelector('[aria-label="後續工作"]');
+  assert.equal(nextSteps.tagName, 'SECTION'); assert.equal(nextSteps.closest('details'), null, 'next actions stay visible without expanding technical details');
   button(dom, '使用 Codex 開發').click(); button(dom, 'Merge Review').click(); button(dom, 'Release Review').click();
   assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent)), [
     { type: 'startCodexTask', source: { kind: 'issue', projectId: 3, issueIid: 7, expectedScope: scope } },
@@ -75,6 +77,73 @@ test('created Issue and delivered MR next steps require explicit clicks and pres
   button(dom, '在 GitLab 查看 Issue').click();
   assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent.at(-1))), { type: 'openExternal', url: task.result.followUps[0].url });
   assert.equal(dom.window.sent.some(request => request.type === 'openIssue'), false);
+});
+
+test('ready Issue results keep verified delivery primary and manual handoff secondary', async t => {
+  const task = { ...localEvidenceTask(), controls: { canResume: true, canAutoAccept: true, external: false },
+    origin: { kind: 'issue', projectId: 3, iid: 7, projectPath: 'team/repo', repositoryRoot: 'C:/group/repo', sourceSha: 'a'.repeat(40) } };
+  const dom = await mount('workspace', { task, view: 'results' }); t.after(() => dom.window.close());
+  assert.equal(button(dom, '準備交接'), undefined, 'the main result action must not divert verified delivery into the legacy manual workflow');
+  const manual = button(dom, '準備人工交接草稿'); assert.equal(manual.closest('details').open, false);
+  const deliver = button(dom, '檢閱並確認交付'); assert.equal(deliver.disabled, false); assert.ok(deliver.classList.contains('primary'));
+  assert.equal(dom.window.sent.some(item => item.command?.action === 'confirm-delivery'), false);
+  deliver.click(); assert.equal(dom.window.sent.at(-1).command.action, 'confirm-delivery');
+});
+
+test('exhausted validation cycles keep review and handoff available without secondary or message-driven resume', async t => {
+  const task = { ...localEvidenceTask(), implementationCycles: 3, result: { state: 'needs-work', summary: 'Verification remains unsuccessful' },
+    controls: { external: false, canResume: true, canDelete: true, canAutoAccept: true },
+    origin: { kind: 'issue', projectId: 3, iid: 7, projectPath: 'team/repo', repositoryRoot: 'C:/group/repo', sourceSha: 'a'.repeat(40) } };
+  const dom = await mount('workspace', { task }); t.after(() => dom.window.close());
+  assert.match(dom.window.document.querySelector('.codex-result-state').textContent, /已達三輪.*重新準備任務或轉交人工處理/);
+  const resumeControls = [...dom.window.document.querySelectorAll('button')].filter(control => ['接續', '接續修正', '恢復任務'].includes(control.textContent));
+  assert.ok(resumeControls.every(control => control.disabled), resumeControls.map(control => control.textContent).join(', '));
+  assert.ok(button(dom, '檢閱待處理成果')); assert.ok(button(dom, '重新準備')); assert.ok(button(dom, '停止並轉交人工處理'));
+  assert.equal(button(dom, '傳送').disabled, true);
+  dom.window.document.querySelector('.codex-message').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.equal(dom.window.submissions ?? 0, 0); assert.equal(dom.window.sent.some(item => item.type === 'resumeCodexTask'), false);
+});
+
+test('saved autoapproval stays visibly dormant until execution is armed and has only one switch', async t => {
+  for (const armed of [false, true]) {
+    const task = { ...localEvidenceTask(), status: armed ? 'running' : 'paused', controls: {
+      external: false, canResume: true, canAutoAccept: true, autoAccept: true, autoAcceptArmed: armed
+    } };
+    const dom = await mount('workspace', { task }); t.after(() => dom.window.close());
+    const switches = dom.window.document.querySelectorAll('.codex-auto-accept input'); assert.equal(switches.length, 1); assert.equal(switches[0].checked, true);
+    assert.match(switches[0].parentElement.textContent, armed ? /本機自動核准：ON/ : /接續後啟用/);
+    assert.equal(dom.window.sent.some(item => item.type === 'setCodexAutoAccept'), false, 'rendering a saved switch must never enable approvals');
+    switches[0].click(); assert.equal(dom.window.sent.at(-1).enabled, false);
+  }
+});
+
+test('task context distinguishes shared local Wiki output from a GitLab Wiki snapshot without inferring another output', async t => {
+  for (const target of ['local', 'gitlab']) {
+    const task = { ...localEvidenceTask(), locations: { workspaceRoot: 'C:/group', sourceRoot: 'C:/group/service',
+      executionRoot: target === 'local' ? 'C:/group/.gitlab-workspace/runtime' : 'C:/storage/snapshot/wiki',
+      outputRoot: target === 'local' ? 'C:/group/wiki' : 'C:/storage/snapshot/wiki', wikiTarget: target,
+      sourceBasis: target === 'local' ? '目前本機來源內容' : '遠端預設分支固定版本' } };
+    const dom = await mount('workspace', { task }); t.after(() => dom.window.close());
+    const context = dom.window.document.querySelector('[aria-label="任務來源與位置"]');
+    assert.match(context.textContent, target === 'local' ? /本地 Codebase Wiki/ : /GitLab Wiki 草稿/);
+    const values = [...context.querySelectorAll('dd')].map(item => item.textContent);
+    assert.deepEqual(values, ['C:/group', 'C:/group/service', task.locations.executionRoot, task.locations.outputRoot]);
+    assert.equal(context.textContent.includes('C:/group/service/wiki'), false, 'a selected Repo must never silently change the Group Wiki output');
+  }
+});
+
+test('unsettled publication and delivery steps disable result writes and next-stage dispatch', async t => {
+  for (const patch of [
+    { publication: { kind: 'reply', state: 'pending', key: 'pending' } },
+    { delivery: { state: 'needs-attention', steps: [{ kind: 'push', state: 'uncertain' }] } },
+    { cleanupState: 'running' }
+  ]) {
+    const task = { ...localEvidenceTask(), ...patch, origin: { kind: 'issue', projectId: 3, iid: 7, projectPath: 'team/repo', sourceSha: 'a'.repeat(40) } };
+    task.result.followUps = [{ kind: 'merge-request', projectId: 3, iid: 8, scope: 'd'.repeat(64), url: 'https://gitlab.test/mr/8', title: 'MR' }];
+    const dom = await mount('result', { task }); t.after(() => dom.window.close());
+    for (const label of ['檢閱並確認交付', 'Merge Review', 'Release Review']) { const control = button(dom, label); assert.equal(control.disabled, true, label); control.click(); }
+    assert.equal(dom.window.sent.some(item => item.type === 'startCodexTask' || item.command?.action === 'confirm-delivery'), false);
+  }
 });
 
 test('external or unsettled tasks cannot start follow-up work from a result card', async t => {
@@ -242,6 +311,19 @@ test('saved local results render without GitLab origin and only dispatch artifac
   assert.equal(dom.window.sent[0].command.artifactId, 'spec');
 });
 
+test('archived GitLab Wiki updates start a new source check only after a click and provisional bundles cannot update', async t => {
+  for (const provisional of [false, true]) {
+    const task = resultTask(); task.savedResult.origin = { kind: 'project-wiki', projectId: 3, projectPath: 'team/service',
+      webUrl: 'https://gitlab.test/team/service', repositoryRoot: 'C:/group/service', sourceBranch: 'main', sourceSha: 'a'.repeat(40) };
+    task.savedResult.provisional = provisional;
+    const dom = await mount('result', { task }); t.after(() => dom.window.close());
+    assert.equal(dom.window.sent.length, 0, 'reading retained Wiki content must not restart its old thread or generate an update');
+    const update = button(dom, '依來源變更更新 GitLab Wiki');
+    if (provisional) assert.equal(update, undefined);
+    else { assert.ok(update); update.click(); assert.deepEqual(JSON.parse(JSON.stringify(dom.window.sent)), [{ type: 'codexCommand', command: { action: 'regenerate-wiki', taskId: task.id } }]); }
+  }
+});
+
 test('results-only workspace ignores stale thread and resume fields and never resurrects a conversation', async t => {
   const dom = await mount('workspace', { task: resultTask() }); t.after(() => dom.window.close());
   assert.equal(dom.window.document.querySelector('#codex-follow-up'), null);
@@ -338,7 +420,7 @@ test('App Server-only launches keep required Skills without offering manual exec
     assert.equal(document.querySelectorAll('input[type="checkbox"]').length, 2, 'Only required and optional Skills have checkboxes');
     assert.match(document.body.textContent, /人工確認後交付/);
     assert.match(document.body.textContent, /既有自動交付設定不代替這次確認/);
-    assert.equal(button(dom, '在獨立視窗執行').type, 'submit');
+    assert.equal(button(dom, '開始任務').type, 'submit');
     assert.deepEqual(dom.window.sent, [], 'Viewing a blocked launch grants no remote publication or task submission');
   });
 });
@@ -378,7 +460,7 @@ test('Group source confirmation shows each selected repository version and its c
   assert.match(fixed.textContent, /Front end/); assert.match(fixed.textContent, /API service/); assert.ok(fixed.textContent.includes('c'.repeat(40)));
   const changes = dom.window.document.querySelector('[aria-label="Group Repo 版本變更"]');
   assert.match(changes.textContent, /API service/); assert.ok(changes.textContent.includes('b'.repeat(40))); assert.ok(changes.textContent.includes('c'.repeat(40)));
-  assert.equal(button(dom,'在獨立視窗執行').disabled, true);
+  assert.equal(button(dom,'開始任務').disabled, true);
 });
 
 test('approvals render only advertised decisions and retain session scope', async t => {

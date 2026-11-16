@@ -8,6 +8,7 @@ import { ProjectWikiStore, projectWikiMarkdown } from '../../src/codex/projectWi
 import { GitLabApiError, GitLabClient, GitLabWriteUnknownError } from '../../src/api/gitLabClient';
 import type { GitLabWikiPage } from '../../src/api/types';
 import type { CodexTaskOrigin } from '../../src/codex/workflowProtocol';
+import { parseProjectWikiSeed } from '../../src/codex/projectWikiSeed';
 
 async function fixture(t: test.TestContext) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glw-project-wiki-'));
@@ -229,4 +230,54 @@ test('Wiki cancellation preserves checked pages and a 429 response never starts 
   assert.deepEqual(reads, ['codebase/index', 'codebase/module']);
   const complete = await f.store.preview(f.id, f.origin, client, () => {}, { cursor: paused.progress!.nextCursor });
   assert.equal(complete.progress!.status, 'ready'); assert.equal(reads.length, 3); assert.deepEqual(f.writes, []);
+});
+
+test('retained Wiki seed regenerates mapped pages after the live draft has been cleaned', async t => {
+  const f = await fixture(t); await f.store.create(f.id, f.origin, f.source);
+  const preview = await f.store.preview(f.id, f.origin, f.client, () => {});
+  await f.store.publish(f.id, f.origin, preview.revision, f.client, () => {});
+  const seed = await f.store.exportSeed(f.id, f.origin);
+  assert.equal(seed.mappingComplete, true);
+  assert.deepEqual(seed.pages.find(page => page.slug === 'codebase/index')?.sources, ['src/main.ts']);
+  assert.equal(seed.pages.every(page => page.published), true);
+  await f.store.remove(f.id);
+  const runtime = path.join(f.root, 'new-runtime'), target = path.join(runtime, 'source');
+  await mkdir(path.join(target, 'wiki'), { recursive: true });
+  await f.store.copyRetainedSeed(seed, f.origin, f.root, runtime);
+  const plan = await f.store.seedIncremental(f.id, f.origin, target, ['src/main.ts'], true, path.join(runtime, 'wiki-seed.json'));
+  assert.equal(plan.mode, 'incremental');
+  assert.deepEqual(plan.pages, ['codebase/index', 'codebase/module']);
+  assert.equal(plan.unchanged.length, 0);
+  assert.deepEqual(f.writes, ['codebase/index', 'codebase/module'], 'restoring a seed performs no publication');
+});
+
+test('Wiki retained seed rejects another account or malformed publication evidence and falls back for unmapped changes', async t => {
+  const f = await fixture(t); await f.store.create(f.id, f.origin, f.source);
+  const preview = await f.store.preview(f.id, f.origin, f.client, () => {});
+  await f.store.publish(f.id, f.origin, preview.revision, f.client, () => {});
+  const seed = await f.store.exportSeed(f.id, f.origin);
+  assert.throws(() => parseProjectWikiSeed(seed, { ...f.origin, accountKey: 'foreign' }), /不屬於/);
+  const invalid = structuredClone(seed); invalid.pages[0].content += 'tampered';
+  assert.throws(() => parseProjectWikiSeed(invalid, f.origin), /發布收據/);
+  const unsafe = structuredClone(seed); unsafe.pages[0].file = '../foreign.md';
+  assert.throws(() => parseProjectWikiSeed(unsafe, f.origin), /映射無效/);
+  const runtime = path.join(f.root, 'new-runtime'), target = path.join(runtime, 'source'); await mkdir(path.join(target, 'wiki'), { recursive: true });
+  await f.store.copyRetainedSeed(seed, f.origin, f.root, runtime);
+  const plan = await f.store.seedIncremental(f.id, f.origin, target, ['new-file.ts'], true, path.join(runtime, 'wiki-seed.json'));
+  assert.equal(plan.mode, 'full'); assert.match(plan.reason, /尚未映射/);
+  assert.deepEqual(plan.unchanged, []);
+});
+
+test('retained Wiki seeds accept expanded Markdown but reject encoded JSON above the draft limit', async t => {
+  const f = await fixture(t); await f.store.create(f.id, f.origin, f.source);
+  const seed = await f.store.exportSeed(f.id, f.origin), expanded = structuredClone(seed);
+  expanded.pages = Array.from({ length: 32 }, (_, index) => ({ slug: `codebase/page-${index}`, title: `codebase/page-${index}`,
+    file: `page-${index}.md`, content: 'x'.repeat(70_000), sources: ['src/main.ts'], published: false }));
+  assert.equal(expanded.pages.reduce((sum, page) => sum + Buffer.byteLength(page.content), 0), 2_240_000);
+  const accepted = parseProjectWikiSeed(expanded, f.origin);
+  assert.equal(accepted.pages.length, 32); assert.equal(accepted.pages[31].content.length, 70_000);
+  const oversized = structuredClone(expanded);
+  oversized.pages[0].sources = Array.from({ length: 5200 }, (_, index) => `src/${'a'.repeat(1250)}/${index}.ts`);
+  assert.ok(Buffer.byteLength(JSON.stringify(oversized)) > 8 * 1024 * 1024);
+  assert.throws(() => parseProjectWikiSeed(oversized, f.origin), /更新來源格式無效/);
 });

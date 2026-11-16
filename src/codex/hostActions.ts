@@ -8,6 +8,7 @@ import { captureCodexContext, contextHash, pathInside } from './freeTask';
 import { workflowGit } from './projectWorkflows';
 import { CodexTaskScheduler } from './scheduler';
 import type { CodexResultManifest } from './resultProtocol';
+import { readTaskWorkspace } from './taskWorkspace';
 
 export interface CodexHostActionOptions {
   bridge(): CodexBridge;
@@ -36,9 +37,15 @@ export class CodexHostActions {
     }
     if (command.action === 'storage') { await this.vscode.commands.executeCommand('revealFileInOS', this.vscode.Uri.file(this.options.bridge().storagePath)); return; }
     const bridge = this.options.bridge();
+    if (command.action === 'regenerate-wiki') { await this.options.workflow(command.action, command.taskId); return; }
     if (command.action === 'open-worktree') {
       const spec = await bridge.specification(command.taskId);
       if (spec.taskWorkspace) {
+        const manifest = await readTaskWorkspace(path.dirname(bridge.storagePath), spec.taskWorkspace.workspaceFile);
+        if (manifest.windowMode === 'origin') {
+          await this.vscode.commands.executeCommand('vscode.openFolder', this.vscode.Uri.file(spec.executionRoot ?? spec.root), { forceNewWindow: true });
+          return;
+        }
         await this.vscode.commands.executeCommand('vscode.openFolder', this.vscode.Uri.file(spec.taskWorkspace.workspaceFile), { forceNewWindow: true });
         return;
       }
@@ -198,7 +205,8 @@ export class CodexHostActions {
       if (task.controls?.canResume && spec.source.kind === 'free') choices.push({ label: '設定／暫停目標', value: 'goal' });
       if (task.status === 'queued' && !task.controls?.external) choices.push({ label: '向前移動排隊順序', value: 'up' }, { label: '向後移動排隊順序', value: 'down' });
       if (spec.origin?.kind === 'issue' && task.result?.state === 'ready') choices.push({ label: '準備 CommitReviewer 與 MR 草稿', value: 'handoff' });
-      if (spec.workflow?.worktree) choices.push({ label: '開啟隔離工作區', value: 'open-worktree' }, { label: '移除已保存的隔離 worktree', value: 'remove-worktree' });
+      if (spec.workflow?.managedClone || spec.workflow?.worktree) choices.push({ label: '另窗瀏覽任務目錄', value: 'open-worktree' });
+      if (spec.workflow?.worktree) choices.push({ label: '移除已保存的隔離 worktree', value: 'remove-worktree' });
       if (spec.origin?.kind === 'project-wiki' && task.controls?.canResume) choices.push({ label: '依來源變更重新產生 Wiki', value: 'regenerate-wiki' });
       if (spec.origin?.kind === 'merge-request' && task.controls?.canResume) choices.push({ label: '將 MR 討論轉成修正任務', value: 'mr-fix' });
       const choice = await this.vscode.window.showQuickPick(choices, { title: task.title }); if (!choice) return;

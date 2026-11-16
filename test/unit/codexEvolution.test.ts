@@ -106,14 +106,19 @@ test('free tasks need no Skill and persist progress, dispatch receipts, metadata
   assert.equal((await f.bridge.specification(fork)).origin, undefined);
   assert.equal(f.bridge.list().find(task => task.id === 'free')?.threadId, task.threadId);
 });
-test('granular Auto-Accept leaves file changes and permissions pending and survives reopening with the switch off', async t => {
+test('granular local Auto-Accept remembers its choice without arming after reopening', async t => {
   const f = await fixture(t); await f.bridge.enqueue(await f.spec(f.repositories[0], 'auto-approvals'), 'limited');
   await until(() => f.bridge.list()[0]?.status === 'waiting');
   await f.bridge.setApprovals('limited', { command: true, file: false, permissions: false }); await f.bridge.setAutoAccept('limited', true);
+  await until(() => f.responses.length === 1);
+  await until(() => [...(f.bridge as any).interactions.values()].some((value: any) => value.request.id === 92));
+  const network = [...(f.bridge as any).interactions.values()].find((value: any) => value.request.id === 92) as any;
+  await f.bridge.answer('limited', network.projection.id, { decision: 'decline' });
   await until(() => f.responses.length === 3); assert.deepEqual(f.responses.map(response => response.id), [91, 92, 93]);
   await f.bridge.pause('limited'); await f.bridge.shutdown();
   const reopened = f.make(); await reopened.initialize();
-  assert.equal(reopened.list()[0].controls?.autoAccept, false); assert.equal(reopened.list()[0].controls?.approvals?.file, false);
+  assert.equal(reopened.list()[0].controls?.autoAccept, true); assert.equal(reopened.list()[0].controls?.autoAcceptArmed, false);
+  assert.equal(reopened.list()[0].controls?.approvals?.file, false);
 });
 test('native Goal continues across turns and waits for the final turn after the goal-complete event', async t => {
   const f = await fixture(t, 'evolution-goal'); await f.bridge.enqueue(await f.spec(f.repositories[0], 'finish'), 'goal');

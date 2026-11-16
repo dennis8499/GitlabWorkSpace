@@ -205,6 +205,9 @@ h3 { font-size: 1.000rem; margin: 0; font-weight: 600; }
 .operation-item-list { max-height: 100px; overflow: auto; }
 .clone-actions { position: sticky; z-index: 3; bottom: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; flex: 0 0 auto; padding: 11px 12px; border-top: 1px solid var(--border); background: var(--surface-raised); }
 .clone-root-line { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 10px; min-width: 0; }
+.clone-destination { flex: 0 0 auto; padding: 11px 12px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
+.clone-destination p { margin: 6px 0 0; }
+.local-wiki-location { overflow-wrap: anywhere; }
 .clone-root-line > span { min-width: 0; flex: 1; overflow-wrap: anywhere; color: var(--muted); }
 .clone-actions-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .clone-selection-summary { display: flex; min-width: 90px; flex: 1; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }

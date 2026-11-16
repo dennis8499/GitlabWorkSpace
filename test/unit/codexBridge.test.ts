@@ -12,6 +12,7 @@ import { CodexTaskScheduler } from '../../src/codex/scheduler';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
 import { resolveCodexExecutable } from '../../src/codex/process';
 import { canonicalRuntime } from '../../src/codex/taskValidation';
+import { CodexRpcError } from '../../src/codex/rpcError';
 import type { CodexEvent, CodexInteraction, CodexTaskRecord, CodexTaskSpec } from '../../src/codex/protocol';
 
 const fixture = path.resolve(__dirname, '../../../test/fixtures/codex-app-server.cjs');
@@ -33,9 +34,14 @@ test('Codex JSONL handshake, split UTF-8, overlapping request IDs, and redacted 
   } finally { await client.close(); }
 });
 test('Codex rejects malformed output, deadlines and exited processes', async () => {
-  for (const method of ['test/bad-json', 'test/ignore', 'test/exit']) {
-    const client = peer(process.cwd(), 1000);
-    try { await client.initialize('test'); await assert.rejects(client.request(method)); }
+  for (const [method, category] of [['test/bad-json', 'protocol'], ['test/ignore', 'timeout'], ['test/exit', 'transport']] as const) {
+    const client = peer();
+    try {
+      // Establish the peer with the normal startup budget; the fault request
+      // retains its original deadline independently of Windows process startup.
+      await client.initialize('test');
+      await assert.rejects(client.request(method, {}, { timeoutMs: 1000 }), error => error instanceof CodexRpcError && error.category === category);
+    }
     finally { await client.close(); }
   }
 });
@@ -398,16 +404,24 @@ test('A late watcher snapshot cannot resurrect a deleted task', async t => {
   await f.bridge.publish(); assert.deepEqual(f.bridge.list(), []);
 });
 
-test('Auto-Accept is off by default, drains pending approvals once, and leaves questions and MCP interactions manual', async t => {
+test('local Auto-Accept drains local operations once and leaves network, permissions and questions manual', async t => {
   const f = await setup(t, 'auto-approvals', 'duplicate-approval');
   await f.bridge.enqueue(f.spec, 'auto-task');
   await until(() => f.bridge.list()[0].status === 'waiting');
   assert.equal(f.bridge.list()[0].controls?.autoAccept, false); assert.equal(f.responses.length, 0);
   await f.bridge.setAutoAccept('auto-task', true);
-  await until(() => f.responses.length === 5);
-  assert.deepEqual(f.responses.map(response => response.id), [91, 92, 93, 94, 95]);
-  assert.deepEqual(f.responses.slice(0, 4).map(response => response.result), Array.from({ length: 4 }, () => ({ decision: 'accept' })));
-  assert.deepEqual(f.responses[4].result, { permissions: { network: { enabled: true } }, scope: 'turn' });
+  await until(() => f.responses.length === 1);
+  await until(() => [...(f.bridge as any).interactions.values()].some((value: any) => value.request.id === 92));
+  assert.deepEqual(f.responses.map(response => response.id), [91]);
+  const network = [...(f.bridge as any).interactions.values()].find((value: any) => value.request.id === 92) as any;
+  await f.bridge.answer('auto-task', network.projection.id, { decision: 'decline' });
+  await until(() => f.responses.length === 4);
+  assert.deepEqual(f.responses.map(response => response.id), [91, 92, 93, 94]);
+  assert.equal(f.responses[1].result.decision, 'decline');
+  assert.deepEqual([f.responses[0], ...f.responses.slice(2)].map(response => response.result), Array.from({ length: 3 }, () => ({ decision: 'accept' })));
+  await until(() => [...(f.bridge as any).interactions.values()].some((value: any) => value.request.id === 95));
+  const permissions = [...(f.bridge as any).interactions.values()].find((value: any) => value.request.id === 95) as any;
+  await f.bridge.answer('auto-task', permissions.projection.id, { decision: 'decline' });
   await until(() => [...(f.bridge as any).interactions.values()].some((value: any) => value.projection.kind === 'questions'));
   assert.equal(f.responses.length, 5);
   await f.bridge.setAutoAccept('auto-task', false);
@@ -420,6 +434,44 @@ test('Auto-Accept is off by default, drains pending approvals once, and leaves q
   const observer = new CodexBridge({ ...(f.bridge as any).options, event: () => {} }); t.after(() => observer.shutdown());
   await observer.publish(); assert.equal(observer.list()[0].controls?.autoAccept, false);
   await until(() => f.events.some(event => event.kind === 'output' && event.items.some(item => item.kind === 'notice' && item.text.includes('已自動核准'))));
+});
+
+test('the enabled machine preference is saved before the first local approval and task overrides remain durable', async t => {
+  const f = await setup(t, 'auto-approvals');
+  const options = (f.bridge as any).options as CodexBridgeOptions;
+  options.autoApproveLocalOperations = () => true;
+  await f.bridge.enqueue(f.spec, 'remembered-local');
+  await until(() => f.responses.length === 1);
+  await until(() => [...(f.bridge as any).interactions.values()].some((value: any) => value.request.id === 92));
+  assert.deepEqual(f.responses, [{ id: 91, result: { decision: 'accept' } }]);
+  const file = path.join(f.bridge.storagePath, 'remembered-local.json');
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).autoAcceptEnabled, true);
+  assert.equal(f.bridge.list()[0].controls?.autoAcceptArmed, true);
+  await f.bridge.setAutoAccept('remembered-local', false);
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).autoAcceptEnabled, false);
+  assert.equal(f.bridge.list()[0].controls?.autoAcceptArmed, false);
+  assert.equal(f.responses.length, 1, 'the network request remains unanswered after changing the preference');
+});
+
+test('a later disabled preference wins when an earlier enable finishes saving out of order', async t => {
+  const f = await setup(t, 'auto-approvals');
+  await f.bridge.enqueue(f.spec, 'ordered-preference');
+  await until(() => f.bridge.list()[0].status === 'waiting');
+  let entered!: () => void, release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; }), observed = new Promise<void>(resolve => { entered = resolve; });
+  const originalSave = (f.bridge as any).save.bind(f.bridge); let first = true;
+  t.mock.method(f.bridge as any, 'save', async (record: CodexTaskRecord, publish?: boolean) => {
+    if (first && record.autoAcceptEnabled === true) { first = false; entered(); await held; }
+    return originalSave(record, publish);
+  });
+  const enabling = f.bridge.setAutoAccept('ordered-preference', true);
+  await observed;
+  await f.bridge.setAutoAccept('ordered-preference', false);
+  release(); await enabling;
+  assert.equal(f.bridge.list()[0].controls?.autoAccept, false);
+  assert.equal(f.bridge.list()[0].controls?.autoAcceptArmed, false);
+  assert.equal(JSON.parse(await readFile(path.join(f.bridge.storagePath, 'ordered-preference.json'), 'utf8')).autoAcceptEnabled, false);
+  assert.deepEqual(f.responses, [], 'out-of-order completion cannot answer the pending approval');
 });
 
 test('an immediate manual reply during interaction delivery cannot race auto-answer', async t => {
@@ -449,6 +501,7 @@ test('Auto-Accept respects allowed decisions and turns off after a transport res
   await f.bridge.setAutoAccept('restricted-auto', true);
   assert.equal(f.bridge.list()[0].controls?.autoAccept, false);
   assert.match(f.bridge.list()[0].controls?.autoAcceptError ?? '', /已關閉/);
+  assert.equal(JSON.parse(await readFile(path.join(f.bridge.storagePath, 'restricted-auto.json'), 'utf8')).autoAcceptEnabled, false);
   assert.equal((f.bridge as any).interactions.size, 1);
 });
 
@@ -459,6 +512,8 @@ test('A connection lost after sending an approval disables Auto-Accept and retai
   await until(() => f.bridge.list()[0].status === 'uncertain');
   assert.equal(f.bridge.list()[0].controls?.autoAccept, false);
   assert.match(f.bridge.list()[0].controls?.autoAcceptError ?? '', /連線已中斷/);
+  await until(() => !((f.bridge as any).executions as Map<string, unknown>).has('lost-approval'));
+  assert.equal(JSON.parse(await readFile(path.join(f.bridge.storagePath, 'lost-approval.json'), 'utf8')).autoAcceptEnabled, false);
   assert.equal(f.responses.length, 1);
 });
 test('Workspace lease recovery requires an exact supervisor completion receipt', async t => {

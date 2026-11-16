@@ -20,7 +20,7 @@ async function until(predicate: () => boolean, message: string): Promise<void> {
   while (!predicate()) { if (Date.now() >= deadline) throw new Error('Timed out: ' + message); await new Promise(resolve => setTimeout(resolve, 10)); }
 }
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
-async function fixture(t: test.TestContext, group = false) {
+async function fixture(t: test.TestContext, group = false, cliVersion = '0.167.2') {
   const parent = await realpath(os.tmpdir()), root = await realpath(await mkdtemp(path.join(parent, 'glw-lifecycle-')));
   const storage = path.join(root, 'storage'), project = path.join(root, 'project'), output = group ? path.join(project, '_bmad-output', 'specs', 'analysis') : project;
   const runtime = path.join(storage, 'codex-group-analysis', 'a'.repeat(32));
@@ -58,7 +58,7 @@ async function fixture(t: test.TestContext, group = false) {
         }
         return request(method, params, rpcOptions);
       };
-      return { client, version: '0.167.2', executable: 'offline-peer' };
+      return { client, version: cliVersion, executable: 'offline-peer' };
     }
   };
   const make = (overrides: Partial<CodexBridgeOptions> = {}) => {
@@ -91,6 +91,23 @@ test('stop and clean deduplicates repeated requests and retains results before d
   await assert.rejects(readFile(path.join(f.storage, 'codex-tasks', live.id + '.json')), { code: 'ENOENT' });
   const result = await bridge.resultManifest(live.id); assert.ok(result.artifacts.some(artifact => artifact.path === 'reports/SPEC.md'));
   assert.equal(JSON.stringify(result).includes('thread-'), false);
+});
+
+test('native 0.169 cleanup seals results before deleting its owned thread without starting another turn', async t => {
+  const f = await fixture(t, false, '0.169.0'), bridge = f.make();
+  await bridge.enqueue(f.spec, 'cleanup-native-169');
+  await until(() => !!bridge.list()[0]?.turnId, 'local fixture turn');
+  const live = (bridge as any).records.get('cleanup-native-169') as CodexTaskRecord;
+  live.result = f.record(live.id).result; await (bridge as any).save(live);
+  await bridge.stopAndClean(live.id, 'manual');
+  assert.equal(f.calls.filter(call => call.startsWith('thread/delete:')).length, 1);
+  assert.equal(f.calls.filter(call => call === 'turn/start').length, 1);
+  assert.equal(f.cleanupCount(), 1);
+  assert.equal(bridge.list()[0].retention, 'results-only');
+  assert.equal(bridge.list()[0].cleanupState, 'complete');
+  await assert.rejects(readFile(path.join(f.storage, 'codex-tasks', live.id + '.json')), { code: 'ENOENT' });
+  const result = await bridge.resultManifest(live.id);
+  assert.equal(result.artifacts.some(artifact => artifact.path === 'reports/SPEC.md'), true);
 });
 
 test('completed Group drafts retain their sources until an explicit handoff seals them', async t => {
@@ -238,9 +255,37 @@ test('linked workflows keep network and direct publishing approvals outside Auto
       await bridge.answer(record.id, interaction, { decision: 'decline' });
     }
     const before = responses.length;
-    request('item/permissions/requestApproval', { permissions: { fileSystem: { read: [f.project] } } });
-    await new Promise(resolve => setImmediate(resolve)); assert.equal(responses.length, before + 1);
+    const filesystem = request('item/permissions/requestApproval', { permissions: { fileSystem: { read: [f.project] } } });
+    await new Promise(resolve => setImmediate(resolve)); assert.equal(responses.length, before);
+    await bridge.answer(record.id, filesystem, { decision: 'accept' });
     assert.deepEqual(responses.at(-1), { permissions: { fileSystem: { read: [f.project] } }, scope: 'turn' });
+  } finally { (bridge as any).executions.delete(record.id); }
+});
+
+test('manual approval details expose embedded permissions and expanded write roots before any answer', async t => {
+  const f = await fixture(t), record = f.record('manual-permission-detail'); record.threadId = 'detail-thread'; record.turnId = 'detail-turn';
+  await new CodexTaskStore(path.join(f.storage, 'codex-tasks')).save(record);
+  const bridge = f.make(); await bridge.initialize();
+  const stored = (bridge as any).records.get(record.id) as CodexTaskRecord, responses: unknown[] = [];
+  const client = { respond: (_id: unknown, value: unknown) => responses.push(value), reject: () => assert.fail('known approval rejected at transport') } as unknown as CodexAppServer;
+  (bridge as any).executions.set(record.id, { record: stored, client, abort: new AbortController(), settled: Promise.resolve(), settle() {} });
+  try {
+    await bridge.setAutoAccept(record.id, true);
+    const outside = path.join(f.root, 'outside-task');
+    for (const [index, request] of [
+      { method: 'item/commandExecution/requestApproval', params: { command: 'npm test', cwd: f.project,
+        additionalPermissions: { fileSystem: { write: [outside] } } } },
+      { method: 'item/fileChange/requestApproval', params: { grantRoot: outside } }
+    ].entries()) {
+      (bridge as any).receiveInteraction(stored, client, { id: index + 1, method: request.method,
+        params: { threadId: record.threadId, turnId: record.turnId, itemId: 'permission-item', ...request.params } });
+      const pending = [...(bridge as any).interactions.values()].at(-1) as any;
+      await (bridge as any).autoAnswer(pending);
+      assert.equal(responses.length, 0);
+      assert.match(pending.projection.detail, /額外.*權限須人工核准/);
+      assert.ok(pending.projection.detail.includes(outside) || pending.projection.detail.includes(JSON.stringify(outside).slice(1, -1)));
+      if (index === 0) { assert.match(pending.projection.detail, /fileSystem/); assert.match(pending.projection.detail, /npm test/); }
+    }
   } finally { (bridge as any).executions.delete(record.id); }
 });
 

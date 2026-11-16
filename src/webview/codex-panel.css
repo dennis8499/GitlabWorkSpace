@@ -1,6 +1,6 @@
 .page[data-mode="codex"] { padding: 0; overflow: hidden; }
 .page[data-mode="codex"] .workspace-tasks { display: flex; flex: 1 1 0; min-height: 0; }
-.codex-workspace { display: grid; grid-template-columns: minmax(210px, 23%) minmax(0, 1fr); flex: 1 1 0; min-height: 0; min-width: 0; background: var(--vscode-editor-background); }
+.codex-workspace { display: grid; grid-template-columns: minmax(210px, 23%) minmax(0, 1fr); flex: 1 1 0; min-height: 0; min-width: 0; background: var(--vscode-editor-background); container: codex-task-area / size; }
 .codex-workspace[hidden] { display: none; }
 .page .codex-conversation button:not(.quiet), .codex-settings button { border: 1px solid var(--vscode-button-border, transparent); border-radius: 3px; padding: 5px 9px; background: var(--vscode-button-secondaryBackground, var(--vscode-editor-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .page .codex-conversation button:not(.quiet):not(:disabled):hover, .codex-settings button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
@@ -108,7 +108,13 @@
 .codex-launch-container { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; min-height: 0; }
 .codex-execution-panel[hidden], .codex-results-panel[hidden], .codex-attention[hidden], .codex-details-drawer[hidden], .codex-launch-container[hidden], .codex-journey[hidden], .codex-content-tabs[hidden] { display: none; }
 .codex-details-toggle { margin-left: auto; }
-.codex-auto-accept-details { display: none; }
+.codex-task-context { flex: 0 0 auto; min-width: 0; padding: 4px 18px 8px; border-bottom: 1px solid var(--vscode-panel-border); font-size: .85rem; }
+.codex-task-context p { margin: 3px 0; }
+.codex-source-basis { color: var(--vscode-descriptionForeground); overflow-wrap: anywhere; }
+.codex-location-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; margin: 4px 0 0; }
+.codex-location-list dt { color: var(--vscode-descriptionForeground); }
+.codex-location-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.codex-result-state { flex: 0 0 auto; margin: 0; padding: 6px 18px; }
 .codex-details-drawer { position: absolute; inset: 0 0 0 auto; z-index: 5; width: min(420px, 100%); box-sizing: border-box; padding: 12px; overflow: auto; border-left: 1px solid var(--vscode-panel-border); background: var(--vscode-sideBar-background, var(--vscode-editor-background)); box-shadow: -4px 0 16px var(--vscode-widget-shadow, #0003); }
 .codex-drawer-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
 .codex-drawer-heading h3 { margin: 0; }
@@ -137,8 +143,10 @@
   .codex-journey { margin-top: 7px; padding: 0 10px; }
   .codex-journey li { padding: 3px 8px 5px; }
   .codex-controls { gap: 6px 10px; padding-top: 8px; padding-bottom: 8px; }
-  .codex-controls > .codex-auto-accept { display: none; }
-  .codex-auto-accept-details { display: flex; margin-bottom: 12px; }
+  .codex-controls > .codex-auto-accept { display: flex; flex-wrap: wrap; }
+  .codex-task-context, .codex-result-state { padding-left: 10px; padding-right: 10px; }
+  .codex-location-list { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .codex-location-list dd { margin-bottom: 4px; }
   .codex-content-tabs { padding: 0 6px; }
   .codex-message { padding-top: 8px; }
   .codex-message textarea { max-height: 100px; }
@@ -148,6 +156,22 @@
 .codex-launch { scroll-padding-bottom: 120px; }
 /* Short windows and display scaling need one reachable vertical flow. */
 @media (max-height: 600px), (max-width: 399px) {
+  .codex-conversation { overflow-y: auto; scroll-padding-block: 12px 170px; }
+  .codex-conversation > * { flex-shrink: 0; }
+  .codex-execution-panel { flex: 0 0 200px; min-height: 200px; }
+  .codex-results-panel { flex: 0 0 auto; min-height: 240px; overflow: visible; }
+  .codex-attention { flex: 0 0 auto; min-height: 0; max-height: none; overflow: visible; }
+  .codex-attention .codex-interaction > .button-row { position: static; }
+  .codex-message { position: sticky; bottom: 0; z-index: 4; max-height: 180px; box-sizing: border-box; overflow-y: auto; background: var(--vscode-editor-background); }
+  .codex-message-queue-content { position: static; max-height: 160px; }
+  .codex-launch-container { flex: 0 0 auto; }
+  .codex-launch-container .codex-launch { overflow: visible; }
+  .codex-launch .codex-launch-actions { position: static; }
+}
+/* Workbench headers and task locations consume height inside a taller Webview.
+   Use the allocated task area as well as viewport media queries, so the fixed
+   controls cannot overflow an otherwise non-scrollable conversation. */
+@container codex-task-area (max-height: 600px) {
   .codex-conversation { overflow-y: auto; scroll-padding-block: 12px 170px; }
   .codex-conversation > * { flex-shrink: 0; }
   .codex-execution-panel { flex: 0 0 200px; min-height: 200px; }

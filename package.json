@@ -270,6 +270,12 @@
     ],
     "configuration": {
       "properties": {
+        "gitlabWorkspace.codex.autoApproveLocalOperations": {
+          "default": false,
+          "description": "新 Codex 任務預設自動核准任務範圍內的單次本機命令與檔案修改。既有任務保留各自設定；額外權限、網路、問題、登入及成果發布仍需個別確認。",
+          "scope": "machine",
+          "type": "boolean"
+        },
         "gitlabWorkspace.codex.executablePath": {
           "default": "",
           "description": "Codex CLI 執行檔的完整路徑；留白從 PATH 偵測。只讀取使用者設定，支援官方 npm 安裝入口。需要 Codex CLI 0.165.0 或更新版本。",
@@ -594,5 +600,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.52.0"
+  "version": "0.53.0"
 }

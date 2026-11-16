@@ -149,7 +149,7 @@ export function hasCodexV3Metadata(value: unknown): boolean {
 export function validStoredCodexProjection(value: unknown): boolean {
   if (!object(value) || !['title', 'createdAt', 'updatedAt'].every(key => string(value[key])) ||
     !fields(value, ['threadId', 'turnId', 'error', 'ownerInstance', 'pendingMessage']) ||
-    !fields(value, ['pinned', 'archived', 'dispatchPending', 'pendingMessageIsUser'], item => typeof item === 'boolean') ||
+    !fields(value, ['pinned', 'archived', 'dispatchPending', 'pendingMessageIsUser', 'autoAcceptEnabled'], item => typeof item === 'boolean') ||
     !optional(value.revision, integer) || !optional(value.ownerGeneration, item => integer(item) && Number(item) > 0) || !object(value.spec) || !object(value.spec.source) ||
     !['free', 'skill', 'bmad', 'group-analysis', 'issue', 'project-wiki', 'merge-request', 'review'].includes(String(value.spec.source.kind))) return false;
   if (!['GitLabWorkspaceCodexTask/v1', 'GitLabWorkspaceCodexTask/v2', 'GitLabWorkspaceCodexTask/v3', 'GitLabWorkspaceCodexTask/v4'].includes(String(value.schema)) ||

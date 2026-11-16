@@ -223,7 +223,7 @@ test('Issue preview and detail preserve independent Clone isolation for Build an
     assert.equal(document.querySelector('.codex-launch input[type="checkbox"]'), null, 'Issue isolation cannot be disabled and no automatic publication checkbox is offered');
     assert.match(document.querySelector('.codex-launch').textContent, /在獨立本機 Repo 副本執行/);
     assert.equal([...document.querySelectorAll('.codex-launch button')].some(button => button.textContent === '複製手動執行資料'), false);
-    assert.equal(document.querySelector('.codex-launch-actions button[type="submit"]').textContent, '在獨立視窗執行');
+    assert.equal(document.querySelector('.codex-launch-actions button[type="submit"]').textContent, '開始任務');
     document.querySelector('.codex-launch-actions button[type="button"]').click(); await view.tick();
     const check = view.rawRequests.findLast(request => request.type === 'checkCodexLaunch');
     assert.equal(check.draftId, draft.id); assert.equal(check.revision, draft.revision); assert.equal(check.patch.isolated, true);
@@ -251,16 +251,29 @@ test('Project Wiki shows a safe preview and sends publication only after the exp
   publish.focus(); assert.equal(document.activeElement, publish); publish.click(); await view.tick();
   const sent = view.requests.findLast(request => request.type === 'publishProjectWiki');
   assert.equal(sent.taskId, task.id); assert.equal(sent.revision, 'previewed-revision'); assert.equal(sent.content, undefined);
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, controls: { ...task.controls, canResume: false, canDelete: false },
-    result: { ...task.result, state: 'uncertain', summary: 'Verify the timed-out publication.' } }] } });
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, result: { ...task.result, state: 'uncertain' }, wiki: { id: task.result.draftId,
-    revision: 'unknown-publication', error: 'Confirm the remote result.', uncertain: true, sourceBranch: 'main', sourceSha: gitHead,
-    projectPath: 'team/alpha', pages: [{ slug: 'codebase/index', title: 'Overview', action: 'create', published: false, content: '# Overview' }] } });
-  await view.tick();
-  const reconcile = [...document.querySelectorAll('.codex-wiki-preview button')].find(button => button.textContent === '重新預覽／核對結果');
-  assert.equal(reconcile.disabled, false, 'uncertain publication must allow reconciliation'); reconcile.click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'previewProjectWiki').refresh, true);
-  assert.equal(publish.disabled, true);
+  for (const status of ['completed', 'uncertain']) {
+    view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, status, controls: { ...task.controls, canResume: false, canDelete: false },
+      result: { ...task.result, state: 'uncertain', summary: 'Verify the timed-out publication.' } }] } });
+    view.send({ type: 'codexWorkflowResult', taskId: task.id, result: { ...task.result, state: 'uncertain' }, wiki: { id: task.result.draftId,
+      revision: 'unknown-publication', error: 'Confirm the remote result.', uncertain: true, sourceBranch: 'main', sourceSha: gitHead,
+      progress: { status: 'partial', completed: 1, total: 2, nextCursor: 'remaining-pages' }, projectPath: 'team/alpha',
+      pages: [{ slug: 'codebase/index', title: 'Overview', action: 'create', published: false, content: '# Overview' }] } });
+    await view.tick();
+    const button = text => [...document.querySelectorAll('.codex-wiki-preview button')].find(item => item.textContent === text);
+    const publicationCount = view.requests.filter(request => request.type === 'publishProjectWiki').length;
+    for (const [label, details] of [['重新預覽／核對結果', { refresh: true }], ['繼續核對其餘頁面', { cursor: 'remaining-pages' }], ['確認後允許重試', { confirmRetry: true }]]) {
+      const read = button(label); assert.equal(read.disabled, false, `${status} publication must allow ${label}`);
+      read.click(); await view.tick();
+      assert.deepEqual(view.requests.findLast(request => request.type === 'previewProjectWiki'), { type: 'previewProjectWiki', taskId: task.id, ...details });
+    }
+    for (const [label, mode] of [['在編輯器開啟 Markdown', 'source'], ['開啟差異', 'diff']]) {
+      assert.equal(button(label).disabled, false); button(label).click(); await view.tick();
+      assert.deepEqual(view.requests.findLast(request => request.type === 'openProjectWikiDocument'),
+        { type: 'openProjectWikiDocument', taskId: task.id, revision: 'unknown-publication', slug: 'codebase/index', mode });
+    }
+    assert.equal(button('發布至 GitLab Wiki').disabled, true); button('發布至 GitLab Wiki').click(); await view.tick();
+    assert.equal(view.requests.filter(request => request.type === 'publishProjectWiki').length, publicationCount, 'read-only recovery never repeats publication');
+  }
   view.sendSnapshot({ ...data, activeAccountId: 'another', instanceUserScope: 'another-user', activeMode: 'codex' }); await view.tick();
   assert.equal(document.querySelector('.codex-wiki-preview'), null, 'another account cannot see the previous draft');
 });
@@ -1987,9 +2000,11 @@ test('Codex task management filters archived records and exposes native task cre
   const showArchived = [...document.querySelectorAll('.codex-tasks label')].find(label => label.textContent.includes('顯示已封存')).querySelector('input'); showArchived.click(); await view.tick();
   assert.equal(names().length, 3);
   [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes('Alpha')).click(); await view.tick();
-  const file = document.querySelectorAll('.codex-approval-options input')[1]; file.click(); await view.tick();
+  assert.deepEqual([...document.querySelectorAll('.codex-approval-options label')].map(label => label.textContent), ['命令', '檔案修改']);
+  const options = document.querySelectorAll('.codex-approval-options input'); assert.equal(options.length, 2);
+  const file = options[1]; file.click(); await view.tick();
   const approval = view.requests.findLast(request => request.type === 'codexCommand' && request.command.action === 'approvals');
-  assert.equal(approval.command.taskId, 'evolution-0'); assert.deepEqual(JSON.parse(JSON.stringify(approval.command.settings)), { command: true, file: false, permissions: true });
+  assert.equal(approval.command.taskId, 'evolution-0'); assert.deepEqual(JSON.parse(JSON.stringify(approval.command.settings)), { command: true, file: false, permissions: false });
   [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent === '建立 Codex 任務').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type === 'codexCommand').command.action, 'create');
 });
@@ -2035,7 +2050,8 @@ test('Codex task projections render messages, bind answers and expose stop, resu
   control('暫停').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'pauseCodexTask');
   assert.equal(view.requests.at(-1).taskId, task.id);
   await event({ kind: 'tasks', tasks: [{ ...task, status: 'completed' }] });
-  control('接續').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'resumeCodexTask');
+  const resume = control('接續修正'); assert.ok(resume); assert.equal(resume.disabled, false);
+  resume.click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'resumeCodexTask'); assert.equal(view.requests.at(-1).taskId, task.id);
   const followUp = document.getElementById('codex-follow-up'); followUp.value = 'Continue';
   followUp.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   document.querySelector('.codex-message').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
@@ -3824,6 +3840,20 @@ test('mixed workspaces use the common root for downloads, sync and settings', as
   const configure = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '開啟根目錄設定');
   configure.click(); assert.equal(view.requests.at(-1).type, 'openConfiguration');
   assert.equal(view.requests.at(-1).setting, 'gitlabWorkspace.projectRoot');
+});
+
+test('clone destination precedes project choices and downloaded Repo Wiki shortcuts never publish remotely', async t => {
+  const state = snapshot('clone'); setProjectContext(state, 'C:/group', false);
+  state.projectLocalRepositories = { 1: { path: 'C:/group/alpha', state: 'ready' } };
+  const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, destination = document.querySelector('[aria-label="下載與工作區位置"]');
+  const choices = document.querySelector('.clone-list-column .repo-list');
+  assert.match(destination.textContent, /C:\/group/);
+  assert.ok(destination.compareDocumentPosition(choices) & view.dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'users see the fixed download destination before selecting repositories');
+  const localWiki = document.querySelector('.clone-list-column .local-wiki-launch'); assert.equal(localWiki.textContent, '本地 Codebase Wiki');
+  localWiki.click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'openLocalWiki'), { type: 'openLocalWiki', repository: 'C:/group/alpha' });
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask' || request.type === 'publishProjectWiki'), false, 'choosing a local Wiki entry cannot generate or publish a GitLab Wiki');
 });
 
 test('settings display the same root for installation and Skills', async t => {

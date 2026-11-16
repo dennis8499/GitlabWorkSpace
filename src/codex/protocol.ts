@@ -91,10 +91,13 @@ export interface CodexTaskControls {
   canDelete: boolean;
   canAutoAccept: boolean;
   autoAccept: boolean;
+  /** Saved preference is separate from activation during an explicitly started execution. */
+  autoAcceptArmed?: boolean;
   autoAcceptError?: string;
   approvals?: CodexApprovalSettings;
 }
 export interface CodexTaskState {
+  locations?: { workspaceRoot: string; sourceRoot?: string; executionRoot?: string; outputRoot?: string; sourceBasis?: string; wikiTarget?: 'local' | 'gitlab' };
   workContext?: WorkContext;
   validationAttempts?: ValidationAttempt[];
   implementationCycles?: number;
@@ -169,6 +172,8 @@ export interface CodexTaskRecord extends Omit<CodexTaskState, 'controls'> {
   lease?: { directory: string; nonce?: string; receipt?: { path: string; nonce: string }; released?: boolean; extras?: Array<{ directory: string; nonce: string }> };
   forkedFrom?: { taskId: string; threadId: string; turnId: string };
   approvalSettings?: CodexApprovalSettings;
+  /** Per-task preference; restoring this value never starts a model turn. */
+  autoAcceptEnabled?: boolean;
   closing?: { reason: 'completed' | 'manual' | 'deleted'; startedAt: string };
   ownedThreadIds?: string[];
   temporaryRefs?: Array<{ repository: string; ref: string; sha: string }>;
@@ -255,7 +260,16 @@ export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
   const { id, title, root, status, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, result,
     revision, pinned, archived, progress, recovery, goal, publication, publications, delivery, validation, cleanupState,
     validationAttempts, implementationCycles } = record;
-  return { id, title, root, status, workingDirectory: record.spec.executionRoot ?? root, isolated: !!(record.spec.workflow?.worktree || record.spec.workflow?.managedClone || record.spec.taskWorkspace), selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin,
+  const spec = record.spec, localWiki = spec.source.kind === 'skill' && spec.skill?.name === 'codebase-wiki';
+  const gitlabWiki = spec.origin?.kind === 'project-wiki';
+  const locations: NonNullable<CodexTaskState['locations']> = { workspaceRoot: spec.root, executionRoot: spec.executionRoot ?? spec.root,
+    sourceRoot: localWiki && spec.source.kind === 'skill' ? spec.source.inputs['wiki.sourceRepo'] || spec.root
+      : spec.source.kind === 'free' ? spec.source.repository : spec.origin?.repositoryRoot ?? spec.root,
+    ...(spec.origin ? { sourceBasis: `${spec.origin.sourceBranch} @ ${spec.origin.sourceSha}` } : localWiki ? { sourceBasis: '本機內容摘要' } : {}),
+    ...(localWiki ? { wikiTarget: 'local' as const, outputRoot: spec.root.replace(/[\\/]$/, '') + (spec.root.includes('\\') ? '\\wiki' : '/wiki') } :
+      gitlabWiki ? { wikiTarget: 'gitlab' as const, outputRoot: spec.executionRoot } :
+        spec.groupAnalysis ? { outputRoot: spec.groupAnalysis.outputRoot } : spec.bmadArtifacts ? { outputRoot: spec.bmadArtifacts.outputRoot } : {}) };
+  return { id, title, root, status, locations, workingDirectory: record.spec.executionRoot ?? root, isolated: !!(record.spec.workflow?.worktree || record.spec.workflow?.managedClone || record.spec.taskWorkspace), selection: { model: record.spec.model ?? record.spec.routing?.model ?? (record.spec.routing ? 'gpt-6-luna' : undefined), effort: record.spec.routing?.requestedEffort ?? record.spec.effort }, createdAt, updatedAt, threadId, turnId, error, review, modelRouting, origin: record.spec.origin,
     result: result?.wikiQuality ? { ...result, wikiQuality: undefined } : result,
     revision, pinned, archived, progress: progress ? { ...progress, diff: undefined, hasDiff: !!progress.diff } : undefined, recovery, goal, publication, publications, delivery, validation, cleanupState,
     workContext: record.spec.workContext, validationAttempts, implementationCycles,
@@ -269,18 +283,31 @@ export function projectCodexTask(record: CodexTaskRecord): CodexTaskState {
 }
 
 /** A finished model turn and a verified deliverable are distinct product states. */
-export function projectTaskJourney(task: Pick<CodexTaskState, 'status' | 'progress' | 'result' | 'publication' | 'publications' | 'origin'>): Pick<CodexTaskState, 'blockers' | 'primaryAction'> {
+export function projectTaskJourney(task: Pick<CodexTaskState, 'status' | 'progress' | 'result' | 'publication' | 'publications' | 'origin' |
+  'delivery' | 'cleanupState' | 'uncertainMessages' | 'messageQueue' | 'controls' | 'implementationCycles'>): Pick<CodexTaskState, 'blockers' | 'primaryAction'> {
   const blockers: NonNullable<CodexTaskState['blockers']> = [];
+  const owned = !task.controls?.external, active = codexTaskActive(task.status) || task.status === 'queued';
+  if (task.cleanupState === 'running') return { blockers: [{ kind: 'tool', message: '正在保存成果與清理任務，請等待完成。' }],
+    primaryAction: { kind: 'results', label: '檢閱成果與清理進度', enabled: true } };
+  if (task.delivery?.state === 'running') return { blockers: [{ kind: 'tool', message: '交付正在處理，請等待收據核對。' }],
+    primaryAction: { kind: 'results', label: '檢閱交付進度', enabled: true } };
   const pending = task.publication?.state === 'pending' || Object.values(task.publications ?? {}).some(item => item.state === 'pending');
-  if (task.status === 'uncertain' || pending || task.result?.state === 'uncertain') {
+  const unsettledDelivery = task.delivery?.steps.some(step => step.state === 'sending' || step.state === 'uncertain');
+  const unsettledMessages = !!task.uncertainMessages || task.messageQueue?.some(message => message.state === 'uncertain' || !active && message.state === 'sending');
+  if (task.status === 'uncertain' || pending || task.result?.state === 'uncertain' || unsettledDelivery || unsettledMessages) {
     blockers.push({ kind: 'reconcile', message: '先核對已執行工作及發布結果，再接續操作。' });
-    return { blockers, primaryAction: { kind: 'reconcile', label: '核對結果', enabled: !codexTaskActive(task.status) } };
+    return { blockers, primaryAction: { kind: 'reconcile', label: '核對結果', enabled: owned && !active } };
   }
-  if (task.status === 'waiting') return { blockers: [{ kind: 'approval', message: '需要你的回答或核准。' }], primaryAction: { kind: 'answer', label: '回答目前要求', enabled: true } };
+  if (task.cleanupState === 'needs-attention' || task.delivery?.state === 'needs-attention' ||
+    (task.implementationCycles ?? 0) >= 3 && task.result?.state === 'needs-work') {
+    return { blockers: [{ kind: 'reconcile', message: '請先檢閱保留成果、交付或清理問題，再選擇下一步。' }],
+      primaryAction: { kind: 'results', label: '檢閱待處理成果', enabled: true } };
+  }
+  if (task.status === 'waiting') return { blockers: [{ kind: 'approval', message: '需要你的回答或核准。' }], primaryAction: { kind: 'answer', label: '回答目前要求', enabled: owned } };
   const waits = { resource: '等待共用資源釋放', capacity: '等待本機執行槽位', quota: '等待額度可用', tool: '等待外部工具', storage: '等待儲存區修復' };
   const reason = task.progress?.waitReason;
   if (reason && reason !== 'approval') blockers.push({ kind: reason, message: waits[reason] });
-  if (codexTaskActive(task.status) || task.status === 'queued') return { blockers, primaryAction: { kind: 'pause', label: '暫停', enabled: task.status !== 'pausing' } };
+  if (active) return { blockers, primaryAction: { kind: 'pause', label: '暫停', enabled: owned && task.status !== 'pausing' && task.controls?.canPause !== false } };
   if (task.result && ['ready', 'draft', 'published', 'partial'].includes(task.result.state)) return { blockers, primaryAction: { kind: 'results', label: '檢閱成果', enabled: true } };
-  return { blockers, primaryAction: { kind: 'resume', label: task.status === 'completed' ? '接續修正' : '恢復任務', enabled: true } };
+  return { blockers, primaryAction: { kind: 'resume', label: task.status === 'completed' ? '接續修正' : '恢復任務', enabled: owned && task.controls?.canResume !== false } };
 }

@@ -388,3 +388,43 @@ test('claim precedes admission and reopening a released task preserves fixed con
   assert.equal(reopened.status, 'interrupted'); assert.equal(reopened.controls!.external, false);
   assert.equal(prepared, 0, 'neither envelope claim nor reopening dispatches the original work');
 });
+
+test('origin window mode is durable while legacy manifests retain task window semantics', async t => {
+  const f = await fixture(t);
+  assert.equal((await readTaskWorkspace(f.storage, f.manifest.binding.workspaceFile)).windowMode ?? 'task', 'task');
+  const request = { source: f.spec.source, originRoot: f.group, preparedSpec: f.spec, windowMode: 'origin' as const };
+  const origin = await createTaskWorkspace(f.storage, request, 'origin-mode');
+  assert.equal((await readTaskWorkspace(f.storage, origin.binding.workspaceFile)).windowMode, 'origin');
+  await assert.rejects(createTaskWorkspace(f.storage, { ...request, windowMode: 'task' }, 'origin-mode'), /不可變更/);
+  const launchFile = path.join(origin.binding.directory, 'launch.json');
+  await writeFile(launchFile, JSON.stringify({ ...origin, windowMode: 'unsupported' }));
+  await assert.rejects(readTaskWorkspace(f.storage, origin.binding.workspaceFile), /視窗模式/);
+});
+
+test('one origin host retains independent task claims and releases every owned envelope on shutdown', async t => {
+  const f = await fixture(t); let preparations = 0;
+  const scheduler = { tryAcquire: async () => ({ reason: 'capacity' as const }), reconcile: async () => {} } as unknown as CodexTaskScheduler;
+  const make = () => new CodexBridge({ storage: f.storage, version: 'fixture', executable: () => '', trusted: () => true, scheduler,
+    autoApproveLocalOperations: () => true, prepare: async () => { preparations++; return f.spec; }, event: () => {}, openUrl: async () => {} });
+  const origin = await createTaskWorkspace(f.storage, { source: f.spec.source, originRoot: f.group, preparedSpec: f.spec, windowMode: 'origin' }, 'second-origin-task');
+  const first = make(), observer = make(), reopened = make();
+  try {
+    await first.claimTaskWorkspace(f.manifest.binding); await first.enqueue({ ...f.spec, taskWorkspace: f.manifest.binding }, f.record.id);
+    await first.claimTaskWorkspace(origin.binding); await first.enqueue({ ...f.spec, taskWorkspace: origin.binding }, origin.binding.taskId);
+    await first.setAutoAccept(f.record.id, false);
+    assert.deepEqual(first.list().map(task => task.controls?.external), [false, false]);
+    assert.equal(first.list().find(task => task.id === origin.binding.taskId)?.controls?.autoAccept, true);
+    assert.equal(first.list().find(task => task.id === origin.binding.taskId)?.controls?.autoAcceptArmed, false);
+    await observer.initialize();
+    assert.equal(observer.list().every(task => task.controls?.external), true);
+    assert.equal(observer.list().every(task => task.primaryAction?.enabled === false), true, 'Host projection must disable control writes in observer windows');
+    await assert.rejects(observer.pause(f.record.id), CodexTaskOwnerError);
+    await first.shutdown();
+    for (const launch of [f.manifest, origin]) assert.equal((await readTaskWorkspace(f.storage, launch.binding.workspaceFile)).owner?.released, true);
+    await reopened.claimTaskWorkspace(f.manifest.binding); await reopened.claimTaskWorkspace(origin.binding);
+    assert.equal(reopened.list().every(task => task.status === 'interrupted' && !task.controls?.external && !task.controls?.autoAcceptArmed), true);
+    assert.equal(reopened.list().find(task => task.id === f.record.id)?.controls?.autoAccept, false, 'task override wins over the enabled machine default');
+    assert.equal(reopened.list().find(task => task.id === origin.binding.taskId)?.controls?.autoAccept, true);
+    assert.equal(preparations, 0, 'claim and reload never dispatch queued tasks');
+  } finally { await first.shutdown(); await observer.shutdown(); await reopened.shutdown(); }
+});

@@ -51,9 +51,10 @@ async function preparePendingGroupOutput(storage: string, originRoot: string, sp
 }
 
 /** Creates launch metadata and an empty managed Group output folder; no model, Git sync or publication starts here. */
-export async function createTaskWorkspace(storage: string, request: { source: CodexTaskSource; originRoot: string; accountId?: string; preparedSpec?: CodexTaskSpec }, taskId: string = randomUUID()): Promise<CodexTaskWorkspaceManifest> {
+export async function createTaskWorkspace(storage: string, request: { source: CodexTaskSource; originRoot: string; accountId?: string; preparedSpec?: CodexTaskSpec; windowMode?: 'origin' | 'task' }, taskId: string = randomUUID()): Promise<CodexTaskWorkspaceManifest> {
   if (!validId(taskId)) throw new Error('Codex 任務識別無效。');
   validateSource(request.source);
+  if (request.windowMode !== undefined && !['origin', 'task'].includes(request.windowMode)) throw new Error('Codex 任務視窗模式無效。');
   const originRoot = await realpath(request.originRoot);
   const directory = path.join(storage, 'codex-workspaces', taskId);
   const binding: CodexTaskWorkspaceBinding = { schema: 'GitLabWorkspaceTaskWorkspace/v1', taskId, directory,
@@ -76,6 +77,7 @@ export async function createTaskWorkspace(storage: string, request: { source: Co
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     if (previous) {
       if (!same(previous.binding.originRoot, originRoot) || previous.binding.accountId !== binding.accountId) throw new Error('任務啟動識別已用於其他工作。');
+      if ((previous.windowMode ?? 'task') !== (request.windowMode ?? 'task')) throw new Error('既有任務的執行視窗不可變更。');
       if (JSON.stringify(previous.source) === JSON.stringify(request.source) && previous.preparedDigest === preparedDigest) {
         if (!previous.owner && !previous.retired && !await taskRecordExists(storage, taskId)) await preparePendingGroupOutput(storage, originRoot, request.preparedSpec);
         return previous;
@@ -84,6 +86,7 @@ export async function createTaskWorkspace(storage: string, request: { source: Co
       if (previous.preparedSpec && !request.preparedSpec) throw new Error('請重新準備此工作，不能移除已固定的任務內容。');
     } else if (await taskRecordExists(storage, taskId)) throw new Error('任務識別已有紀錄，不能建立另一份啟動來源。');
     const manifest: CodexTaskWorkspaceManifest = { schema: 'GitLabWorkspaceTaskLaunch/v1', binding, source: structuredClone(request.source), createdAt: previous?.createdAt ?? new Date().toISOString(),
+      ...(request.windowMode ? { windowMode: request.windowMode } : {}),
       ...(request.preparedSpec ? { preparedSpec: structuredClone(request.preparedSpec), preparedDigest } : {}) };
     if (Buffer.byteLength(JSON.stringify(manifest)) > 1024 * 1024) throw new Error('任務啟動內容超過 1 MiB，請縮小輸入後重新準備。');
     await preparePendingGroupOutput(storage, originRoot, request.preparedSpec);
@@ -113,6 +116,7 @@ export async function readTaskWorkspace(storage: string, workspaceFile: string):
   }
   const manifest = JSON.parse(await readFile(path.join(directory, 'launch.json'), 'utf8')) as CodexTaskWorkspaceManifest;
   validateTaskWorkspaceBinding(storage, manifest.binding);
+  if (manifest.windowMode !== undefined && !['origin', 'task'].includes(manifest.windowMode)) throw new Error('Codex 任務視窗模式無效。');
   validateSource(manifest.source);
   if (manifest.schema !== 'GitLabWorkspaceTaskLaunch/v1' || !same(manifest.binding.workspaceFile, workspaceFile) || !Number.isFinite(Date.parse(manifest.createdAt))) throw new Error('Codex 任務啟動資料無效。');
   if (manifest.preparedSpec && (!same(manifest.preparedSpec.root, manifest.binding.originRoot) || JSON.stringify(manifest.preparedSpec.source) !== JSON.stringify(manifest.source) ||

@@ -5,6 +5,8 @@ import type { CodexTaskResult, CodexTaskSpec } from '../codex/protocol';
 import { captureGitProcess } from '../git/gitProcess';
 import type { PythonRuntime } from './pythonRuntime';
 import type { WikiPageDigest, LocalWikiBaseline, WikiFinding, LocalWikiQualityReceipt } from './localWikiQualityProtocol';
+import { parseDocument } from 'yaml';
+import { localWikiCoverageLedger } from './localWiki';
 export type { LocalWikiBaseline, LocalWikiQualityReceipt } from './localWikiQualityProtocol';
 export type LocalWikiHelperRunner = (script: string, args: string[], root: string, python: PythonRuntime) => Promise<{ code: number; stdout: string }>;
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
@@ -42,9 +44,10 @@ export function isLocalWikiBaseline(value: unknown): value is LocalWikiBaseline 
   const seen = new Set<string>();
   let total = 0;
   return value.pages.every(page => {
-    if (!isObject(page) || Object.keys(page).some(key => !['path', 'sha256', 'size', 'notes'].includes(key)) || !safePage(page.path) || seen.has(page.path) ||
+    if (!isObject(page) || Object.keys(page).some(key => !['path', 'sha256', 'size', 'notes', 'sources'].includes(key)) || !safePage(page.path) || seen.has(page.path) ||
         typeof page.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(page.sha256) || !Number.isSafeInteger(page.size) || Number(page.size) < 0 || Number(page.size) > maxPageBytes) return false;
     if (page.notes !== undefined && (!Array.isArray(page.notes) || page.notes.length > 32 || !page.notes.every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)))) return false;
+    if (page.sources !== undefined && (!Array.isArray(page.sources) || page.sources.length > 1000 || !page.sources.every(safeSource))) return false;
     seen.add(page.path); total += Number(page.size); return total <= maxTotalBytes;
   });
 }
@@ -59,6 +62,45 @@ function noteDigests(bytes: Buffer): string[] {
   const notes = [...bytes.toString('utf8').matchAll(/<!-- codebase-wiki:(user-notes|visualization-notes):start -->[\s\S]*?<!-- codebase-wiki:\1:end -->/g)].map(match => hash(match[0]));
   if (notes.length > 32) throw new Error('Wiki 人工備註區塊超過檢查範圍。');
   return notes;
+}
+function safeSource(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 4096 && !/[\\:\0\r\n]/.test(value) &&
+    !value.startsWith('/') && value.split('/').every(part => !!part && part !== '.' && part !== '..');
+}
+function pageSources(bytes: Buffer): string[] | undefined {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(bytes.toString('utf8'));
+  if (!match) return;
+  const document = parseDocument(match[1], { uniqueKeys: true });
+  if (document.errors.length) return;
+  try {
+    const metadata: unknown = document.toJS({ maxAliasCount: 0 });
+    return isObject(metadata) && Array.isArray(metadata.sources) && metadata.sources.length <= 1000 && metadata.sources.every(safeSource)
+      ? [...new Set(metadata.sources)].sort() : undefined;
+  } catch { return; }
+}
+export function localWikiCoveragePlan(spec: CodexTaskSpec): { full: boolean; ledger: string; scopeArgs: string[]; sourcePrefix?: string } {
+  const inputs = spec.source.kind === 'skill' ? spec.source.inputs : {};
+  const selectedFull = inputs['wiki.scope'] === 'repository';
+  const full = spec.source.kind === 'skill' && spec.source.featureId === 'ingest' && (selectedFull || inputs['ingest.scope'] === '全部專案');
+  let ledger = path.join(spec.root, 'wiki', 'ingest-coverage.json'), sourcePrefix: string | undefined;
+  const scopeArgs = inputs['wiki.profile'] === 'group' ? ['--scope', 'group'] : [];
+  if (inputs['wiki.profile'] === 'group' && ['repository', 'path'].includes(inputs['wiki.scope'] ?? '')) {
+    const repository = inputs['wiki.sourceRepo'];
+    if (!repository || !path.isAbsolute(repository)) throw new Error('所選 Repo 的 Wiki 來源不明確。');
+    const relative = path.relative(spec.root, repository).split(path.sep).join('/');
+    if (!relative || relative.includes('/') || relative === '..' || path.isAbsolute(relative)) throw new Error('所選 Repo 不屬於此 Group。');
+    sourcePrefix = inputs['wiki.scope'] === 'path' ? inputs['ingest.path'] : relative;
+    if (!safeSource(sourcePrefix) || sourcePrefix !== relative && !sourcePrefix.startsWith(relative + '/')) throw new Error('Wiki 更新路徑超出所選 Repo。');
+    if (selectedFull) { scopeArgs.push('--repo', relative); ledger = localWikiCoverageLedger(spec.root, repository, 'group'); }
+  }
+  if (inputs['wiki.profile'] === 'repository' && !selectedFull && inputs['ingest.scope'] === '單一路徑') {
+    const selectedPath = inputs['ingest.path']?.replace(/^\.\//, '').replace(/\/$/, '');
+    if (selectedPath && selectedPath !== '.') {
+      if (!safeSource(selectedPath)) throw new Error('Wiki 更新路徑必須位於目前 Repo 內。');
+      sourcePrefix = selectedPath;
+    }
+  }
+  return { full, ledger, scopeArgs, sourcePrefix };
 }
 
 async function pageDigests(root: string): Promise<WikiPageDigest[]> {
@@ -80,7 +122,8 @@ async function pageDigests(root: string): Promise<WikiPageDigest[]> {
       const bytes = await readFile(absolute);
       if (bytes.length !== info.size) throw new Error('Wiki 在讀取時已變更，請重試檢查。');
       const notes = noteDigests(bytes);
-      total += bytes.length; pages.push({ path: file, sha256: hash(bytes), size: bytes.length, ...(notes.length ? { notes } : {}) });
+      const sources = pageSources(bytes);
+      total += bytes.length; pages.push({ path: file, sha256: hash(bytes), size: bytes.length, ...(notes.length ? { notes } : {}), ...(sources ? { sources } : {}) });
     }
   };
   await visit('', 0);
@@ -103,16 +146,24 @@ export async function inspectLocalWikiQuality(spec: CodexTaskSpec, python: Pytho
   run: LocalWikiHelperRunner = defaultRunner): Promise<{ result: CodexTaskResult; receipt: LocalWikiQualityReceipt } | undefined> {
   const kind = operation(spec);
   if (!kind) return;
-  const full = spec.source.kind === 'skill' && spec.source.featureId === 'ingest' && spec.source.inputs['ingest.scope'] === '全部專案';
+  const plan = localWikiCoveragePlan(spec), full = plan.full;
   const receipt: LocalWikiQualityReceipt = { schema: 'GitLabWorkspaceLocalWikiQuality/v1', scope: kind === 'inspection' ? 'inspection' : full ? 'full' : 'partial', changedPages: [], findings: [], unrelatedFindings: 0, checks: [] };
   const issue = (code: string, message: string, page?: string) => receipt.findings.push({ severity: 'critical', code, message, ...(page ? { page } : {}) });
   try {
     const current = await pageDigests(spec.root);
+    const currentByPath = new Map(current.map(page => [page.path, page]));
     if (kind === 'update') {
       if (!isLocalWikiBaseline(baseline) || baseline.binding !== binding(spec)) throw new Error('缺少本次 Wiki 更新的有效基線；保留成果，重新準備後核對。');
       const previous = new Map(baseline.pages.map(page => [page.path, page]));
-      const now = new Map(current.map(page => [page.path, page]));
+      const now = currentByPath;
       receipt.changedPages = [...new Set([...previous.keys(), ...now.keys()])].filter(file => previous.get(file)?.sha256 !== now.get(file)?.sha256).sort();
+      if (plan.sourcePrefix) {
+        const allowed = (sources: string[] | undefined) => !!sources?.length && sources.every(source => source === plan.sourcePrefix || source.startsWith(plan.sourcePrefix + '/'));
+        for (const file of receipt.changedPages.filter(file => !['index.md', 'log.md'].includes(file))) {
+          const before = previous.get(file), after = now.get(file);
+          if (!allowed(after?.sources) || before && !allowed(before.sources)) issue('outside_selected_scope', '此頁不完全屬於所選來源，保留其他 Repo 的內容並重新準備更新。', file);
+        }
+      }
       for (const [file, page] of previous) {
         const updated = now.get(file);
         if (!updated) issue('page_deleted', '知識更新不得刪除既有頁面；請保留原頁並明確處理改名或刪除。', file);
@@ -136,13 +187,14 @@ export async function inspectLocalWikiQuality(spec: CodexTaskSpec, python: Pytho
         !['critical', 'warning', 'pass'].includes(String(parsed.deterministic_status))) throw new Error('Wiki helper 未回傳完整的機器檢查結果。');
     for (const item of parsed.findings) {
       if (!isObject(item) || !['critical', 'warning', 'info'].includes(String(item.severity)) || typeof item.code !== 'string' || typeof item.message !== 'string' || item.page !== undefined && !safePage(item.page)) throw new Error('Wiki helper 問題清單格式無效。');
-      if (kind === 'update' && !full && (typeof item.page !== 'string' || !receipt.changedPages.includes(item.page))) { receipt.unrelatedFindings++; continue; }
+      const relevantSelectedPage = typeof item.page === 'string' && currentByPath.get(item.page)?.sources?.some(source =>
+        source === plan.sourcePrefix || source.startsWith(plan.sourcePrefix + '/'));
+      if (kind === 'update' && ((!full && (typeof item.page !== 'string' || !receipt.changedPages.includes(item.page))) ||
+          plan.sourcePrefix && !relevantSelectedPage && (typeof item.page !== 'string' || !receipt.changedPages.includes(item.page)))) { receipt.unrelatedFindings++; continue; }
       receipt.findings.push({ severity: item.severity as WikiFinding['severity'], code: item.code, message: item.message, ...(typeof item.page === 'string' ? { page: item.page } : {}) });
     }
     if (full) {
-      const coverageArgs = ['validate', '--root', spec.root, '--ledger', path.join(spec.root, 'wiki', 'ingest-coverage.json')];
-      // A full Group ingest keeps the original Group scope, including unmapped local Repos.
-      if (spec.source.kind === 'skill' && spec.source.inputs['wiki.profile'] === 'group') coverageArgs.push('--scope', 'group');
+      const coverageArgs = ['validate', '--root', spec.root, '--ledger', plan.ledger, ...plan.scopeArgs];
       const coverage = await run(path.join(scripts, 'ingest-coverage.py'), coverageArgs, spec.root, python);
       receipt.checks.push({ command: 'Codebase Wiki full-ingest coverage', exitCode: coverage.code });
       const value: unknown = JSON.parse(coverage.stdout);

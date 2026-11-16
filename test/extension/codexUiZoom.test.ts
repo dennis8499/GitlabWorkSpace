@@ -74,6 +74,7 @@ const instrumentation = String.raw`(() => {
       draft: textarea.value, savedDraft: bridge.getState()?.codexUi?.drafts?.['native-zoom-task']?.text,
       detailPreserved: detail.textContent === request.detail, detailHeight: bounds.height, detailScrollHeight: detail.scrollHeight,
       detailClientHeight: detail.clientHeight, controlsOverlap: Math.max(0, bounds.bottom - actions.top), overflow,
+      taskLocations: [...document.querySelectorAll('.codex-location-list dd')].map(node => node.textContent),
       inputFocus, approvalFocus, errors: [...errors], violations: [...violations] };
   }
   window.addEventListener('message', event => {
@@ -124,6 +125,9 @@ suite('Native Codex Electron zoom and built-in themes', function () {
     const detail = Array.from({ length: 48 }, (_, index) => `Approval line ${index + 1}: ${'核對長命令與檔案範圍 '.repeat(4)}`).join('\n');
     const task: CodexTaskState = { id: 'native-zoom-task', title: 'Native zoom · waiting for approval', root: 'C:/offline/zoom-fixture',
       status: 'waiting', threadId: 'offline-thread', turnId: 'offline-turn', createdAt: '2026-11-10T00:00:00Z', updatedAt: '2026-11-10T00:00:00Z',
+      locations: { workspaceRoot: 'C:/offline/zoom-fixture', sourceRoot: 'C:/offline/zoom-fixture/service',
+        executionRoot: 'C:/offline/zoom-fixture/.gitlab-workspace/runtime', outputRoot: 'C:/offline/zoom-fixture/wiki',
+        wikiTarget: 'local', sourceBasis: '目前所選 Repo 的本機內容，保存於 Group 共用 Wiki。' },
       progress: { phase: 'executing', waitReason: 'approval' }, controls: { external: false, canPause: true, canResume: false,
         canDelete: false, canAutoAccept: true, autoAccept: false } };
     const snapshot: WorkspaceSnapshot = { connected: true, baseUrl: 'https://offline.invalid',
@@ -205,6 +209,7 @@ suite('Native Codex Electron zoom and built-in themes', function () {
           assert.ok(result.width >= 320, `${label}: native editor viewport must be at least 320 CSS pixels`);
           assert.ok(Math.abs(result.dpr / baseline.dpr - scale) < .03, `${label}: actual Electron zoom must change DPR`);
           assert.equal(result.draft, draft); assert.equal(result.savedDraft, draft); assert.equal(result.detailPreserved, true);
+          assert.deepEqual(result.taskLocations, [task.locations!.workspaceRoot, task.locations!.sourceRoot, task.locations!.executionRoot, task.locations!.outputRoot], `${label}: all source and output locations remain available`);
           assert.ok(result.detailHeight > 360 && result.detailScrollHeight <= result.detailClientHeight + 2, `${label}: approval text remains expanded`);
           assert.ok(result.controlsOverlap <= 1 && result.overflow <= 2, `${label}: no text/control overlap or horizontal overflow: ${JSON.stringify(result)}`);
           for (const focus of [result.inputFocus, result.approvalFocus]) {

@@ -21,7 +21,7 @@ import { validateForm } from './forms';
 import { mergeCodexTranscript, projectCodexItem } from './transcript';
 import { inspectModelRouting, routingModel } from './modelRouting';
 export { validateForm } from './forms';
-import { codexTaskActive, codexOutputKey, projectCodexTask, type CodexEnvironment, type CodexEvent, type CodexInteraction,
+import { codexTaskActive, codexOutputKey, projectCodexTask, projectTaskJourney, type CodexEnvironment, type CodexEvent, type CodexInteraction,
   type CodexInteractionAnswer, type CodexOutputItem, type CodexTaskRecord, type CodexTaskSpec, type CodexTaskState, type CodexTaskResult, type CodexStorageProblem } from './protocol';
 import { workflowOriginKey } from './workflowProtocol';
 import { CodexResultStore } from './resultStore';
@@ -85,6 +85,8 @@ export interface CodexBridgeOptions {
   client?(root: string): Promise<{ client: CodexAppServer; version: string; executable: string }>;
   now?(): number;
   maxConcurrent?(): number;
+  /** Machine preference seeds new tasks only; an existing task keeps its saved choice. */
+  autoApproveLocalOperations?(): boolean;
   taskDeltas?: boolean;
   scheduler?: CodexTaskScheduler;
   reconcilePublication?(spec: CodexTaskSpec, publication: NonNullable<CodexTaskRecord['publication']>): Promise<'pending' | 'confirmed'>;
@@ -121,10 +123,57 @@ function publishingCommand(command: unknown): boolean {
   return typeof command === 'string' && (/\bgit(?:\.exe)?["']?\s+(?:(?:-[cC]|--git-dir|--work-tree)\s+(?:"[^"]*"|'[^']*'|[^\s;&|]+)\s+|--[a-z-]+(?:=[^\s;&|]+)?\s+)*push\b/i.test(command) ||
     /\bglab(?:\.exe)?["']?\s+(?:(?:mr|issue|release)\s+(?:create|update|delete|merge|approve|note)|api\b[^\r\n]*(?:\s-X\s*|--method[=\s]+)(?:POST|PUT|PATCH|DELETE)\b)/i.test(command));
 }
+const localApprovalFields = {
+  command: new Set(['threadId', 'turnId', 'itemId', 'approvalId', 'reason', 'command', 'cwd', 'availableDecisions',
+    'commandActions', 'environmentId', 'kind', 'networkApprovalContext', 'additionalPermissions',
+    'proposedExecpolicyAmendment', 'proposedNetworkPolicyAmendments', 'startedAtMs']),
+  file: new Set(['threadId', 'turnId', 'itemId', 'approvalId', 'reason', 'grantRoot', 'availableDecisions', 'startedAtMs'])
+};
+async function canonicalApprovalPath(value: string): Promise<string> {
+  const suffix: string[] = []; let current = path.resolve(value);
+  for (;;) {
+    try { return path.join(await realpath(current), ...suffix); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      const parent = path.dirname(current); if (parent === current) throw error;
+      suffix.unshift(path.basename(current)); current = parent;
+    }
+  }
+}
+/** Unknown request shapes and embedded grants are never covered by local auto-approval. */
+export async function canAutoApproveLocalRequest(spec: CodexTaskSpec, request: RpcMessage): Promise<boolean> {
+  const kind = request.method === 'item/commandExecution/requestApproval' ? 'command'
+    : request.method === 'item/fileChange/requestApproval' ? 'file' : undefined;
+  const params = request.params;
+  if (!kind || !params || typeof params !== 'object' || Array.isArray(params) ||
+    Object.keys(params).some(key => !localApprovalFields[kind].has(key)) || requestsNetwork(params)) return false;
+  if (params.additionalPermissions != null && (typeof params.additionalPermissions !== 'object' ||
+    Array.isArray(params.additionalPermissions) || Object.keys(params.additionalPermissions).length > 0)) return false;
+  // A named execution environment or unfamiliar approval kind may have a
+  // different access boundary from this task's local sandbox.
+  if (params.environmentId != null || params.kind != null && params.kind !== 'command') return false;
+  if (params.proposedExecpolicyAmendment != null || params.proposedNetworkPolicyAmendments != null) return false;
+  if (params.availableDecisions != null && (!Array.isArray(params.availableDecisions) || !params.availableDecisions.includes('accept') ||
+    params.availableDecisions.some((choice: unknown) => typeof choice !== 'string' || !['accept', 'acceptForSession', 'decline', 'cancel'].includes(choice)))) return false;
+  if (kind === 'command' && (typeof params.command !== 'string' || !params.command.trim() || publishingCommand(params.command))) return false;
+  const directory = kind === 'command' ? params.cwd : params.grantRoot;
+  // No grantRoot means no new filesystem grant; the existing sandbox still
+  // constrains the file edit. A present root must be a subset, never an ancestor.
+  if (kind === 'file' && directory == null) return true;
+  if (typeof directory !== 'string' || !path.isAbsolute(directory) || /[\0\r\n]/.test(directory)) return false;
+  try {
+    const target = await canonicalApprovalPath(directory);
+    const roots = await Promise.all(spec.writableRoots.map(canonicalApprovalPath));
+    return roots.some(root => {
+      const key = (value: string) => process.platform === 'win32' ? value.toLowerCase() : value;
+      const relative = path.relative(key(root), key(target));
+      return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep);
+    });
+  } catch { return false; }
+}
 export class CodexBridge {
   private readonly instanceId = randomUUID();
-  private taskWorkspace?: CodexTaskWorkspaceBinding;
-  private ownerGeneration?: number;
+  private readonly claimedWorkspaces = new Map<string, { binding: CodexTaskWorkspaceBinding; generation: number }>();
   get storagePath(): string { return this.store.directory; }
   private readonly store: CodexTaskStore;
   readonly results: CodexResultStore;
@@ -204,8 +253,11 @@ export class CodexBridge {
       const record = (await this.store.load([binding.taskId]))[0];
       if (record) await verifyStopped(record);
     });
-    this.taskWorkspace = binding; this.ownerGeneration = manifest.owner!.generation;
-    const record = await this.store.claim(binding.taskId, this.instanceId, this.ownerGeneration, verifyStopped);
+    const generation = manifest.owner!.generation;
+    this.claimedWorkspaces.set(binding.taskId, { binding: structuredClone(binding), generation });
+    let record: CodexTaskRecord | undefined;
+    try { record = await this.store.claim(binding.taskId, this.instanceId, generation, verifyStopped); }
+    catch (error) { this.claimedWorkspaces.delete(binding.taskId); throw error; }
     if (record) {
       this.records.set(record.id, record); this.owned.add(record.id); this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
       // Initialization sees managed records as external until this claim succeeds.
@@ -304,12 +356,15 @@ export class CodexBridge {
       const busy = codexTaskActive(value.status) || value.status === 'queued';
       const external = !!current?.spec.taskWorkspace && !this.ownsRecord(current) || busy && !this.owned.has(value.id);
       const settling = this.executions.has(value.id) || this.controlling.has(value.id) || this.finalizers.has(value.id) || !!this.records.get(value.id)?.closing || lockedDelivery(current);
-      return { ...structuredClone(value), workLinks: linked(value), queuePosition: this.queue.includes(value.id) ? this.queue.indexOf(value.id) + 1 : undefined, controls: {
+      const controls = {
         external, canPause: busy && !external && value.status !== 'pausing',
         canResume: !external && !busy && !settling && value.result?.state !== 'uncertain' && !pendingPublication(value), canDelete: !external && !busy && !settling && value.status !== 'uncertain' && value.result?.state !== 'uncertain' && !pendingPublication(value) && (!this.records.get(value.id)?.lease || this.records.get(value.id)?.lease?.released === true),
-        canAutoAccept: !external && !this.records.get(value.id)?.closing && !this.finalizers.has(value.id) && value.status !== 'pausing', autoAccept: this.autoAccept.has(value.id),
-        autoAcceptError: this.autoAcceptErrors.get(value.id), approvals: this.approvals.get(value.id) ?? this.records.get(value.id)?.approvalSettings ?? { command: true, file: true, permissions: true }
-      } };
+        canAutoAccept: !external && !this.records.get(value.id)?.closing && !this.finalizers.has(value.id) && value.status !== 'pausing', autoAccept: current?.autoAcceptEnabled ?? false,
+        autoAcceptArmed: current?.autoAcceptEnabled === true && this.autoAccept.has(value.id) && this.executions.has(value.id),
+        autoAcceptError: this.autoAcceptErrors.get(value.id), approvals: this.approvals.get(value.id) ?? current?.approvalSettings ?? { command: true, file: true, permissions: false }
+      };
+      return { ...structuredClone(value), workLinks: linked(value), queuePosition: this.queue.includes(value.id) ? this.queue.indexOf(value.id) + 1 : undefined,
+        controls, ...projectTaskJourney({ ...value, controls }) };
     });
   }
   private async refreshSavedResults(): Promise<void> {
@@ -649,7 +704,8 @@ export class CodexBridge {
   async setApprovals(id: string, settings: CodexApprovalSettings): Promise<void> {
     this.requireTrusted(); await this.initialize(); this.record(id);
     if (!this.list().find(task => task.id === id)?.controls?.canAutoAccept || !['command', 'file', 'permissions'].every(key => typeof settings[key as keyof CodexApprovalSettings] === 'boolean')) throw new Error('核准設定目前無法修改。');
-    this.approvals.set(id, { ...settings }); this.record(id).approvalSettings = { ...settings }; await this.save(this.record(id)); this.emit({ kind: 'tasks', tasks: this.list() });
+    const local = { command: settings.command, file: settings.file, permissions: false };
+    this.approvals.set(id, local); this.record(id).approvalSettings = local; await this.save(this.record(id)); this.emit({ kind: 'tasks', tasks: this.list() });
     for (const pending of this.interactions.values()) if (pending.projection.taskId === id) await this.autoAnswer(pending);
   }
   invalidateEnvironment(): void {
@@ -841,12 +897,14 @@ export class CodexBridge {
   }
   private async enqueueRecord(spec: CodexTaskSpec, operationId: string): Promise<string> {
     if (!validTaskId(operationId)) throw new Error('Codex 任務識別無效。');
-    if (spec.taskWorkspace && (!this.taskWorkspace || spec.taskWorkspace.taskId !== operationId || this.taskWorkspace.taskId !== operationId || !this.ownerGeneration)) throw new CodexTaskOwnerError();
+    const claim = this.claimedWorkspaces.get(operationId);
+    if (spec.taskWorkspace && (!claim || spec.taskWorkspace.taskId !== operationId || JSON.stringify(spec.taskWorkspace) !== JSON.stringify(claim.binding))) throw new CodexTaskOwnerError();
     if (this.records.has(operationId)) { await this.publish(); return operationId; }
     await this.captureWikiSeed(spec);
     const now = new Date().toISOString();
     const record: CodexTaskRecord = { schema: spec.taskWorkspace ? 'GitLabWorkspaceCodexTask/v4' : 'GitLabWorkspaceCodexTask/v3', id: operationId, spec, title: spec.title,
-      root: spec.root, review: spec.review, status: 'queued', ownerPid: process.pid, ownerInstance: this.instanceId, ...(spec.taskWorkspace ? { ownerGeneration: this.ownerGeneration } : {}), revision: 1, createdAt: now, updatedAt: now };
+      root: spec.root, review: spec.review, status: 'queued', ownerPid: process.pid, ownerInstance: this.instanceId, ...(spec.taskWorkspace ? { ownerGeneration: claim!.generation } : {}),
+      autoAcceptEnabled: this.options.autoApproveLocalOperations?.() === true, approvalSettings: { command: true, file: true, permissions: false }, revision: 1, createdAt: now, updatedAt: now };
     if (spec.review) record.reviewTimeline = [{ phase: 'queued', status: 'queued', startedAt: now }];
     await this.store.save(record); this.records.set(record.id, record); this.owned.add(record.id); this.queue.push(record.id); this.queuedAt.set(record.id, Date.now());
     this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
@@ -1208,12 +1266,18 @@ export class CodexBridge {
         rules.push(content);
       }
       const projectInstructions = rules.length ? { developerInstructions: '以下是本次 Group 的專案規則；隔離工作區內的 Repo 規則仍依其原生 AGENTS 載入。\n\n' + rules.join('\n\n') } : {};
+      // Restoring a preference alone cannot answer anything: activation happens
+      // only after explicit dispatch passed ownership, trust and scope checks.
+      if (record.autoAcceptEnabled === true) this.autoAccept.add(record.id);
       client.onRequest = message => this.receiveInteraction(record, client, message);
       client.onNotification = message => this.receiveNotification(record, message);
       client.onExit = error => {
         active.telemetryAbort?.abort();
         if (codexTaskActive(record.status)) {
-          if (this.autoAccept.delete(record.id)) this.autoAcceptErrors.set(record.id, 'Codex 連線已中斷，已關閉 Auto-Accept；請核對已送出的要求。');
+          if (this.autoAccept.delete(record.id)) {
+            record.autoAcceptEnabled = false;
+            this.autoAcceptErrors.set(record.id, 'Codex 連線已中斷，已關閉 Auto-Accept；請核對已送出的要求。');
+          }
           record.status = 'uncertain'; record.error = error.message; active.finish?.();
         }
       };
@@ -1543,9 +1607,17 @@ export class CodexBridge {
       void this.cancel(record.id).catch(() => {}); return;
     }
     const id = randomUUID();
+    let additionalRights = '';
+    if (params.additionalPermissions != null && (typeof params.additionalPermissions !== 'object' || Object.keys(params.additionalPermissions).length > 0)) {
+      try { additionalRights = '額外權限須人工核准：\n' + safeText(JSON.stringify(params.additionalPermissions, null, 2), 6000); }
+      catch { additionalRights = '額外權限內容無法解析，須人工核對後核准。'; }
+    }
+    const baseDetail = kind === 'permissions' ? JSON.stringify(params.permissions, null, 2) : kind === 'file'
+      ? safeText(params.grantRoot) || this.outputs.get(record.id)?.find(item => item.id === params.itemId)?.text
+      : params.networkApprovalContext ? `網路存取：${safeText(params.networkApprovalContext.host)} · ${safeText(params.networkApprovalContext.protocol)}` : safeText(params.command ?? params.cwd);
+    const grantDetail = params.grantRoot == null ? '' : `要求寫入根目錄：${safeText(params.grantRoot, 4000)}\n超出任務既定範圍的額外寫入權限須人工核准。`;
     const projection: CodexInteraction = { id, taskId: record.id, kind, title: safeText(params.reason ?? params.message) || ({ command: '核准命令執行', file: '核准檔案變更', permissions: '核准額外權限', questions: 'Codex 需要你的回答', form: '工具需要填寫資料', url: '工具需要開啟連結' })[kind],
-      detail: kind === 'permissions' ? JSON.stringify(params.permissions, null, 2) : kind === 'file' ? safeText(params.grantRoot) || this.outputs.get(record.id)?.find(item => item.id === params.itemId)?.text
-        : params.networkApprovalContext ? `網路存取：${safeText(params.networkApprovalContext.host)} · ${safeText(params.networkApprovalContext.protocol)}` : safeText(params.command ?? params.cwd),
+      detail: safeText([safeText(baseDetail, 10000), additionalRights, grantDetail].filter(Boolean).join('\n\n')),
       questions: kind === 'questions' ? (params.questions ?? []).map((question: any) => ({ id: question.id, question: question.question, isSecret: question.isSecret, options: question.options ?? undefined })) : undefined,
       schema: kind === 'form' ? params.requestedSchema : undefined, url: kind === 'url' ? params.url : undefined,
       availableDecisions: ['command', 'file'].includes(kind) ? (Array.isArray(params.availableDecisions) ? params.availableDecisions.filter((choice: any) =>
@@ -1936,7 +2008,7 @@ export class CodexBridge {
   private forget(id: string): void {
     this.queuedAt.delete(id);
     this.deleted.add(id);
-    this.records.delete(id); this.persisted.delete(id); this.owned.delete(id); this.outputs.delete(id); this.histories.delete(id);
+    this.records.delete(id); this.persisted.delete(id); this.owned.delete(id); this.outputs.delete(id); this.histories.delete(id); this.claimedWorkspaces.delete(id);
     this.historyPages.invalidateWhere(key => key.startsWith(id + '\0'));
     for (const key of this.historyApplied.keys()) if (key.startsWith(id + '\0')) this.historyApplied.delete(key);
     this.autoAccept.delete(id); this.autoAcceptErrors.delete(id); this.approvals.delete(id); this.diagnostics.delete(id); this.transportDiagnostics.delete(id); this.startupDiagnostics.delete(id);
@@ -1949,7 +2021,12 @@ export class CodexBridge {
     this.requireTrusted(); await this.initialize(); this.record(id);
     if (typeof enabled !== 'boolean') throw new Error('Auto-Accept 設定無效。');
     if (!this.list().find(task => task.id === id)?.controls?.canAutoAccept) throw new Error('此任務目前無法設定自動核准，請至執行視窗核對狀態。');
-    if (enabled) this.autoAccept.add(id); else this.autoAccept.delete(id);
+    const record = this.record(id);
+    record.autoAcceptEnabled = enabled;
+    // Persist before arming or draining; a failed write must not approve work.
+    this.autoAccept.delete(id);
+    await this.save(record);
+    if (record.autoAcceptEnabled === true && this.executions.has(id)) this.autoAccept.add(id); else this.autoAccept.delete(id);
     this.autoAcceptErrors.delete(id); this.emit({ kind: 'tasks', tasks: this.list() });
     if (enabled) for (const pending of this.interactions.values()) if (pending.projection.taskId === id) await this.autoAnswer(pending);
   }
@@ -1958,9 +2035,11 @@ export class CodexBridge {
     if (!pending) return;
     const id = pending.projection.taskId, active = this.executions.get(pending.projection.taskId);
     if (!this.autoAccept.has(id) || !active || active.record.id !== id || active.abort.signal.aborted || pending.responding ||
-        !this.interactions.has(pending.projection.id) || !['command', 'file', 'permissions'].includes(pending.projection.kind)) return;
-    if (hostPublishes(active.record.spec) && (requestsNetwork(pending.request.params) || publishingCommand(pending.request.params?.command))) return;
-    const settings = this.approvals.get(id) ?? active.record.approvalSettings ?? { command: true, file: true, permissions: true };
+        !this.interactions.has(pending.projection.id) || !['command', 'file'].includes(pending.projection.kind)) return;
+    if (!await canAutoApproveLocalRequest(active.record.spec, pending.request)) return;
+    if (!this.autoAccept.has(id) || active.record.autoAcceptEnabled !== true || pending.responding ||
+      !this.interactions.has(pending.projection.id) || active.abort.signal.aborted) return;
+    const settings = this.approvals.get(id) ?? active.record.approvalSettings ?? { command: true, file: true, permissions: false };
     if (!settings[pending.projection.kind as keyof CodexApprovalSettings]) return;
     const choices = pending.request.params?.availableDecisions;
     if (pending.projection.kind !== 'permissions' && Array.isArray(choices) && !choices.includes('accept')) return;
@@ -1968,13 +2047,16 @@ export class CodexBridge {
       await this.answer(id, pending.projection.id, { decision: 'accept' }, true);
     } catch {
       this.autoAccept.delete(id);
+      active.record.autoAcceptEnabled = false;
       this.autoAcceptErrors.set(id, '自動核准未完成，已關閉 Auto-Accept；請核對要求後手動處理。');
+      await this.save(active.record).catch(() => {});
       this.emit({ kind: 'tasks', tasks: this.list() });
     }
   }
   private ownsRecord(record: CodexTaskRecord): boolean {
-    return !record.spec.taskWorkspace || !!this.taskWorkspace && record.spec.taskWorkspace.taskId === this.taskWorkspace.taskId &&
-      record.ownerInstance === this.instanceId && record.ownerGeneration === this.ownerGeneration;
+    const claim = this.claimedWorkspaces.get(record.id);
+    return !record.spec.taskWorkspace || !!claim && JSON.stringify(record.spec.taskWorkspace) === JSON.stringify(claim.binding) &&
+      record.ownerInstance === this.instanceId && record.ownerGeneration === claim.generation;
   }
   private assertOwner(record: CodexTaskRecord): void { if (!this.ownsRecord(record)) throw new CodexTaskOwnerError(); }
   private record(id: string): CodexTaskRecord { if (!validTaskId(id) || !this.records.has(id)) throw new Error('找不到 Codex 任務。'); return this.records.get(id)!; }
@@ -2012,9 +2094,11 @@ export class CodexBridge {
       this.modelPages.clear();
       for (const id of this.queue) { const record = this.records.get(id)!; record.status = 'interrupted'; await this.save(record); }
       this.queue = []; await this.store.flush();
-      if (this.taskWorkspace && this.ownerGeneration && ![...this.records.values()].some(record => record.spec.taskWorkspace?.taskId === this.taskWorkspace!.taskId && record.lease && !record.lease.released)) {
-        await releaseTaskWorkspace(this.options.storage, this.taskWorkspace, this.instanceId, this.ownerGeneration).catch(() => {});
+      for (const [taskId, claim] of this.claimedWorkspaces) {
+        if (this.records.get(taskId)?.lease && this.records.get(taskId)?.lease?.released !== true) continue;
+        await releaseTaskWorkspace(this.options.storage, claim.binding, this.instanceId, claim.generation).catch(() => {});
       }
+      this.claimedWorkspaces.clear();
     })();
   }
 }

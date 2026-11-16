@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ProjectWikiStore } from '../../src/codex/projectWiki';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -45,6 +47,86 @@ async function fixture(t: test.TestContext, code = false) {
   }
   return { root, storage, project, runtime, record, store: new CodexResultStore(path.join(storage, 'codex-results')) };
 }
+
+test('sealed Wiki results retain a validated incremental seed after live runtime and draft cleanup', async t => {
+  const f = await fixture(t), source = path.join(f.runtime, 'source');
+  await mkdir(path.join(source, 'wiki'), { recursive: true });
+  await writeFile(path.join(source, 'main.ts'), 'export const answer = 42;');
+  await writeFile(path.join(source, 'wiki', 'index.md'), '# Wiki\n\n[Source](../main.ts)\n');
+  const origin = { kind: 'project-wiki' as const, accountKey: 'account', baseUrl: 'https://gitlab.test', projectId: 4,
+    projectPath: 'team/project', webUrl: 'https://gitlab.test/team/project', repositoryRoot: f.project, sourceBranch: 'main', sourceSha: 'a'.repeat(40) };
+  const wiki = new ProjectWikiStore(path.join(f.storage, 'project-wiki-drafts'));
+  Object.assign(f.record.spec, { source: { kind: 'project-wiki', projectId: 4 }, origin, executionRoot: path.join(source, 'wiki'),
+    workflow: { id: 'a'.repeat(32), runtimeRoot: f.runtime, sourceRoot: source, remote: 'origin' } });
+  f.record.result = await wiki.create('a'.repeat(32), origin, source);
+  const expected = await wiki.exportSeed('a'.repeat(32), origin);
+  const result = await f.store.seal(f.record, [], 'manual');
+  assert.ok(result.wikiSeedArtifactId);
+  await wiki.remove('a'.repeat(32)); await rm(f.runtime, { recursive: true, force: true });
+  assert.deepEqual(await f.store.readWikiSeed(result.id, origin), expected);
+  await assert.rejects(f.store.readWikiSeed(result.id, { ...origin, accountKey: 'other' }), /不屬於/);
+  const seedFile = result.artifacts.find(item => item.id === result.wikiSeedArtifactId)!;
+  await writeFile(path.join(f.store.directory, result.id, seedFile.path), '{}');
+  await assert.rejects(f.store.readWikiSeed(result.id, origin), /成果檔案已變更/);
+});
+
+test('local Wiki results retain changed page bytes and legacy Wiki results explicitly lack an incremental seed', async t => {
+  const f = await fixture(t), wiki = path.join(f.project, 'wiki'); await mkdir(wiki);
+  const markdown = '# Local Wiki\n![Diagram](assets/map.png)\n![Source outside Wiki](../source.png)\n' +
+    '```markdown\n![Example](assets/not-an-attachment.png)\n```\n`![Inline example](assets/not-inline.png)`\n';
+  const image = Buffer.from([137, 80, 78, 71, 0, 255, 1]);
+  await mkdir(path.join(wiki, 'assets'));
+  await writeFile(path.join(wiki, 'index.md'), markdown);
+  await writeFile(path.join(wiki, 'assets', 'map.png'), image);
+  await writeFile(path.join(wiki, 'assets', 'unrelated.png'), Buffer.from([2, 3, 4]));
+  await writeFile(path.join(f.project, 'source.png'), Buffer.from([5, 6, 7]));
+  f.record.result!.wikiQuality = { schema: 'GitLabWorkspaceLocalWikiQuality/v1', scope: 'partial', changedPages: ['index.md'],
+    findings: [], unrelatedFindings: 0, checks: [{ command: 'Codebase Wiki lint', exitCode: 0 }] };
+  const result = await f.store.seal(f.record, [], 'manual'), page = result.artifacts.find(item => item.path === 'wiki/index.md')!;
+  assert.equal((await f.store.readArtifact(result.id, page.id)).bytes.toString(), markdown);
+  const attachment = result.artifacts.find(item => item.path === 'wiki/assets/map.png')!;
+  assert.deepEqual((await f.store.readArtifact(result.id, attachment.id)).bytes, image);
+  assert.deepEqual(result.artifacts.filter(item => item.path.startsWith('wiki/')).map(item => item.path).sort(), ['wiki/assets/map.png', 'wiki/index.md']);
+  assert.equal(await readFile(path.join(wiki, 'index.md'), 'utf8'), markdown);
+  const origin = { kind: 'project-wiki' as const, accountKey: 'account', baseUrl: 'https://gitlab.test', projectId: 4,
+    projectPath: 'team/project', webUrl: 'https://gitlab.test/team/project', repositoryRoot: f.project, sourceBranch: 'main', sourceSha: 'a'.repeat(40) };
+  const legacy = structuredClone(result); legacy.origin = { kind: origin.kind, projectId: origin.projectId, projectPath: origin.projectPath,
+    webUrl: origin.webUrl, repositoryRoot: origin.repositoryRoot, sourceBranch: origin.sourceBranch, sourceSha: origin.sourceSha };
+  await writeFile(path.join(f.store.directory, result.id, 'manifest.json'), JSON.stringify(legacy));
+  assert.equal(await f.store.readWikiSeed(result.id, origin), undefined);
+});
+
+test('latest Wiki seed follows project branch across SHAs and filters other accounts and unpublished results', async t => {
+  const f = await fixture(t);
+  const sealWiki = async (taskId: string, id: string, accountKey: string, published: boolean) => {
+    const origin = { kind: 'project-wiki' as const, accountKey, baseUrl: 'https://gitlab.test', projectId: 4,
+      projectPath: 'team/project', webUrl: 'https://gitlab.test/team/project', repositoryRoot: f.project, sourceBranch: 'main', sourceSha: id[0].repeat(40) };
+    const draftRoot = path.join(f.storage, 'project-wiki-drafts'); await mkdir(draftRoot, { recursive: true });
+    const content = '# Retained Wiki\n', slug = 'codebase/index';
+    const draft = { schema: 'GitLabWorkspaceProjectWiki/v1', id, origin, mappingComplete: true,
+      pages: [{ file: 'index.md', slug, title: slug, content, sources: ['main.ts'], published,
+        ...(published ? { baseline: createHash('sha256').update(JSON.stringify([slug, content, 'markdown'])).digest('hex') } : {}) }] };
+    await writeFile(path.join(draftRoot, id + '.json'), JSON.stringify(draft));
+    const record = structuredClone(f.record); record.id = taskId;
+    Object.assign(record.spec, { source: { kind: 'project-wiki', projectId: 4 }, origin,
+      workflow: { id, runtimeRoot: f.runtime, remote: 'origin', sourceRoot: path.join(f.runtime, 'source') } });
+    record.result = { state: published ? 'published' : 'draft', draftId: id, summary: 'Wiki source' };
+    const manifest = await f.store.seal(record, [], 'manual');
+    return { origin, manifest };
+  };
+  const retained = await sealWiki('wiki-published', 'a'.repeat(32), 'account-one', true);
+  await sealWiki('wiki-other-account', 'b'.repeat(32), 'account-two', true);
+  await sealWiki('wiki-unpublished', 'c'.repeat(32), 'account-one', false);
+  const next = { ...retained.origin, sourceSha: 'd'.repeat(40) };
+  const latest = await f.store.latestWikiSeed(next);
+  assert.equal(latest?.taskId, 'wiki-published'); assert.equal(latest?.seed.origin.sourceSha, 'a'.repeat(40));
+  assert.equal(await f.store.latestWikiSeed({ ...next, accountKey: 'unknown-account' }), undefined);
+  assert.equal(await f.store.latestWikiSeed({ ...next, sourceBranch: 'release' }), undefined);
+  assert.equal(JSON.stringify(retained.manifest).includes('account-one'), false);
+  const artifact = retained.manifest.artifacts.find(item => item.id === retained.manifest.wikiSeedArtifactId)!;
+  await writeFile(path.join(f.store.directory, retained.manifest.id, artifact.path), '{}');
+  await assert.rejects(f.store.latestWikiSeed(next), /成果檔案已變更/);
+});
 
 test('sealing keeps immutable document results and fresh handoff without retaining prompts or sessions', async t => {
   const f = await fixture(t), documents = path.join(f.runtime, 'documents'); await mkdir(documents);
@@ -291,7 +373,10 @@ test('Wiki pages persist independently of the source snapshot and publication jo
   f.record.result = { state: 'published', summary: 'Two published pages.', draftId: id };
   const draftRoot = path.join(f.storage, 'project-wiki-drafts'); await mkdir(draftRoot);
   const draft = { schema: 'GitLabWorkspaceProjectWiki/v1', id, origin: f.record.spec.origin,
-    pages: [{ file: 'index.md', content: '# Wiki\n', published: true }, { file: 'modules/api.md', content: '# API\n', published: true }] };
+    pages: [{ file: 'index.md', slug: 'codebase/index', title: 'codebase/index', content: '# Wiki\n', sources: [], published: true,
+      baseline: createHash('sha256').update(JSON.stringify(['codebase/index', '# Wiki\n', 'markdown'])).digest('hex') },
+    { file: 'modules/api.md', slug: 'codebase/modules/api', title: 'codebase/modules/api', content: '# API\n', sources: [], published: true,
+      baseline: createHash('sha256').update(JSON.stringify(['codebase/modules/api', '# API\n', 'markdown'])).digest('hex') }] };
   Object.assign(draft.pages[0], { sending: true });
   await writeFile(path.join(draftRoot, id + '.json'), JSON.stringify(draft));
   await assert.rejects(f.store.seal(f.record, [], 'completed'), /Wiki 發布/);

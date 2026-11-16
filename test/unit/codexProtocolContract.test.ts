@@ -27,3 +27,14 @@ test('only whitelisted reads retry once; mutations and repeating pagination curs
   const looping = new CodexProtocolAdapter({ request: async () => ({ data: [], nextCursor: 'repeat' }) } as unknown as CodexAppServer, '0.166.0');
   await assert.rejects(looping.models(), error => error instanceof CodexRpcError && error.category === 'protocol');
 });
+
+test('the captured native 0.169 deletion contract enables only its verified cleanup capability', async () => {
+  const contract = JSON.parse(await readFile(path.resolve(__dirname, '../../../test/fixtures/codex-app-server-0.169.0-approvals.contract.json'), 'utf8'));
+  assert.equal(contract.version, '0.169.0');
+  assert.deepEqual(contract.threadDelete, {
+    capture: ['app-server', 'generate-json-schema', '--experimental'], method: 'thread/delete',
+    params: { type: 'object', properties: { threadId: { type: 'string' } }, required: ['threadId'] }, response: { type: 'object' }
+  });
+  assert.deepEqual(codexCapabilities('0.169.0'), { fork: false, goals: false, usage: false, extraSkills: false, deleteThread: true });
+  for (const version of ['0.169.0-alpha.1', '0.169.1', '0.170.0']) assert.equal(codexCapabilities(version).deleteThread, false);
+});

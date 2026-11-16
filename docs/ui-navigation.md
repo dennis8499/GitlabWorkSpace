@@ -23,13 +23,17 @@ GitLab Workspace 活動列包含兩個原生資料 View：
 
 Issue 清單單擊開完整詳情，旁邊保留快速預覽；從專案建立 Issue 自動帶入專案。關聯 MR 在工作台開啟並提供返回 Issue 入口。切換與返回保留各 Issue 的草稿。
 
-本機 Repo 列與原生儲存庫右鍵選單提供「本地 Wiki」，Command Palette 也可執行同名命令；無須登入 GitLab。只有一個 Repo 時直接帶入，多個 Repo 使用原生選單選擇，再選查詢、建立／更新或品質檢查。Group 沿用一份共用 Wiki，Repo 操作只限定來源範圍，不自動搬移既有 Wiki。「產生 GitLab Wiki 草稿」是另一個遠端專案入口，發布前仍須檢閱。
+本機 Repo 列與原生儲存庫右鍵選單提供「本地 Wiki」，Command Palette 也可執行同名命令；無須登入 GitLab。只有一個 Repo 時直接帶入，多個 Repo 使用原生選單選擇，再選查詢、建立／更新或品質檢查。Group 根目錄下選單一 Repo 時，只攝入該 Repo，成果留在共用 `wiki/`；直接開啟 Repo 時，成果留在該 Repo 的 `wiki/`。完整 Repo 更新有自己的 coverage 檢查，局部路徑更新與全 Group 更新分開呈現；不自動搬移或合併既有 Wiki。
+
+「產生 GitLab Wiki 草稿」使用專案預設分支的固定 SHA 快照，與本地工作目錄 Wiki 分開。預覽新增／更新頁面與差異後，再確認發布。正常 Repo 入口可沿用最近已發布且身分相符的來源映射；從已保存成果也可依來源變更重新產生，舊成果缺映射時會說明改為全量生成。
 
 Git 檔案預設開原生 Diff，逐行暫存另有明確入口。Fetch 已確定的 remote 時直接執行。一般 Commit 直接提交已檢視的暫存內容；若分支、HEAD 或暫存 blobs 已變更，停止並保留訊息，請重新檢查。Amend、Push、Pull 與破壞性操作仍有影響確認。
 
 MR Diff 使用固定版本的 base/head SHA，Wiki 原文與差異使用已核對的任務快照。完整內容無法讀取或超過限制時，MR 保留 patch 與 GitLab 入口。關閉原生文件分頁會釋放快照。
 
-Codex、Skills 及 BMAD 共用「來源 → 任務準備 → 開始」。準備頁集中模型與隔離設定，通過項目收合；可從原生「繼續準備任務」選擇草稿。環境修復後返回同一草稿，仍需明確開始。複製提示詞與開終端位於「其他方式」。
+Codex、Skills 及 BMAD 共用「來源 → 任務準備 → 開始」。任務由目前 Group／Repo 視窗管理，準備頁與任務摘要列出來源 Repo、工作區根目錄與實際執行目錄；模型與進階選項收合。可從原生「繼續準備任務」選擇草稿，環境修復後返回同一草稿，仍需明確開始。另窗瀏覽工作目錄、複製提示詞與開終端位於其他操作，既有獨立任務視窗沿原方式恢復。
+
+任務透過本機 Codex CLI 的 App Server 執行，不需要 Codex 桌面 App。工作台的「自動核准本機操作」直接處理命令與檔案要求；機器偏好可記住啟用狀態，新任務沿用且可單獨覆寫。額外權限、問題與登入由使用者處理，GitLab 發布仍在成果頁確認。外部終端版 Auto-Accept 僅管理手動終端，不控制工作台任務。
 
 已有有效偏好的 Issue／MR／GitLab Wiki，仍在使用者點擊後預檢並一鍵開始；需求探索須描述本次目標。下一步與相關工作只提供可點擊入口，背景完成、恢復或快取命中不會自行啟動下一個任務。「查看上次成果」與「執行／重新審查」維持不同操作。
 
@@ -39,6 +43,7 @@ Codex、Skills 及 BMAD 共用「來源 → 任務準備 → 開始」。準備�
 | --- | --- |
 | `gitlabWorkspace.projectRoot` | 共用專案根目錄；留白使用所選 Folder，相對路徑以此 Folder 為基準 |
 | `gitlabWorkspace.codex.executablePath` | Codex CLI 完整路徑；沿用使用者層級與機器設定規則 |
+| `gitlabWorkspace.codex.autoApproveLocalOperations` | 記住新任務的本機命令與檔案自動核准偏好，首次預設關閉 |
 | `gitlabWorkspace.pythonPath` | Python 執行檔 |
 | `gitlabWorkspace.repositoryScan.excludeDirectories` | Repo 掃描排除目錄 |
 | `gitlabWorkspace.reviewRuntimePath` | Repo 外的審查 runtime／快取目錄 |
