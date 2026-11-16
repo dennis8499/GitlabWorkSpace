@@ -717,14 +717,16 @@ test('attachment reads stay on the configured GitLab uploads path and keep authe
     return new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'Content-Type': 'image/png' } });
   };
   const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
-  const result = await client.downloadUpload('https://gitlab.example.test/group/project/uploads/hash/image.png');
+  const context = { projectId: 42, projectPath: 'group/project', serverVersion: '17.4.0' };
+  const uploadPath = '/group/project/uploads/' + 'a'.repeat(32) + '/image.png';
+  const result = await client.downloadUpload('https://gitlab.example.test' + uploadPath, context);
   assert.deepEqual([...result.bytes], [137, 80, 78, 71]);
   assert.equal(result.contentType, 'image/png');
-  await assert.rejects(client.downloadUpload('https://other.example.test/uploads/image.png'), /outside/);
-  await assert.rejects(client.downloadUpload('https://gitlab.example.test/api/v4/user'), /outside/);
-  assert.deepEqual(paths, ['https://gitlab.example.test/group/project/uploads/hash/image.png']);
+  await assert.rejects(client.downloadUpload('https://other.example.test/uploads/image.png', context), /outside/);
+  await assert.rejects(client.downloadUpload('https://gitlab.example.test/api/v4/user', context), /outside/);
+  assert.deepEqual(paths, ['https://gitlab.example.test/api/v4/projects/42/uploads/' + 'a'.repeat(32) + '/image.png']);
   const nested = new GitLabClient('https://gitlab.example.test/gitlab', token, fetcher);
-  await assert.rejects(nested.downloadUpload('https://gitlab.example.test/gitlab-evil/uploads/steal.png'), /outside/);
+  await assert.rejects(nested.downloadUpload('https://gitlab.example.test/gitlab-evil/uploads/steal.png', context), /outside/);
 });
 test('capability followups unwrap non-null and list input object types', () => {
   for (const type of [

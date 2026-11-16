@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/requestTypes';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
-import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssuePageResult } from '../issues/protocol';
+import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueImageState, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssuePageResult } from '../issues/protocol';
 import { builtInIssueTemplates } from '../issues/builtInIssueTemplates';
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import type { ActionController } from '../workspace/actionController';
@@ -80,7 +80,7 @@ const updatePayload = (form: FormState): IssueUpdateInput => ({
   dueDate: form.dueDate || null, startDate: form.startDate || null, confidential: form.confidential, discussionLocked: form.discussionLocked
 });
 
-function Markdown({ html, baseUrl, images, onImage, onLink }: { html: string; baseUrl: string; images: Record<string, string>; onImage: (url: string) => void; onLink: (url: string) => void }) {
+function Markdown({ html, baseUrl, images, onImage, onLink }: { html: string; baseUrl: string; images: Record<string, IssueImageState>; onImage: (url: string) => void; onLink: (url: string, browserAttachment?: boolean) => void }) {
   const prepared = useMemo(() => {
     const template = document.createElement('template');
     const pendingImages: string[] = [];
@@ -93,8 +93,20 @@ function Markdown({ html, baseUrl, images, onImage, onLink }: { html: string; ba
       const resolved = new URL(value, baseUrl);
       if (resolved.protocol !== 'https:' && resolved.origin !== new URL(baseUrl).origin) element.removeAttribute(attribute);
       else if (element.tagName === 'IMG' && resolved.origin === new URL(baseUrl).origin && resolved.pathname.includes('/uploads/')) {
-        if (images[resolved.href]) element.setAttribute('src', images[resolved.href]);
-        else { element.removeAttribute('src'); pendingImages.push(resolved.href); }
+        const image = images[resolved.href];
+        if (image?.status === 'ready') element.setAttribute('src', image.dataUrl);
+        else if (image?.status === 'browserRequired') {
+          const link = document.createElement('a');
+          link.href = image.url;
+          link.dataset.browserAttachment = 'true';
+          link.textContent = `${element.getAttribute('alt') || '附件圖片'} — 在 GitLab 查看`;
+          link.title = image.message;
+          element.replaceWith(link);
+        } else if (image?.status === 'error') {
+          const notice = document.createElement('span');
+          notice.textContent = `${element.getAttribute('alt') || '附件圖片'}：${image.message}`;
+          element.replaceWith(notice);
+        } else { element.removeAttribute('src'); if (!image) pendingImages.push(resolved.href); }
       } else element.setAttribute(attribute, resolved.href);
     } catch { element.removeAttribute(attribute); }
     }
@@ -104,7 +116,7 @@ function Markdown({ html, baseUrl, images, onImage, onLink }: { html: string; ba
   useEffect(() => { for (const url of prepared.pendingImages) imageSender.current(url); }, [prepared]);
   return <div class="markdown" onClick={(event) => {
     const anchor = (event.target as HTMLElement).closest('a');
-    if (anchor?.href) { event.preventDefault(); onLink(anchor.href); }
+    if (anchor?.href) { event.preventDefault(); onLink(anchor.href, anchor.dataset.browserAttachment === 'true'); }
   }} dangerouslySetInnerHTML={{ __html: prepared.html }} />;
 }
 
@@ -122,9 +134,9 @@ function ReactionDemand({ state, label, disabled, onLoad, children }: {
 
 function IssueFields({ form, setForm, options, projectId, baseUrl, images, onImage, templateEnabled, startDateEnabled, startDateAvailability, onPreview, onUpload, onSearch, onSearchMore, onTemplate, onLoadOptions, similar, similarPage, previewHtml, onLink, editing }: {
   form: FormState; setForm: (next: FormState) => void; options: IssueFormOptions; projectId: number;
-  baseUrl: string; images: Record<string, string>; onImage: (url: string) => void;
+  baseUrl: string; images: Record<string, IssueImageState>; onImage: (url: string) => void;
   templateEnabled: boolean; startDateEnabled: boolean; startDateAvailability?: ActionAvailability; onPreview: () => void; onUpload: () => void; onSearch: () => void;
-  similar: GitLabIssue[]; previewHtml: string; onLink: (url: string) => void; editing: boolean;
+  similar: GitLabIssue[]; previewHtml: string; onLink: (url: string, browserAttachment?: boolean) => void; editing: boolean;
   similarPage?: IssuePageResult<GitLabIssue>; onSearchMore?: () => void;
   onTemplate?: (template?: IssueFormOptions['templates'][number]) => void;
   onLoadOptions?: (section: IssueFormOptionSection, mode?: 'next') => void;
@@ -314,9 +326,8 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
   const [previewHtml, setPreviewHtml] = useState('');
   const [noteHtml, setNoteHtml] = useState<Record<number, string>>({});
   const noteRenderVersion = useRef<Map<number, string>>(new Map());
-  const [images, setImages] = useState<Record<string, string>>({});
+  const [images, setImages] = useState<Record<string, IssueImageState>>({});
   const imageRequests = useRef<Map<string, string>>(new Map());
-  const failedImages = useRef<Set<string>>(new Set());
   const viewEpoch = useRef(0);
   const requestEpoch = useRef<Map<string, number>>(new Map());
   const latestPreviewRequest = useRef<string | null>(null);
@@ -567,7 +578,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
       return;
     }
     requestEpoch.current.set(actualId, viewEpoch.current);
-    if (actualId === message.requestId) return;
+    if (actualId === message.requestId) return actualId;
     requestEpoch.current.delete(message.requestId);
     if (latestPreviewRequest.current === message.requestId) latestPreviewRequest.current = actualId;
     if (latestSearchRequest.current === message.requestId) latestSearchRequest.current = actualId;
@@ -581,6 +592,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
     }
     const upload = uploadTargets.current.get(message.requestId);
     if (upload) { uploadTargets.current.delete(message.requestId); uploadTargets.current.set(actualId, upload); }
+    return actualId;
   };
   const reconcileNoteMarkdown = (discussions: IssueDetailData['discussions'], projectId: number): void => {
     const present = new Set(discussions.flatMap(discussion => discussion.notes.map(note => note.id)));
@@ -616,7 +628,8 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
     pendingSubmission.current = { body: typeof payload.body === 'string' ? payload.body : undefined,
       taskId: action === 'updateChild' && typeof payload.taskId === 'string' ? payload.taskId : undefined, taskTitle, taskDescription };
   };
-  const openLink = (url: string) => post({ type: 'openLink', url });
+  const openLink = (url: string, browserAttachment = false) => post(browserAttachment && activeProjectId
+    ? { type: 'openAttachmentInBrowser', url, projectId: activeProjectId } : { type: 'openLink', url, projectId: activeProjectId });
   const requestIssueRelations = () => {
     const issue = detail?.issue;
     const connectedScope = snapshot?.connectedScope;
@@ -647,10 +660,17 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
     setRelationMutationApplied(false);
   };
   const requestImage = (url: string) => {
-    if (images[url] || failedImages.current.has(url) || [...imageRequests.current.values()].includes(url)) return;
+    if (!activeProjectId || images[url] || [...imageRequests.current.values()].includes(url)) return;
     const requestId = `image-${stamp()}`;
     imageRequests.current.set(requestId, url);
-    post({ type: 'image', requestId, url });
+    const actualId = postReplyRequest({ type: 'image', requestId, url, projectId: activeProjectId });
+    if (!actualId || actualId !== requestId) imageRequests.current.delete(requestId);
+    if (actualId) { imageRequests.current.set(actualId, url); setImages(current => ({ ...current, [url]: { status: 'loading' } })); }
+  };
+  const resetImageReads = (preserveResults = false) => {
+    for (const requestId of imageRequests.current.keys()) requestEpoch.current.delete(requestId);
+    imageRequests.current.clear();
+    setImages(current => preserveResults ? Object.fromEntries(Object.entries(current).filter(([, image]) => image.status !== 'loading')) : {});
   };
   const activeProjectId = detail?.issue.project_id ?? projectId;
   const markdownBaseUrl = detail?.project.web_url ?? projects.find((project) => project.id === projectId)?.web_url ?? 'https://gitlab.example.invalid/';
@@ -733,6 +753,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
     if (modeRef.current === 'create' && projectIdRef.current > 0) createDrafts.current.set(projectIdRef.current, formRef.current);
     routeRevision.current = navigation.revision;
     viewEpoch.current++;
+    resetImageReads();
     const savedTab = navigation.mode === 'detail' ? savedDetailTabs.current[navigation.projectId + ':' + navigation.issueIid] : undefined;
     const requestedTab = navigation.mode === 'detail' ? savedTab?.revision === navigation.revision ? savedTab.tab : navigation.tab ?? savedTab?.tab : undefined;
     setDetailTab(requestedTab && ['content', 'relations', 'time'].includes(requestedTab) ? requestedTab : 'content');
@@ -850,6 +871,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         if (activeIssueId.current !== null && editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
         if (activeIssueId.current !== null) conversationDrafts.current.set(activeIssueId.current, { comment: commentRef.current, reply: replyRef.current, internal: internalRef.current });
         viewEpoch.current++;
+        resetImageReads();
         activeIssueId.current = null;
         pendingIssueSave.current = false;
         submittedIssueForm.current = null;
@@ -888,6 +910,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
           return;
         }
         viewEpoch.current++;
+        resetImageReads();
         busyRef.current = false;
         latestPreviewRequest.current = null;
         latestSearchRequest.current = null;
@@ -905,6 +928,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
       } else if (message.type === 'detailData') {
         viewEpoch.current++;
         const sameIssue = activeIssueId.current === message.data.issue.id;
+        resetImageReads(sameIssue);
         if (!sameIssue && activeIssueId.current !== null && editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
         const editedAfterSubmit = pendingIssueSave.current && submittedIssueForm.current !== null && JSON.stringify(formRef.current) !== JSON.stringify(submittedIssueForm.current);
         const preserveIssueDraft = sameIssue && editingRef.current && (!pendingIssueSave.current || editedAfterSubmit);
@@ -981,7 +1005,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
       } else if (message.type === 'reply') {
         const epoch = requestEpoch.current.get(message.requestId);
         requestEpoch.current.delete(message.requestId);
-        if (!message.requestId.startsWith('image-') && epoch === undefined) return;
+        if (epoch === undefined) return;
         if (epoch !== undefined && epoch !== viewEpoch.current) return;
         if (message.requestId.startsWith('preview-') && message.requestId !== latestPreviewRequest.current) return;
         if (message.requestId.startsWith('search-') && message.requestId !== latestSearchRequest.current) return;
@@ -1000,8 +1024,14 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
         if (message.requestId.startsWith('image-')) {
           const url = imageRequests.current.get(message.requestId);
           imageRequests.current.delete(message.requestId);
-          if (message.error) { if (url) failedImages.current.add(url); setError(message.error); }
-          else if (url && (message.result as { dataUrl?: string })?.dataUrl) setImages((current) => ({ ...current, [url]: (message.result as { dataUrl: string }).dataUrl }));
+          if (!url) return;
+          const result = message.result as { status?: string; dataUrl?: string; url?: string; message?: string } | undefined;
+          const image: IssueImageState = result?.status === 'browserRequired' && typeof result.url === 'string'
+            ? { status: 'browserRequired', url: result.url, message: result.message ?? '此附件需要瀏覽器登入。' }
+            : typeof result?.dataUrl === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(result.dataUrl)
+              ? { status: 'ready', dataUrl: result.dataUrl }
+              : { status: 'error', message: message.error ?? '無法載入附件圖片，請重新整理後重試。' };
+          setImages(current => ({ ...current, [url]: image }));
         } else if (message.error) { if (!message.notificationOnly) setError(message.error); }
         else if (message.requestId.startsWith('preview-')) setPreviewHtml((message.result as { html?: string })?.html ?? '');
         else if (message.requestId.startsWith('note-')) {
@@ -1114,7 +1144,7 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
   if (mode === 'waiting') return <main id="issue-panel" class="shell"><h1>Issue</h1>{error ? <div class="alert" role="alert">{error}</div> : <p>正在載入 Issue…</p>}<button type="button" onClick={() => post({ type: 'refresh' })}>重試</button></main>;
   if (mode === 'deleted') return <main id="issue-panel" class="shell"><h1>Issue 已刪除</h1><p>此 Issue 已從 GitLab 移除。</p>{onBack && <button type="button" onClick={onBack}>返回清單</button>}</main>;
   return <main id="issue-panel" class="shell">
-    <header class="topbar issue-topbar"><div><span class="eyebrow">{mode === 'create' ? '建立工作項目' : detail?.project.path_with_namespace}</span><h1>{mode === 'create' ? '新增 Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? '新增後會直接開啟內容與討論。' : `${issue?.state === 'closed' ? '已結案' : '進行中'}`}</p></div><div class="toolbar issue-heading-actions">{onBack && <button type="button" onClick={onBack}>返回清單</button>}<button type="button" onClick={() => { failedImages.current.clear(); post({ type: 'refresh' }); }} disabled={loading || actionBusy && !uncertain}>重新整理</button>{issue && <button type="button" onClick={() => post({ type: 'openIssueInGitLab', issueId: issue.id })}>在 GitLab 開啟</button>}</div></header>
+    <header class="topbar issue-topbar"><div><span class="eyebrow">{mode === 'create' ? '建立工作項目' : detail?.project.path_with_namespace}</span><h1>{mode === 'create' ? '新增 Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? '新增後會直接開啟內容與討論。' : `${issue?.state === 'closed' ? '已結案' : '進行中'}`}</p></div><div class="toolbar issue-heading-actions">{onBack && <button type="button" onClick={onBack}>返回清單</button>}<button type="button" onClick={() => { resetImageReads(); post({ type: 'refresh' }); }} disabled={loading || actionBusy && !uncertain}>重新整理</button>{issue && <button type="button" onClick={() => post({ type: 'openIssueInGitLab', issueId: issue.id })}>在 GitLab 開啟</button>}</div></header>
     {error && <div class="alert"><FeatureNotice tone="error" reason={error.split(/\r?\n/, 1)[0].slice(0, 180)} details={error.length > 180 || /\r|\n/.test(error) ? error : undefined} /><button type="button" aria-label="關閉錯誤訊息" onClick={dismissIssueError}>關閉</button></div>}
     <OperationFeedback actions={actions} includeUnknown={!onWorkspaceAction} displayedError={error} onDismiss={operation => { if (operation.error === error || operation.refreshError && error.includes(operation.refreshError)) setError(''); }} resourceKey={issue ? `issue:${issue.project_id}:${issue.iid}` : `issue:${projectId}`} scopeRevision={snapshot?.operationScope} onRefresh={() => post({ type: 'refresh' })} />
     {busy && <div class="loading" role="status">{uncertain ? '操作結果待確認，仍可重新整理並核對。' : '正在與 GitLab 通訊…'}</div>}

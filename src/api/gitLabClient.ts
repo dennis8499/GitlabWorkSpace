@@ -1,4 +1,6 @@
 import { gitLabApiRoot, normalizeGitLabBaseUrl } from './urlPolicy';
+import { GitLabAttachmentBrowserRequiredError, isAttachmentSignInRedirect, resolveProjectAttachment, type GitLabAttachmentOptions } from './attachments';
+export { GitLabAttachmentBrowserRequiredError } from './attachments';
 import { GitLabReadGate } from './gitLabReadGate';
 import { GitLabNetworkGate, parseRetryAfter } from './gitLabNetworkGate';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -1208,16 +1210,15 @@ export class GitLabClient {
     }, signal, Math.max(this.writeTimeoutMs, 300_000));
   }
 
-  async downloadUpload(rawUrl: string, maxBytes = 50 * 1024 * 1024): Promise<{ bytes: Uint8Array; contentType: string }> {
-    const url = new URL(rawUrl, this.baseUrl);
-    const base = new URL(this.baseUrl);
-    const basePath = base.pathname.replace(/\/$/, '');
-    const insideBase = !basePath || url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
-    if (url.origin !== base.origin || url.username || url.password || !insideBase || !url.pathname.includes('/uploads/')) {
-      throw new GitLabApiError('The attachment URL is outside this GitLab server.');
-    }
+  async downloadUpload(rawUrl: string, options: GitLabAttachmentOptions): Promise<{ bytes: Uint8Array; contentType: string }> {
+    const attachment = resolveProjectAttachment(this.baseUrl, rawUrl, options);
+    const url = new URL(attachment.apiUrl ?? attachment.browserUrl);
+    const maxBytes = attachment.maxBytes;
     return this.withReadRequest(async (signal) => {
-      const response = await this.send(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, signal, redirect: 'manual' }, true, maxBytes);
+      const response = await this.send(url, { method: 'GET', headers: attachment.apiUrl ? { 'PRIVATE-TOKEN': this.token } : {}, signal, redirect: 'manual' }, true, maxBytes);
+      if (!attachment.apiUrl && response.status >= 300 && response.status < 400 && isAttachmentSignInRedirect(this.baseUrl, attachment.browserUrl, response.headers.get('location'))) {
+        throw new GitLabAttachmentBrowserRequiredError(attachment.browserUrl);
+      }
       if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab redirected the attachment request.', response.status);
       if (!response.ok) throw new GitLabApiError(`GitLab attachment request failed (HTTP ${response.status}).`, response.status);
       if (Number(response.headers.get('content-length') ?? 0) > maxBytes) {

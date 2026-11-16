@@ -88,10 +88,13 @@ export class OperationLog {
       level: input.level ?? (input.result === 'error' ? 'error' : 'info'),
       feature: this.sanitize(input.feature), action: this.sanitize(input.action), result: input.result
     };
-    for (const key of ['accountId', 'baseUrl', 'repositoryPath', 'targetPath', 'commandId', 'requestReason', 'message', 'method', 'endpoint'] as const) {
+    for (const key of ['accountId', 'baseUrl', 'repositoryPath', 'targetPath', 'commandId', 'requestReason', 'message', 'method', 'endpoint',
+      'coordinationCode', 'systemCode', 'runtimePath'] as const) {
       if (typeof source[key] === 'string') entry[key] = this.sanitize(source[key]);
     }
     if (typeof source.network === 'boolean') entry.network = source.network;
+    if (typeof source.requestStarted === 'boolean') entry.requestStarted = source.requestStarted;
+    if (source.coordinationPhase && ['admission', 'cooldown', 'cleanup'].includes(source.coordinationPhase)) entry.coordinationPhase = source.coordinationPhase;
     if (source.cacheResult && ['hit', 'miss', 'joined', 'refresh'].includes(source.cacheResult)) entry.cacheResult = source.cacheResult;
     if (typeof source.graphqlOperationName === 'string' && graphqlOperations.has(source.graphqlOperationName)) entry.graphqlOperationName = this.sanitize(source.graphqlOperationName);
     if (typeof source.pageIdentity === 'string' && /^(?:page:[1-9]\d*|cursor:[a-f0-9]{16})$/.test(source.pageIdentity)) entry.pageIdentity = this.sanitize(source.pageIdentity);

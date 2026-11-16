@@ -69,7 +69,8 @@ const issueSchemas = {
   search: { requestId: identity, projectId: id, query: string(200), mode: optional(one('next')), queryIdentity: optional(key) },
   searchProjects: { requestId: identity, query: string(200), mode: optional(one('next')), queryIdentity: optional(key) },
   upload: { requestId: identity, projectId: id, target: optional(key) }, image: { requestId: identity, url: string(8192, 1) },
-  invoke: {}, openIssueInGitLab: { issueId: id }, openLink: { url: string(8192, 1) }
+  invoke: {}, openIssueInGitLab: { issueId: id }, openLink: { url: string(8192, 1) },
+  openAttachmentInBrowser: { url: string(8192, 1), projectId: id }
 } satisfies Record<IssuePanelRequest['type'], Shape>;
 const issueRequest: Check = value => record(value) && value.type === 'invoke' ? invoke(value) : variant(issueSchemas, issueMetadata)(value);
 

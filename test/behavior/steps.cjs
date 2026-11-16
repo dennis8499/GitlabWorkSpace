@@ -247,6 +247,51 @@ Then('a private upload image is requested through the host', async function () {
     () => this.root.querySelector('.description img')?.src.startsWith('data:image/png;base64,'));
   assert.match(this.root.querySelector('.description img').src, /^data:image\/png;base64,/);
 });
+When('GitLab requires browser login for the private image', async function () {
+  this.privateImage = this.messages.find(item => item.type === 'image');
+  assert.equal(this.privateImage.projectId, 42);
+  await this.send({ type: 'reply', requestId: this.privateImage.requestId, result: {
+    status: 'browserRequired', url: this.privateImage.url, message: '此 GitLab 版本的私有附件需要瀏覽器登入。'
+  } }, () => !!this.root.querySelector('.description a[data-browser-attachment]'));
+});
+Then('the private image offers a browser link without automatic navigation or repeated reads', async function () {
+  const before = this.messages.filter(item => item.type === 'image').length;
+  await this.send({ type: 'detailPatch', issueId: issue.id, patch: { warnings: ['An unrelated update'] } },
+    () => !!this.root.querySelector('.description a[data-browser-attachment]'));
+  await this.afterPaint();
+  const link = this.root.querySelector('.description a[data-browser-attachment]');
+  assert.match(link.textContent, /在 GitLab 查看/);
+  assert.equal(this.root.querySelector('.description img'), null);
+  assert.equal(this.messages.some(item => item.type === 'openAttachmentInBrowser' || item.type === 'openLink'), false);
+  assert.equal(this.messages.filter(item => item.type === 'image').length, before);
+  assert.equal(this.root.querySelector('[role="alert"]')?.textContent.includes('瀏覽器登入') ?? false, false);
+});
+When('I follow the private attachment browser link', async function () {
+  this.root.querySelector('.description a[data-browser-attachment]').click();
+  await this.waitFor(() => this.messages.some(item => item.type === 'openAttachmentInBrowser'), 'explicit attachment browser command');
+});
+Then('the browser action carries only the current project and attachment URL', function () {
+  const requests = this.messages.filter(item => item.type === 'openAttachmentInBrowser');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, this.privateImage.url);
+  assert.equal(requests[0].projectId, 42);
+  assert.ok(!JSON.stringify(requests[0]).includes('PRIVATE-TOKEN'));
+  assert.equal(this.messages.some(item => item.type === 'openLink'), false);
+});
+When('I navigate to another Issue before the private image reply', async function () {
+  this.privateImage = this.messages.find(item => item.type === 'image');
+  const next = { ...this.data, issue: { ...this.data.issue, id: 402, iid: 8, title: 'Next Issue', description: 'Second description' } };
+  await this.send({ type: 'detailData', data: next });
+});
+Then('the previous image reply cannot change the current Issue', async function () {
+  await this.send({ type: 'reply', requestId: this.privateImage.requestId, result: {
+    status: 'browserRequired', url: this.privateImage.url, message: 'Old browser requirement'
+  } }, () => this.root.querySelector('h1')?.textContent.includes('Next Issue'));
+  assert.equal(this.root.querySelector('.description a[data-browser-attachment]'), null);
+  assert.equal(this.root.querySelector('.description img'), null);
+  assert.ok(!this.root.body.textContent.includes('Old browser requirement'));
+  assert.equal(this.messages.some(item => item.type === 'openAttachmentInBrowser'), false);
+});
 When('GitLab cannot render the description Markdown', async function () {
   const preview = this.messages.find((item) => item.type === 'preview');
   await this.send({ type: 'reply', requestId: preview.requestId, error: 'Markdown renderer unavailable.' },

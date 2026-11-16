@@ -64,6 +64,12 @@ const instrumentation = String.raw`(() => {
       const node = document.querySelector('#security-markdown-probe');
       return { ...result, text: node.textContent, styleAttribute: node.hasAttribute('style'), handler: node.hasAttribute('onmouseover'), styleTags: document.querySelectorAll('.markdown style').length };
     }
+    if (action === 'attachment' || action === 'attachmentClick') {
+      await wait(() => document.querySelector('.description a[data-browser-attachment]'));
+      const link = document.querySelector('.description a[data-browser-attachment]');
+      if (action === 'attachmentClick') link.click();
+      return { ...result, href: link.href, text: link.textContent, images: document.querySelectorAll('.description img').length };
+    }
     if (action === 'injection') {
       const before = violations.length;
       const node = document.createElement('div'); node.id = 'security-injection';
@@ -118,7 +124,9 @@ suite('Production Webview CSP without GitLab credentials', function () {
       stashes: [], recoveryRefs: [], remotes: [], changes: [], historyHasMore: false,
       history: Array.from({ length: 200 }, (_, i) => ({ hash: i ? i.toString(16).padStart(40, '0') : head,
         parents: i < 199 ? [(i + 1).toString(16).padStart(40, '0')] : [], subject: `Commit ${i}`, author: 'Probe', date: '2026-01-01T00:00:00Z' })) };
-    let readyCount = 0, sequence = 0;
+    let readyCount = 0, sequence = 0, imageReads = 0;
+    const attachmentUrl = 'https://probe.invalid/probe/project/uploads/' + 'e'.repeat(32) + '/image.png';
+    const browserActions: any[] = [];
     const pending = new Map<number, (result: any) => void>();
     const post = (message: unknown) => panel.webview.postMessage(message);
     const listener = panel.webview.onDidReceiveMessage((request: any) => {
@@ -133,7 +141,13 @@ suite('Production Webview CSP without GitLab credentials', function () {
           options: { members: [], labels: [], milestones: [], templates: [], warnings: [] }, discussions: [], links: [], mergeRequests: [],
           reactions: [], noteReactions: {}, todos: [], tasks: [], timelogs: [], startDate: null, warnings: [] } } });
       if (request.type === 'issueRequest' && request.request.type === 'preview') void post({ type: 'issueResponse', revision: 1,
-        response: { type: 'reply', requestId: request.request.requestId, result: { html: '<style>body{position:fixed}</style><span id="security-markdown-probe" style="position:fixed" onmouseover="alert(1)">safe Markdown</span>' } } });
+        response: { type: 'reply', requestId: request.request.requestId, result: { html: '<style>body{position:fixed}</style><span id="security-markdown-probe" style="position:fixed" onmouseover="alert(1)">safe Markdown</span><img src="' + attachmentUrl + '" alt="private image">' } } });
+      if (request.type === 'issueRequest' && request.request.type === 'image') {
+        imageReads++;
+        void post({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: request.request.requestId,
+          result: { status: 'browserRequired', url: attachmentUrl, message: '此附件需要瀏覽器登入。' } } });
+      }
+      if (request.type === 'issueRequest' && request.request.type === 'openAttachmentInBrowser') browserActions.push(request.request);
       if (request.operationId) {
         const policy = describeAction(request);
         void post({ type: 'operationChanged', operation: { ...policy, requestId: request.operationId, correlationId: request.requestId,
@@ -178,12 +192,17 @@ suite('Production Webview CSP without GitLab credentials', function () {
       // Chromium can report rejected styles while DOMPurify parses hostile input
       // in an inert document. None survive sanitization or change the live UI.
       assert.ok(markdown.violations.every((value: string) => value.startsWith('style-src')));
+      const attachment = await inspect('attachment');
+      assert.equal(attachment.href, attachmentUrl); assert.match(attachment.text, /在 GitLab 查看/); assert.equal(attachment.images, 0);
+      assert.equal(imageReads, 1); assert.equal(browserActions.length, 0);
+      await inspect('attachmentClick'); await wait(() => browserActions.length === 1);
+      assert.equal(browserActions[0].projectId, 1); assert.equal(browserActions[0].url, attachmentUrl); assert.equal(imageReads, 1);
       const injection = await inspect('injection'); assert.equal(injection.blocked, true);
       assert.ok(injection.violations.every((value: string) => value.startsWith('style-src')));
       console.log('Native CSP proof', JSON.stringify({ listRows: list.rows, virtualHeight: list.height,
         resizedFrom: layout.before, resizedTo: layout.after, workerPositions: graph.positions,
         restoredContext: restored.contextId !== graph.contextId, markdownStylesRemoved: !markdown.styleAttribute && !markdown.styleTags,
-        injectedStylesBlocked: injection.blocked }));
+        injectedStylesBlocked: injection.blocked, attachmentImageReads: imageReads, explicitBrowserActions: browserActions.length }));
     } finally { listener.dispose(); panel.dispose(); }
   });
 });

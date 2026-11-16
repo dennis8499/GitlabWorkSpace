@@ -3,7 +3,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
+import { GitLabApiError, GitLabAttachmentBrowserRequiredError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
+import { resolveProjectAttachment, type GitLabAttachmentOptions } from '../api/attachments';
 import { checkPermissionAvailability, issueDeleteAvailability, type ActionAvailability } from '../api/actionAvailability';
 import { issueFeatureAvailability, issueAvailabilityFlags } from './issueAvailability';
 import { sanitizeDiagnostic, sanitizeFeedbackDiagnostics } from '../logging/diagnosticText';
@@ -682,6 +683,20 @@ export class IssuePanels implements vscode.Disposable {
     return project;
   }
 
+  private attachmentProjectId(): number | undefined {
+    return this.mode === 'detail' ? this.issue?.project_id : this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.selectedProjectId : undefined;
+  }
+
+  private async attachmentOptions(requestedProjectId?: number, signal?: AbortSignal): Promise<GitLabAttachmentOptions> {
+    const projectId = this.attachmentProjectId();
+    if (!projectId || requestedProjectId !== undefined && requestedProjectId !== projectId) throw new IssueValidationError('The attachment project changed.');
+    const project = this.mode === 'detail' && this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === this.issue?.id
+      ? this.lastSnapshot.data.project : await this.resolveCreationProject(projectId, signal);
+    const group = this.session.selectedGroup;
+    if (project.id !== projectId || !group?.full_path || !project.path_with_namespace.startsWith(group.full_path + '/')) throw new IssueValidationError('Attachment is outside the selected group.');
+    return { projectId, projectPath: project.path_with_namespace, serverVersion: this.session.metadata?.version };
+  }
+
   private async searchPage(request: Extract<IssuePanelRequest, { type: 'search' | 'searchProjects' }>): Promise<void> {
     const requestId = requiredString(request.requestId, 'Request ID');
     const query = typeof request.query === 'string' ? request.query.trim() : '';
@@ -1116,16 +1131,18 @@ export class IssuePanels implements vscode.Disposable {
     const readVersion = this.navigationVersion, readEpoch = this.session.connectionEpoch;
     const readGroup = this.session.selectedGroup;
     const readSignal = this.navigationReadController?.signal;
+    const attachmentRead = ['image', 'openLink', 'openAttachmentInBrowser'].includes(request.type);
+    const readProject = attachmentRead ? this.attachmentProjectId() : undefined;
     const cachedPreviewRead = request.type === 'preview';
     const currentRead = () => {
       const current = readVersion === this.navigationVersion && readEpoch === this.session.connectionEpoch &&
-        readGroup?.id === this.session.selectedGroup?.id && !readSignal?.aborted && !this.suspended;
+        readGroup?.id === this.session.selectedGroup?.id && !readSignal?.aborted && !this.suspended && (!attachmentRead || readProject === this.attachmentProjectId());
       if (!current) { const action = this.actionContext.getStore(); if (action) action.status = 'cancelled'; }
       return current;
     };
     const baseClient = await this.session.getClient();
-    if (cachedPreviewRead && !currentRead()) return;
-    let client = ['selectProject', 'searchProjects', 'preview', 'search', 'image'].includes(request.type) && readSignal
+    if ((cachedPreviewRead || attachmentRead) && !currentRead()) return;
+    let client = ['selectProject', 'searchProjects', 'preview', 'search', 'image', 'openLink', 'openAttachmentInBrowser'].includes(request.type) && readSignal
       ? baseClient.withReadSignal(readSignal) : baseClient;
     if (request.type === 'selectProject') {
       this.pageStore.cancel();
@@ -1224,23 +1241,44 @@ export class IssuePanels implements vscode.Disposable {
     if (request.type === 'image') {
       const requestId = requiredString(request.requestId, 'Request ID');
       try {
-        const { bytes, contentType } = await client.downloadUpload(requiredString(request.url, 'Image URL'), 8 * 1024 * 1024);
+        const options = await this.attachmentOptions(request.projectId, readSignal);
+        if (!currentRead()) return;
+        const { bytes, contentType } = await client.downloadUpload(requiredString(request.url, 'Image URL'), { ...options, maxBytes: 8 * 1024 * 1024 });
+        if (!currentRead()) return;
         if (!/^image\/(png|jpeg|gif|webp)$/i.test(contentType)) throw new Error('This attachment is not a supported image.');
         this.post({ type: 'reply', requestId, result: { dataUrl: `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}` } });
       } catch (error) {
-        this.post({ type: 'reply', requestId, error: safeError(error) });
+        if (!currentRead()) return;
+        this.post(error instanceof GitLabAttachmentBrowserRequiredError
+          ? { type: 'reply', requestId, result: { status: 'browserRequired', url: error.browserUrl, message: error.message } }
+          : { type: 'reply', requestId, error: safeError(error) });
       }
+      return;
+    }
+    if (request.type === 'openAttachmentInBrowser') {
+      const options = await this.attachmentOptions(request.projectId, readSignal);
+      const attachment = resolveProjectAttachment(client.baseUrl, request.url, options);
+      if (!currentRead()) return;
+      if (!await vscode.env.openExternal(vscode.Uri.parse(attachment.browserUrl))) throw new Error('無法在瀏覽器開啟 GitLab 附件。');
       return;
     }
     if (request.type === 'openLink') {
       const url = safeLinkUrl(request.url, client.baseUrl);
       const base = new URL(client.baseUrl);
       if (url.origin === base.origin && url.pathname.includes('/uploads/')) {
+        const options = await this.attachmentOptions(request.projectId, readSignal);
+        const attachment = resolveProjectAttachment(client.baseUrl, url.href, options);
+        if (!currentRead()) return;
+        if (!attachment.apiUrl) {
+          if (!await vscode.env.openExternal(vscode.Uri.parse(attachment.browserUrl))) throw new Error('無法在瀏覽器開啟 GitLab 附件。');
+          return;
+        }
         const name = decodeURIComponent(url.pathname.split('/').at(-1) || 'attachment').replace(/[\\/:*?"<>|]/g, '_');
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
         const destination = await vscode.window.showSaveDialog({ defaultUri: workspaceRoot ? vscode.Uri.joinPath(workspaceRoot, name) : undefined, saveLabel: 'Save GitLab Attachment' });
-        if (!destination) return;
-        const { bytes } = await client.downloadUpload(url.href);
+        if (!destination || !currentRead()) return;
+        const { bytes } = await client.downloadUpload(attachment.browserUrl, options);
+        if (!currentRead()) return;
         await vscode.workspace.fs.writeFile(destination, bytes);
         await vscode.commands.executeCommand('vscode.open', destination);
         return;

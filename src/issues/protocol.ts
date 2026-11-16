@@ -105,6 +105,12 @@ export interface IssueDetailData extends IssueRelationsData {
   sections?: Partial<Record<IssueDetailSection, IssueDetailSectionStatus>>;
 }
 
+export type IssueImageState =
+  | { status: 'loading' }
+  | { status: 'ready'; dataUrl: string }
+  | { status: 'browserRequired'; url: string; message: string }
+  | { status: 'error'; message: string };
+
 export type IssuePanelRequest = (
   | { type: 'ready' }
   | { type: 'reconcileOperations'; pendingIds?: string[] }
@@ -128,6 +134,7 @@ export type IssuePanelRequest = (
   | { type: 'invoke'; issueId: number; action: IssueAction; payload?: Record<string, unknown> }
   | { type: 'openIssueInGitLab'; issueId: number }
   | { type: 'openLink'; url: string }
+  | { type: 'openAttachmentInBrowser'; url: string; projectId: number }
 ) & { requestId?: string; operationId?: string; operationScope?: string; projectId?: number; issueIid?: number };
 
 export type IssueAction =

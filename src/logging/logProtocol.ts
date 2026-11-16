@@ -15,6 +15,11 @@ export interface LogContext {
   cacheResult?: 'hit' | 'miss' | 'joined' | 'refresh';
   graphqlOperationName?: string;
   pageIdentity?: string;
+  coordinationCode?: string;
+  coordinationPhase?: 'admission' | 'cooldown' | 'cleanup';
+  systemCode?: string;
+  runtimePath?: string;
+  requestStarted?: boolean;
 }
 
 export interface OperationLogEntry extends LogContext {

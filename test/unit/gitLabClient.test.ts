@@ -350,7 +350,7 @@ test('attachment size limits stop chunked downloads before consuming the entire 
   let reads = 0, cancelled = false;
   const body = new ReadableStream<Uint8Array>({ pull(controller) { reads++; controller.enqueue(new Uint8Array(4)); }, cancel() { cancelled = true; } });
   const client = new GitLabClient('https://gitlab.example.test', token, async () => new Response(body));
-  await assert.rejects(client.downloadUpload('https://gitlab.example.test/uploads/file', 5), /too large/);
+  await assert.rejects(client.downloadUpload('https://gitlab.example.test/uploads/' + 'a'.repeat(32) + '/file', { projectId: 42, projectPath: 'group/project', serverVersion: '17.4.0', maxBytes: 5 }), /too large/);
   assert.equal(cancelled, true); assert.ok(reads <= 3);
 });
 

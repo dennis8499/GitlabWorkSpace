@@ -52,6 +52,22 @@ Feature: GitLab CE Issue work inside VS Code
     When GitLab cannot render the description Markdown
     Then the original Markdown text remains readable
 
+  @automated @SCN-022
+  Scenario: Legacy private images require an explicit browser action
+    Given the Issue Webview is ready with an editable issue
+    When GitLab renders Markdown containing an unsafe script
+    And GitLab requires browser login for the private image
+    Then the private image offers a browser link without automatic navigation or repeated reads
+    When I follow the private attachment browser link
+    Then the browser action carries only the current project and attachment URL
+
+  @automated @SCN-023
+  Scenario: Image replies cannot cross Issue navigation
+    Given the Issue Webview is ready with an editable issue
+    When GitLab renders Markdown containing an unsafe script
+    And I navigate to another Issue before the private image reply
+    Then the previous image reply cannot change the current Issue
+
   @automated @SCN-008
   Scenario: A comment can preview Markdown and attach a file
     Given the Issue Webview is ready with an editable issue

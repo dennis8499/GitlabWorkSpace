@@ -186,6 +186,7 @@ export const issueActionKinds = {
   invoke: 'write',
   openIssueInGitLab: 'local',
   openLink: 'local',
+  openAttachmentInBrowser: 'local',
 } satisfies Record<IssuePanelRequest['type'], ActionKind>;
 export const issueInvokeKinds = {
   close: 'write',

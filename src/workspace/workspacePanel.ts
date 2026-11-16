@@ -570,7 +570,8 @@ export class WorkspacePanel implements vscode.Disposable {
     return { scope: `${this.session.connectionEpoch}:${baseUrl ?? 'offline'}:${this.session.activeAccountId ?? 'none'}:${group?.id ?? 'none'}`, connectedScope: this.connectedScopeKey(),
       connected: !!baseUrl, account: this.currentUser?.name ?? this.session.accounts.find(account => account.id === this.session.activeAccountId)?.name,
       group: group?.full_path, projects: loaded ? this.projects : [], issues: loaded ? this.issues : [], mergeRequests: loaded ? this.mergeRequests : [],
-      sections: loaded ? { projects: this.workspaceSections.projects, issues: this.workspaceSections.issues, mergeRequests: this.workspaceSections.mergeRequests } : {} };
+      sections: loaded || this.navigationBootstrapFailure?.scope === `${this.session.connectionEpoch}:${baseUrl}:${group?.id}`
+        ? { projects: this.workspaceSections.projects, issues: this.workspaceSections.issues, mergeRequests: this.workspaceSections.mergeRequests } : {} };
   }
   private publishNavigation(): void {
     if (this.disposed || !this.navigationListeners?.size) return;
@@ -584,6 +585,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
   private navigationReadCount = 0;
   private navigationRead?: { scope: string; promise: Promise<void> };
+  private navigationBootstrapFailure?: { scope: string; message: string };
 
   /** Shared by native views and the Palette; reads do not require a Webview. */
   async loadNavigationData(force = false): Promise<void> {
@@ -605,10 +607,22 @@ export class WorkspacePanel implements vscode.Disposable {
         await this.loadWorkspaceSection('projects', force, undefined, 'navigation-entry');
         if (!current()) return;
         await Promise.all(['issues', 'mergeRequests'].map(section => this.loadWorkspaceSection(section as 'issues' | 'mergeRequests', force, undefined, 'navigation-entry')));
+        if (current()) this.navigationBootstrapFailure = undefined;
+      } catch (error) {
+        if (current()) this.noteNavigationBootstrapFailure(scope, readableError(error));
+        throw error;
       } finally { this.navigationReadCount--; this.sendSnapshot(); }
     };
     const promise = read(); const pending = { scope, promise }; this.navigationRead = pending;
     try { await promise; } finally { if (this.navigationRead === pending) this.navigationRead = undefined; }
+  }
+
+  private noteNavigationBootstrapFailure(scope: string, message: string): void {
+    this.navigationBootstrapFailure = { scope, message };
+    for (const section of ['projects', 'issues', 'mergeRequests'] as const) {
+      const previous = this.workspaceSections[section];
+      this.workspaceSections[section] = { ...previous, status: previous?.status === 'ready' ? 'ready' : 'error', error: message, refreshing: false };
+    }
   }
 
   async openIssueFromCommand(issue?: GitLabIssue, expectedScope?: string): Promise<void> {
@@ -782,6 +796,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   async loadNavigationSection(section: 'issues' | 'mergeRequests', expectedScope: string, retry = false): Promise<void> {
     if (expectedScope !== this.getNavigationSnapshot().scope) throw new Error('帳號或 Group 已變更，請重新選擇。');
+    if (retry && (this.navigationBootstrapFailure || this.workspaceSections?.projects?.status === 'error')) return this.loadNavigationData(true);
     const scope = this.connectedScopeKey();
     if (!scope) return;
     this.navigationReadCount = (this.navigationReadCount ?? 0) + 1;
@@ -1844,7 +1859,9 @@ export class WorkspacePanel implements vscode.Disposable {
             this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'loading' } };
             this.sendSnapshot();
           }
-          if (request.mode === 'cancel') this.workspaceSectionAborts.get(request.section)?.abort();
+          if (!request.mode && (this.navigationBootstrapFailure || this.workspaceSections?.projects?.status === 'error')) {
+            await this.refresh({ forceNetwork: true, reason: 'manual-retry' });
+          } else if (request.mode === 'cancel') this.workspaceSectionAborts.get(request.section)?.abort();
           else if (request.mode) await this.loadWorkspaceSection(request.section, false, request.mode);
           else await this.loadWorkspaceSection(request.section, true);
           if (this.activeMode === 'dashboard') { this.updateDashboardGitLabStatus(); this.sendSnapshot(); }
@@ -2420,6 +2437,7 @@ export class WorkspacePanel implements vscode.Disposable {
         await this.timer.setScope(this.session.baseUrl, user.id);
         this.syncTimerPolling();
       }
+      this.navigationBootstrapFailure = undefined;
       if (!this.groups.length) {
         const groups = await this.session.cachedRead('groups', client => client.listGroups(), { signal, reason: options.reason ?? 'entry' });
         if (!current()) return;
@@ -2476,6 +2494,8 @@ export class WorkspacePanel implements vscode.Disposable {
       }
     } catch (error) {
       if (current()) {
+        const group = this.session.selectedGroup;
+        if (group && this.session.baseUrl) this.noteNavigationBootstrapFailure(`${this.session.connectionEpoch}:${this.session.baseUrl}:${group.id}`, readableError(error));
         if (dashboard) {
           this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'error', error: readableError(error) } };
           this.sendSnapshot();
