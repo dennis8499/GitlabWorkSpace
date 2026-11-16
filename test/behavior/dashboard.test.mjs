@@ -240,6 +240,9 @@ test('Project Wiki shows a safe preview and sends publication only after the exp
   const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'generated', summary: 'Draft ready' } });
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } });
   view.send({ type: 'codexTaskStarted', taskId: task.id }); await view.tick();
+  assert.equal(document.querySelector('#codex-execution-panel').hidden, false);
+  assert.equal(view.requests.some(request => request.type === 'previewProjectWiki' && request.taskId === task.id), false, 'new tasks stay in conversation until results are opened');
+  document.querySelector('#codex-results-tab').click(); await view.tick();
   assert.ok(view.requests.some(request => request.type === 'previewProjectWiki' && request.taskId === task.id));
   view.send({ type: 'codexWorkflowResult', taskId: task.id, result: task.result, wiki: { id: task.result.draftId, revision: 'previewed-revision',
     sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha', pages: [{ slug: 'codebase/index', title: 'Overview',
@@ -282,6 +285,7 @@ test('Wiki opens native source and diff documents with scoped identity while fil
   const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
   const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'initial', summary: 'Ready' } });
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  view.dom.window.document.querySelector('#codex-results-tab').click(); await view.tick();
   view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: { id: task.result.draftId, revision: 'preview', sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha', pages: [
     { slug: 'codebase/index', title: 'Overview', content: '# Overview\nnew', previousContent: '# Overview\nold', action: 'update', published: false },
     { slug: 'codebase/same', title: 'Same', content: '# Same', previousContent: '# Same', action: 'unchanged', published: true }
@@ -309,7 +313,7 @@ test('Wiki opens native source and diff documents with scoped identity while fil
 test('MR reply drafts survive recreation and are never marked published on dispatch or failed receipts', async t => {
   const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
   const task = linkedWorkflowTask('merge-request', { result: { state: 'ready', summary: 'Fix ready', replyDrafts: [{ discussionId: 'discussion-one', body: 'Generated draft' }] } });
-  const show = async target => { target.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await target.tick(); };
+  const show = async target => { target.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await target.tick(); target.dom.window.document.querySelector('#codex-results-tab').click(); await target.tick(); };
   await show(view); const document = view.dom.window.document;
   const input = () => document.querySelector('.codex-workflow-result textarea');
   input().value = 'My reply'; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
@@ -342,6 +346,7 @@ test('Issue handoff reloads saved Markdown inside the result view and opens revi
   const task = linkedWorkflowTask('issue', { isolated: true, workingDirectory: 'C:/isolated/issue-1', result: { state: 'ready', summary: 'Implementation verified', files: ['main.ts'] } });
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
   const document = view.dom.window.document;
+  document.querySelector('#codex-results-tab').click(); await view.tick();
   [...document.querySelectorAll('.codex-workflow-result button')].find(button => button.textContent === '開啟實作目錄').click(); await view.tick();
   assert.equal(view.requests.findLast(item => item.type === 'codexCommand').command.action, 'open-worktree');
   const ready = { ...task, result: { ...task.result, handoffPath: 'C:/runtime/handoff.md' } };
@@ -366,6 +371,8 @@ test('Wiki preview progress stops, resumes by cursor and never auto-loads anothe
   const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
   const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'initial', summary: 'Ready' } });
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
+  assert.equal(view.requests.some(request => request.type === 'previewProjectWiki'), false);
+  view.dom.window.document.querySelector('#codex-results-tab').click(); await view.tick();
   const preview = { id: task.result.draftId, revision: 'partial', sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha',
     pages: [{ slug: 'codebase/index', title: 'Overview', content: '# Overview', action: 'unchecked', published: false }],
     progress: { status: 'loading', completed: 0, total: 1, nextCursor: 'batch-1' } };
@@ -1993,19 +2000,19 @@ test('Codex task management filters archived records and exposes native task cre
   const controls = { external: false, canPause: false, canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false, approvals: { command: true, file: true, permissions: true } };
   const tasks = ['Alpha', 'Beta', 'Archived'].map((title, index) => ({ id: `evolution-${index}`, title, root: `C:/workspace/repo-${index}`, status: 'completed', createdAt: `2026-11-07T00:00:0${index}Z`, updatedAt: '2026-11-07T00:00:00Z', controls, archived: index === 2 }));
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const names = () => [...document.querySelectorAll('.codex-tasks > button strong')].map(node => node.textContent);
+  const names = () => [...document.querySelectorAll('.codex-task-select strong')].map(node => node.textContent);
   assert.equal(names().length, 2); assert.ok(!names().includes('Archived'));
   const search = document.querySelector('.codex-task-filter input[type="search"]'); search.value = 'Beta'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   assert.deepEqual(names(), ['Beta']); search.value = ''; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   const showArchived = [...document.querySelectorAll('.codex-tasks label')].find(label => label.textContent.includes('顯示已封存')).querySelector('input'); showArchived.click(); await view.tick();
   assert.equal(names().length, 3);
-  [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes('Alpha')).click(); await view.tick();
+  [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes('Alpha')).click(); await view.tick();
   assert.deepEqual([...document.querySelectorAll('.codex-approval-options label')].map(label => label.textContent), ['命令', '檔案修改']);
   const options = document.querySelectorAll('.codex-approval-options input'); assert.equal(options.length, 2);
   const file = options[1]; file.click(); await view.tick();
   const approval = view.requests.findLast(request => request.type === 'codexCommand' && request.command.action === 'approvals');
   assert.equal(approval.command.taskId, 'evolution-0'); assert.deepEqual(JSON.parse(JSON.stringify(approval.command.settings)), { command: true, file: false, permissions: false });
-  [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent === '建立 Codex 任務').click(); await view.tick();
+  [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent === '建立 Codex 任務').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type === 'codexCommand').command.action, 'create');
 });
 
@@ -2075,7 +2082,7 @@ test('Codex interaction drafts survive task switches and receipts control retry 
   view.send({ type: 'codexEvent', event: { kind: 'interactions', taskId: 'a', interactions: [interaction] } }); await view.tick();
   const fields = () => [...document.querySelectorAll('.codex-interaction input')];
   const type = async (index, value) => { fields()[index].value = value; fields()[index].dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
-  const select = async id => { [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes(`Answer task ${id}`)).click(); await view.tick(); };
+  const select = async id => { [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes(`Answer task ${id}`)).click(); await view.tick(); };
   await type(0, 'Local only'); await type(1, 'memory-secret-123'); await select('b'); await select('a');
   assert.equal(fields()[0].value, 'Local only'); assert.equal(fields()[1].value, 'memory-secret-123');
   assert.ok(!JSON.stringify(view.savedState).includes('memory-secret-123'), 'secret answers never enter Webview persistence');
@@ -2111,8 +2118,10 @@ test('Codex displays queued messages beside the composer and keeps result and ex
   assert.equal(document.querySelector('.codex-message button[type="submit"]').disabled, false);
   assert.match(document.querySelector('.codex-message-status').textContent, /2 則.*排隊/);
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, status: 'completed', result: { state: 'ready', summary: 'Ready for review' }, controls: { canResume: true, external: false } }] } }); await view.tick();
+  assert.equal(document.querySelector('#codex-results-panel').hidden, true, 'completion keeps the current conversation visible');
+  assert.equal(document.querySelector('#codex-execution-panel').hidden, false);
+  document.querySelector('#codex-results-tab').click(); await view.tick();
   assert.equal(document.querySelector('#codex-results-panel').hidden, false);
-  assert.equal(document.querySelector('#codex-execution-panel').hidden, true);
   assert.equal(document.querySelector('.codex-controls .primary'), null, 'the active results view has no redundant open-results action');
   assert.equal(document.querySelector('.codex-details-drawer').hidden, true);
   document.querySelector('.codex-details-toggle').click(); await view.tick(); assert.equal(document.querySelector('.codex-details-drawer').hidden, false);
@@ -2155,7 +2164,7 @@ test('Codex layout changes preserve one controller, mounted inputs and task draf
 test('Codex offers reprepare only for stopped GitLab tasks with known publication and outbox state', async t => {
   const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close()); const document = view.dom.window.document;
   let revision = 0; const show = async patch => { view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [linkedWorkflowTask('issue', { ...patch, revision: ++revision })] } }); await view.tick(); };
-  const button = () => [...document.querySelectorAll('.codex-controls button')].find(element => element.textContent === '重新準備');
+  const button = () => [...document.querySelectorAll('.codex-secondary-controls button')].find(element => element.textContent === '重新準備');
   for (const kind of ['issue', 'merge-request', 'project-wiki']) {
     await show({ origin: linkedWorkflowTask(kind).origin }); assert.ok(button()); button().click(); await view.tick();
     assert.equal(view.rawRequests.findLast(request => request.type === 'codexCommand').command.action, 'reprepare');
@@ -2509,16 +2518,16 @@ test('Codex task deltas preserve unrelated task drafts and reject reordered upda
     status: 'running', createdAt: '2026-11-10', updatedAt: '2026-11-10', controls: { canPause: true, external: false } }));
   const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
   await send({ kind: 'tasks', tasks });
-  [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes('Delta task b')).click(); await view.tick();
+  [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes('Delta task b')).click(); await view.tick();
   const input = document.querySelector('#codex-follow-up'); input.value = 'Keep task B draft'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   await send({ kind: 'tasksDelta', revision: 10, tasks: [{ ...tasks[0], revision: 3, status: 'completed' }], removedIds: [] });
-  assert.equal(document.querySelectorAll('.codex-tasks > button strong').length, 2); assert.equal(document.querySelector('#codex-follow-up').value, 'Keep task B draft');
+  assert.equal(document.querySelectorAll('.codex-task-select strong').length, 2); assert.equal(document.querySelector('#codex-follow-up').value, 'Keep task B draft');
   await send({ kind: 'tasksDelta', revision: 9, tasks: [], removedIds: ['b'] });
-  assert.equal(document.querySelectorAll('.codex-tasks > button strong').length, 2, 'older transport deltas are ignored');
+  assert.equal(document.querySelectorAll('.codex-task-select strong').length, 2, 'older transport deltas are ignored');
   await send({ kind: 'tasksDelta', revision: 11, tasks: [{ ...tasks[0], revision: 1 }], removedIds: [] });
-  assert.match([...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes('Delta task a')).textContent, /本輪完成/);
+  assert.match([...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes('Delta task a')).textContent, /本輪完成/);
   await send({ kind: 'tasksDelta', revision: 12, tasks: [], removedIds: ['a'] });
-  assert.equal(document.querySelectorAll('.codex-tasks > button strong').length, 1); assert.equal(view.savedState.codexUi.drafts.b.text, 'Keep task B draft');
+  assert.equal(document.querySelectorAll('.codex-task-select strong').length, 1); assert.equal(view.savedState.codexUi.drafts.b.text, 'Keep task B draft');
 });
 
 test('Codex automatically reconciles an interrupted task once without a revision feedback loop', async t => {
@@ -2543,7 +2552,7 @@ test('Codex drafts survive task switches, blocked sends, failure, late receipts 
   view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
   const input = () => document.querySelector('#codex-follow-up');
   const type = async text => { input().value = text; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
-  const select = async id => { [...document.querySelectorAll('.codex-tasks > button')].find(button => button.textContent.includes(`Draft task ${id}`)).click(); await view.tick(); };
+  const select = async id => { [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes(`Draft task ${id}`)).click(); await view.tick(); };
   const submit = async () => { document.querySelector('.codex-message').requestSubmit(); await view.tick(); };
   await type('Draft A'); await select('b'); await type('Draft B'); await select('a'); assert.equal(input().value, 'Draft A');
   await submit(); const request = view.rawRequests.findLast(item => item.type === 'sendCodexMessage'); assert.ok(request.operationId);
@@ -2623,7 +2632,7 @@ test('Codex only opens for an explicit start and binds auto-accept and deletion 
   assert.equal(document.querySelector('.codex-auto-accept input').checked, true);
   const input = document.getElementById('codex-follow-up'); input.value = 'Delete this draft'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   document.querySelector('.codex-details-toggle').click(); await view.tick();
-  [...document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '刪除連線並保留成果').click(); await view.tick();
+  [...document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '停止並保留成果').click(); await view.tick();
   const cleanup = view.requests.findLast(value => value.type === 'codexCommand' && value.command.action === 'stop-cleanup');
   assert.equal(cleanup.command.taskId, task.id);
   assert.equal(view.requests.some(value => value.type === 'deleteCodexTask'), false, 'cleanup uses the result-preserving retirement path');
@@ -2651,7 +2660,8 @@ test('Codex merges saved pages with live output and preserves reading position a
   output.scrollTop = 100; output.dispatchEvent(new view.dom.window.Event('scroll')); await view.tick();
   height = 1200;
   await send({ kind: 'output', taskId: task.id, items: [item('turn-b', 'answer', 'Live answer grows')] });
-  assert.equal(output.scrollTop, 100); assert.equal(view.savedState.codexUi.reading[task.id].follow, false);
+  assert.equal(output.scrollTop, 100);
+  await view.waitFor(() => view.savedState.codexUi.reading?.[task.id]?.follow === false, 'the bounded reading save preserves an unfollowed transcript');
   [...document.querySelectorAll('.codex-output button')].find(button => button.textContent === '讀取更早的對話').click(); await view.tick();
   height = 1500;
   await send({ kind: 'history', taskId: task.id, cursor: 'older', items: [item('turn-0', 'answer', 'Oldest answer', true)] });
@@ -4571,7 +4581,8 @@ test('shows the sanitized Git error details in the repository operation results'
     }
   }));
   await view.tick();
-  assert.equal(view.dom.window.document.querySelector('.operation-state.failed')?.textContent, message);
+  view.dom.window.document.querySelector('.repository-operation-trigger').click(); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.operation-message.failed')?.textContent, message);
 });
 
 test('MR filters show all, reviewer-only and assigned-only requests and combine with search', async t => {
@@ -5143,4 +5154,301 @@ test('changing Git Repo immediately removes the previous Repo dialog without an 
   await view.tick();
   assert.equal(document.querySelector('.git-dialog'), null, 'old-scope form must not remain against the next Repo snapshot');
   assert.equal(gitActions(view, 'pull').length, 0);
+});
+
+test('project operation details filter full errors while repository selection and scroll remain in place', async t => {
+  const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, snapshot('clone'));
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, list = document.querySelector('.repo-list');
+  document.querySelector('.repo-row input').click(); await view.tick();
+  list.scrollTop = 120;
+  const error = 'Fetch failed\nfatal: <img src=x onerror=alert(1)>\n' + 'diagnostic '.repeat(100);
+  const operation = { type: 'cloneOperation', id: 'project-details', scopeKey: 'team-scope', phase: 'running', label: '預設分支同步結果', items: [
+    { projectId: 1, projectPath: 'team/alpha', state: 'failed', message: error },
+    { projectId: 2, projectPath: 'team/beta', state: 'progress', percent: 30 },
+    { projectId: 3, projectPath: 'team/gamma', state: 'skipped', message: '工作目錄有未提交變更' }
+  ] };
+  view.send(operation); await view.tick();
+  assert.equal(document.querySelector('#repository-operation-details'), null, 'progress starts collapsed');
+  assert.equal(document.querySelector('.operation-results'), null, 'results cannot consume project list space');
+  assert.equal(document.querySelector('.repo-list'), list);
+  assert.equal(list.scrollTop, 120); assert.deepEqual(view.savedState.selectedProjectIds, [1]);
+  const trigger = document.querySelector('.repository-operation-trigger'); trigger.focus(); trigger.click(); await view.tick();
+  const panel = document.querySelector('#repository-operation-details'); assert.equal(panel.getAttribute('role'), 'region');
+  const filter = name => [...panel.querySelectorAll('.repository-operation-filters button')].find(button => button.textContent.startsWith(name));
+  filter('失敗').click(); await view.tick();
+  assert.equal(panel.querySelectorAll('.operation-result').length, 1);
+  assert.equal(panel.querySelector('.operation-message.failed').textContent, error);
+  assert.equal(panel.querySelector('img'), null, 'Git output is text rather than HTML');
+  filter('略過').click(); await view.tick();
+  assert.equal(panel.querySelectorAll('.operation-result').length, 1);
+  assert.match(panel.querySelector('.operation-result').textContent, /team\/gamma.*未提交/s);
+  filter('全部').click(); await view.tick();
+  assert.equal(panel.querySelectorAll('.operation-result').length, 3);
+  assert.match(panel.querySelector('.operation-state.progress').textContent, /同步中 30%/);
+  [...panel.querySelectorAll('button')].find(button => button.textContent === '取消作業').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'cancelRepositoryOperation');
+  document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('#repository-operation-details'), null);
+  assert.equal(document.activeElement, trigger); assert.equal(list.scrollTop, 120);
+  trigger.click(); await view.tick();
+  assert.equal(document.querySelectorAll('.operation-result').length, 3, 'closing details does not discard the operation');
+  assert.deepEqual(view.savedState.selectedProjectIds, [1]);
+});
+
+test('project sync closes its action menu and shows confirmation before cancellable progress', async t => {
+  const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, snapshot('clone'));
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, menu = document.querySelector('.more-actions');
+  menu.open = true;
+  [...menu.querySelectorAll('button')].find(button => button.textContent === '更新全部本機預設分支').click(); await view.tick();
+  assert.equal(menu.open, false); assert.equal(document.activeElement, menu.querySelector('summary'));
+  assert.equal(view.requests.findLast(request => request.type === 'syncRepos').projectIds, undefined);
+  const operation = { type: 'cloneOperation', id: 'project-confirm', scopeKey: 'team-scope', phase: 'confirming', label: '預設分支同步結果',
+    items: [{ projectId: 1, projectPath: 'team/alpha', state: 'waiting' }] };
+  view.send(operation); await view.tick();
+  assert.match(document.querySelector('.repository-operation-summary').textContent, /等待確認/);
+  document.querySelector('.repository-operation-trigger').click(); await view.tick();
+  assert.equal([...document.querySelectorAll('#repository-operation-details button')].some(button => button.textContent === '取消作業'), false);
+  const all = document.querySelector('.repository-operation-filters button'); all.focus();
+  view.send({ ...operation, phase: 'running', items: [{ ...operation.items[0], state: 'progress' }] }); await view.tick();
+  assert.equal(document.activeElement, all, 'progress never moves the user focus');
+  assert.match(document.querySelector('.operation-state.progress').textContent, /同步中/);
+  assert.ok([...document.querySelectorAll('#repository-operation-details button')].find(button => button.textContent === '取消作業'));
+  view.send({ ...operation, phase: 'cancelled' }); await view.tick();
+  assert.match(document.querySelector('.repository-operation-description').textContent, /已取消/);
+  document.querySelector('[aria-label="關閉專案操作詳情"]').click(); await view.tick();
+  document.querySelector('.repository-operation-trigger').click(); await view.tick();
+  assert.match(document.querySelector('#repository-operation-details').textContent, /未完成的 Repo 保留選取/);
+  view.sendSnapshot({ ...snapshot('clone'), connectedScope: 'another-team-scope' }); await view.tick();
+  assert.equal(document.querySelector('#repository-operation-details'), null, 'a changed Group cannot retain another Group results');
+});
+
+test('project operation details use a contained modal below 600 available pixels', async t => {
+  for (const height of [599, 600]) await t.test(`available-height-${height}`, async t => {
+    const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, snapshot('clone'), {}, window => {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
+    });
+    t.after(() => view.dom.window.close());
+    const document = view.dom.window.document;
+    view.send({ type: 'cloneOperation', id: `height-${height}`, scopeKey: 'team-scope', phase: 'running', label: '下載結果',
+      items: [{ projectId: 1, projectPath: 'team/alpha', state: 'progress' }] }); await view.tick();
+    const trigger = document.querySelector('.repository-operation-trigger'); trigger.focus(); trigger.click(); await view.tick();
+    const dialog = document.querySelector('.repository-operation-modal');
+    assert.equal(!!dialog, height < 600);
+    assert.match(document.querySelector('.operation-state.progress').textContent, /下載中/);
+    if (dialog) {
+      assert.equal(dialog.getAttribute('aria-modal'), 'true');
+      const first = dialog.querySelector('button'), last = [...dialog.querySelectorAll('button')].at(-1);
+      last.focus(); document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+      assert.equal(document.activeElement, first, 'Tab stays inside the compact-height modal');
+    }
+    document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await view.tick();
+    assert.equal(document.querySelector('#repository-operation-details'), null); assert.equal(document.activeElement, trigger);
+  });
+});
+
+function historyTask(id, patch = {}) {
+  return { id, title: `History ${id}`, root: 'C:/workspace/repo', status: 'completed', createdAt: '2026-11-16T00:00:00Z', updatedAt: '2026-11-16T00:00:00Z',
+    controls: { external: false, canResume: true, canDelete: true, canDeleteHistory: true }, ...patch };
+}
+
+test('Codex history deletion has a direct task action, waits for confirmation and fences late snapshots', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const tasks = [historyTask('done'), historyTask('running', { status: 'running', controls: { canPause: true, canDeleteHistory: false, deleteHistoryBlockedReason: '請先暫停任務。' } })];
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  const document = view.dom.window.document, action = id => document.querySelector(`[aria-label="刪除 History ${id} 的執行紀錄"]`);
+  assert.equal(action('running').disabled, true); assert.equal(action('running').title, '請先暫停任務。');
+  action('done').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'deleteCodexTask').taskId, 'done');
+  assert.equal(action('done').disabled, true); assert.ok(document.querySelector('.codex-task-select').textContent.includes('History done'), 'the record remains until Host confirms');
+  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTask').operationId, deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
+  assert.equal(action('done').disabled, false); assert.match(document.querySelector('.codex-deletion-status').textContent, /取消/);
+  action('done').click(); await view.tick();
+  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTask').operationId, deletedTaskIds: ['done'], failures: [] }); await view.tick();
+  assert.equal(action('done'), null); assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History running');
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } });
+  view.send({ type: 'codexEvent', event: { kind: 'output', taskId: 'done', items: [{ id: 'late', kind: 'agent', text: 'Deleted history must not return' }] } });
+  await view.tick(); assert.equal(action('done'), null); assert.doesNotMatch(document.querySelector('.codex-workspace').textContent, /Deleted history must not return/);
+});
+
+test('Codex bulk history selection is scoped to current filters and partial failures remain retryable', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const tasks = [historyTask('a'), historyTask('b'), historyTask('busy', { status: 'running', controls: { canDeleteHistory: false, canPause: true } })];
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  const document = view.dom.window.document, find = text => [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent === text);
+  find('管理紀錄').click(); await view.tick();
+  document.querySelector('.codex-history-selection input').click(); await view.tick();
+  assert.equal(document.querySelector('[aria-label="選取 History busy"]').disabled, true);
+  assert.equal(document.querySelector('[aria-label="選取 History busy"]').checked, false);
+  assert.equal(document.querySelector('.codex-history-selection button').textContent, '刪除選取紀錄（2）');
+  const search = document.querySelector('.codex-task-filter input[type="search"]'); search.value = 'History a'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.codex-history-selection button').disabled, true, 'changing filters clears the former selection');
+  search.value = ''; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('.codex-history-selection input').click(); await view.tick(); document.querySelector('.codex-history-selection button').click(); await view.tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'deleteCodexTasks').taskIds)), ['a', 'b']);
+  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTasks').operationId, deletedTaskIds: ['a'], failures: [{ taskId: 'b', reason: '紀錄暫時被另一個視窗使用' }] }); await view.tick();
+  assert.equal(document.querySelector('[aria-label="選取 History a"]'), null);
+  assert.equal(document.querySelector('[aria-label="選取 History b"]').checked, true);
+  assert.match(document.querySelector('.codex-deletion-failures').textContent, /History b.*另一個視窗/s);
+  document.querySelector('.codex-history-selection button').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'deleteCodexTask').taskId, 'b');
+});
+
+test('Codex narrow task drawer includes filters and history management and restores its trigger focus', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('a'), historyTask('b')] } }); await view.tick();
+  const document = view.dom.window.document, trigger = document.querySelector('.codex-mobile-tasks [aria-haspopup="dialog"]');
+  trigger.focus(); trigger.click(); await view.tick();
+  const dialog = document.querySelector('.codex-task-dialog');
+  assert.equal(dialog.hasAttribute('open'), true); assert.equal(dialog.getAttribute('aria-modal'), 'true');
+  assert.ok(dialog.querySelector('input[type="search"]')); assert.ok([...dialog.querySelectorAll('button')].some(button => button.textContent === '管理紀錄'));
+  assert.equal(document.querySelector('.codex-conversation').hasAttribute('inert'), true);
+  dialog.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await view.tick();
+  assert.equal(dialog.hasAttribute('open'), false); assert.equal(document.activeElement, trigger);
+  trigger.click(); await view.tick(); [...dialog.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History b')).click(); await view.tick();
+  assert.equal(dialog.hasAttribute('open'), false); assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History b'); assert.equal(document.activeElement, trigger);
+});
+
+test('Codex reading saves are bounded while text edits stay immediate and navigation flushes the final anchor', async t => {
+  const timers = new Map(); let nextTimer = 90000;
+  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, window => {
+    const schedule = window.setTimeout.bind(window), cancel = window.clearTimeout.bind(window);
+    window.setTimeout = (callback, delay, ...args) => { if (delay !== 250) return schedule(callback, delay, ...args); const id = ++nextTimer; timers.set(id, () => callback(...args)); return id; };
+    window.clearTimeout = id => { if (!timers.delete(id)) cancel(id); };
+  }); t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('a'), historyTask('b')] } }); await view.tick();
+  const document = view.dom.window.document, scroll = top => { const output = document.querySelector('.codex-output'); output.scrollTop = top; output.dispatchEvent(new view.dom.window.Event('scroll')); };
+  for (const top of [10, 20, 30]) scroll(top);
+  assert.equal(timers.size, 1, 'a burst schedules one bounded save rather than restarting a debounce');
+  assert.equal(view.savedState.codexUi.reading?.a, undefined);
+  const input = document.getElementById('codex-follow-up'); input.value = 'Latest typed requirement'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.equal(view.savedState.codexUi.drafts.a.text, 'Latest typed requirement');
+  const flush = [...timers.values()][0]; timers.clear(); flush(); await view.tick();
+  assert.equal(view.savedState.codexUi.reading.a.top, 30);
+  scroll(75); [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History b')).click(); await view.tick();
+  assert.equal(view.savedState.codexUi.reading.a.top, 75); assert.equal(timers.size, 0);
+  scroll(125); document.querySelector('.mode-navigation [data-mode="clone"]').click(); await view.tick();
+  assert.equal(view.savedState.codexUi.reading.b.top, 125); assert.equal(timers.size, 0);
+});
+
+test('Codex deleting the selected middle record keeps its next neighbour through the final receipt', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const tasks = ['a', 'b', 'c'].map(id => historyTask(id));
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  const document = view.dom.window.document;
+  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History b')).click(); await view.tick();
+  view.send({ type: 'codexEvent', event: { kind: 'tasksDelta', revision: 1, tasks: [], removedIds: ['b'] } }); await view.tick();
+  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History c');
+  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['b'], failures: [] }); await view.tick();
+  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History c', 'the final cleanup must preserve the neighbouring selection');
+  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['c'], failures: [] }); await view.tick();
+  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History a', 'deleting the final row selects its previous neighbour');
+});
+
+test('Codex cross-window history deletion fences stale tasks and drafts without settling another pending deletion', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, () => {}, { autoDrafts: false, autoOperations: false }); t.after(() => view.dom.window.close());
+  const load = view.rawRequests.find(request => request.type === 'loadCodexUiDrafts');
+  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'cross-window-history', entries: [], conflicts: [] } }); await view.tick();
+  const tasks = [historyTask('a'), historyTask('b')], document = view.dom.window.document;
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  const input = document.getElementById('codex-follow-up'); input.value = 'Draft acknowledgement still in flight'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const saving = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');
+  document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').click(); await view.tick();
+  view.send({ type: 'codexEvent', event: { kind: 'historyDeleted', taskIds: ['a'] } }); await view.tick();
+  assert.equal(document.querySelector('[aria-label="刪除 History a 的執行紀錄"]'), null);
+  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, true, 'observing another deletion cannot settle the pending batch');
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } });
+  view.send({ type: 'codexEvent', event: { kind: 'output', taskId: 'a', items: [{ id: 'late', kind: 'agent', text: 'Stale external output' }] } });
+  view.send({ type: 'codexUiDrafts', requestId: saving.requestId, snapshot: { scope: 'cross-window-history', entries: saving.updates.map(update => ({ ...update, revision: 1 })), conflicts: [] } }); await view.tick();
+  assert.equal(document.querySelector('[aria-label="刪除 History a 的執行紀錄"]'), null); assert.equal(view.savedState.codexUi.drafts.a, undefined);
+  assert.doesNotMatch(document.querySelector('.codex-workspace').textContent, /Stale external output/);
+  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTask').operationId, deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
+  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, false);
+});
+
+test('Codex a delayed deletion receipt from the old scope cannot settle a new confirmation', async t => {
+  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const tasks = [historyTask('a'), historyTask('b')], document = view.dom.window.document;
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  document.querySelector('[aria-label="刪除 History a 的執行紀錄"]').click(); await view.tick();
+  const first = view.rawRequests.findLast(request => request.type === 'deleteCodexTask');
+  view.sendSnapshot({ ...data, groupRoot: 'C:/workspace/second', instanceUserScope: 'second-instance', operationScope: 'second-scope', localOperationScope: 'second-scope' }); await view.tick();
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').click(); await view.tick();
+  const second = view.rawRequests.findLast(request => request.type === 'deleteCodexTask'); assert.notEqual(second.operationId, first.operationId);
+  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
+  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, true, 'an uncorrelated receipt cannot settle an active confirmation');
+  view.send({ type: 'codexHistoryDeleted', requestId: first.operationId, deletedTaskIds: ['a'], failures: [{ taskId: 'old-record', reason: 'Old scope failure' }] }); await view.tick();
+  assert.equal(document.querySelector('[aria-label="刪除 History a 的執行紀錄"]'), null, 'authoritative global deletion markers are still applied');
+  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, true);
+  assert.equal(document.querySelector('.codex-deletion-failures'), null, 'old failures cannot replace the active confirmation state');
+  view.send({ type: 'codexHistoryDeleted', requestId: second.operationId, deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
+  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, false);
+});
+
+test('Codex bulk history deletion respects the 1000-record boundary and keeps failed selections for retry', async t => {
+  for (const count of [1000, 1001]) await t.test(`${count} available histories`, async t => {
+    const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+    let tasks = Array.from({ length: count }, (_, index) => historyTask(String(index).padStart(4, '0')));
+    view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+    const document = view.dom.window.document;
+    [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent === '管理紀錄').click(); await view.tick();
+    assert.match(document.querySelector('.codex-history-selection').textContent, /最多 1,000 筆/);
+    document.querySelector('.codex-history-selection input').click(); await view.tick();
+    assert.equal(document.querySelector('.codex-history-selection button').textContent, '刪除選取紀錄（1000）');
+    if (count === 1001) {
+      tasks = tasks.map(task => task.id === '1000' ? { ...task, pinned: true } : task);
+      view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+      const extra = document.querySelector('[aria-label="選取 History 1000"]');
+      assert.equal(extra.disabled, true); assert.match(extra.title, /已選取 1,000 筆/);
+      document.querySelector('[aria-label="選取 History 0000"]').click(); await view.tick();
+      assert.equal(extra.disabled, false, 'unselecting one record makes room for another'); extra.click(); await view.tick();
+    }
+    document.querySelector('.codex-history-selection button').click(); await view.tick();
+    const request = view.rawRequests.findLast(item => item.type === 'deleteCodexTasks');
+    assert.equal(request.taskIds.length, 1000); assert.equal(new Set(request.taskIds).size, 1000);
+    if (count === 1001) { assert.ok(request.taskIds.includes('1000')); assert.equal(request.taskIds.includes('0000'), false); }
+    const failed = request.taskIds.at(-1);
+    view.send({ type: 'codexHistoryDeleted', requestId: request.operationId, deletedTaskIds: request.taskIds.slice(0, -1), failures: [{ taskId: failed, reason: 'Retry this record' }] }); await view.tick();
+    assert.equal(document.querySelector('.codex-history-selection button').textContent, '刪除選取紀錄（1）');
+    assert.equal(document.querySelector(`[aria-label="選取 History ${failed}"]`).checked, true);
+    document.querySelector('.codex-history-selection button').click(); await view.tick();
+    assert.equal(view.requests.findLast(item => item.type === 'deleteCodexTask').taskId, failed);
+  });
+});
+
+test('Codex sustained scrolling persists every 250ms before scrolling stops', async t => {
+  const timers = new Map(); let nextTimer = 100000, now = 0;
+  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, window => {
+    const schedule = window.setTimeout.bind(window), cancel = window.clearTimeout.bind(window);
+    window.setTimeout = (callback, delay, ...args) => { if (delay !== 250) return schedule(callback, delay, ...args); const id = ++nextTimer; timers.set(id, { due: now + delay, callback: () => callback(...args) }); return id; };
+    window.clearTimeout = id => { if (!timers.delete(id)) cancel(id); };
+  }); t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('sustained')] } }); await view.tick();
+  const scroll = top => { const output = view.dom.window.document.querySelector('.codex-output'); output.scrollTop = top; output.dispatchEvent(new view.dom.window.Event('scroll')); };
+  const advance = async duration => {
+    now += duration;
+    for (const [id, timer] of [...timers]) if (timer.due <= now) { timers.delete(id); timer.callback(); }
+    await view.tick();
+  };
+  scroll(10); await advance(200); scroll(20); await advance(49);
+  assert.equal(view.savedState.codexUi.reading?.sustained, undefined);
+  await advance(1); assert.equal(view.savedState.codexUi.reading.sustained.top, 20, 'the first save happens at the original deadline while new scroll events continue');
+  scroll(30); await advance(200); scroll(40); await advance(50);
+  assert.equal(view.savedState.codexUi.reading.sustained.top, 40, 'the next interval also persists without waiting for a scrolling pause');
+});
+
+test('Codex deletion follows pinned and creation-time order when selecting the adjacent task', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  const tasks = [historyTask('a', { createdAt: '2026-11-16' }), historyTask('b', { createdAt: '2026-11-14' }),
+    historyTask('c', { createdAt: '2026-11-01', pinned: true }), historyTask('d', { createdAt: '2026-11-15' })];
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
+  const document = view.dom.window.document;
+  assert.deepEqual([...document.querySelectorAll('.codex-task-select strong')].map(node => node.textContent), ['★ History c', 'History a', 'History d', 'History b']);
+  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History c')).click(); await view.tick();
+  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['c'], failures: [] }); await view.tick();
+  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History a', 'a pinned item selects its visible next neighbour rather than the next stored item');
+  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['a'], failures: [] }); await view.tick();
+  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History d', 'creation time determines the next neighbour after the pinned item is gone');
 });

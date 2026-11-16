@@ -9,6 +9,7 @@ import { boundTranscriptCache } from '../codex/historyBudget';
 import { CodexDraftSync, codexDraftConflictText } from './codexDraftSync';
 import type { CodexUiDraftConflict } from '../codex/uiDraftProtocol';
 import { normalizeProjectRoot } from './projectUiState';
+import { adjacentCodexTask } from './codexTaskSelection';
 type WorkflowPayload = Extract<WorkspaceResponse, { type: 'codexWorkflowResult' }>;
 
 type Post = (request: WorkspaceRequest) => DispatchResult;
@@ -25,6 +26,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
 }) {
   const [tasks, setTasks] = useState<CodexTaskState[]>([]);
   const tasksRef = useRef<CodexTaskState[]>([]), deltaRevision = useRef(-1), removedTasks = useRef(new Set<string>());
+  const deletedTasks = useRef(new Set<string>());
   const [ui, commitUi] = useState(() => restoreCodexUi(initialState));
   const uiRef = useRef(ui), save = useRef(onStateChange), open = useRef(onOpen);
   const draftSync = useRef<CodexDraftSync>(); if (!draftSync.current) draftSync.current = new CodexDraftSync(ui);
@@ -46,6 +48,15 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     next = { ...next, draftSync: draftSync.current!.metadata() };
     uiRef.current = next; save.current(next); commitUi(next);
     flushDrafts.current();
+  };
+  const readingTimer = useRef<ReturnType<typeof setTimeout>>();
+  const readingBuffer = useRef<NonNullable<CodexUiState['reading']>>({});
+  const flushReading = () => {
+    if (readingTimer.current !== undefined) clearTimeout(readingTimer.current);
+    readingTimer.current = undefined;
+    const positions = readingBuffer.current; readingBuffer.current = {};
+    if (!Object.keys(positions).length) return;
+    setUi(current => ({ ...current, reading: { ...current.reading, ...Object.fromEntries(Object.entries(positions).filter(([id]) => !deletedTasks.current.has(id))) } }));
   };
   const applyManagedTaskFocus = (state: CodexUiState): CodexUiState => {
     const focus = managedFocus.current;
@@ -69,7 +80,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     setDraftStorage({ loading: false, saving: false, error: message, conflicts: draftSync.current!.conflicts });
   };
   flushDrafts.current = () => {
-    if (!draftEnabled.current || draftRequest.current || urgentDraftRequests.current.size || draftError.current) return;
+    if (!draftEnabled.current || draftScope.current !== currentScope.current || draftRequest.current || urgentDraftRequests.current.size || draftError.current) return;
     const update = draftSync.current!.next(uiRef.current); if (!update) return;
     const requestId = `${draftClient.current}-${++draftSerial.current}`;
     draftRequest.current = { id: requestId, kind: 'save', frontendScope: scope };
@@ -101,8 +112,19 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
   };
   const [items, setItems] = useState<Record<string, CodexOutputItem[]>>({});
   const transcriptCache = useRef<Record<string, CodexOutputItem[]>>({}), visibleRef = useRef(visible);
+  const outputFrame = useRef<number>();
+  const publishOutput = () => {
+    if (outputFrame.current !== undefined) return;
+    outputFrame.current = requestAnimationFrame(() => {
+      outputFrame.current = undefined;
+      if (visibleRef.current) setItems(transcriptCache.current);
+    });
+  };
   visibleRef.current = visible;
-  useEffect(() => { if (visible) setItems(transcriptCache.current); }, [visible]);
+  useEffect(() => {
+    if (visible) setItems(transcriptCache.current);
+    else { flushReading(); urgentFlushDrafts(); }
+  }, [visible]);
   const [interactions, setInteractions] = useState<Record<string, CodexInteraction[]>>({});
   const [secretAnswers, setSecretAnswers] = useState<Record<string, Record<string, string>>>({});
   const [launch, setLaunch] = useState<CodexLaunchDraft>();
@@ -114,10 +136,23 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
   const [announcement, setAnnouncement] = useState('');
   const statuses = useRef(new Map<string, string>()), requests = useRef(new Set<string>());
   const knownTasks = useRef(new Set<string>());
-  const operations = useActionSelector(actions, states => states);
+  const relevantOperations = useRef<ReturnType<ActionController['getSnapshot']>>([]);
+  const operations = useActionSelector(actions, states => {
+    const next = states.filter(operation => operation.resourceKey.startsWith('codex') || ['deleteCodexTasks', 'deleteCodexTask'].includes(operation.action));
+    const previous = relevantOperations.current;
+    if (previous.length === next.length && next.every((operation, index) => operation === previous[index])) return previous;
+    relevantOperations.current = next; return next;
+  });
+  const [deletion, setDeletion] = useState<{ taskIds: string[]; operationId?: string; failures: Array<{ taskId: string; reason: string }>; message?: string }>({ taskIds: [], failures: [] });
+  const deletionRef = useRef(deletion); deletionRef.current = deletion;
   const restoredPending = useRef(new Set<string>());
   const previousScope = useRef(scope);
   useEffect(() => { setUi(current => settleCodexDrafts(current, operations)); }, [operations]);
+  useEffect(() => {
+    if (!deletion.operationId) return;
+    const operation = operations.find(value => value.requestId === deletion.operationId);
+    if (operation && ['failed', 'cancelled'].includes(operation.status)) setDeletion(current => ({ ...current, taskIds: [], operationId: undefined, message: operation.error ?? (operation.status === 'cancelled' ? '已取消刪除。' : '刪除失敗，請重試。') }));
+  }, [operations, deletion.operationId]);
   const restorePendingDrafts = (state: CodexUiState) => {
     const pending = [...Object.values(state.pending), ...Object.values(state.interactionSubmissions ?? {}),
       ...Object.values(state.workflow?.replies ?? {}).flatMap(reply => reply.pending ? [reply.pending] : [])].filter(item => !restoredPending.current.has(item.requestId));
@@ -128,7 +163,8 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     if (previousScope.current !== scope) {
       previousScope.current = scope;
       tasksRef.current = tasksRef.current.filter(task => !task.origin); setTasks(tasksRef.current); knownTasks.current = new Set(tasksRef.current.map(task => task.id));
-      deltaRevision.current = -1; removedTasks.current.clear(); setResults({});
+      deltaRevision.current = -1; removedTasks.current.clear(); deletedTasks.current.clear(); readingBuffer.current = {}; setResults({});
+      setDeletion({ taskIds: [], failures: [] });
       transcriptCache.current = {}; setItems({}); setInteractions({}); setSecretAnswers({}); setHistory({}); setLaunch(undefined); launchRef.current = undefined; setLaunchVisible(false);
     }
     if (!enabled) return;
@@ -140,8 +176,35 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
       setUi(() => empty, false); restoredPending.current.clear();
     }
     draftScope.current = scope;
+    const forgetHistory = (taskIds: readonly string[]) => {
+      const deleted = new Set(taskIds.filter(id => !deletedTasks.current.has(id))); if (!deleted.size) return;
+      const previousTasks = tasksRef.current;
+      for (const id of deleted) { deletedTasks.current.add(id); delete readingBuffer.current[id]; }
+      tasksRef.current = previousTasks.filter(task => !deleted.has(task.id)); setTasks(tasksRef.current);
+      knownTasks.current = new Set(tasksRef.current.map(task => task.id));
+      transcriptCache.current = Object.fromEntries(Object.entries(transcriptCache.current).filter(([id]) => !deleted.has(id))); setItems(transcriptCache.current);
+      setHistory(current => Object.fromEntries(Object.entries(current).filter(([id]) => !deleted.has(id))));
+      setInteractions(current => Object.fromEntries(Object.entries(current).filter(([id]) => !deleted.has(id))));
+      setSecretAnswers(current => Object.fromEntries(Object.entries(current).filter(([key]) => { try { return !deleted.has(JSON.parse(key)[0]); } catch { return false; } })));
+      setResults(current => Object.fromEntries(Object.entries(current).filter(([id]) => !deleted.has(id))));
+      setUi(current => {
+        const next = draftSync.current!.forgetDeleted([...deleted], current);
+        const preferred = { ...next, selectedTaskId: adjacentCodexTask(previousTasks, tasksRef.current, current.selectedTaskId) };
+        draftSync.current!.note(next, preferred); return preferred;
+      }, false);
+    };
     const listener = (event: MessageEvent<WorkspaceResponse>) => {
       const message = event.data;
+      if (message?.type === 'codexHistoryDeleted') {
+        forgetHistory(message.deletedTaskIds);
+        // Old confirmations still carry global tombstones, but cannot settle
+        // the confirmation currently pending in another workspace scope.
+        if (deletionRef.current.operationId && message.requestId !== deletionRef.current.operationId) return;
+        const messageText = message.cancelled ? '已取消刪除。' : message.failures.length ? `已刪除 ${message.deletedTaskIds.length} 筆紀錄，${message.failures.length} 筆需要處理。` : `已刪除 ${message.deletedTaskIds.length} 筆執行紀錄。`;
+        const next = { taskIds: [], failures: message.failures, message: messageText };
+        deletionRef.current = next; setDeletion(next); setAnnouncement(messageText);
+        return;
+      }
       if (message?.type === 'codexUiDrafts') {
         if (urgentDraftRequests.current.has(message.requestId)) {
           const requestScope = urgentDraftRequests.current.get(message.requestId); urgentDraftRequests.current.delete(message.requestId);
@@ -156,6 +219,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         if (message.error || !message.snapshot) { storageFailed(message.error ?? '本機草稿回覆不完整。'); return; }
         if (request.kind === 'save' && message.snapshot.scope !== draftSync.current!.scope) { storageFailed('草稿範圍已變更，請重新讀取。'); return; }
         try {
+          forgetHistory(message.snapshot.deletedTaskIds ?? []);
           let next = request.kind === 'load' ? draftSync.current!.load(message.snapshot, uiRef.current) : draftSync.current!.accepted(message.snapshot, uiRef.current);
           draftRequest.current = undefined; draftError.current = undefined;
           if (draftTimer.current !== undefined) window.clearTimeout(draftTimer.current);
@@ -175,8 +239,9 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         else if (!previous && visibleRef.current) setLaunchVisible(true);
         return;
       }
-      if (message?.type === 'codexWorkflowResult') { setResults(current => ({ ...current, [message.taskId]: { ...current[message.taskId], ...message } })); return; }
+      if (message?.type === 'codexWorkflowResult') { if (!deletedTasks.current.has(message.taskId)) setResults(current => ({ ...current, [message.taskId]: { ...current[message.taskId], ...message } })); return; }
       if (message?.type === 'codexTaskStarted') {
+        if (deletedTasks.current.has(message.taskId)) return;
         if (launchRef.current && (launchRef.current.id === message.taskId || launchRef.current.taskId === message.taskId)) {
           const id = launchRef.current.id; setLaunch(undefined); launchRef.current = undefined;
           setUi(current => { const launchDrafts = { ...current.launchDrafts }, launchDraftBases = { ...current.launchDraftBases }; delete launchDrafts[id]; delete launchDraftBases[id]; return { ...current, launchDrafts, launchDraftBases }; });
@@ -187,11 +252,13 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
       }
       if (message?.type !== 'codexEvent') return;
       const value = message.event;
+      if (value.kind === 'historyDeleted') { forgetHistory(value.taskIds); return; }
       if (value.kind === 'tasks' || value.kind === 'tasksDelta') {
         if (value.kind === 'tasksDelta' && value.revision <= deltaRevision.current) return;
         if (value.kind === 'tasks') { deltaRevision.current = -1; removedTasks.current.clear(); }
         else { deltaRevision.current = value.revision; for (const id of value.removedIds) removedTasks.current.add(id); }
-        const nextTasks = mergeCodexTasks(tasksRef.current, value.tasks.filter(task => !removedTasks.current.has(task.id)), value.kind === 'tasksDelta' ? value.removedIds : [], value.kind === 'tasks');
+        const previousTasks = tasksRef.current;
+        const nextTasks = mergeCodexTasks(previousTasks, value.tasks.filter(task => !removedTasks.current.has(task.id) && !deletedTasks.current.has(task.id)), value.kind === 'tasksDelta' ? value.removedIds : [], value.kind === 'tasks');
         tasksRef.current = nextTasks;
         const ids = nextTasks.map(task => task.id), keep = new Set(ids);
         knownTasks.current = keep;
@@ -199,7 +266,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         // Catalog absence can mean filtering or quarantine; only the Host's
         // explicit deletion fence may remove durable draft entries.
         setTasks(nextTasks); setUi(current => ({ ...current,
-          selectedTaskId: current.selectedTaskId && keep.has(current.selectedTaskId) ? current.selectedTaskId : ids[0] ?? current.selectedTaskId }), false);
+          selectedTaskId: adjacentCodexTask(previousTasks, nextTasks, current.selectedTaskId) ?? current.selectedTaskId }), false);
         setResults(current => Object.fromEntries(Object.entries(current).filter(([id]) => keep.has(id))));
         transcriptCache.current = Object.fromEntries(Object.entries(transcriptCache.current).filter(([id]) => keep.has(id)));
         setItems(transcriptCache.current);
@@ -218,12 +285,13 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
           if (visibleRef.current) setItems(next); return;
         }
         const incoming = value.kind === 'history' && value.reset ? value.items : mergeCodexTranscript(transcriptCache.current[value.taskId] ?? [], value.items, value.kind === 'history');
-        const selected = uiRef.current.selectedTaskId, anchor = selected ? uiRef.current.reading?.[selected]?.anchorKey : undefined;
+        const selected = uiRef.current.selectedTaskId, position = selected ? readingBuffer.current[selected] ?? uiRef.current.reading?.[selected] : undefined;
+        const anchor = position?.follow === false ? position.anchorKey : undefined;
         const bounded = boundTranscriptCache({ ...transcriptCache.current, [value.taskId]: incoming }, selected, undefined, anchor);
         transcriptCache.current = bounded.cache;
         if (bounded.evicted.length) setHistory(current => Object.fromEntries(Object.entries(current).filter(([id]) => !bounded.evicted.includes(id))));
         // Keep monitoring hidden pages without rendering the whole dashboard for every token batch.
-        if (visibleRef.current) setItems(transcriptCache.current);
+        if (visibleRef.current && value.taskId === uiRef.current.selectedTaskId) publishOutput();
         if (value.kind === 'history') setHistory(current => ({ ...current, [value.taskId]: {
           loaded: true, older: !!value.cursor || !!current[value.taskId]?.older,
           nextCursor: !value.cursor && current[value.taskId]?.older ? current[value.taskId]?.nextCursor : value.nextCursor
@@ -240,11 +308,14 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
         if (fresh.length) setAnnouncement(`Codex 有 ${fresh.length} 項新要求等待回覆，可使用「前往待回覆要求」。`);
       } else if (value.kind === 'environment') setEnvironment(value.environment);
     };
-    const hidden = () => { if (document.visibilityState === 'hidden') urgentFlushDrafts(); };
-    window.addEventListener('message', listener); window.addEventListener('pagehide', urgentFlushDrafts); document.addEventListener('visibilitychange', hidden);
+    const flushBeforeHide = () => { flushReading(); urgentFlushDrafts(); };
+    const hidden = () => { if (document.visibilityState === 'hidden') flushBeforeHide(); };
+    window.addEventListener('message', listener); window.addEventListener('pagehide', flushBeforeHide); document.addEventListener('visibilitychange', hidden);
     loadDrafts(); post({ type: 'listCodexTasks' });
     return () => {
-      window.removeEventListener('message', listener); window.removeEventListener('pagehide', urgentFlushDrafts); document.removeEventListener('visibilitychange', hidden);
+      flushBeforeHide();
+      if (outputFrame.current !== undefined) cancelAnimationFrame(outputFrame.current); outputFrame.current = undefined;
+      window.removeEventListener('message', listener); window.removeEventListener('pagehide', flushBeforeHide); document.removeEventListener('visibilitychange', hidden);
       if (draftTimer.current !== undefined) window.clearTimeout(draftTimer.current);
       if (urgentDraftTimer.current !== undefined) window.clearTimeout(urgentDraftTimer.current); urgentDraftTimer.current = undefined;
       urgentDraftRequests.current.clear(); reloadAfterUrgent.current = false;
@@ -252,7 +323,14 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     };
   }, [enabled, scope]);
   useEffect(() => { focusManagedTask(); }, [enabled, scope, managedTaskFocus?.taskId, managedTaskFocus?.originRoot, managedTaskFocus?.accountId, accountId, root]);
-  const select = (id: string) => { manualSelection.current = true; setLaunchVisible(false); setUi(current => ({ ...current, selectedTaskId: id })); };
+  const select = (id: string) => { flushReading(); manualSelection.current = true; setLaunchVisible(false); setItems(transcriptCache.current); setUi(current => ({ ...current, selectedTaskId: id })); };
+  const deleteHistory = (taskIds: string[]) => {
+    if (!taskIds.length || deletionRef.current.taskIds.length) return;
+    flushReading();
+    const result = post(taskIds.length === 1 ? { type: 'deleteCodexTask', taskId: taskIds[0] } : { type: 'deleteCodexTasks', taskIds });
+    const next = { taskIds: result.status === 'blocked' ? [] : taskIds, operationId: result.operationId, failures: [], message: result.reason };
+    deletionRef.current = next; setDeletion(next);
+  };
   const answer = (interaction: CodexInteraction, response: CodexInteractionAnswer): DispatchResult => {
     const result = post({ type: 'answerCodex', taskId: interaction.taskId, interactionId: interaction.id, answer: response });
     const operation = result.operationId ? actions.get(result.operationId) : undefined;
@@ -278,7 +356,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
       taskId, text: draft.text, draftRevision: draft.revision
     } } }, actions.getSnapshot()));
   };
-  return { tasks, ui, items, interactions, history, environment, announcement, select, submit, post, results,
+  return { tasks, ui, items, interactions, history, environment, announcement, select, submit, post, results, deletion, deleteHistory, flushReading,
     draftStorage, retryDraftStorage: loadDrafts,
     resolveDraftConflict: (id: string, choice: 'stored' | 'mine') => setUi(current => draftSync.current!.resolve(id, choice, current), false),
     draftConflictText: (conflict: CodexUiDraftConflict) => codexDraftConflictText(draftSync.current!.candidate(conflict, uiRef.current)),
@@ -291,9 +369,10 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
       setUi(current => editCodexInteractionDraft(current, interaction.taskId, interaction.id, field, text, secret));
     },
     edit: (id: string, text: string) => setUi(current => editCodexDraft(current, id, text)),
-    read: (id: string, top: number, follow: boolean, anchor?: { key: string; offset: number }) => setUi(current => ({ ...current, reading: {
-      ...current.reading, [id]: { top, follow, ...(anchor ? { anchorKey: anchor.key, anchorOffset: anchor.offset } : {}) }
-    } })),
+    read: (id: string, top: number, follow: boolean, anchor?: { key: string; offset: number }) => {
+      readingBuffer.current[id] = { top, follow, ...(anchor ? { anchorKey: anchor.key, anchorOffset: anchor.offset } : {}) };
+      readingTimer.current ??= setTimeout(flushReading, 250);
+    },
     activeCount: tasks.filter(task => codexTaskActive(task.status) || task.status === 'queued').length,
     waitingCount: Object.values(interactions).reduce((sum, values) => sum + values.length, 0)
   };

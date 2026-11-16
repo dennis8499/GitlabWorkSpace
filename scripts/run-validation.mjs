@@ -113,9 +113,17 @@ try {
     console.log('[validation] prepared build saved');
   } else {
     if (includes('all', 'ui', 'compatibility', 'extension')) {
-      const selection = includes('ui', 'compatibility')
-        ? ['--grep', '^WorkflowKit compatibility installation ', ...(mode === 'ui' ? ['--invert'] : [])] : [];
+      const compatibilitySuite = '^WorkflowKit compatibility installation ';
+      const codexZoomSuite = '^Native Codex Electron zoom and built-in themes ';
+      const selection = mode === 'compatibility' ? ['--grep', compatibilitySuite]
+        : ['--grep', mode === 'ui' ? `${compatibilitySuite}|${codexZoomSuite}` : codexZoomSuite, '--invert'];
       await required(node('extension', 'scripts/run-extension-tests.mjs', '--preflight-file', hostProof, '--forbid-only', '--fail-zero', ...selection));
+      if (mode !== 'compatibility') {
+        // Native focus depends on Workbench state. A fresh isolated Host keeps
+        // preceding installer/workspace suites from leaving focus in chrome.
+        await required(node('extension-codex-zoom', 'scripts/run-extension-tests.mjs', '--preflight-file', hostProof,
+          '--forbid-only', '--fail-zero', '--grep', codexZoomSuite));
+      }
     }
     if (includes('all', 'ui', 'trust')) await required(node('workspace-trust', 'scripts/test-workspace-trust.mjs', '--preflight-file', hostProof));
     if (includes('all', 'quick', 'ui', 'unit')) {

@@ -4,7 +4,6 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 import { webviewBundle } from './webview-bundle.mjs';
 import { bmadUiSnapshot } from '../fixtures/bmad-ui.mjs';
 
-process.env.GITLAB_WORKSPACE_UI_SOURCE = '1';
 const { html, script } = await webviewBundle('dashboard');
 const clone = value => structuredClone(value);
 const root = 'C:/team';
@@ -146,7 +145,10 @@ test('partial project refresh preserves checkbox selection until an authoritativ
   assert.doesNotMatch(view.document.querySelector('.clone-selection-summary').textContent, /不在目前搜尋結果/);
   assert.equal(view.document.querySelector('.clone-submit').disabled, true);
   assert.equal(view.document.querySelector('.more-actions-panel button').disabled, true);
-  assert.match(view.document.querySelector('.clone-actions .feature-notices').textContent, /部分已選專案尚未載入/);
+  assert.match(view.document.querySelector('.repository-operation-summary-text').textContent, /部分已選專案尚未載入/);
+  const reasonId = view.document.querySelector('.clone-submit').getAttribute('aria-describedby');
+  assert.ok(reasonId);
+  assert.match(view.document.getElementById(reasonId).textContent, /部分已選專案尚未載入/);
   view.document.querySelector('.clone-submit').click(); view.document.querySelector('.more-actions-panel button').click(); await view.tick();
   assert.equal(view.requests.some(request => request.type === 'clone' || request.type === 'syncRepos'), false);
   await view.snapshot(data); assert.deepEqual(view.state.selectedProjectIds, [3]);

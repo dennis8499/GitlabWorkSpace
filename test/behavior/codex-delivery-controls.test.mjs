@@ -23,6 +23,7 @@ async function mount(kind, props) {
             const task = props.task;
             const controller = { tasks:[task], ui:{selectedTaskId:task.id,drafts:{[task.id]:{text:'Old private draft',revision:1}},pending:{},views:{[task.id]:props.view ?? 'execution'}},
               items:{},interactions:{},history:{},results:{},operations:[],environment:{state:'unknown'},post,
+              deletion:{taskIds:[],failures:[]},deleteHistory:ids=>post(ids.length===1?{type:'deleteCodexTask',taskId:ids[0]}:{type:'deleteCodexTasks',taskIds:ids}),flushReading:noop,
               draftStorage:{loading:false,saving:false,conflicts:[]},launchVisible:false,read:noop,updateUi:noop,select:noop,showLaunch:noop,
               retryDraftStorage:noop,resolveDraftConflict:noop,storedDraftText:()=>'',draftConflictText:()=>'',edit:noop,submit:()=>{window.submissions=(window.submissions??0)+1;} };
             component=CodexWorkspace; options={controller,active:true,onNavigate:noop};
@@ -331,6 +332,7 @@ test('results-only workspace ignores stale thread and resume fields and never re
   assert.equal(dom.window.document.body.textContent.includes('Old private draft'), false);
   assert.equal(dom.window.sent.some(item => ['codexHistory', 'resumeCodexTask', 'previewProjectWiki', 'readCodexResult'].includes(item.type) || item.command?.action === 'reconcile'), false);
   assert.ok(button(dom, '以成果建立新任務'));
+  const utilities = dom.window.document.querySelector('.codex-list-utilities'); utilities.querySelector('summary').click(); assert.equal(utilities.open, true);
   button(dom, '管理本機連線').click();
   assert.equal(dom.window.sent.at(-1).command.action, 'manage-local-connections');
   assert.equal(dom.window.sent.at(-1).command.taskId, undefined);
@@ -369,6 +371,8 @@ test('a failed publisher keeps retry and manual controls reachable before result
     delivery:{mode:'automatic',state:'needs-attention',steps:[],error:'GitLab temporarily unavailable'},controls:{canResume:false,canAutoAccept:false} };
   const dom = await mount('workspace', { task }); t.after(() => dom.window.close());
   assert.match(dom.window.document.body.textContent, /GitLab temporarily unavailable/);
+  button(dom, '任務詳情').click(); await dom.window.CodexDeliveryControls.flush();
+  assert.equal(dom.window.document.querySelector('.codex-details-drawer').hidden, false);
   button(dom, '核對並重試交付').click(); button(dom, '停止並轉交人工處理').click();
   assert.deepEqual(Array.from(dom.window.sent.filter(item => item.command), item => item.command.action), ['retry-delivery','manual-handoff']);
 });
@@ -378,6 +382,8 @@ test('a running publisher still offers the manual stop control without offering 
     delivery:{mode:'automatic',state:'running',steps:[]},controls:{canResume:false,canAutoAccept:false} };
   const dom = await mount('workspace', { task }); t.after(() => dom.window.close());
   assert.equal(button(dom, '核對並重試交付'), undefined);
+  button(dom, '任務詳情').click(); await dom.window.CodexDeliveryControls.flush();
+  assert.equal(dom.window.document.querySelector('.codex-details-drawer').hidden, false);
   button(dom, '停止並轉交人工處理').click();
   assert.equal(dom.window.sent.at(-1).command.action, 'manual-handoff');
 });

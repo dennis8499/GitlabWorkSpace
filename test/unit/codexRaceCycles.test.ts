@@ -19,10 +19,12 @@ function deferred() {
   const promise = new Promise<void>(done => { resolve = done; });
   return { promise, resolve };
 }
-async function until(condition: () => boolean, label: string): Promise<void> {
-  const deadline = Date.now() + 5000;
+async function until(condition: () => boolean, label: string, describe?: () => unknown): Promise<void> {
+  // These cycles use real files and leases alongside the full unit suite. Bound
+  // readiness separately from the unchanged 300-second total race budget.
+  const deadline = Date.now() + 15_000;
   while (!condition()) {
-    assert.ok(Date.now() < deadline, `Timed out: ${label}`);
+    assert.ok(Date.now() < deadline, `Timed out: ${label}${describe ? ' ' + JSON.stringify(describe()) : ''}`);
     await new Promise(resolve => setTimeout(resolve, 2));
   }
 }
@@ -142,7 +144,11 @@ test('100 deterministic lifecycle races preserve dispatch ownership, recovery an
     const first = makeBridge(`first-${cycle}`), observer = makeBridge(`observer-${cycle}`);
     const admissions = await Promise.all(specs.flatMap((spec, index) => [first.bridge.enqueue(spec, ids[index]), first.bridge.enqueue(spec, ids[index])]));
     assert.deepEqual(admissions, [ids[0], ids[0], ids[1], ids[1]], `duplicate admission cycle ${cycle}`);
-    await until(() => first.bridge.list().length === 2 && first.bridge.list().every(task => !!task.turnId), `initial turns ${cycle}`);
+    await until(() => {
+      const tasks = first.bridge.list(), failed = tasks.find(task => ['failed', 'uncertain', 'interrupted'].includes(task.status));
+      assert.equal(failed, undefined, JSON.stringify({ cycle, schedulerErrors, tasks }));
+      return tasks.length === 2 && tasks.every(task => !!task.turnId);
+    }, `initial turns ${cycle}`, () => ({ tasks: first.bridge.list(), schedulerErrors }));
     assert.equal(world.dispatches, cycle * 3 + 2);
     const originalThreads = new Map(first.bridge.list().map(task => [task.id, task.threadId]));
     await observer.bridge.publish();
@@ -209,7 +215,12 @@ test('100 deterministic lifecycle races preserve dispatch ownership, recovery an
     assert.equal(resumed.filter(result => result.status === 'fulfilled').length, 1, `resume winner ${cycle}`);
     assert.equal(resumed.filter(result => result.status === 'rejected').length, 1);
     const winner = resumed[0].status === 'fulfilled' ? restored : contender;
-    await until(() => !!winner.bridge.list().find(task => task.id === ids[0])?.turnId, `resumed turn ${cycle}`);
+    await until(() => {
+      const task = winner.bridge.list().find(task => task.id === ids[0]);
+      assert.ok(!task || !['failed', 'uncertain', 'interrupted'].includes(task.status), JSON.stringify({ cycle, schedulerErrors, task }));
+      return !!task?.turnId;
+    }, `resumed turn ${cycle}`,
+      () => ({ tasks: winner.bridge.list(), schedulerErrors }));
     assert.equal(world.dispatches, cycle * 3 + 3);
     assert.equal(winner.bridge.list().find(task => task.id === ids[0])?.threadId, originalThreads.get(ids[0]));
     const resumedPeer = currentPeers.get(roots[0])!;

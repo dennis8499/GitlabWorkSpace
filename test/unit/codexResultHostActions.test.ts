@@ -69,6 +69,41 @@ test('saved code restores with repository and destination admission, then opens 
   assert.equal(f.created.length, 0);
 });
 
+test('deleted or deleting result shortcuts cannot restore code or create new work while retained artifacts remain exportable', async t => {
+  for (const state of ['pending', 'deleted']) await t.test(state, async t => {
+    const f = await fixture(t);
+    const bridge = (f.actions as any).options.bridge(); bridge.historyDeletion = () => state;
+    for (const action of ['new-from-result', 'restore-result', 'open-worktree'] as const) {
+      await assert.rejects(f.actions.run({ action, taskId: f.manifest.id }), /紀錄已刪除|紀錄正在刪除/);
+    }
+    assert.deepEqual(f.created, []); assert.deepEqual(f.executed, []); assert.deepEqual(f.events, []);
+    await f.actions.run({ action: 'export-result', taskId: f.manifest.id });
+    assert.equal(f.exports.length, 1); assert.deepEqual(f.created, []);
+  });
+});
+
+test('deletion during a native directory prompt prevents late result restoration and new work', async t => {
+  for (const action of ['restore-result', 'new-from-result'] as const) await t.test(action, async t => {
+    const f = await fixture(t), bridge = (f.actions as any).options.bridge(), api = (f.actions as any).vscode;
+    let deletion: 'deleted' | undefined;
+    bridge.historyDeletion = () => deletion;
+    bridge.withHistoryAvailable = async (_id: string, next: () => Promise<unknown>) => {
+      if (deletion) throw new Error('此任務紀錄已刪除。');
+      return next();
+    };
+    if (action === 'restore-result') {
+      const original = api.window.showOpenDialog;
+      api.window.showOpenDialog = async () => { deletion = 'deleted'; return original(); };
+    } else {
+      api.window.showQuickPick = async (items: unknown[]) => { deletion = 'deleted'; return items[0]; };
+    }
+    await assert.rejects(f.actions.run({ action, taskId: f.manifest.id }), /紀錄已刪除/);
+    assert.deepEqual(f.created, []); assert.deepEqual(f.executed, []); assert.deepEqual(f.documents, []);
+    assert.equal(f.events.includes('restore'), false);
+    if (action === 'restore-result') assert.deepEqual(f.events, ['primary-release', 'extra-release', 'reservation-release:false:true']);
+  });
+});
+
 test('failed restoration releases every lease and never opens a directory or starts a task', async t => {
   const f = await fixture(t); f.failRestore();
   await assert.rejects(f.actions.run({ action: 'restore-result', taskId: f.manifest.id }), /restore failed/);

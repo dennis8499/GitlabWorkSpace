@@ -24,7 +24,8 @@ async function fixture(t: test.TestContext) {
   const spec: CodexTaskSpec = { source: { kind: 'free', repository: root, prompt: 'Inspect this repository' }, root,
     executionRoot: root, title: 'Origin task', prompt: 'Inspect this repository', writableRoots: [root], workspaceKey: root, environmentKey: 'fixture' };
   const tasks: any[] = [], calls: string[] = [], messages: any[] = [], queued: Array<{ spec: CodexTaskSpec; id: string }> = [];
-  const bridge = { list: () => tasks, initialize: async () => { calls.push('initialize'); }, publish: async () => { calls.push('publish'); },
+  const history = new Map<string, 'pending' | 'deleted'>();
+  const bridge = { list: () => tasks, historyDeletion: (id: string) => history.get(id), initialize: async () => { calls.push('initialize'); }, publish: async () => { calls.push('publish'); },
     claimTaskWorkspace: async (binding: { taskId: string; workspaceFile: string }) => {
       calls.push('claim:' + binding.taskId); return readTaskWorkspace(storage, binding.workspaceFile);
     },
@@ -49,7 +50,7 @@ async function fixture(t: test.TestContext) {
   panel.reconcileAfterWrite = async (action: () => Promise<void>) => action();
   panel.issueOpenGeneration = 0; panel.previewGeneration = 0;
   Object.defineProperty(panel, 'notifications', { value: { publish: (message: unknown) => messages.push(message) }, configurable: true });
-  return { root, storage, spec, tasks, calls, messages, queued, panel, bridge };
+  return { root, storage, spec, tasks, calls, messages, queued, panel, bridge, history };
 }
 
 test('origin start claims and enqueues in the current Group without opening another VS Code window', async t => {
@@ -95,6 +96,17 @@ test('opening an origin task viewport observes its state without claiming owners
   assert.deepEqual(f.calls, ['publish', 'show']); assert.equal(f.queued.length, 0); assert.deepEqual(opened, []);
   assert.equal(f.panel.managedTaskFocus.taskId, 'origin-observer');
   assert.equal(f.tasks[0].controls.external, true);
+});
+
+test('deleted and pending origin task envelopes cannot claim ownership or replay work', async t => {
+  for (const state of ['pending', 'deleted'] as const) await t.test(state, async t => {
+    const f = await fixture(t), id = 'old-envelope-' + state;
+    const launch = await createTaskWorkspace(f.storage, { source: f.spec.source, originRoot: f.root, preparedSpec: f.spec, windowMode: 'origin' }, id);
+    f.history.set(id, state);
+    await assert.rejects(f.panel.openTaskWorkspace(launch), /紀錄已刪除或正在刪除/);
+    assert.deepEqual(f.calls, ['publish']); assert.deepEqual(f.queued, []); assert.deepEqual(opened, []);
+    assert.equal(f.panel.managedTaskFocus, undefined);
+  });
 });
 
 test('startup maintenance in an origin viewport never recovers its former owner before readonly activation', async t => {

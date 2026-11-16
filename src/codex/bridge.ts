@@ -15,7 +15,8 @@ import type { CodexRpcDiagnostic } from './appServer';
 import { CodexRpcError } from './rpcError';
 import { resolveCodexExecutable, spawnCodex, invalidateCodexExecutableCache } from './process';
 import { CodexTaskDeletedError, CodexTaskOwnerError, CodexTaskStore, codexRootKey, validTaskId } from './taskStore';
-import { claimTaskWorkspace as claimWorkspace, releaseTaskWorkspace, retireTaskWorkspace, type CodexTaskWorkspaceBinding, type CodexTaskWorkspaceManifest } from './taskWorkspace';
+import { claimTaskWorkspace as claimWorkspace, readTaskWorkspace, releaseTaskWorkspace, retireTaskWorkspace, type CodexTaskWorkspaceBinding, type CodexTaskWorkspaceManifest } from './taskWorkspace';
+import { missingFile } from '../storage/ownedStorage';
 import { CodexWorkspaceLease } from './workspaceLease';
 import { validateForm } from './forms';
 import { mergeCodexTranscript, projectCodexItem } from './transcript';
@@ -25,6 +26,7 @@ import { codexTaskActive, codexOutputKey, projectCodexTask, projectTaskJourney, 
   type CodexInteractionAnswer, type CodexOutputItem, type CodexTaskRecord, type CodexTaskSpec, type CodexTaskState, type CodexTaskResult, type CodexStorageProblem } from './protocol';
 import { workflowOriginKey } from './workflowProtocol';
 import { CodexResultStore } from './resultStore';
+import { CodexHistoryStore, type CodexHistoryDeletion } from './historyStore';
 import type { CodexResultManifest } from './resultProtocol';
 import type { CodexDeliveryState, CodexDeliveryTargetPreview } from './deliveryProtocol';
 import { implementationDigest, sameWorkflowPath, readWorkflowReport, workflowHash } from './projectWorkflows';
@@ -177,6 +179,10 @@ export class CodexBridge {
   get storagePath(): string { return this.store.directory; }
   private readonly store: CodexTaskStore;
   readonly results: CodexResultStore;
+  private readonly historyStore: CodexHistoryStore;
+  private readonly historyDeletions = new Map<string, CodexHistoryDeletion>();
+  private readonly historyRequests = new Map<string, Promise<void>>();
+  private historyWatcher?: FSWatcher;
   private readonly savedResults = new Map<string, CodexResultManifest>();
   private readonly finalizers = new Map<string, Promise<void>>();
   private readonly cleanupTasks = new Map<string, Promise<void>>();
@@ -237,6 +243,7 @@ export class CodexBridge {
     this.scheduler = options.scheduler ?? new CodexTaskScheduler(this.instanceId);
     this.store = new CodexTaskStore(path.join(options.storage, 'codex-tasks'), plan => this.cleanupStorage(plan));
     this.results = new CodexResultStore(path.join(options.storage, 'codex-results'));
+    this.historyStore = new CodexHistoryStore(path.join(options.storage, 'codex-history-deletions'));
     this.historyPages = new ReadCache(60_000, 256, options.now ?? Date.now, 32 * 1024 * 1024);
     this.modelPages = new ReadCache(60_000, 16, options.now ?? Date.now, 2 * 1024 * 1024);
     this.environmentChecks = new ReadCache(60_000, 16, options.now ?? Date.now, 64 * 1024);
@@ -244,6 +251,10 @@ export class CodexBridge {
   }
   async claimTaskWorkspace(binding: CodexTaskWorkspaceBinding): Promise<CodexTaskWorkspaceManifest> {
     this.requireTrusted(); await this.initialize();
+    await this.assertHistoryAvailable(binding.taskId);
+    return this.claimTaskWorkspaceNow(binding);
+  }
+  private async claimTaskWorkspaceNow(binding: CodexTaskWorkspaceBinding): Promise<CodexTaskWorkspaceManifest> {
     const verifyStopped = async (record: CodexTaskRecord): Promise<void> => {
       if (record.lease && record.lease.released !== true && await CodexWorkspaceLease.inspect(record.lease.directory, record.lease.receipt) !== 'confirmed') {
         throw new Error('前一個任務視窗的程序停止結果待核對，保留原任務及執行鎖。');
@@ -262,7 +273,7 @@ export class CodexBridge {
       this.records.set(record.id, record); this.owned.add(record.id); this.persisted.set(record.id, structuredClone(projectCodexTask(record)));
       // Initialization sees managed records as external until this claim succeeds.
       // Resume durable cleanup here; reopening never resumes model execution.
-      if (record.closing && !this.disposed) setImmediate(() => { void this.recoverClosing(record.id).catch(() => {}); });
+      if (record.closing && !this.disposed && !this.historyDeletion(record.id)) setImmediate(() => { void this.recoverClosing(record.id).catch(() => {}); });
     }
     this.emit({ kind: 'tasks', tasks: this.list() });
     return manifest;
@@ -276,8 +287,9 @@ export class CodexBridge {
     } finally { await connection.client.close(); }
   }
   initialize(): Promise<void> {
-    return this.initialized ??= this.store.retryCleanup().then(async () => { this.processProblems = await CodexWorkspaceLease.sweepProcesses(); }).then(() => this.store.load()).then(async records => {
+    return this.initialized ??= this.refreshHistoryDeletions().then(() => this.store.retryCleanup()).then(async () => { this.processProblems = await CodexWorkspaceLease.sweepProcesses(); }).then(() => this.store.load()).then(async records => {
       for (const record of records) {
+        if (this.historyDeletion(record.id) === 'deleted') continue;
         if (record.spec.taskWorkspace && !this.ownsRecord(record)) {
           this.records.set(record.id, record); this.persisted.set(record.id, structuredClone(projectCodexTask(record))); continue;
         }
@@ -297,8 +309,11 @@ export class CodexBridge {
       await this.refreshSavedResults();
       // Closing is durable before sealing or native deletion. Resume only cleanup,
       // never model execution or publication, after a host restart.
-      for (const record of records) if (record.closing && !this.disposed && this.ownsRecord(record)) {
+      for (const record of records) if (record.closing && !this.disposed && this.ownsRecord(record) && !this.historyDeletion(record.id)) {
         setImmediate(() => { void this.recoverClosing(record.id).catch(() => {}); });
+      }
+      for (const [id, state] of this.historyDeletions) if (state === 'pending' && !this.disposed) {
+        setImmediate(() => { void this.deleteHistory(id).catch(() => {}); });
       }
       if (!this.disposed) {
         this.watcher = watch(this.store.directory, (_event, filename) => {
@@ -312,6 +327,11 @@ export class CodexBridge {
           }, 100);
         });
         this.watcher.on('error', () => { this.watcher?.close(); this.emit({ kind: 'environment', environment: { state: 'blocked', message: '任務監聽已中斷，請手動重新讀取任務。' } }); });
+        this.historyWatcher = watch(this.historyStore.directory, (_event, filename) => {
+          const id = /^([a-z0-9-]{1,100})\.json$/i.exec(filename?.toString() ?? '')?.[1];
+          if (id) void this.reload([id]).catch(() => { this.emit({ kind: 'environment', environment: { state: 'blocked', message: '歷史刪除狀態無法讀取，請重新讀取任務。' } }); });
+        });
+        this.historyWatcher.on('error', () => { this.historyWatcher?.close(); this.emit({ kind: 'environment', environment: { state: 'blocked', message: '歷史刪除監聽已中斷，請手動重新讀取任務。' } }); });
       }
     }).catch(error => { this.initialized = undefined; throw error; });
   }
@@ -321,6 +341,8 @@ export class CodexBridge {
   }
   private async reloadNow(ids?: readonly string[], fullSnapshot = false): Promise<void> {
     if (this.disposed) return;
+    await this.refreshHistoryDeletions(fullSnapshot ? undefined : ids);
+    if ([...this.historyDeletions.values()].includes('pending')) await this.refreshSavedResults();
     const sequence = ++this.reloadSequence, knownIds = new Set(ids ?? this.records.keys());
     const records = await this.store.load(ids), presentIds = new Set(records.map(record => record.id));
     if (this.disposed || sequence !== this.reloadSequence) return;
@@ -335,7 +357,8 @@ export class CodexBridge {
     this.emit({ kind: 'tasks', tasks: this.list() }, fullSnapshot);
   }
   list(): CodexTaskState[] {
-    const values = [...this.persisted.values(), ...[...this.savedResults.values()].filter(result => !this.persisted.has(result.id)).map(result => this.resultProjection(result))];
+    const values = [...this.persisted.values(), ...[...this.savedResults.values()].filter(result => !this.persisted.has(result.id)).map(result => this.resultProjection(result))]
+      .filter(task => this.historyDeletion(task.id) !== 'deleted');
     const groups = new Map<string, Array<{ taskId: string; kind: string; linkedAt: string }>>();
     values.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     for (const value of values) {
@@ -358,8 +381,9 @@ export class CodexBridge {
       const settling = this.executions.has(value.id) || this.controlling.has(value.id) || this.finalizers.has(value.id) || !!this.records.get(value.id)?.closing || lockedDelivery(current);
       const controls = {
         external, canPause: busy && !external && value.status !== 'pausing',
-        canResume: !external && !busy && !settling && value.result?.state !== 'uncertain' && !pendingPublication(value), canDelete: !external && !busy && !settling && value.status !== 'uncertain' && value.result?.state !== 'uncertain' && !pendingPublication(value) && (!this.records.get(value.id)?.lease || this.records.get(value.id)?.lease?.released === true),
+        canResume: !this.historyDeletion(value.id) && !external && !busy && !settling && value.result?.state !== 'uncertain' && !pendingPublication(value), canDelete: !external && !busy && !settling && value.status !== 'uncertain' && value.result?.state !== 'uncertain' && !pendingPublication(value) && (!this.records.get(value.id)?.lease || this.records.get(value.id)?.lease?.released === true),
         canAutoAccept: !external && !this.records.get(value.id)?.closing && !this.finalizers.has(value.id) && value.status !== 'pausing', autoAccept: current?.autoAcceptEnabled ?? false,
+        canDeleteHistory: !this.deleteHistoryBlocker(value.id), deleteHistoryBlockedReason: this.deleteHistoryBlocker(value.id),
         autoAcceptArmed: current?.autoAcceptEnabled === true && this.autoAccept.has(value.id) && this.executions.has(value.id),
         autoAcceptError: this.autoAcceptErrors.get(value.id), approvals: this.approvals.get(value.id) ?? current?.approvalSettings ?? { command: true, file: true, permissions: false }
       };
@@ -371,11 +395,107 @@ export class CodexBridge {
     const results = await this.results.list();
     this.savedResults.clear(); for (const result of results) this.savedResults.set(result.id, result);
   }
+  historyDeletion(id: string): CodexHistoryDeletion | undefined {
+    if (!validTaskId(id)) throw new Error('Codex 任務識別無效。');
+    return this.historyDeletions.get(id);
+  }
+  private async refreshHistoryDeletions(ids?: readonly string[]): Promise<void> {
+    const removed: string[] = [];
+    for (const [id, state] of await this.historyStore.list(ids)) {
+      if (this.historyDeletions.get(id) === 'deleted') continue;
+      this.historyDeletions.set(id, state);
+      if (state === 'deleted') { this.forget(id); removed.push(id); }
+    }
+    if (removed.length) {
+      this.emit({ kind: 'historyDeleted', taskIds: removed });
+      this.emit({ kind: 'environment', environment: { ...this.environment, storageProblems: [...this.store.problems, ...this.processProblems] } });
+    }
+  }
+  private async assertHistoryAvailable(id: string): Promise<void> {
+    await this.refreshHistoryDeletions([id]);
+    const state = this.historyDeletion(id);
+    if (state) throw new Error(state === 'deleted' ? '此 Codex 執行紀錄已刪除。' : '此 Codex 執行紀錄正在刪除，請先完成或重試清理。');
+  }
+  /** Admit explicit result actions atomically with history deletion after native prompts have closed. */
+  async withHistoryAvailable<T>(id: string, action: () => Promise<T>): Promise<T> {
+    this.requireTrusted(); await this.initialize();
+    return this.store.control(id, async () => { await this.assertHistoryAvailable(id); return action(); });
+  }
+  private deleteHistoryBlocker(id: string, ownRequest = false): string | undefined {
+    if (this.historyDeletion(id) === 'deleted') return '此執行紀錄已刪除。';
+    if (!ownRequest && this.historyRequests.has(id)) return '正在刪除執行紀錄。';
+    if (this.store.problems.some(problem => problem.id === id && problem.kind !== 'cleanup')) return '原任務紀錄無法驗證，請先修復儲存區。';
+    const record = this.records.get(id);
+    if (!record) return this.savedResults.has(id) ? undefined : '找不到可刪除的任務紀錄。';
+    if (codexTaskActive(record.status) || record.status === 'queued') return '請先停止任務，再刪除執行紀錄。';
+    if (!this.ownsRecord(record) && alive(record.ownerPid)) return '此任務由另一個視窗管理，請至原視窗刪除。';
+    if (this.executions.has(id) || this.controlling.has(id) || this.finalizers.has(id) || this.cleanupTasks.has(id)) return '正在處理任務或保存成果，請稍後重試。';
+    if (record.status === 'uncertain' || record.result?.state === 'uncertain' || pendingPublication(record) || record.delivery?.state === 'running' ||
+      record.delivery?.steps.some(step => ['sending', 'uncertain'].includes(step.state)) || record.queuedMessages?.some(message => ['sending', 'uncertain'].includes(message.state))) return '請先核對執行與發布結果，再刪除紀錄。';
+    if (record.lease && record.lease.released !== true && this.historyDeletion(id) !== 'pending') return '請先確認程序停止並釋放執行鎖，再刪除紀錄。';
+    return;
+  }
+  /** Delete extension history and owned conversations while retaining immutable result artifacts. */
+  deleteHistory(id: string): Promise<void> {
+    if (!validTaskId(id)) return Promise.reject(new Error('Codex 任務識別無效。'));
+    const existing = this.historyRequests.get(id); if (existing) return existing;
+    const work = this.deleteHistoryNow(id); this.historyRequests.set(id, work);
+    void work.finally(() => { this.historyRequests.delete(id); this.emit({ kind: 'tasks', tasks: this.list() }); }).catch(() => {});
+    return work;
+  }
+  private async deleteHistoryNow(id: string): Promise<void> {
+    this.requireTrusted(); await this.initialize();
+    await this.historyStore.control(id, async () => {
+      await this.refreshHistoryDeletions([id]);
+      if (this.historyDeletion(id) === 'deleted') return;
+      await this.refreshSavedResults(); await this.reload([id]);
+      // A restarted Host may reclaim only a pending cleanup, never resume its model or publication.
+      const previous = this.records.get(id);
+      if (previous?.spec.taskWorkspace && !this.ownsRecord(previous) && (this.historyDeletion(id) === 'pending' ||
+        !codexTaskActive(previous.status) && previous.status !== 'queued' && !alive(previous.ownerPid))) {
+        await this.claimTaskWorkspaceNow(previous.spec.taskWorkspace);
+      }
+      await this.store.control(id, async () => {
+        await this.reload([id]);
+        const reason = this.deleteHistoryBlocker(id, true); if (reason) throw new Error(reason);
+        // Resume holds this same task gate, so stopped-only admission and the durable intent are atomic.
+        await this.historyStore.write(id, 'pending'); this.historyDeletions.set(id, 'pending');
+        const record = this.records.get(id);
+        if (record) {
+          record.closing ??= { reason: 'deleted', startedAt: new Date().toISOString() }; record.cleanupState = 'pending';
+          await this.save(record); this.records.set(id, record);
+        }
+      });
+      const record = this.records.get(id);
+      if (record) {
+        if (record.lease && record.lease.released !== true) await this.recoverClosing(id);
+        else await this.sealAndClean(record, record.closing?.reason ?? 'deleted');
+      }
+      // A failed execution/draft cleanup can leave only the sealed result and its cleanup journal.
+      if (await this.store.isDeleted(id)) await this.store.remove(id);
+      const remaining = await this.store.load([id]);
+      if (remaining.length || this.store.problems.some(problem => problem.id === id)) throw new Error('成果或附屬資料清理尚未完成，紀錄已保留供重試。');
+      await this.results.read(id);
+      if (!record) await this.options.cleanupDrafts?.(id);
+      // The launch envelope can outlive execution cleanup; remove its full source prompt as well.
+      const workspace = await readTaskWorkspace(this.options.storage, path.join(this.options.storage, 'codex-workspaces', id, 'task.code-workspace'))
+        .catch(error => { if (missingFile(error)) return; throw error; });
+      if (workspace && !workspace.retired) {
+        if (!workspace.owner) throw new Error('任務啟動資料的擁有者無法核對，已保留紀錄供重試。');
+        await retireTaskWorkspace(this.options.storage, workspace.binding, workspace.owner.instance, workspace.owner.generation);
+      }
+      await this.historyStore.write(id, 'deleted'); this.historyDeletions.set(id, 'deleted'); this.forget(id);
+      this.emit({ kind: 'historyDeleted', taskIds: [id] });
+      this.emit({ kind: 'tasks', tasks: this.list() });
+      this.emit({ kind: 'environment', environment: { ...this.environment, storageProblems: [...this.store.problems, ...this.processProblems] } });
+    });
+  }
   private resultProjection(result: CodexResultManifest): CodexTaskState {
     const cleanupProblem = this.store.problems.find(problem => problem.id === result.id && problem.kind === 'cleanup');
     return { id: result.id, title: result.title, root: result.root, status: result.status, createdAt: result.createdAt, updatedAt: result.updatedAt,
       retention: 'results-only', savedResult: result, result: result.result ?? { state: 'ready', summary: result.summary }, cleanupState: cleanupProblem ? 'needs-attention' : 'complete', error: cleanupProblem?.reason,
-      controls: { external: false, canPause: false, canResume: false, canDelete: false, canAutoAccept: false, autoAccept: false },
+      controls: { external: false, canPause: false, canResume: false, canDelete: false, canAutoAccept: false, autoAccept: false,
+        canDeleteHistory: !this.deleteHistoryBlocker(result.id), deleteHistoryBlockedReason: this.deleteHistoryBlocker(result.id) },
       primaryAction: { kind: 'results', label: '檢閱保留成果', enabled: true } };
   }
   async resultManifest(id: string): Promise<CodexResultManifest> { this.requireTrusted(); return this.results.read(id); }
@@ -520,6 +640,7 @@ export class CodexBridge {
       await this.scheduler.reconcile(id); record.lease.released = true;
     }
     if (codexTaskActive(record.status) || record.status === 'queued') record.status = 'interrupted';
+    await this.save(record);
     await this.sealAndClean(record, record.closing.reason);
   }
   private sealAndClean(record: CodexTaskRecord, reason: 'completed' | 'manual' | 'deleted'): Promise<void> {
@@ -547,13 +668,19 @@ export class CodexBridge {
       if (pendingPublication(record) || record.delivery?.steps.some(step => ['sending', 'uncertain'].includes(step.state))) throw new Error('仍有發布結果待核對；已停止程序並保留成果。');
       const manifest = await this.results.seal(record, mergeCodexTranscript(this.histories.get(record.id)?.items ?? [], this.outputs.get(record.id) ?? []), reason);
       this.savedResults.set(record.id, manifest);
+      const references = await this.store.load();
+      const sharedThread = (threadId: string) => references.some(other => other.id !== record.id &&
+        (other.threadId === threadId || other.ownedThreadIds?.includes(threadId) || other.routingThreadIds?.includes(threadId) || other.forkedFrom?.threadId === threadId));
+      if (this.historyDeletion(record.id) === 'pending' && record.ownedThreadIds?.some(sharedThread)) {
+        // Deleting our history must preserve conversations still referenced by another task.
+        record.ownedThreadIds = record.ownedThreadIds.filter(threadId => !sharedThread(threadId)); await this.save(record);
+      }
       if (record.ownedThreadIds?.length) {
         const connection = await this.makeClient(this.options.storage);
         try {
           if (!codexCapabilities(connection.version).deleteThread) throw new Error('目前 CLI 不支援已驗證的對話刪除；請升級後重試清理。');
-          const references = await this.store.load();
           for (const threadId of record.ownedThreadIds) {
-            if (references.some(other => other.id !== record.id && (other.threadId === threadId || other.ownedThreadIds?.includes(threadId)))) throw new Error('其他任務仍引用這個對話，已暫緩清理。');
+            if (sharedThread(threadId)) throw new Error('其他任務仍引用這個對話，已暫緩清理。');
             await connection.client.request('thread/delete', { threadId });
             record.ownedThreadIds = record.ownedThreadIds.filter(id => id !== threadId); await this.save(record);
           }
@@ -579,13 +706,20 @@ export class CodexBridge {
     // Group drafts keep their sources and conversation until an explicit handoff or cleanup.
   }
   async publish(): Promise<void> {
-    await this.initialize(); await this.refreshSavedResults(); await this.store.retryCleanup(); this.processProblems = await CodexWorkspaceLease.sweepProcesses(); await this.reload(undefined, true); this.emit({ kind: 'environment', environment: { ...this.environment, storageProblems: [...this.store.problems, ...this.processProblems] } });
+    await this.initialize();
+    const removed = [...this.historyDeletions].flatMap(([id, state]) => state === 'deleted' ? [id] : []);
+    if (removed.length) this.emit({ kind: 'historyDeleted', taskIds: removed });
+    await this.refreshSavedResults(); await this.store.retryCleanup(); this.processProblems = await CodexWorkspaceLease.sweepProcesses(); await this.reload(undefined, true); this.emit({ kind: 'environment', environment: { ...this.environment, storageProblems: [...this.store.problems, ...this.processProblems] } });
     for (const [taskId, history] of this.histories) this.emit({ kind: 'history', taskId, ...history });
     for (const [taskId, items] of this.outputs) this.emit({ kind: 'output', taskId, items, replace: true });
     for (const taskId of new Set([...this.interactions.values()].map(value => value.projection.taskId))) this.publishInteractions(taskId);
   }
   private emit(event: CodexEvent, fullSnapshot = false): void {
     if (this.disposed) return;
+    if (event.kind === 'environment' && event.environment.storageProblems) event = { ...event, environment: { ...event.environment,
+      storageProblems: event.environment.storageProblems.filter(problem => problem.kind !== 'cleanup' || !validTaskId(problem.id) || this.historyDeletion(problem.id) !== 'deleted') } };
+    if ('taskId' in event && this.historyDeletion(event.taskId) === 'deleted') return;
+    if (event.kind === 'tasks' || event.kind === 'tasksDelta') event = { ...event, tasks: event.tasks.filter(task => this.historyDeletion(task.id) !== 'deleted') };
     if (event.kind === 'tasks' && this.options.taskDeltas) {
       const current = new Map(event.tasks.map(task => [task.id, JSON.stringify(task)]));
       const changed = event.tasks.filter(task => this.emittedTasks.get(task.id) !== current.get(task.id));
@@ -645,6 +779,10 @@ export class CodexBridge {
   }
   async fork(id: string, turnId: string): Promise<string> {
     this.requireTrusted(); await this.initialize(); await this.requireHealthyStorage();
+    return this.store.control(id, () => this.forkNow(id, turnId));
+  }
+  private async forkNow(id: string, turnId: string): Promise<string> {
+    await this.assertHistoryAvailable(id);
     const record = this.record(id);
     this.assertOwner(record);
     if (!canForkCodexTask(record.spec)) throw new Error('此任務的來源與成果受管理；請先保存持久成果，再以成果建立新任務。');
@@ -668,6 +806,11 @@ export class CodexBridge {
     } finally { await client.close(); }
   }
   async setGoal(id: string, goal?: CodexGoal, action?: 'pause' | 'clear'): Promise<void> {
+    this.requireTrusted(); await this.initialize();
+    return this.store.control(id, () => this.setGoalNow(id, goal, action));
+  }
+  private async setGoalNow(id: string, goal?: CodexGoal, action?: 'pause' | 'clear'): Promise<void> {
+    await this.assertHistoryAvailable(id);
     this.requireTrusted(); await this.initialize(); const record = this.record(id);
     this.assertOwner(record);
     if (record.spec.source.kind !== 'free' || !this.list().find(task => task.id === id)?.controls?.canResume) throw new Error('目標模式供已停止的自由任務使用。');
@@ -692,6 +835,7 @@ export class CodexBridge {
   async metadata(id: string, changes: { title?: string; pinned?: boolean; archived?: boolean }): Promise<void> {
     this.requireTrusted(); await this.initialize();
     await this.store.control(id, async () => {
+      await this.assertHistoryAvailable(id);
       await this.reload(); const record = this.record(id);
       this.assertOwner(record);
       if (codexTaskActive(record.status) || record.status === 'queued') throw new Error('請先停止任務再修改管理紀錄。');
@@ -860,6 +1004,9 @@ export class CodexBridge {
   }
   private async save(record: CodexTaskRecord, publish = true): Promise<void> {
     this.assertOwner(record);
+    await this.refreshHistoryDeletions([record.id]);
+    if (this.historyDeletion(record.id) === 'deleted') throw new CodexTaskDeletedError();
+    if (this.historyDeletion(record.id) === 'pending' && !record.closing) throw new Error('此 Codex 執行紀錄正在刪除，無法再修改或接續。');
     record.updatedAt = new Date().toISOString();
     if (record.spec.review) {
       const timeline = record.reviewTimeline ??= [], last = timeline.at(-1), phase = record.progress?.phase ?? record.status;
@@ -874,6 +1021,7 @@ export class CodexBridge {
     const state = structuredClone(projectCodexTask(record));
     try { await this.store.save(record); }
     catch (error) { if (error instanceof CodexTaskDeletedError) this.forget(record.id); throw error; }
+    if (this.historyDeletion(record.id) === 'pending') this.records.set(record.id, record);
     this.persisted.set(record.id, state);
     if (publish) this.emit({ kind: 'tasks', tasks: this.list() });
   }
@@ -897,6 +1045,7 @@ export class CodexBridge {
   }
   private async enqueueRecord(spec: CodexTaskSpec, operationId: string): Promise<string> {
     if (!validTaskId(operationId)) throw new Error('Codex 任務識別無效。');
+    await this.assertHistoryAvailable(operationId);
     const claim = this.claimedWorkspaces.get(operationId);
     if (spec.taskWorkspace && (!claim || spec.taskWorkspace.taskId !== operationId || JSON.stringify(spec.taskWorkspace) !== JSON.stringify(claim.binding))) throw new CodexTaskOwnerError();
     if (this.records.has(operationId)) { await this.publish(); return operationId; }
@@ -1777,7 +1926,7 @@ export class CodexBridge {
     return page.hasTurns;
   }
   async history(id: string, cursor?: string, force = false, signal?: AbortSignal): Promise<void> {
-    await this.initialize(); const record = this.record(id);
+    await this.initialize(); await this.assertHistoryAvailable(id); const record = this.record(id);
     if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 8192)) throw new Error('Codex 對話游標無效。');
     if (!record.threadId) return;
     await this.readHistory(record, cursor, force, undefined, signal);
@@ -1789,6 +1938,7 @@ export class CodexBridge {
     try { await task; } finally { if (this.messaging.get(key) === task) this.messaging.delete(key); }
   }
   private async messageNow(id: string, text: string, operationId: string): Promise<void> {
+    await this.assertHistoryAvailable(id);
     if (this.isFinalizing(id)) throw new Error('成果正在交付或已封存；請以成果建立新任務，輸入內容會保留。');
     this.requireTrusted(); await this.initialize(); const record = this.record(id);
     this.assertOwner(record);
@@ -1864,12 +2014,14 @@ export class CodexBridge {
   }
   async resume(id: string, signal?: AbortSignal): Promise<void> {
     this.requireTrusted(); await this.initialize();
+    await this.assertHistoryAvailable(id);
     signal?.throwIfAborted();
     const settling = this.executions.get(id);
     if (settling && !codexTaskActive(this.record(id).status) && this.record(id).status !== 'queued') await settling.settled;
     signal?.throwIfAborted();
     const previous = this.record(id), pending = previous.pendingMessageIsUser ? previous.pendingMessage : undefined;
     await this.store.control(id, async () => {
+      await this.assertHistoryAvailable(id);
       await this.reload();
       this.controlling.add(id);
       try { await this.resumeNow(id, pending, signal); } finally { this.controlling.delete(id); }
@@ -1995,6 +2147,9 @@ export class CodexBridge {
   private async cleanupStorage(plan: CodexCleanupPlan): Promise<void> {
     const references = await this.store.load();
     if (plan.spec.workflow && references.some(record => record.spec.workflow?.runtimeRoot === plan.spec.workflow!.runtimeRoot)) throw new Error('其他對話仍在使用這份工作流程資料。');
+    if (plan.spec.groupAnalysis && references.some(record => record.spec.groupAnalysis && sameWorkflowPath(record.spec.groupAnalysis.runtimeRoot, plan.spec.groupAnalysis!.runtimeRoot))) {
+      throw new Error('其他任務仍在使用這份 Group 分析來源，清理待重試。');
+    }
     const admission = await this.scheduler.tryAcquire('delete-' + plan.id, plan.spec, 2);
     if (!admission.reservation) throw new Error('其他任務正在使用所屬資源，刪除清理待重試。');
     const reservation = admission.reservation; let uncertain = false;
@@ -2080,7 +2235,7 @@ export class CodexBridge {
       this.preflightChecks.clear();
       this.modelPages.invalidate(); this.queuedAt.clear();
       this.historyApplied.clear();
-      this.watcher?.close(); if (this.reloadTimer) clearTimeout(this.reloadTimer);
+      this.watcher?.close(); this.historyWatcher?.close(); if (this.reloadTimer) clearTimeout(this.reloadTimer);
       this.changedTaskIds.clear(); this.emittedTasks.clear();
       for (const timer of this.outputTimers.values()) clearTimeout(timer);
       for (const timer of this.progressTimers.values()) clearTimeout(timer);
@@ -2088,7 +2243,9 @@ export class CodexBridge {
       await Promise.allSettled([...this.executions.keys()].map(id => this.cancel(id)));
       await Promise.allSettled([...this.executionTasks]);
       await Promise.allSettled([...this.finalizers.values(), ...this.stopRequests.values(), ...this.cleanupTasks.values()]);
+      await Promise.allSettled([...this.historyRequests.values()]);
       await this.processingTask;
+      await this.reloadTask;
       await Promise.allSettled([...this.connecting]);
       await Promise.allSettled([...this.clients].map(client => client.close()));
       this.modelPages.clear();

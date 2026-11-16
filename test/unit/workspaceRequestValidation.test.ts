@@ -39,6 +39,7 @@ const requests = {
   listCodexTasks: { type: 'listCodexTasks' }, codexHistory: { type: 'codexHistory', taskId: 'task-1' },
   sendCodexMessage: { type: 'sendCodexMessage', taskId: 'task-1', text: 'Continue' }, cancelCodexTask: { type: 'cancelCodexTask', taskId: 'task-1' },
   pauseCodexTask: { type: 'pauseCodexTask', taskId: 'task-1' }, deleteCodexTask: { type: 'deleteCodexTask', taskId: 'task-1' },
+  deleteCodexTasks: { type: 'deleteCodexTasks', taskIds: ['task-1', 'task-2'] },
   setCodexAutoAccept: { type: 'setCodexAutoAccept', taskId: 'task-1', enabled: true },
   resumeCodexTask: { type: 'resumeCodexTask', taskId: 'task-1' }, answerCodex: { type: 'answerCodex', taskId: 'task-1', interactionId: 'approval-1', answer: { decision: 'accept', content: { files: ['a.ts'], limit: 2 } } },
   checkCodex: { type: 'checkCodex' }, configureCodex: { type: 'configureCodex', action: 'executable' },

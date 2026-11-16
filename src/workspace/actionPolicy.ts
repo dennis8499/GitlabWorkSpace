@@ -25,7 +25,7 @@ export const workspaceActionKinds = {
   showCodexTask: 'read', readCodexResult: 'read', openCodexOrigin: 'read', openCodexChanges: 'read',
   previewProjectWiki: 'read', cancelProjectWikiPreview: 'control', publishProjectWiki: 'write', publishCodexReview: 'write',
   cancelCodexTask: 'control', resumeCodexTask: 'write', answerCodex: 'write', checkCodex: 'read', configureCodex: 'write',
-  pauseCodexTask: 'control', deleteCodexTask: 'write', setCodexAutoAccept: 'control',
+  pauseCodexTask: 'control', deleteCodexTask: 'write', deleteCodexTasks: 'write', setCodexAutoAccept: 'control',
   ready: 'control',
   reconcileOperations: 'control',
   gitReady: 'control',
@@ -250,7 +250,7 @@ export const operationLabels: Record<string, string> = {
   submitCodexLaunch: '開始執行 Codex 任務', cancelCodexLaunch: '取消任務準備', showCodexLaunch: '繼續準備任務', repairCodexLaunch: '修復任務環境',
   showCodexTask: '查看 Codex 任務', readCodexResult: '讀取任務成果', openCodexOrigin: '返回任務來源', openCodexChanges: '檢視 Issue 修改',
   previewProjectWiki: '預覽 GitLab Wiki', publishProjectWiki: '發布 GitLab Wiki', publishCodexReview: '發布審查留言',
-  pauseCodexTask: '暫停 Codex 任務', deleteCodexTask: '刪除 Codex 任務紀錄', setCodexAutoAccept: '設定 Auto-Accept', openCodex: '開啟 Codex',
+  pauseCodexTask: '暫停 Codex 任務', deleteCodexTask: '刪除 Codex 任務紀錄', deleteCodexTasks: '批次刪除 Codex 任務紀錄', setCodexAutoAccept: '設定 Auto-Accept', openCodex: '開啟 Codex',
   answerCodex: '回覆 Codex', codexHistory: '讀取 Codex 對話', checkCodex: '檢查 Codex', configureCodex: '設定 Codex',
   checkWorkflowKitReleases: '檢查最新正式版',
   loadReviewerCapabilities: '讀取 Reviewer 能力', loadReviewSessions: '讀取本機審查狀態', cancelReviewSession: '取消本機審查',
@@ -277,7 +277,7 @@ const localWorkspaceActions = new Set([
   'pickCodexLaunch', 'openProjectWikiDocument', 'openLocalWiki',
   'codexCommand',
   'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
-  'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex',
+  'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'deleteCodexTasks', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex',
   'createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch',
   'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
@@ -374,6 +374,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
   else if (['createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch'].includes(action)) { resourceKey = 'codex-launch:' + (request.draftId ?? 'new'); slot = resourceKey + ':' + action; }
+  else if (action === 'deleteCodexTasks') { resourceKey = 'codex:history'; slot = action; }
   else if (['startCodexTask', 'sendCodexMessage', 'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'cancelCodexTask', 'codexHistory', 'checkCodex', 'configureCodex', 'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'publishProjectWiki'].includes(action)) { resourceKey = 'codex:' + (request.taskId ?? 'queue'); slot = resourceKey + ':' + action; }
   else if (action === 'publishCodexReview') resourceKey = 'codex-review:' + request.taskId;
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;

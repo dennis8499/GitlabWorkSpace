@@ -32,7 +32,7 @@ const localProjectActions = new Set([
   'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask',
   'createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch', 'pickCodexLaunch', 'openProjectWikiDocument',
   'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
-  'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex'
+  'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'deleteCodexTasks', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex'
 ]);
 
 export function requiresLocalProject(request: { type: string; [key: string]: unknown }): boolean {

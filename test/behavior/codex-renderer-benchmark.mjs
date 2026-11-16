@@ -24,12 +24,12 @@ assert.equal(functions.length, 2, 'Dashboard fixture functions changed; review t
 const snapshot = new Function(functions.join('\n') + '; return snapshot;')();
 const theme = ':root{--vscode-foreground:#ccc;--vscode-editor-background:#1f1f1f;--vscode-sideBar-background:#181818;--vscode-descriptionForeground:#9d9d9d;--vscode-focusBorder:#0078d4;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-panel-border:#444;--vscode-font-family:Segoe UI,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:Consolas,monospace;}';
 const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }) });
-const measurements = [], checks = [], layoutChecks = [];
+const measurements = [], checks = [], layoutChecks = [], interactions = [];
 const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.ceil(values.length * fraction) - 1)];
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))));
 const send = (page, data) => page.evaluate(data => window.dispatchEvent(new MessageEvent('message', { data })), data);
 const task = id => ({ id, title: `Synthetic task ${id}`, root: 'C:/fixture', status: 'completed', threadId: 'thread-' + id, turnId: 'turn',
-  createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z', controls: { canResume: true, canDelete: true, canAutoAccept: true } });
+  createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z', controls: { external: false, canPause: false, canResume: true, canDelete: true, canDeleteHistory: true, canAutoAccept: true } });
 const entries = (count, id = 'a') => Array.from({ length: count }, (_, index) => ({ id: String(index), threadId: 'thread-' + id, turnId: 'turn', kind: 'agent', text: `Reply ${index}\n${'Synthetic content '.repeat(index % 4 + 1)}`, final: true }));
 
 async function mount(target, saved = { mode: 'codex' }) {
@@ -45,9 +45,9 @@ async function mount(target, saved = { mode: 'codex' }) {
     await route.fulfill({ contentType: name.endsWith('.js') ? 'application/javascript' : name.endsWith('.css') ? 'text/css' : name.endsWith('.ttf') ? 'font/ttf' : 'text/html', body });
   });
   await page.addInitScript(saved => {
-    window.benchmarkRequests = []; window.benchmarkSaved = saved; window.benchmarkCsp = [];
+    window.benchmarkRequests = []; window.benchmarkSaved = saved; window.benchmarkCsp = []; window.benchmarkStateWrites = 0;
     window.addEventListener('securitypolicyviolation', event => window.benchmarkCsp.push(event.violatedDirective));
-    window.acquireVsCodeApi = () => ({ getState: () => window.benchmarkSaved, setState: value => { window.benchmarkSaved = value; }, postMessage: message => {
+    window.acquireVsCodeApi = () => ({ getState: () => window.benchmarkSaved, setState: value => { window.benchmarkStateWrites++; window.benchmarkSaved = value; }, postMessage: message => {
       window.benchmarkRequests.push(message);
       if (message.operationId) queueMicrotask(() => window.dispatchEvent(new MessageEvent('message', { data: { type: 'operationChanged', operation: {
         requestId: message.operationId, scopeRevision: message.operationScope, resourceKey: 'codex:' + message.taskId,
@@ -60,11 +60,98 @@ async function mount(target, saved = { mode: 'codex' }) {
   await send(page, { type: 'snapshot', snapshot: snapshot('codex') });
   await settle(page); // Let the visible page install its Host event listener.
   await send(page, { type: 'codexEvent', event: { kind: 'tasks', tasks: [task('a'), task('b')] } });
-  await page.getByRole('button', { name: /Synthetic task a/ }).waitFor();
+  await page.getByRole('button', { name: /^Synthetic task a/ }).waitFor();
   await settle(page);
   const bundleHash = createHash('sha256');
   for (const [name, bytes] of [...assets].sort(([left], [right]) => left.localeCompare(right))) bundleHash.update(name + '\0').update(bytes);
   return { page, context, errors, external, bundleSha256: bundleHash.digest('hex') };
+}
+
+async function interactionRegression(target) {
+  const view = await mount(target), { page } = view;
+  const inputLatencies = [], switchLatencies = [];
+  try {
+    await send(page, { type: 'codexEvent', event: { kind: 'history', taskId: 'a', reset: true, items: entries(2000) } });
+    await send(page, { type: 'codexEvent', event: { kind: 'history', taskId: 'b', reset: true, items: entries(20, 'b') } });
+    await settle(page);
+    await page.evaluate(() => {
+      window.benchmarkBackgroundBatches = 0;
+      window.benchmarkBackgroundTimer = window.setInterval(() => {
+        const sample = ++window.benchmarkBackgroundBatches;
+        window.dispatchEvent(new MessageEvent('message', { data: { type: 'codexEvent', event: { kind: 'output', taskId: 'b', replace: true,
+          items: [{ id: '19', threadId: 'thread-b', turnId: 'turn', kind: 'agent', final: true, text: `Background reply ${sample}` }] } } }));
+      }, 16);
+      const input = document.querySelector('#codex-follow-up');
+      input.addEventListener('input', event => {
+        const started = performance.now(), expected = event.target.value;
+        window.benchmarkInputPaint = new Promise((resolve, reject) => {
+          const check = () => {
+            if (performance.now() - started > 2000) { reject(new Error('Focused input was not committed')); return; }
+            if (document.activeElement === input && input.value === expected && window.benchmarkSaved.codexUi?.drafts?.a?.text === expected) {
+              requestAnimationFrame(() => resolve(performance.now() - started));
+            } else requestAnimationFrame(check);
+          };
+          requestAnimationFrame(check);
+        });
+      }, true);
+      document.addEventListener('click', event => {
+        const button = event.target.closest('button'), text = button?.textContent ?? '';
+        const next = text.includes('Synthetic task a') ? 'a' : text.includes('Synthetic task b') ? 'b' : undefined;
+        if (!next) return;
+        const started = performance.now();
+        window.benchmarkSwitchPaint = new Promise((resolve, reject) => {
+          const check = () => {
+            if (performance.now() - started > 2000) { reject(new Error('Cached task switch was not committed')); return; }
+            if (document.querySelector('.codex-task-heading h2')?.textContent === `Synthetic task ${next}` &&
+              document.querySelector('.codex-transcript [data-virtual-key]')?.dataset.virtualKey.includes(`thread-${next}`)) {
+              requestAnimationFrame(() => resolve(performance.now() - started));
+            } else requestAnimationFrame(check);
+          };
+          requestAnimationFrame(check);
+        });
+      }, true);
+    });
+    const input = page.locator('#codex-follow-up'); await input.focus();
+    for (let index = 0; index < 12; index++) {
+      await page.keyboard.insertText(`需求${index} `);
+      inputLatencies.push(await page.evaluate(() => window.benchmarkInputPaint));
+    }
+    const draft = await input.inputValue();
+    for (let index = 0; index < 6; index++) for (const id of ['b', 'a']) {
+      await page.getByRole('button', { name: new RegExp(`^Synthetic task ${id}`) }).click();
+      switchLatencies.push(await page.evaluate(() => window.benchmarkSwitchPaint));
+    }
+    assert.equal(await input.inputValue(), draft, 'background streams and task switches preserve the complete typed draft');
+    const backgroundBatches = await page.evaluate(() => { window.clearInterval(window.benchmarkBackgroundTimer); return window.benchmarkBackgroundBatches; });
+    assert.ok(backgroundBatches >= 12, 'interactions ran while a second task actively streamed');
+    const reading = await page.evaluate(async () => {
+      const root = document.querySelector('.codex-output'), before = window.benchmarkStateWrites;
+      for (let index = 0; index < 24; index++) {
+        root.scrollTop = 80 + index * 25; root.dispatchEvent(new Event('scroll', { bubbles: true }));
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+      await new Promise(resolve => window.setTimeout(resolve, 300));
+      return { stateWrites: window.benchmarkStateWrites - before, savedTop: window.benchmarkSaved.codexUi?.reading?.a?.top,
+        follow: window.benchmarkSaved.codexUi?.reading?.a?.follow };
+    });
+    assert.ok(reading.savedTop > 0 && reading.follow === false, 'scroll probes persist the final reading position without following new output');
+    const result = { label: target.label, inputP95Ms: percentile(inputLatencies, .95), cachedSwitchP95Ms: percentile(switchLatencies, .95),
+      inputLatencies, switchLatencies, backgroundBatches, reading, draftPreserved: true };
+    interactions.push(result);
+    if (target.label === 'after') {
+      assert.ok(result.inputP95Ms <= 100, 'focused input during background streaming meets the 100ms p95 budget');
+      assert.ok(result.cachedSwitchP95Ms <= 100, 'cached task switches during streaming meet the 100ms p95 budget');
+      assert.ok(reading.stateWrites <= 6, 'reading position saves are coalesced rather than writing on every scroll event');
+    }
+    if (destination) {
+      const directory = path.dirname(path.resolve(destination)); await mkdir(directory, { recursive: true });
+      await page.screenshot({ path: path.join(directory, `codex-${target.label}-wide.png`) });
+      await page.setViewportSize({ width: 320, height: 900 }); await settle(page);
+      await page.screenshot({ path: path.join(directory, `codex-${target.label}-narrow.png`) });
+    }
+    assert.deepEqual(view.errors, []); assert.deepEqual(view.external, []);
+    assert.deepEqual(await page.evaluate(() => window.benchmarkCsp), []);
+  } finally { await page.evaluate(() => window.clearInterval(window.benchmarkBackgroundTimer)).catch(() => {}); await view.context.close(); }
 }
 async function geometry(page) {
   return page.evaluate(() => {
@@ -86,8 +173,8 @@ async function functional(target, view, count) {
   assert.equal(revealed.key, before.key, 'hidden task updates preserve the visible message when reopened');
   assert.ok(Math.abs(revealed.offset - before.offset) <= 2, `hidden task updates preserve the intra-row offset: ${JSON.stringify({ before, revealed })}`);
   const saved = await page.evaluate(() => window.benchmarkSaved);
-  await page.getByRole('button', { name: /Synthetic task b/ }).click(); await settle(page);
-  await page.getByRole('button', { name: /Synthetic task a/ }).click(); await settle(page);
+  await page.getByRole('button', { name: /^Synthetic task b/ }).click(); await settle(page);
+  await page.getByRole('button', { name: /^Synthetic task a/ }).click(); await settle(page);
   const switched = await geometry(page);
   assert.equal(switched.key, before.key, 'task switches preserve the visible message');
   assert.ok(Math.abs(switched.offset - before.offset) <= 2, 'task switches preserve the intra-row offset');
@@ -239,7 +326,15 @@ try {
         const items = Array.from({ length: Math.min(100, count) }, (_, offset) => ({ id: String(count - Math.min(100, count) + offset),
           threadId: 'thread-a', turnId: 'turn', kind: 'agent', text: `Updated ${sample} / ${offset}\nSynthetic streamed response`, final: true }));
         const started = performance.now(); window.dispatchEvent(new MessageEvent('message', { data: { type: 'codexEvent', event: { kind: 'output', taskId: 'a', items, replace: true } } }));
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const expected = `Updated ${sample} / ${items.length - 1}`;
+        await new Promise((resolve, reject) => {
+          const check = () => {
+            if (performance.now() - started > 2000) { reject(new Error('Streamed sample was not committed')); return; }
+            if (document.querySelector('.codex-output')?.textContent.includes(expected)) requestAnimationFrame(resolve);
+            else requestAnimationFrame(check);
+          };
+          requestAnimationFrame(check);
+        });
         return performance.now() - started;
       }, { count, sample }));
       const mounted = await page.locator('.codex-item').count(), nodes = await page.locator('*').count(), csp = await page.evaluate(() => window.benchmarkCsp);
@@ -258,6 +353,7 @@ try {
     const values = measurements.filter(row => row.label === 'after' && row.count === count).flatMap(row => row.latencies);
     assert.ok(percentile(values, 0.95) <= 100, `Codex ${count}-item updates must meet the 100ms p95 budget`);
   }
+  for (const target of roots) await interactionRegression(target);
   await layoutRegression(roots.find(target => target.label === 'after'));
 } finally {
   const summary = roots.flatMap(target => counts.map(count => {
@@ -265,7 +361,7 @@ try {
     return { label: target.label, count, samples: latencies.length, p50Ms: percentile(latencies, 0.5), p95Ms: percentile(latencies, 0.95), mountedMax: Math.max(...rows.map(row => row.mounted)) };
   }));
   const report = { schema: 'GitLabWorkspaceCodexRendererBenchmark/v1', checkedAt: new Date().toISOString(), browser: browser.version(),
-    method: 'Production bundle, synthetic Host, live batches seed the complete transcript; updates dispatch through two animation frames. Layout probes observe every animation frame across long text, threshold changes, streaming, expansion and viewport changes. Excludes OS input, native VS Code bridge and external service latency.', summary, checks, measurements, layoutChecks };
+    method: 'Production bundle, synthetic Host, live batches seed the complete transcript; update timing verifies expected content is committed before the next paint. Focused browser input and cached task-switch probes run during a second task stream. Layout probes observe every animation frame across long text, threshold changes, streaming, expansion and viewport changes. Excludes native VS Code bridge and external service latency.', summary, interactions, checks, measurements, layoutChecks };
   if (destination) { await mkdir(path.dirname(path.resolve(destination)), { recursive: true }); await writeFile(destination, JSON.stringify(report, null, 2) + '\n'); }
-  console.log(JSON.stringify({ summary, checks, layoutChecks: layoutChecks.map(({ count, stage, frames }) => ({ count, stage, frames: frames.length })) })); await browser.close();
+  console.log(JSON.stringify({ summary, interactions, checks, layoutChecks: layoutChecks.map(({ count, stage, frames }) => ({ count, stage, frames: frames.length })) })); await browser.close();
 }

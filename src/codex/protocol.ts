@@ -89,6 +89,9 @@ export interface CodexTaskControls {
   canPause: boolean;
   canResume: boolean;
   canDelete: boolean;
+  /** Deleting history preserves immutable artifacts; it is distinct from reprepare eligibility. */
+  canDeleteHistory?: boolean;
+  deleteHistoryBlockedReason?: string;
   canAutoAccept: boolean;
   autoAccept: boolean;
   /** Saved preference is separate from activation during an explicitly started execution. */
@@ -232,6 +235,7 @@ export interface CodexStorageProblem { id: string; reason: string; kind?: 'clean
 export type CodexEvent =
   | { kind: 'tasks'; tasks: CodexTaskState[] }
   | { kind: 'tasksDelta'; tasks: CodexTaskState[]; removedIds: string[]; revision: number }
+  | { kind: 'historyDeleted'; taskIds: string[] }
   | { kind: 'output'; taskId: string; items: CodexOutputItem[]; replace?: boolean }
   | { kind: 'history'; taskId: string; items: CodexOutputItem[]; nextCursor?: string; cursor?: string; evicted?: boolean; reset?: boolean }
   | { kind: 'interactions'; taskId: string; interactions: CodexInteraction[] }

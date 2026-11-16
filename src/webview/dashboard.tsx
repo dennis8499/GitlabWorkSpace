@@ -28,8 +28,9 @@ import { CodexWorkflowLaunch, taskForSource } from './CodexWorkflowLaunch';
 import type { CodexUiState } from './codexUiState';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
+import { RepositoryOperationStatus } from './RepositoryOperationStatus';
 import { FeatureNotice, FeatureNotices, FeatureButton } from './FeatureNotice';
-import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker, localProjectBlocker } from './featureAvailability';
+import { availabilityProps, availabilityBlocker, blockedWhen, featureNoticeId, firstBlocker, groupFeatureBlockers, localProjectBlocker } from './featureAvailability';
 
 import { NotificationDrawer } from './NotificationDrawer';
 import { NotificationSnackbar } from './NotificationSnackbar';
@@ -175,7 +176,6 @@ const emptyScopedState = (): ScopedSavedState => ({
 const projectItemKey = (project: GitLabProject) => project.id;
 const workItemKey = (item: { project_id: number; iid: number }) => item.project_id + ':' + item.iid;
 const diffItemKey = (change: { new_path: string }) => change.new_path;
-const operationItemKey = (item: CloneOperationState['items'][number]) => item.projectId;
 const emptyManualTime = (): ManualTimeDraft => ({ duration: '', summary: '', spentAt: '' });
 function wikiGuideScopeKey(scopeKey?: string, instanceUserScope?: string): string {
   return scopeKey ?? (instanceUserScope ? `no-group:${instanceUserScope}` : 'offline');
@@ -1249,11 +1249,6 @@ function App() {
   const selectedVisibleProjectCount = visibleProjects.reduce((count, project) => count + Number(selectedProjectIdSet.has(project.id)), 0);
   const hasIssueFilter = !!filters.developer?.trim() || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' || issueMilestoneFilter !== 'all';
   const activeBoardId = developerView === 'graph' ? graphBoardId : issueBoardId;
-  const completedOperationCount = cloneOperation?.items.filter((item) => ['completed', 'updated', 'upToDate', 'skipped', 'failed'].includes(item.state)).length ?? 0;
-  const successfulOperationCount = cloneOperation?.items.filter((item) => ['completed', 'updated', 'upToDate'].includes(item.state)).length ?? 0;
-  const skippedOperationCount = cloneOperation?.items.filter((item) => item.state === 'skipped').length ?? 0;
-  const failedOperationCount = cloneOperation?.items.filter((item) => item.state === 'failed').length ?? 0;
-  const activeOperationItem = cloneOperation?.items.find((item) => item.state === 'starting' || item.state === 'progress');
   const visibleMrs = useMemo(() => (snapshot?.mergeRequests ?? []).filter((item) => {
     const userId = snapshot?.currentUser?.id;
     const isReviewer = !!userId && item.reviewers?.some((user) => user.id === userId);
@@ -1471,28 +1466,27 @@ function App() {
                     <CodexWorkflowLaunch compact tasks={codex.tasks} source={{ kind: 'project-wiki', projectId: project.id }} post={post} disabled={!!localBlocked} />
                     <span class={`pill ${local?.state === 'ready' || matches.length ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{matches.length ? `${matches.length} 個本機副本` : local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span>{matches.length ? <div class="project-local-copies">{matches.map(repository => <FeatureButton class="quiet small" type="button" title={repository.path} blocker={localProjectBlocker(snapshot.workspaceCapabilities) ?? blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>開啟版控 · {repository.name}</FeatureButton>)}</div> : local?.state === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'gitOpenRepository', path: local.path })}>開啟版控</button>}</div>;
                 }} />
-                {cloneOperation && cloneOperation.scopeKey === snapshot.connectedScope && <section class="operation-results" aria-label="下載與更新結果">
-                  <div class="operation-heading"><strong>{cloneOperation.label}</strong><span class="count" role="status" aria-live="polite" aria-atomic="true">{cloneOperation.phase === 'running' ? `處理中 ${completedOperationCount}/${cloneOperation.items.length}${activeOperationItem ? ` - ${activeOperationItem.projectPath}` : ''}` : cloneOperation.phase === 'cancelled' ? `已取消: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個; 未完成項目保留選取` : cloneOperation.phase === 'failed' ? `處理中斷: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個` : `處理完成: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個`}</span></div>
-                  <VirtualRows resetKey={cloneOperation.id} className="operation-item-list" items={cloneOperation.items} itemKey={operationItemKey} estimateHeight={28} renderItem={item => {
-                    const labels: Record<CloneOperationState['items'][number]['state'], string> = { waiting: cloneOperation.phase === 'cancelled' ? '已取消' : '等待中', starting: '準備中', progress: '下載中', completed: '已下載', updated: '已更新', upToDate: '已是最新', skipped: '略過', failed: '失敗' };
-                    const status = item.message ?? labels[item.state];
-                    return <div class="operation-result" key={`${cloneOperation.id}:${item.projectId}`}><span>{item.projectPath}</span><span class={`operation-state ${item.state}`}>{status}{item.percent !== undefined ? ` ${item.percent}%` : ''}</span></div>;
-                  }} />
-                  {cloneOperation.phase === 'running' && <button class="quiet small" type="button" onClick={() => post({ type: 'cancelRepositoryOperation' })}>取消作業</button>}
-                </section>}
                 <div class="list-actions clone-actions">
                   <div class="clone-actions-row">
                     <div class="clone-selection-summary"><strong>已選 {selectedProjectIds.length} 個專案</strong>{hiddenSelectionCount > 0 && <span class="subtle">{hiddenSelectionCount} 個不在目前搜尋結果</span>}{unloadedSelectionCount > 0 && <span class="subtle clone-unloaded-selection" role="status">{unloadedSelectionCount} 個尚未載入</span>}</div>
                     <button class="quiet small" type="button" disabled={!selectedProjectIds.length || blockingWork} onClick={() => setSelectedProjectIds([])}>清除選取</button>
-                    <details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel">
+                    <details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel" onClickCapture={event => {
+                      if (!(event.target instanceof Element) || !event.target.closest('button:not(:disabled)')) return;
+                      const menu = event.currentTarget.closest('details');
+                      if (menu) { menu.open = false; menu.querySelector('summary')?.focus({ preventScroll: true }); }
+                    }}>
                       <button class="secondary" type="button" {...availabilityProps('clone-actions', cloneSelectedBlocked)} onClick={() => post({ type: 'syncRepos', projectIds: selectedProjectIds })}>更新選取 Repo 預設分支（{selectedProjectIds.length}）</button>
                       <button class="secondary" type="button" {...availabilityProps('clone-actions', cloneRootBlocked)} onClick={() => post({ type: 'syncRepos' })}>更新全部本機預設分支</button>
                       {snapshot.cloneRoot && <button class="quiet" type="button" disabled={blockingWork || !!snapshot.cloneRootError} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button>}
                       <button class="quiet" type="button" disabled={blockingWork || !snapshot.group?.web_url} onClick={() => snapshot.group?.web_url && post({ type: 'openExternal', url: snapshot.group.web_url })}>在 GitLab 開啟 Group</button>
                     </div></details>
-                    <button class="primary clone-submit" type="button" {...availabilityProps('clone-actions', cloneSelectedBlocked)} aria-label={`下載或更新 ${selectedProjectIds.length} 個選取專案`} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>下載／更新（{selectedProjectIds.length}）</button><FeatureNotices id="clone-actions" items={cloneBlockers}>{(!snapshot.cloneRoot || snapshot.cloneRootError) && <button type="button" onClick={() => { setSettingsSection('tools'); setToolDrawer(true); }}>開啟工作區設定</button>}</FeatureNotices><OperationFeedback resourceKey="repositories" scopeRevision={snapshot.localOperationScope ?? localOperationScope} />
+                    <button class="primary clone-submit" type="button" {...availabilityProps('clone-actions', cloneSelectedBlocked)} aria-label={`下載或更新 ${selectedProjectIds.length} 個選取專案`} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>下載／更新（{selectedProjectIds.length}）</button>
+                    <div class="clone-action-descriptions">{groupFeatureBlockers(cloneBlockers).map(({ blocker, labels }) =>
+                      <span key={featureNoticeId('clone-actions', blocker)} id={featureNoticeId('clone-actions', blocker)}>{labels.join('、')}：{blocker.reason}{blocker.details ? ` ${blocker.details}` : ''}</span>)}</div>
                   </div>
-                  <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : !snapshot.cloneRoot || snapshot.cloneRootError ? snapshot.cloneRootError ?? '請先選擇下載資料夾，或在 VS Code 開啟本機工作區。' : selectedProjectIds.length ? '操作前會確認本機目錄；同步只更新已存在 Repo 的預設分支。' : '勾選專案後可下載或同步預設分支。'}</p>
+                  <RepositoryOperationStatus key={snapshot.localOperationScope ?? localOperationScope} actions={actions}
+                    scopeRevision={snapshot.localOperationScope ?? localOperationScope} operation={cloneOperation?.scopeKey === snapshot.connectedScope ? cloneOperation : undefined} post={post}
+                    hint={cloneSelectedBlocked?.reason ?? '同步只更新已存在 Repo 的預設分支。'} />
                 </div>
               </div></div>
             : mode === 'bmad' ? <BmadPanel snapshot={snapshot.bmad}

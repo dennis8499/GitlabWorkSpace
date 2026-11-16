@@ -58,8 +58,11 @@ const instrumentation = String.raw`(() => {
     await wait(() => document.querySelector('#codex-follow-up') && document.querySelector('.codex-interaction pre'), 'Codex task and approval');
     await wait(() => document.body.classList.contains(request.themeClass), 'native body theme');
     if (request.expectedDpr) await wait(() => Math.abs(devicePixelRatio / request.expectedDpr - 1) < .02, 'Electron devicePixelRatio');
-    await wait(() => document.hasFocus(), 'native Webview has received Workbench focus');
     const textarea = document.querySelector('#codex-follow-up'), detail = document.querySelector('.codex-interaction pre');
+    // Revealing the editor group can leave focus in Workbench chrome after a
+    // preceding suite. Focus the control before checking the iframe's focus.
+    textarea.focus({ preventScroll: true });
+    await wait(() => document.hasFocus(), 'native Webview has received Workbench focus');
     if (request.seed) { textarea.value = request.draft; textarea.dispatchEvent(new Event('input', { bubbles: true })); }
     await wait(() => textarea.value === request.draft && bridge.getState()?.codexUi?.drafts?.['native-zoom-task']?.text === request.draft, 'durable textarea draft');
     const approval = document.querySelector('.codex-interaction button[type="submit"]');

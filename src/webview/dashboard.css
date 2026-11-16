@@ -199,10 +199,6 @@ h3 { font-size: 1.000rem; margin: 0; font-weight: 600; }
 .more-actions > summary { min-height: 30px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; }
 .more-actions-panel { position: absolute; z-index: 4; right: 0; bottom: calc(100% + 5px); display: grid; min-width: min(260px, calc(100vw - 48px)); gap: 6px; border: 1px solid var(--border); border-radius: 7px; padding: 8px; background: var(--surface-raised); box-shadow: 0 8px 22px #0004; }
 .more-actions-panel button { text-align: left; }
-.operation-results { max-height: 180px; overflow: auto; border-top: 1px solid var(--border); padding: 9px 12px; }
-.clone-list-column > .operation-results { flex: 0 1 150px; }
-.operation-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
-.operation-item-list { max-height: 100px; overflow: auto; }
 .clone-actions { position: sticky; z-index: 3; bottom: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; flex: 0 0 auto; padding: 11px 12px; border-top: 1px solid var(--border); background: var(--surface-raised); }
 .clone-root-line { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 10px; min-width: 0; }
 .clone-destination { flex: 0 0 auto; padding: 11px 12px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
@@ -212,7 +208,7 @@ h3 { font-size: 1.000rem; margin: 0; font-weight: 600; }
 .clone-actions-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .clone-selection-summary { display: flex; min-width: 90px; flex: 1; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
 .clone-actions .clone-submit { min-height: 38px; }
-.clone-action-hint { min-height: 0; margin: 0; color: var(--muted); font-size: .95rem; }
+.clone-action-descriptions { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .operation-result { display: flex; justify-content: space-between; gap: 9px; padding: 5px 0; font-size: .95rem; }
 .operation-result > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .operation-state { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--muted); }

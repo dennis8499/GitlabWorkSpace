@@ -163,7 +163,7 @@ suite('Managed Group analysis through a real owner window', function () {
       assert.ok(taskId);
       const id = JSON.stringify(taskId), deadline = Date.now() + timeoutMs;
       const ready = `(() => { const selected = document.querySelector('.codex-mobile-tasks select');
-        const control = [...document.querySelectorAll('.codex-controls button')].find(button => button.textContent === '停止並轉交人工處理');
+        const control = [...document.querySelectorAll('.codex-secondary-controls button')].find(button => button.textContent === '停止並轉交人工處理');
         return selected?.value === ${id} && !!control && !control.disabled &&
           !document.body.innerText.includes('任務正在另一個 VS Code 視窗執行'); })()`;
       let latest = '';

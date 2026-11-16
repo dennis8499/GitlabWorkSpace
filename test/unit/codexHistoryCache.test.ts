@@ -25,6 +25,8 @@ function fixture(t: test.TestContext, read: (params: Record<string, unknown>) =>
     client: async () => { clients++; return { client, version: 'fixture', executable: 'fixture' }; } });
   const state = bridge as any;
   state.initialized = Promise.resolve(); state.records.set(record.id, record);
+  // This fixture isolates transcript caching; production deletion fences have their own disk-backed suite.
+  state.historyStore.list = async () => new Map();
   t.after(async () => { state.executions.clear(); await bridge.shutdown(); });
   return { bridge, state, record, client, events, counts: () => ({ clients, requests, closed }), advance: () => { now += 60_001; } };
 }

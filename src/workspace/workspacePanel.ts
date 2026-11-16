@@ -37,6 +37,7 @@ import { BuildAutoProbeStore } from '../codex/buildAutoProbe';
 import { bmadKitTaskIssue } from './bmadKit';
 import { inspectBmadEnvironment } from './bmadEnvironment';
 import { CodexBridge } from '../codex/bridge';
+import { deleteCodexHistories } from '../codex/historyHostActions';
 import { CodexDeliveryService } from '../codex/delivery';
 import { collectGroupAnalysis, prepareGroupAnalysis, startGroupAnalysis } from '../codex/groupAnalysis';
 import { GroupIssuePublisher, readGroupIssueDrafts } from '../codex/groupIssues';
@@ -955,6 +956,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private post(message: unknown): void {
+    if (message && typeof message === 'object' && 'type' in message && 'taskId' in message && typeof message.taskId === 'string' &&
+      (message.type === 'codexTaskStarted' || message.type === 'codexWorkflowResult') && this.codex?.historyDeletion?.(message.taskId) === 'deleted') return;
     message = sanitizeFeedbackDiagnostics(message, value => this.session.log?.sanitize(value) ?? sanitizeDiagnostic(value));
     if (message && typeof message === 'object' && 'type' in message && message.type === 'error') {
       const id = this.operationContext.getStore(), operation = id ? this.operations.get(id) : undefined;
@@ -1635,9 +1638,23 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'cancelCodexTask': await this.getCodexBridge().cancel(request.taskId); break;
       case 'pauseCodexTask': await this.getCodexBridge().pause(request.taskId); this.noteOutcome({ effect: 'applied' }); break;
       case 'setCodexAutoAccept': await this.getCodexBridge().setAutoAccept(request.taskId, request.enabled); this.noteOutcome({ effect: 'applied' }); break;
-      case 'deleteCodexTask': {
-        this.codexWorkflows?.cancelPreview(request.taskId);
-        await this.getCodexBridge().stopAndClean(request.taskId); this.noteOutcome({ effect: 'applied' });
+      case 'deleteCodexTask':
+      case 'deleteCodexTasks': {
+        const scope = this.actionScope(request), epoch = this.session.connectionEpoch;
+        const result = await deleteCodexHistories(request.type === 'deleteCodexTask' ? [request.taskId] : request.taskIds, {
+          bridge: this.getCodexBridge(),
+          confirm: async (message, detail) => await vscode.window.showWarningMessage(message, { modal: true, detail }, '刪除紀錄') === '刪除紀錄',
+          check: () => {
+            if (!vscode.workspace.isTrusted) throw new Error('請先信任工作區。');
+            if (this.disposed || epoch !== this.session.connectionEpoch || scope !== this.actionScope(request)) throw new Error('工作區或帳號已變更，請重新確認刪除紀錄。');
+          },
+          beforeDelete: taskId => this.codexWorkflows?.cancelPreview(taskId)
+        });
+        this.post({ type: 'codexHistoryDeleted', requestId: request.operationId, ...result });
+        this.noteOutcome({ status: result.cancelled ? 'cancelled' : result.failures.length ? 'failed' : 'succeeded',
+          effect: result.deletedTaskIds.length ? result.failures.length ? 'partial' : 'applied' : 'none',
+          error: result.failures.length ? `${result.failures.length} 筆紀錄刪除未完成：${result.failures[0].reason}` : undefined,
+          phase: result.cancelled ? '已取消刪除' : `已刪除 ${result.deletedTaskIds.length} 筆紀錄${result.failures.length ? `，${result.failures.length} 筆待重試` : ''}` });
         break;
       }
       case 'answerCodex': await this.getCodexBridge().answer(request.taskId, request.interactionId, request.answer); break;
@@ -1792,6 +1809,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       case 'showCodexTask': {
         const bridge = this.getCodexBridge(); await bridge.initialize();
+        if (bridge.historyDeletion?.(request.taskId)) throw new Error(bridge.historyDeletion(request.taskId) === 'deleted' ? '此紀錄已刪除。' : '此紀錄正在刪除，請稍後重試。');
         if (!bridge.list().some(task => task.id === request.taskId)) {
           const launch = await this.pendingCodexTaskWorkspace(request.taskId);
           if (!launch) throw new Error('找不到 Codex 任務或成果。');
@@ -2821,6 +2839,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
   private managedTaskFocusSnapshot(root?: string): WorkspaceSnapshot['managedTaskFocus'] {
     const focus = this.managedTaskFocus;
+    if (focus && this.codex?.historyDeletion?.(focus.taskId)) { this.managedTaskFocus = undefined; return; }
     if (!focus || !root || !sameLocalPath(root, focus.originRoot) || this.managedTaskFocusScope !== this.connectedScopeKey()) return;
     if (focus.accountId && (focus.accountId !== this.session.activeAccountId || this.accountTransitionBusy ||
       !this.managedTaskFocusRetired && (!this.session.baseUrl || !this.currentUser))) return;
@@ -2833,6 +2852,7 @@ export class WorkspacePanel implements vscode.Disposable {
       // Opening an envelope is observation, never another owner claim or dispatch.
       const bridge = this.getCodexBridge(); await bridge.publish();
       const taskId = manifest.retired?.resultId ?? manifest.binding.taskId;
+      if (bridge.historyDeletion?.(taskId)) throw new Error('此任務紀錄已刪除或正在刪除，不會從舊入口重新執行。');
       if (!bridge.list().some(task => task.id === taskId)) throw new Error('任務尚無已保存的執行紀錄；請回原 Group 的準備頁核對開始結果。');
       this.bindManagedTaskFocus(manifest, taskId);
       await this.show('codex', { refresh: false }); this.sendSnapshot(); this.post({ type: 'codexTaskStarted', taskId }); return;
@@ -2842,6 +2862,7 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.codexLaunch?.publish();
     if (manifest.retired) {
       const bridge = this.getCodexBridge(); await bridge.initialize();
+      if (bridge.historyDeletion?.(manifest.retired.resultId)) throw new Error('此任務紀錄已刪除或正在刪除，不會從舊入口重新執行。');
       if (!bridge.list().some(task => task.id === manifest.retired!.resultId && task.savedResult)) throw new Error('此任務已封存，但成果不存在；不會從舊啟動檔重新執行。');
       this.bindManagedTaskFocus(manifest, manifest.retired.resultId);
       await this.show('codex', { refresh: false }); this.sendSnapshot(); this.post({ type: 'codexTaskStarted', taskId: manifest.retired.resultId }); return;
@@ -2855,6 +2876,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!this.projectContext.root || !sameLocalPath(await realpath(this.projectContext.root), manifest.binding.originRoot)) throw new Error('任務安裝根與來源 Group 不符。');
     const bridge = this.getCodexBridge();
     await bridge.initialize();
+    if (bridge.historyDeletion?.(manifest.binding.taskId)) throw new Error('此任務紀錄已刪除或正在刪除，不會從舊入口重新執行。');
     const reopening = bridge.list().some(task => task.id === manifest.binding.taskId);
     manifest = await bridge.claimTaskWorkspace(manifest.binding);
     if (!reopening && !bridge.list().some(task => task.id === manifest.binding.taskId)) {
@@ -3250,6 +3272,7 @@ export class WorkspacePanel implements vscode.Disposable {
         if (event.kind === 'tasks' || event.kind === 'tasksDelta') event = { ...event, tasks: event.tasks.filter(task => !task.origin || task.origin.accountKey === this.codexAccountKey()) };
         else if ('taskId' in event) {
           const taskId = event.taskId;
+          if (this.codex?.historyDeletion?.(taskId) === 'deleted') return;
           const task = this.codex?.list().find(value => value.id === taskId);
           if (task?.origin && task.origin.accountKey !== this.codexAccountKey()) return;
         }
@@ -5680,7 +5703,7 @@ export class WorkspacePanel implements vscode.Disposable {
         return;
       }
       const activeOperation: CloneOperationState = {
-        id: randomUUID(), scopeKey: this.connectedScopeKey(), projectRevision: resolution.revision, phase: 'running', label: '預設分支同步結果',
+        id: randomUUID(), scopeKey: this.connectedScopeKey(), projectRevision: resolution.revision, phase: 'confirming', label: '預設分支同步結果',
         items: existingProjects.map((project) => ({ projectId: project.id, projectPath: project.path_with_namespace, state: 'waiting' }))
       };
       operation = activeOperation;
@@ -5695,6 +5718,8 @@ export class WorkspacePanel implements vscode.Disposable {
         publishOperation();
         return;
       }
+      activeOperation.phase = 'running';
+      publishOperation();
       const checked = await this.resolveProjectRoot();
       if (!checked.root || !sameLocalPath(checked.root, root) || epoch !== this.session.connectionEpoch || group.id !== this.session.selectedGroup?.id ||
         workspaceGeneration !== this.workspaceFoldersGeneration) throw new Error('Group 或更新工作區已變更。');

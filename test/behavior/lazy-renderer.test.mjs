@@ -95,7 +95,7 @@ test('lazy feature chunks preserve navigation, background state, retry and nativ
     const dialog = page.locator('dialog.native-dialog'); await dialog.waitFor();
     assert.equal(await dialog.evaluate(element => element.matches(':modal')), true);
     await page.evaluate(() => document.body.classList.add('vscode-reduce-motion'));
-    await page.waitForFunction(() => document.querySelector('dialog')?.dataset.presence === 'entered');
+    await page.waitForFunction(() => document.querySelector('dialog.native-dialog[open]')?.dataset.presence === 'entered');
     assert.equal(await dialog.evaluate(element => getComputedStyle(element).animationName), 'none');
     await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'detached' });
     await page.waitForFunction(() => document.activeElement?.classList.contains('settings-trigger'));

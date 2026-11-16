@@ -37,6 +37,13 @@ export class CodexHostActions {
     }
     if (command.action === 'storage') { await this.vscode.commands.executeCommand('revealFileInOS', this.vscode.Uri.file(this.options.bridge().storagePath)); return; }
     const bridge = this.options.bridge();
+    if ('taskId' in command && typeof bridge.historyDeletion === 'function') {
+      await bridge.initialize();
+      const deletion = bridge.historyDeletion(command.taskId);
+      if (deletion && !['export-result', 'copy-handoff', 'open-artifact'].includes(command.action)) {
+        throw new Error(deletion === 'deleted' ? '此任務紀錄已刪除，不會從舊入口重新執行。' : '此任務紀錄正在刪除，請先完成清理。');
+      }
+    }
     if (command.action === 'regenerate-wiki') { await this.options.workflow(command.action, command.taskId); return; }
     if (command.action === 'open-worktree') {
       const spec = await bridge.specification(command.taskId);
@@ -60,7 +67,7 @@ export class CodexHostActions {
       if (!selected) return;
       if (selected.task.controls?.external) { await this.vscode.window.showInformationMessage('此連線由另一個 VS Code 視窗執行，請先到原視窗停止。'); return; }
       const action = await this.vscode.window.showQuickPick([
-        { label: '停止並匯出人工接續資料', action: 'manual-handoff' as const }, { label: '刪除連線並保留成果', action: 'stop-cleanup' as const }
+        { label: '停止並匯出人工接續資料', action: 'manual-handoff' as const }, { label: '停止並保留成果', action: 'stop-cleanup' as const }
       ], { title: selected.task.title, placeHolder: selected.detail, ignoreFocusOut: true });
       if (action) await this.run({ action: action.action, taskId: selected.task.id });
       return;
@@ -152,7 +159,8 @@ export class CodexHostActions {
         const admission = await this.restoreScheduler.tryAcquire('restore-' + manifest.id, spec, 2);
         if (!admission.reservation) throw new Error('原 Repo 或 Git 共用目錄正在使用，請稍後重試還原。');
         const reservation = admission.reservation;
-        const outcome = await bridge.results.restoreTo(manifest.id, repository, destination).then(result => ({ result }), (error: unknown) => ({ error }));
+        const outcome = await this.withResultHistory(bridge, manifest.id, () => bridge.results.restoreTo(manifest.id, repository, destination))
+          .then(result => ({ result }), (error: unknown) => ({ error }));
         const releases = await Promise.allSettled([reservation.primary, ...reservation.extras].map(lease => lease.release()));
         await reservation.release(releases.some(result => result.status === 'rejected'), true);
         const failure = releases.find((result): result is PromiseRejectedResult => result.status === 'rejected');
@@ -186,7 +194,7 @@ export class CodexHostActions {
             () => this.run({ action: 'export-result', taskId: command.taskId }));
           if (repository) {
             const prompt = text.length <= 30_000 ? text : text.slice(0, 28_000) + `\n\n摘要已節錄；完整需求、牌卡與檔案清單請讀取永久成果清單 ${JSON.stringify(path.join(bridge.results.directory, manifest.id, 'manifest.json'))}，不要把節錄當成完整需求。`;
-            await this.options.createTask({ kind: 'free', repository, prompt });
+            await this.withResultHistory(bridge, manifest.id, () => this.options.createTask({ kind: 'free', repository, prompt }));
           }
         }
       }
@@ -256,6 +264,16 @@ export class CodexHostActions {
       if (minutes === undefined) return;
       await bridge.setGoal(task.id, { objective, tokenBudget: Number(budget), timeBudgetSeconds: minutes ? Number(minutes) * 60 : undefined });
     } else await this.options.workflow(command.action as Parameters<CodexHostActionOptions['workflow']>[0], task.id);
+  }
+  private async withResultHistory<T>(bridge: CodexBridge, taskId: string, action: () => Promise<T>): Promise<T> {
+    const checked = async () => {
+      if (!this.vscode.workspace.isTrusted) throw new Error('請先信任工作區。');
+      return action();
+    };
+    if (typeof bridge.withHistoryAvailable === 'function') return bridge.withHistoryAvailable(taskId, checked);
+    const deletion = bridge.historyDeletion?.(taskId);
+    if (deletion) throw new Error(deletion === 'deleted' ? '此任務紀錄已刪除，不會從舊入口重新執行。' : '此任務紀錄正在刪除，請先完成清理。');
+    return checked();
   }
   private async existingDirectory(candidate: string): Promise<string | undefined> {
     try { const actual = await realpath(candidate); return (await stat(actual)).isDirectory() ? actual : undefined; } catch { return undefined; }

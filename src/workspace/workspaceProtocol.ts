@@ -271,7 +271,7 @@ export interface CloneOperationState {
   id: string;
   projectRevision?: string;
   scopeKey?: string;
-  phase: 'running' | 'completed' | 'cancelled' | 'failed';
+  phase: 'confirming' | 'running' | 'completed' | 'cancelled' | 'failed';
   label: string;
   items: Array<{
     projectId: number;
@@ -313,6 +313,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'cancelCodexTask'; taskId: string }
   | { type: 'pauseCodexTask'; taskId: string }
   | { type: 'deleteCodexTask'; taskId: string }
+  | { type: 'deleteCodexTasks'; taskIds: string[] }
   | { type: 'setCodexAutoAccept'; taskId: string; enabled: boolean }
   | { type: 'resumeCodexTask'; taskId: string }
   | { type: 'answerCodex'; taskId: string; interactionId: string; answer: import('../codex/protocol').CodexInteractionAnswer }
@@ -420,6 +421,7 @@ export type WorkspaceResponse =
   | { type: 'protocolError'; operationId?: string; message: string }
   | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
   | { type: 'codexTaskStarted'; taskId: string }
+  | { type: 'codexHistoryDeleted'; requestId?: string; deletedTaskIds: string[]; failures: Array<{ taskId: string; reason: string }>; cancelled?: boolean }
   | { type: 'codexLaunchDraft'; draft?: import('../codex/protocol').CodexLaunchDraft; open?: boolean; hidden?: boolean }
   | { type: 'codexUiDrafts'; requestId: string; snapshot?: import('../codex/uiDraftProtocol').CodexUiDraftSnapshot; error?: string }
   | { type: 'codexWorkflowResult'; taskId: string; result?: import('../codex/protocol').CodexTaskResult; report?: string; handoff?: string; wiki?: import('../codex/workflowProtocol').ProjectWikiPreview }

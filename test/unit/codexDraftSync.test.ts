@@ -154,3 +154,28 @@ test('deleting the old selection preserves a newer task selection with a fresh C
   ui = sync.accepted(snapshot([], { deletedTaskIds: ['old-task'] }), ui);
   assert.equal(ui.selectedTaskId, 'new-task'); assert.deepEqual(sync.next(ui)?.updates, [{ key: selection, revision: 0, value: 'new-task' }]);
 });
+
+test('confirmed history deletion fences late draft acknowledgements and reloads without affecting another task', () => {
+  let ui = restoreCodexUi(); const sync = new CodexDraftSync(ui);
+  ui = sync.load(snapshot([entry('deleted', 1, 'Previous draft'), entry('keep', 2, 'Other task')]), ui);
+  const edited = editCodexDraft(ui, 'deleted', 'Save already in flight'); sync.note(ui, edited); ui = edited;
+  const pending = sync.next(ui)!; assert.equal(pending.updates[0].key, key('deleted'));
+  ui = sync.forgetDeleted(['deleted'], ui);
+  assert.equal(ui.drafts.deleted, undefined); assert.equal(ui.drafts.keep.text, 'Other task');
+  ui = sync.accepted(snapshot([{ ...pending.updates[0], revision: 2 }, entry('keep', 2, 'Other task')]), ui);
+  assert.equal(ui.drafts.deleted, undefined, 'an acknowledgement generated before deletion cannot revive its draft');
+  ui = sync.load(snapshot([entry('deleted', 3, 'Late saved copy'), entry('keep', 2, 'Other task')]), ui);
+  assert.equal(ui.drafts.deleted, undefined, 'a stale full reload remains fenced');
+  assert.equal(ui.drafts.keep.text, 'Other task'); assert.equal(sync.next(ui), undefined);
+});
+
+test('history deletion clears its reading position and conflicts while a different scope can reuse the identity', () => {
+  const reading = JSON.stringify(['reading', 'deleted']);
+  let ui = restoreCodexUi(); const sync = new CodexDraftSync(ui);
+  const conflict = { id: 'deleted-conflict', key: key('deleted'), value: { text: 'Conflict copy', revision: 1 }, createdAt: '2026-11-16T00:00:00Z' };
+  ui = sync.load(snapshot([entry('deleted', 1, 'Old scope'), { key: reading, revision: 1, value: { top: 42, follow: false } }], { conflicts: [conflict] }), ui);
+  ui = sync.forgetDeleted(['deleted'], ui);
+  assert.equal(ui.reading?.deleted, undefined); assert.deepEqual(sync.conflicts, []);
+  ui = sync.load(snapshot([entry('deleted', 1, 'New scope')], { scope: 'account-root-b' }), ui);
+  assert.equal(ui.drafts.deleted.text, 'New scope', 'deletion fences are isolated to their storage scope');
+});

@@ -78,6 +78,7 @@ export class CodexDraftSync {
   private submittedResolutions: string[] = [];
   private resolving = new Set<string>();
   private urgentVersions = new Map<string, string>();
+  private deletedTasks = new Set<string>();
   constructor(ui: CodexUiState) {
     const saved = restoreCodexDraftSync(ui.draftSync); this.scope = saved?.scope;
     for (const entry of saved?.bases ?? []) this.bases.set(entry.key, entry);
@@ -105,6 +106,7 @@ export class CodexDraftSync {
   }
   load(snapshot: CodexUiDraftSnapshot, ui: CodexUiState): CodexUiState {
     if (this.scope && this.scope !== snapshot.scope) {
+      this.deletedTasks.clear();
       const current = codexDraftEntries(ui); this.bases.clear(); this.remote.clear(); this.dirty.clear(); ui = { drafts: {}, pending: {} };
       for (const entryKey of this.changedHere) if (current.has(entryKey)) { ui = apply(ui, entryKey, current.get(entryKey)); this.dirty.add(entryKey); }
     }
@@ -113,7 +115,8 @@ export class CodexDraftSync {
     return this.absorb(snapshot, ui, true);
   }
   private purgeDeleted(snapshot: CodexUiDraftSnapshot, ui: CodexUiState): CodexUiState {
-    const deleted = new Set(snapshot.deletedTaskIds ?? []); if (!deleted.size) return ui;
+    for (const id of snapshot.deletedTaskIds ?? []) this.deletedTasks.add(id);
+    const deleted = this.deletedTasks; if (!deleted.size) return ui;
     const current = codexDraftEntries(ui), removed = new Set<string>();
     for (const entryKey of new Set([...current.keys(), ...this.bases.keys(), ...this.remote.keys(), ...this.dirty])) {
       if (parseCodexUiDraftKey(entryKey)[0] === 'selection' && typeof current.get(entryKey) === 'string' && !deleted.has(String(current.get(entryKey))) &&
@@ -129,8 +132,12 @@ export class CodexDraftSync {
     this.conflicts = this.conflicts.filter(conflict => !removed.has(conflict.key));
     return ui;
   }
+  /** A confirmed history deletion fences even draft replies already in flight. */
+  forgetDeleted(taskIds: readonly string[], ui: CodexUiState): CodexUiState {
+    return this.purgeDeleted({ scope: this.scope ?? '', entries: [], conflicts: [], deletedTaskIds: [...taskIds] }, ui);
+  }
   private absorb(snapshot: CodexUiDraftSnapshot, ui: CodexUiState, hydrate = false): CodexUiState {
-    const deleted = new Set(snapshot.deletedTaskIds ?? []), entries = snapshot.entries.filter(entry => !deleted.has(taskOf(entry.key, entry.value) ?? ''));
+    const deleted = this.deletedTasks, entries = snapshot.entries.filter(entry => !deleted.has(taskOf(entry.key, entry.value) ?? ''));
     this.conflicts = snapshot.conflicts.filter(conflict => !deleted.has(taskOf(conflict.key, conflict.value) ?? '')).map(conflict => ({ ...conflict, value: clean(conflict.key, conflict.value) }));
     for (const id of this.resolving) if (!this.conflicts.some(item => item.id === id)) this.resolving.delete(id);
     const keys = new Set(entries.map(entry => entry.key)), local = codexDraftEntries(ui);

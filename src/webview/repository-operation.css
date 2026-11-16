@@ -1,0 +1,32 @@
+.repository-operation-summary { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; height: 32px; min-width: 0; overflow: hidden; }
+.repository-operation-summary-text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.repository-operation-summary[data-state="failed"] .repository-operation-summary-text { color: var(--danger); }
+.repository-operation-summary progress { width: 64px; height: 6px; flex: 0 1 64px; accent-color: var(--accent); }
+.repository-operation-trigger { flex: 0 0 auto; }
+.repository-operation-trigger:disabled { visibility: hidden; }
+.repository-operation-details { display: flex; flex-direction: column; min-width: 0; min-height: 0; gap: 8px; padding: 12px 16px; color: var(--vscode-foreground); background: var(--surface); }
+.repository-operation-overlay { position: fixed; z-index: 8; border-top: 1px solid var(--border); box-shadow: 0 -5px 18px var(--vscode-widget-shadow, #0004); }
+.repository-operation-heading, .repository-operation-footer { display: flex; flex: 0 0 auto; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.repository-operation-heading h2 { min-width: 0; overflow-wrap: anywhere; }
+.repository-operation-heading button { flex: 0 0 auto; }
+.repository-operation-description { flex: 0 0 auto; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.repository-operation-filters { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 6px; }
+.repository-operation-filters button[aria-pressed="true"] { background: var(--vscode-button-secondaryBackground); border-color: var(--focus); }
+.repository-operation-details .operation-item-list { flex: 1 1 0; min-height: 0; max-height: none; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.repository-operation-details .operation-result { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 5px 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.repository-operation-details .operation-result strong { min-width: 0; overflow-wrap: anywhere; }
+.repository-operation-details .operation-message { grid-column: 1 / -1; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; background: transparent; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
+.repository-operation-details .operation-message.failed { color: var(--danger); }
+.repository-operation-footer { border-top: 1px solid var(--border); padding-top: 8px; }
+.repository-operation-footer span { min-width: 0; overflow-wrap: anywhere; }
+.repository-operation-footer button { flex: 0 0 auto; }
+.repository-operation-details > .operation-feedback { flex: 0 1 auto; max-height: 100px; overflow: auto; }
+.repository-operation-modal { padding: 0; }
+.repository-operation-modal > .repository-operation-details { width: 100%; height: 100%; padding: 0; }
+.repository-operation-content { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; gap: 8px; padding: 12px 16px; }
+.repository-operation-content > .operation-feedback { flex: 0 1 auto; max-height: 100px; overflow: auto; }
+@media (max-width: 480px) {
+  .repository-operation-summary progress { display: none; }
+  .repository-operation-details .operation-result { grid-template-columns: minmax(0, 1fr); }
+  .repository-operation-details .operation-message { grid-column: 1; }
+}
