@@ -1,7 +1,7 @@
 import { lstat, readFile, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { checkNetworkBudget, LEASE_SCHEMA, LocalNetworkLease, readNetworkMetadata, type NetworkLeaseOptions } from '../api/localNetworkLease';
+import { checkNetworkBudget, LEASE_SCHEMA, LocalNetworkLease, readNetworkMetadata, retireApiControlLease, type NetworkLeaseOptions } from '../api/localNetworkLease';
 import { missingFile, ownedStoragePath } from './ownedStorage';
 
 // The wx recovery hint is visible before its JSON write finishes, and Windows
@@ -44,7 +44,11 @@ export async function acquireStorageControl(directory: string, kind: string, opt
           if (dead) {
             const current = JSON.parse(await readNetworkMetadata(file, options));
             if (current?.schema === owner.schema && current.kind === kind && current.pid === owner.pid && current.nonce === owner.nonce &&
-                current.state === 'reserved' && current.childPid === null) { checkNetworkBudget(options); await unlink(file); await rmdir(directory); }
+                current.state === 'reserved' && current.childPid === null) {
+              checkNetworkBudget(options);
+              if (kind === 'api-control') await retireApiControlLease(directory, current, options);
+              else { await unlink(file); await rmdir(directory); }
+            }
           }
         }
       }

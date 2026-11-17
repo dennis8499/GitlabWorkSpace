@@ -4,6 +4,7 @@ import path from 'node:path';
 import { GitLabSession } from '../../src/connection/session';
 import { accountTokenKey } from '../../src/connection/accountStore';
 import type { IssueNavigation } from '../../src/workspace/workspaceProtocol';
+import { OperationLog } from '../../src/logging/operationLog';
 
 const loader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const original = loader._load;
@@ -531,4 +532,37 @@ test('native login validates through Host progress and never opens a credential 
     assert.equal(messages.some(message => message.type === 'openAccountManager'), false);
     assert.doesNotMatch(JSON.stringify([messages, steps, progress]), /one-secret/);
   } finally { vscode.window.showInputBox = priorInput; vscode.window.withProgress = priorProgress; }
+});
+
+for (const entry of ['connect', 'addAccount'] as const) for (const status of ['success', 'error', 'cancelled'] as const) {
+  test(`native ${entry} logs its ${status} outcome without a false success or duplicate receipt`, async t => {
+    const { host, session, messages, probes } = fixture(), output: string[] = [];
+    const log = new OperationLog({ info: line => output.push(line), warn: line => output.push(line), error: line => output.push(line) });
+    Object.defineProperty(session, 'log', { value: log }); t.after(() => log.dispose());
+    const priorInput = vscode.window.showInputBox;
+    vscode.window.showInputBox = async (options: any) => status === 'cancelled' ? undefined : options.password ? status === 'error' ? 'invalid' : 'one-secret' : 'https://gitlab.test';
+    t.after(() => { vscode.window.showInputBox = priorInput; });
+    await host.runCommandAction(entry, () => entry === 'connect' ? host.connectFromSidebar() : host.accountFromSidebar('addAccount'), { operationId: 'native-' + entry + '-' + status });
+    const terminal = output.filter(line => line.startsWith(`[account] ${entry} `) && !line.startsWith(`[account] ${entry} started `));
+    assert.ok(terminal.length >= 1); assert.ok(terminal.every(line => line.startsWith(`[account] ${entry} ${status} `)), terminal.join('\n'));
+    assert.equal(probes(), status === 'cancelled' ? 0 : 1);
+    assert.equal(messages.filter(message => message.type === 'accountLoginResult').length, status === 'cancelled' ? 0 : 1);
+    assert.equal(host.operations.get('native-' + entry + '-' + status).status, status === 'success' ? 'succeeded' : status === 'error' ? 'failed' : 'cancelled');
+    assert.ok(!output.join('\n').includes('one-secret'));
+  });
+}
+
+test('a saved account requiring native relogin propagates failure to the switch command log', async t => {
+  const { host, session } = fixture(); await authenticate(host, login('saved'));
+  const accounts = session.accounts.map(account => ({ ...account, needsLogin: true })), output: string[] = [];
+  Object.defineProperty(session, 'accounts', { get: () => accounts });
+  const log = new OperationLog({ info: line => output.push(line), warn: line => output.push(line), error: line => output.push(line) });
+  Object.defineProperty(session, 'log', { value: log }); t.after(() => log.dispose());
+  const priorInput = vscode.window.showInputBox;
+  vscode.window.showInputBox = async (options: any) => options.password ? 'invalid' : 'https://gitlab.test';
+  t.after(() => { vscode.window.showInputBox = priorInput; });
+  await host.runCommandAction('switchAccount', () => host.accountFromSidebar('switchAccount', accounts[0].id), { operationId: 'native-relogin' });
+  const terminal = output.filter(line => line.startsWith('[account] switchAccount ') && !line.startsWith('[account] switchAccount started '));
+  assert.ok(terminal.length >= 1); assert.ok(terminal.every(line => line.startsWith('[account] switchAccount error ')));
+  assert.equal(host.operations.get('native-relogin').status, 'failed');
 });

@@ -827,12 +827,15 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   async connectFromSidebar(): Promise<void> {
-    await this.runLogged('connect', () => this.connect());
+    let outcome: LogOutcome = { result: 'success' };
+    await this.runLogged('connect', () => this.connect(undefined, result => { outcome = result; }), {}, () => outcome);
   }
 
   async accountFromSidebar(action: 'addAccount' | 'switchAccount' | 'removeAccount', accountId?: string): Promise<void> {
-    await this.runLogged(action, () => action === 'addAccount' ? this.connect(accountId) : action === 'switchAccount'
-      ? this.switchAccount(accountId) : this.removeAccount(accountId));
+    let outcome: LogOutcome = { result: 'success' };
+    const record = (result: LogOutcome): void => { outcome = result; };
+    await this.runLogged(action, () => action === 'addAccount' ? this.connect(accountId, record) : action === 'switchAccount'
+      ? this.switchAccount(accountId, record) : this.removeAccount(accountId), {}, () => outcome);
   }
 
   async scanFromSidebar(): Promise<void> { await this.runLogged('scanRepositories', () => this.openRepositoryScan()); }
@@ -5195,20 +5198,23 @@ export class WorkspacePanel implements vscode.Disposable {
     return createHash('sha256').update(`${baseUrl}\0${userId}\0${groupId}`).digest('hex').slice(0, 24) as ConnectedScope;
   }
 
-  private nativeLoginPrompt?: Promise<void>;
-  private async connect(accountId?: string): Promise<void> {
-    if (this.nativeLoginPrompt) return this.nativeLoginPrompt;
+  private nativeLoginPrompt?: Promise<LogOutcome>;
+  private async connect(accountId?: string, onOutcome?: (outcome: LogOutcome) => void): Promise<void> {
+    if (this.nativeLoginPrompt) { const outcome = await this.nativeLoginPrompt; onOutcome?.(outcome); return; }
     this.assertAccountTransitionAllowed();
     const epoch = this.session.connectionEpoch;
-    const prompt = async () => {
+    const prompt = async (): Promise<LogOutcome> => {
       const input = await promptNativeAccountLogin(this.session.accounts, accountId, options => vscode.window.showInputBox(options), this.session.baseUrl);
-      if (!input) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
+      if (!input) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return { result: 'cancelled' }; }
       if (epoch !== this.session.connectionEpoch) throw new Error('帳號已變更，請重新登入。');
+      const requestId = randomUUID();
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: '正在驗證 GitLab 帳號', cancellable: false },
-        () => this.loginAccount({ ...input, requestId: randomUUID() }));
+        () => this.loginAccount({ ...input, requestId }));
+      const receipt = this.accountLoginReceipts.get(requestId);
+      return receipt?.error ? { result: 'error', message: receipt.error } : { result: receipt ? 'success' : 'cancelled' };
     };
     this.nativeLoginPrompt = prompt();
-    try { await this.nativeLoginPrompt; } finally { this.nativeLoginPrompt = undefined; }
+    try { const outcome = await this.nativeLoginPrompt; onOutcome?.(outcome); } finally { this.nativeLoginPrompt = undefined; }
   }
 
   private async loginAccount(request: NativeAccountLogin): Promise<void> {
@@ -5269,14 +5275,14 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private async switchAccount(accountId?: string): Promise<void> {
+  private async switchAccount(accountId?: string, onLoginOutcome?: (outcome: LogOutcome) => void): Promise<void> {
     this.assertAccountTransitionAllowed();
     if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
     if (!accountId) return this.openAccountManager();
     const selected = accountId;
     const account = this.session.accounts.find(item => item.id === selected);
     if (!account) throw new Error('找不到此 GitLab 帳號。');
-    if (account.needsLogin) return this.connect(account.id);
+    if (account.needsLogin) return this.connect(account.id, onLoginOutcome);
     this.accountTransitionBusy = true; this.accountOperation = 'switch'; this.sendSnapshot(); await this.syncSidebarState?.();
     try { await this.connectedUserChanged(await this.session.switchAccount(selected)); }
     finally { this.accountTransitionBusy = false; this.accountOperation = undefined; this.sendSnapshot(); await this.syncSidebarState?.(); }

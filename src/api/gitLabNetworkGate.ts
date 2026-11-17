@@ -20,13 +20,13 @@ const admissions = new Map<string, { gate: GitLabReadGate; users: number }>();
 interface Reservation { directory: string; nonce: string; phase: 'admitting' | 'admitted' | 'sending' | 'orphaned' | 'settled'; }
 // Only this process's positively known, abandoned reservations may be reclaimed.
 const reservations = new Map<string, Map<string, Reservation>>();
-const pendingControls = new Map<string, LocalNetworkLease>();
-const controlReleases = new Map<string, Promise<void>>();
+const pendingControls = new Map<string, Set<LocalNetworkLease>>();
+const controlReleases = new Map<LocalNetworkLease, Promise<void>>();
 const CLEANUP_BUDGET_MS = 5_000;
 
 export interface NetworkCoordinationDiagnostics {
   phase: 'admission' | 'cooldown' | 'cleanup'; code: string; systemCode?: string;
-  runtimePath: string; requestStarted: boolean;
+  runtimePath: string; leasePath?: string; requestStarted: boolean;
 }
 
 export class GitLabNetworkError extends Error {
@@ -126,13 +126,15 @@ export class GitLabNetworkGate {
       : error instanceof Error && error.name === 'TimeoutError' ? 'queue-timeout'
         : ['EACCES', 'EPERM', 'EROFS'].includes(osCode ?? '') ? 'runtime-access'
           : 'coordination-unavailable';
-    const diagnostics: NetworkCoordinationDiagnostics = { phase, code, systemCode: osCode, runtimePath: this.root, requestStarted };
+    const leasePath = error && typeof error === 'object' && 'leasePath' in error && typeof error.leasePath === 'string' ? error.leasePath : undefined;
+    const diagnostics: NetworkCoordinationDiagnostics = { phase, code, systemCode: osCode, runtimePath: this.root, leasePath, requestStarted };
     currentOperationLog()?.record({ feature: 'api-coordination', action: phase, result: 'error', network: false,
-      coordinationCode: code, coordinationPhase: phase, systemCode: osCode, runtimePath: this.root, requestStarted,
+      coordinationCode: code, coordinationPhase: phase, systemCode: osCode, runtimePath: this.root, leasePath, requestStarted,
       message: `本機網路協調失敗；${requestStarted ? '請求已開始，結果須核對' : '尚未送出 GitLab 請求'}。` });
     if (requestStarted) return new GitLabNetworkCleanupError(diagnostics, { cause: error });
     const message = error instanceof GitLabNetworkError ? error.message : code === 'queue-timeout'
       ? 'GitLab 請求在等待本機網路額度時逾時，尚未送出；請稍後重試。'
+      : code === 'metadata-missing' ? '本機 API 控制鎖缺少擁有者資料，尚未送出 GitLab 請求；請開啟 Log 核對鎖路徑，依本機網路負載控制文件進行離線檢查。'
       : `本機 GitLab 網路協調無法使用（${osCode ?? code}），尚未送出請求；請開啟 Log 查看原因。`;
     return new GitLabNetworkError(message, error instanceof GitLabNetworkError ? error.retryAt : undefined, { cause: error }, diagnostics);
   }
@@ -253,21 +255,30 @@ export class GitLabNetworkGate {
   }
   private async control(directory: string, deadline: number, signal?: AbortSignal): Promise<LocalNetworkLease> {
     const controlPath = path.join(directory, 'control.lock');
-    const releasing = controlReleases.get(controlPath);
-    if (releasing) { try { await releasing; } catch { /* Retry only our recorded control below. */ } }
-    const pending = pendingControls.get(controlPath);
-    if (pending) await this.releaseControl(pending, deadline);
+    for (const pending of [...(pendingControls.get(controlPath) ?? [])]) {
+      const releasing = controlReleases.get(pending);
+      if (releasing) { try { await releasing; } catch { /* Retry only this recorded owner below. */ } }
+      if (pendingControls.get(controlPath)?.has(pending)) await this.releaseControl(pending, deadline);
+    }
     checkNetworkBudget({ deadline, signal });
-    return acquireStorageControl(controlPath, 'api-control', { deadline, signal });
+    try { return await acquireStorageControl(controlPath, 'api-control', { deadline, signal }); }
+    catch (error) {
+      if (error instanceof Error && Object.isExtensible(error)) Object.assign(error, { leasePath: controlPath });
+      throw error;
+    }
   }
   private async releaseControl(control: LocalNetworkLease, deadline: number): Promise<void> {
-    const existing = controlReleases.get(control.directory);
+    const existing = controlReleases.get(control);
     if (existing) return existing;
-    pendingControls.set(control.directory, control);
+    let pending = pendingControls.get(control.directory);
+    if (!pending) { pending = new Set(); pendingControls.set(control.directory, pending); }
+    pending.add(control);
     const release = control.release({ deadline });
-    controlReleases.set(control.directory, release);
-    try { await release; if (pendingControls.get(control.directory) === control) pendingControls.delete(control.directory); }
-    finally { if (controlReleases.get(control.directory) === release) controlReleases.delete(control.directory); }
+    controlReleases.set(control, release);
+    try {
+      await release; pending.delete(control);
+      if (!pending.size && pendingControls.get(control.directory) === pending) pendingControls.delete(control.directory);
+    } finally { if (controlReleases.get(control) === release) controlReleases.delete(control); }
   }
 }
 

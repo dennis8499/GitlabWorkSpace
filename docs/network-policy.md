@@ -85,6 +85,37 @@ Windows compiler cache 的新目錄及新編譯檔案明確由目前使用者持
 
 故障時先依 owner 的 PID、childPid、開始時間確認舊操作與所有子程序均已結束，再由操作人員處理該鎖目錄。不要在程序仍執行、PID 身分不明或缺少子程序資料時直接刪鎖。API 控制鎖異常同樣需要先檢查；已完成或取消的正常請求會自行清除預約。
 
+### API 控制鎖的釋放
+
+0.54.2 起，`api/<host-hash>/control.lock` 正常釋放，以及確認擁有程序已結束的 `reserved` API 控制鎖回收，先保留 `owner.json` 將整個目錄更名至同層的唯一 `.retired-<nonce>-<id>` 目錄。成功更名即釋放控制鎖；後續只清理記錄的舊路徑，不再碰原鎖位置。重複釋放共用同一次執行。
+
+舊目錄刪除失敗會留下 `retired-cleanup-pending` 警告及 `leasePath`，不阻擋新請求，也不改判已確認的寫入結果。若舊目錄含其他檔案，保留全部內容供檢查。更名前失敗、狀態檔寫入失敗與所有權不明仍維持阻擋或待核對；不自動重送寫入。Git 與其他資源鎖沿用原協議。
+
+### API 控制鎖離線復原
+
+`metadata-missing / ENOENT` 表示擁有者檔案持續讀不到，無法單憑 Log 判斷目錄是否為空。這類未知鎖不自動回收。請在產生 Log 的電腦，以原 OS 使用者執行以下步驟；不要改為清理其他電腦或其他使用者的 runtime。
+
+1. 取得 [repair-api-control.ps1](../resources/repair-api-control.ps1)。VSIX 也包含相同檔案，位於 `extension/resources/repair-api-control.ps1`；安裝後位於擴充功能目錄的 `resources/`。將工具複製到可操作的資料夾。
+2. 停止相關任務，完全結束所有 VS Code 視窗、Extension Host 及其他使用此 runtime 的客戶端；修復期間不要重啟。程序檢查是輔助，`-ClientsStopped` 代表你已確認所有相關客戶端停止。
+3. 開啟獨立 PowerShell，在工具所在目錄執行檢查。`$runtimePath` 須與 Log 的 `runtimePath` 相同；若使用自訂 runtime，請代入該完整本機路徑。
+
+   ```powershell
+   $runtimePath = Join-Path $env:LOCALAPPDATA 'GitLabWorkspace\runtime-v1'
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-api-control.ps1 -RuntimeRoot $runtimePath
+   ```
+
+4. 從輸出選定確認為 `Empty` 的一個 `LeasePath`，或使用新版 Log 記錄的 `leasePath` 明確檢查。套用僅支援單一完整路徑：
+
+   ```powershell
+   $leasePath = '貼上已核對的完整 LeasePath'
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-api-control.ps1 -RuntimeRoot $runtimePath -LeasePath $leasePath
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-api-control.ps1 -RuntimeRoot $runtimePath -LeasePath $leasePath -Apply -ClientsStopped
+   ```
+
+5. 確認 `Removed` 或 `Missing` 後，安裝 `gitlab-workspace-0.54.2.vsix`，再重新開啟 VS Code 並連線 GitLab。若已安裝修正版，直接重新開啟即可。
+
+工具預設只檢查；套用前兩次檢查宿主程序，核對實際路徑與所有祖先目錄，拒絕網路路徑、重新導向及其他鎖種類。實際移除使用非遞迴的空目錄刪除。`NotEmpty`、權限不足、程序檢查失敗或目錄改變時停止，保留全部檔案；請保存 `Entries` 與相關 Log 供後續診斷。`state.json`、`network-policy.json`、Git 鎖與非空目錄均不在清理範圍內。
+
 ## 站台容量界線
 
 上述限制只管理同一使用者、同一台電腦上這些工具的操作。其他電腦、終端及 VS Code 內建 autofetch 不受此協議控制。50 台電腦仍可能合計每秒 50 次 API 啟動及 50 個 Git 操作；初始值不是伺服器容量保證。管理者應依 GitLab/Gitaly 的實測 CPU、延遲、排隊與限流資料校準站台政策及既有伺服器限制。

@@ -293,6 +293,14 @@ test('handled domain failures are logged as errors even when the adapter resolve
   log.dispose();
 });
 
+test('lease paths are allowlisted diagnostics and apply the same secret redaction as other paths', () => {
+  const { log, entries, output } = fixture(); log.addSecret('host-only-token');
+  log.record({ feature: 'api-coordination', action: 'admission', result: 'error', leasePath: 'C:\\runtime\\host-only-token\\control.lock',
+    coordinationCode: 'metadata-missing', requestStarted: false });
+  assert.equal(entries()[0].leasePath, 'C:\\runtime\\[redacted]\\control.lock');
+  assert.equal(entries()[0].requestStarted, false); assert.equal(JSON.stringify(output).includes('host-only-token'), false);
+});
+
 test('applied writes with refresh warnings remain successful and retain the actual warning message', async () => {
   const { log, entries } = fixture();
   const warning = 'Issue 已更新，但重新載入失敗：GitLab read timed out after 30 seconds.';

@@ -18,6 +18,10 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await writeFile(path.join(root, 'out/extension.js'), 'compiled');
   await savePreparation(root, ['lint', 'compile'], ['out']);
   await assertPrepared(root, ['compile']);
+  assert.ok(preparationInputs().includes('resources/repair-api-control.ps1'), 'the packaged repair script is a required preparation input');
+  await writeFile(path.join(root, 'resources/repair-api-control.ps1'), 'changed repair tool');
+  await assert.rejects(assertPrepared(root, ['compile']), /changed/);
+  await writeFile(path.join(root, 'resources/repair-api-control.ps1'), 'input');
   await writeFile(path.join(root, '.github/release.yml'), 'changed CI');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await rm(path.join(root, '.github/release.yml'));

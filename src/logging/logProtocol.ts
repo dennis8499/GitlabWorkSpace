@@ -19,6 +19,7 @@ export interface LogContext {
   coordinationPhase?: 'admission' | 'cooldown' | 'cleanup';
   systemCode?: string;
   runtimePath?: string;
+  leasePath?: string;
   requestStarted?: boolean;
 }
 

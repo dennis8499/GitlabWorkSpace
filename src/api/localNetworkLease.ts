@@ -1,12 +1,17 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, lstat, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, lstat, readFile, readdir, rename, rmdir, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ownedStoragePath } from '../storage/ownedStorage';
+import { currentOperationLog } from '../logging/operationLog';
 
 export const LEASE_SCHEMA = 'GitLabWorkspaceLease/v1';
 export interface NetworkLeaseOptions { signal?: AbortSignal; timeoutMs?: number; deadline?: number; }
 export class NetworkLeaseError extends Error {
-  constructor(message: string, readonly coordinationCode: string, options?: ErrorOptions) { super(message, options); this.name = 'NetworkLeaseError'; }
+  leasePath?: string;
+  constructor(message: string, readonly coordinationCode: string, options?: ErrorOptions & { leasePath?: string }) {
+    super(message, options); this.name = 'NetworkLeaseError'; this.leasePath = options?.leasePath;
+  }
 }
 export function checkNetworkBudget(options: Pick<NetworkLeaseOptions, 'signal' | 'deadline'>): void {
   options.signal?.throwIfAborted();
@@ -73,11 +78,70 @@ export interface NetworkLeaseOwner {
   childStartedAt?: string; processTreeConfirmed?: boolean;
 }
 
+async function checkedApiControlOwner(directory: string, expected: NetworkLeaseOwner, options: NetworkLeaseOptions): Promise<void> {
+  checkNetworkBudget(options);
+  if (!await ownedStoragePath(path.dirname(directory), directory)) throw new NetworkLeaseError('API control lease disappeared before retirement.', 'owner-changed', { leasePath: directory });
+  checkNetworkBudget(options);
+  const file = path.join(directory, 'owner.json'), info = await lstat(file);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 4096) throw new NetworkLeaseError('Unsafe API control lease metadata.', 'owner-unconfirmed', { leasePath: directory });
+  const owner = JSON.parse(await readNetworkMetadata(file, options)) as NetworkLeaseOwner | null;
+  if (!owner || owner.schema !== LEASE_SCHEMA || owner.kind !== 'api-control' || owner.state !== 'reserved' || owner.childPid !== null ||
+      owner.nonce !== expected.nonce || owner.pid !== expected.pid || !/^[a-f0-9-]{36}$/i.test(owner.nonce) || !Number.isSafeInteger(owner.pid) || owner.pid < 1) {
+    throw new NetworkLeaseError('Refusing to retire an unconfirmed or different API control owner.', 'owner-changed', { leasePath: directory });
+  }
+}
+
+function warnApiControlCleanup(error: unknown, leasePath: string, code: string): void {
+  currentOperationLog()?.record({ feature: 'api-coordination', action: 'cleanup', result: 'error', level: 'warn', network: false,
+    coordinationPhase: 'cleanup', coordinationCode: code, leasePath, systemCode: (error as NodeJS.ErrnoException)?.code,
+    message: code === 'retired-cleanup-pending' ? 'API 控制鎖已釋放；舊目錄清理未完成，後續請求可繼續。' : 'API 控制鎖尚未建立；空目錄清理未完成，請檢查指定路徑。' });
+}
+
+/** Only reserved JS API controls may detach. The caller serializes release or holds the recovery guard. */
+export async function retireApiControlLease(directory: string, owner: NetworkLeaseOwner, options: NetworkLeaseOptions = {}): Promise<void> {
+  const retired = directory + '.retired-' + owner.nonce + '-' + randomUUID();
+  const budget = { ...options, deadline: Math.min(Date.now() + 2_000, options.deadline ?? Infinity) };
+  try {
+    for (;;) {
+      await checkedApiControlOwner(directory, owner, budget);
+      checkNetworkBudget(budget);
+      try {
+        await lstat(retired);
+        throw new NetworkLeaseError('API control retirement destination is occupied.', 'owner-changed', { leasePath: retired });
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      checkNetworkBudget(budget);
+      try { await rename(directory, retired); break; }
+      catch (error) {
+        if (!isTransientWindowsFileError(error) || Date.now() >= budget.deadline) throw error;
+        await networkSleep(10, options.signal);
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error && Object.isExtensible(error)) Object.assign(error, { leasePath: directory });
+    throw error;
+  }
+  // Rename is the release commit. Never revisit the canonical path or fail admission
+  // because garbage collection failed after a successor could already own it.
+  try {
+    await checkedApiControlOwner(retired, owner, budget);
+    checkNetworkBudget(budget);
+    const entries = await readdir(retired);
+    if (entries.length !== 1 || entries[0] !== 'owner.json') throw new NetworkLeaseError('Retired API control contains unexpected files; all metadata was preserved.', 'owner-unconfirmed');
+    checkNetworkBudget(budget); await unlink(path.join(retired, 'owner.json'));
+    checkNetworkBudget(budget); await rmdir(retired);
+  } catch (error) { warnApiControlCleanup(error, retired, 'retired-cleanup-pending'); }
+}
+
 /** Cross-language exclusive lease. Unknown owners are never reclaimed by age or PID. */
 export class LocalNetworkLease {
   private released = false;
+  private releaseInFlight?: Promise<void>;
   private constructor(readonly directory: string, private owner: NetworkLeaseOwner) {}
   static async acquire(directory: string, kind: string, options: NetworkLeaseOptions = {}): Promise<LocalNetworkLease> {
+    try { return await this.acquireExclusive(directory, kind, options); }
+    catch (error) { if (error instanceof NetworkLeaseError) error.leasePath ??= directory; throw error; }
+  }
+  private static async acquireExclusive(directory: string, kind: string, options: NetworkLeaseOptions): Promise<LocalNetworkLease> {
     const deadline = Math.min(options.deadline ?? Infinity, Date.now() + (options.timeoutMs ?? 30_000));
     // Legacy resource callers use timeoutMs: 1 for a single non-waiting claim.
     // Only explicit deadlines also bound the first claim's metadata I/O.
@@ -89,9 +153,24 @@ export class LocalNetworkLease {
       checkNetworkBudget(options);
       try {
         await mkdir(directory, { mode: 0o700 });
+        const created = kind === 'api-control' ? await lstat(directory) : undefined;
         const owner: NetworkLeaseOwner = { schema: LEASE_SCHEMA, nonce: randomUUID(), pid: process.pid, createdAt: new Date().toISOString(), kind, state: 'reserved', childPid: null, processTreeConfirmed: false };
         try { await atomicNetworkJson(path.join(directory, 'owner.json'), owner, options); }
-        catch (error) { throw new NetworkLeaseError('Could not establish network lease; coordination is blocked until inspected.', 'owner-unconfirmed', { cause: error }); }
+        catch (error) {
+          if (created) {
+            try {
+              const cleanup = { deadline: Date.now() + 1_000 };
+              checkNetworkBudget(cleanup);
+              if (await ownedStoragePath(path.dirname(directory), directory)) {
+                checkNetworkBudget(cleanup);
+                const current = await lstat(directory);
+                checkNetworkBudget(cleanup);
+                if (current.dev === created.dev && current.ino === created.ino) await rmdir(directory);
+              }
+            } catch (cleanupError) { warnApiControlCleanup(cleanupError, directory, 'unpublished-cleanup-pending'); }
+          }
+          throw new NetworkLeaseError('Could not establish network lease; no operation entered the lease.', 'owner-unconfirmed', { cause: error });
+        }
         return new LocalNetworkLease(directory, owner);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST' && !isTransientWindowsFileError(error)) throw error;
@@ -128,7 +207,15 @@ export class LocalNetworkLease {
     this.owner = { ...this.owner, ...fields, schema: LEASE_SCHEMA, nonce: this.owner.nonce, pid: this.owner.pid, kind: this.owner.kind };
     await atomicNetworkJson(path.join(this.directory, 'owner.json'), this.owner);
   }
-  async release(options: Pick<NetworkLeaseOptions, 'deadline'> = {}): Promise<void> {
+  release(options: Pick<NetworkLeaseOptions, 'deadline'> = {}): Promise<void> {
+    if (this.owner.kind !== 'api-control') return this.releaseLegacy(options);
+    if (this.released) return Promise.resolve();
+    this.releaseInFlight ??= retireApiControlLease(this.directory, this.owner, options).then(() => {
+      this.released = true; this.releaseInFlight = undefined;
+    }, error => { this.releaseInFlight = undefined; throw error; });
+    return this.releaseInFlight;
+  }
+  private async releaseLegacy(options: Pick<NetworkLeaseOptions, 'deadline'>): Promise<void> {
     if (this.released) return;
     const current = JSON.parse(await readNetworkMetadata(path.join(this.directory, 'owner.json'), options)) as NetworkLeaseOwner;
     if (current.nonce !== this.owner.nonce) throw new NetworkLeaseError('Refusing to release a different network lease owner.', 'owner-changed');
