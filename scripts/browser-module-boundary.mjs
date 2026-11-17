@@ -4,6 +4,7 @@ import { builtinModules } from 'node:module';
 // These modules contain browser-safe contracts, data and pure operations. They are
 // checked by the same rule, so a later Host dependency cannot enter transitively.
 export const browserSharedModules = [
+  'src/connection/connectionState.ts',
   'src/codex/documentationVerification.ts',
   'src/codex/forms.ts', 'src/codex/historyBudget.ts', 'src/codex/launchProtocol.ts', 'src/codex/protocol.ts',
   'src/codex/transcript.ts', 'src/codex/uiDraftProtocol.ts', 'src/connection/accountProtocol.ts',

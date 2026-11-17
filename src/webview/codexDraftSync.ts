@@ -68,6 +68,7 @@ function apply(ui: CodexUiState, entryKey: string, value: unknown | null): Codex
 /** Every write uses the last acknowledged revision for its own entry. */
 export class CodexDraftSync {
   scope?: string;
+  remoteScope?: string;
   loaded = false;
   conflicts: CodexUiDraftConflict[] = [];
   private bases = new Map<string, CodexUiDraftEntry>();
@@ -105,6 +106,7 @@ export class CodexDraftSync {
     return { ...ui, selectedTaskId: taskId, draftSync: this.metadata() };
   }
   load(snapshot: CodexUiDraftSnapshot, ui: CodexUiState): CodexUiState {
+    this.remoteScope = snapshot.remoteScope;
     if (this.scope && this.scope !== snapshot.scope) {
       this.deletedTasks.clear();
       const current = codexDraftEntries(ui); this.bases.clear(); this.remote.clear(); this.dirty.clear(); ui = { drafts: {}, pending: {} };
@@ -155,7 +157,7 @@ export class CodexDraftSync {
     }
     return { ...ui, draftSync: this.metadata() };
   }
-  next(ui: CodexUiState): { scope: string; updates: CodexUiDraftEntry[]; resolveConflictIds?: string[] } | undefined {
+  next(ui: CodexUiState): { scope: string; remoteScope?: string; updates: CodexUiDraftEntry[]; resolveConflictIds?: string[] } | undefined {
     if (!this.loaded || !this.scope || this.submitted) return;
     const blocked = new Set(this.conflicts.filter(item => !this.resolving.has(item.id)).map(item => item.key)), values = codexDraftEntries(ui);
     const candidates = new Set([...this.dirty, ...this.conflicts.filter(item => this.resolving.has(item.id)).map(item => item.key)]);
@@ -163,7 +165,7 @@ export class CodexDraftSync {
     if (!updates.length && !this.resolving.size) return;
     this.submitted = updates;
     this.submittedResolutions = [...this.resolving].filter(id => this.conflicts.some(item => item.id === id && updates.some(update => update.key === item.key))).slice(0, 100);
-    return { scope: this.scope, updates, ...(this.submittedResolutions.length ? { resolveConflictIds: this.submittedResolutions } : {}) };
+    return { scope: this.scope, remoteScope: this.remoteScope, updates, ...(this.submittedResolutions.length ? { resolveConflictIds: this.submittedResolutions } : {}) };
   }
   accepted(snapshot: CodexUiDraftSnapshot, ui: CodexUiState): CodexUiState {
     ui = this.purgeDeleted(snapshot, ui);
@@ -184,7 +186,7 @@ export class CodexDraftSync {
     return this.absorb(snapshot, ui);
   }
   failed(): void { this.submitted = undefined; }
-  urgent(ui: CodexUiState): { scope: string; updates: CodexUiDraftEntry[] } | undefined {
+  urgent(ui: CodexUiState): { scope: string; remoteScope?: string; updates: CodexUiDraftEntry[] } | undefined {
     if (!this.loaded || !this.scope) return;
     const values = codexDraftEntries(ui), updates: CodexUiDraftEntry[] = [];
     for (const entryKey of this.dirty) {
@@ -193,7 +195,7 @@ export class CodexDraftSync {
       this.urgentVersions.set(entryKey, version); updates.push({ key: entryKey, revision, value });
       if (updates.length === 100) break;
     }
-    return updates.length ? { scope: this.scope, updates } : undefined;
+    return updates.length ? { scope: this.scope, remoteScope: this.remoteScope, updates } : undefined;
   }
   candidate(conflict: CodexUiDraftConflict, ui: CodexUiState): unknown {
     return this.dirty.has(conflict.key) ? codexDraftEntries(ui).get(conflict.key) ?? null : conflict.value;

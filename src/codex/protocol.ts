@@ -100,6 +100,10 @@ export interface CodexTaskControls {
   approvals?: CodexApprovalSettings;
 }
 export interface CodexTaskState {
+  /** Local documents confer no execution or GitLab authority. */
+  accessMode?: 'local-result';
+  catalogOnly?: boolean;
+  localResultSource?: { projectPath: string; kind: string; iid?: number; sourceSha: string; accountLabel?: string };
   locations?: { workspaceRoot: string; sourceRoot?: string; executionRoot?: string; outputRoot?: string; sourceBasis?: string; wikiTarget?: 'local' | 'gitlab' };
   workContext?: WorkContext;
   validationAttempts?: ValidationAttempt[];

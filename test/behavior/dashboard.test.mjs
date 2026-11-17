@@ -2896,7 +2896,7 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
   dom.window.structuredClone = structuredClone;
   const requests = [], rawRequests = [];
   let draftContext = initialSnapshot;
-  const draftScope = () => JSON.stringify([draftContext?.instanceUserScope ?? '', draftContext?.activeAccountId ?? '', draftContext?.groupRoot ?? draftContext?.projectContext?.root ?? '']);
+  const draftScope = () => draftContext?.codexDraftScope ?? JSON.stringify([draftContext?.instanceUserScope ?? '', draftContext?.activeAccountId ?? '', draftContext?.groupRoot ?? draftContext?.projectContext?.root ?? '']);
   const draftStores = new Map(), draftConflicts = new Map();
   if (initialState?.codexUi?.draftSync?.scope) draftStores.set(initialState.codexUi.draftSync.scope, new Map(initialState.codexUi.draftSync.bases.map(entry => [entry.key, JSON.parse(JSON.stringify(entry))])));
   for (const [key, value] of Object.entries(storage)) dom.window.localStorage.setItem(key, JSON.stringify(value));
@@ -2924,7 +2924,7 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
           for (let index = conflicts.length - 1; index >= 0; index--) if (message.resolveConflictIds?.includes(conflicts[index].id) && applied.has(conflicts[index].key)) conflicts.splice(index, 1);
         }
         dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'codexUiDrafts', requestId: message.requestId,
-          ...(message.type === 'saveCodexUiDrafts' && message.scope !== scope ? { error: 'Fixture scope changed' } : { snapshot: { scope, entries: [...entries.values()], conflicts: [...conflicts] } }) } }));
+          ...(message.type === 'saveCodexUiDrafts' && message.scope !== scope ? { error: 'Fixture scope changed' } : { snapshot: { scope, remoteScope: draftContext?.codexRemoteDraftScope, entries: [...entries.values()], conflicts: [...conflicts] } }) } }));
       });
       const selectionFields = { setMode: ['mode', message.mode], setProjectSource: ['projectSource', message.source],
         setMergeRequestFilter: ['mergeRequestFilter', message.filter], setWorkflowKitSource: ['workflowKitSource', message.source] };
@@ -5451,4 +5451,73 @@ test('Codex deletion follows pinned and creation-time order when selecting the a
   assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History a', 'a pinned item selects its visible next neighbour rather than the next stored item');
   view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['a'], failures: [] }); await view.tick();
   assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History d', 'creation time determines the next neighbour after the pinned item is gone');
+});
+
+test('GitLab health failures keep native local entry points and offer account repair', async t => {
+  for (const status of ['unverified', 'auth-required', 'unavailable']) {
+    const data = { ...snapshot('dashboard'), gitlabConnection: { status }, localWorkspaceRepositories: [{ name: 'service', path: 'C:/workspace/service', repositoryId: 'service' }] };
+    const view = await mount({ mode: 'dashboard' }, data); t.after(() => view.dom.window.close());
+    assert.equal(view.dom.window.document.querySelector('.home-repository').disabled, false);
+    const labels = { unverified: '尚未驗證', 'auth-required': '需要重新登入', unavailable: '暫時無法連線' };
+    assert.match(view.dom.window.document.querySelector('.home-gitlab-card').textContent, new RegExp(labels[status]));
+    assert.equal(view.dom.window.document.querySelectorAll('.home-tool-card button:disabled').length, 0);
+    if (status === 'auth-required') assert.match(view.dom.window.document.querySelector('.home-gitlab-card button').textContent, /連接 GitLab/);
+  }
+});
+
+test('local result views expose documents without execution, publication or automatic recovery requests', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('retained', { status: 'uncertain', accessMode: 'local-result',
+    localResultSource: { kind: 'issue', projectPath: 'team/service', iid: 4, sourceSha: 'a'.repeat(40) }, controls: undefined,
+    result: { state: 'draft', summary: 'Saved document' }, primaryAction: { kind: 'results', label: '閱讀本機成果', enabled: true } })] } }); await view.tick();
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('[aria-label="本機唯讀成果"]').textContent, /Saved document/);
+  assert.equal(document.querySelector('#codex-follow-up'), null);
+  assert.equal(view.requests.some(request => request.type === 'codexHistory' || request.type === 'previewProjectWiki' || request.type === 'codexCommand' && request.command.action === 'reconcile'), false);
+  const read = [...document.querySelectorAll('[aria-label="本機唯讀成果"] button')].find(button => button.textContent === '閱讀本機成果');
+  read.click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'readCodexResult'); assert.equal(view.requests.at(-1).taskId, 'retained');
+});
+
+test('pure local Codex input and selected task survive GitLab account scope changes', async t => {
+  const data = { ...snapshot('codex'), codexDraftScope: 'local-workspace', codexRemoteDraftScope: 'remote-one' };
+  const view = await mount({ mode: 'codex' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('local-task')] } }); await view.tick();
+  const textarea = view.dom.window.document.querySelector('#codex-follow-up');
+  textarea.value = 'Unsent local requirement'; textarea.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  view.sendSnapshot({ ...data, activeAccountId: 'another-account', instanceUserScope: 'another-user', codexRemoteDraftScope: 'remote-two' }); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('#codex-follow-up').value, 'Unsent local requirement');
+  assert.equal(view.dom.window.document.querySelector('.codex-task-heading h2').textContent, 'History local-task');
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask' || request.type === 'sendCodexMessage'), false);
+});
+
+test('account changes remove remote Codex input while preserving local drafts without submitting either', async t => {
+  const data = { ...snapshot('codex'), codexDraftScope: 'local-workspace', codexRemoteDraftScope: 'remote-one' };
+  const view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoDrafts: false }); t.after(() => view.dom.window.close());
+  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts');
+  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: data.codexDraftScope, remoteScope: data.codexRemoteDraftScope, entries: [], conflicts: [] } }); await view.tick();
+  const remote = historyTask('remote-task', { origin: { kind: 'issue', projectPath: 'team/service', projectId: 1, iid: 4,
+    accountKey: 'owner', baseUrl: 'https://gitlab.example.test', repositoryRoot: 'C:/workspace/repo', sourceSha: 'a'.repeat(40), sourceBranch: 'main' } });
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('local-task'), remote] } }); await view.tick();
+  const document = view.dom.window.document;
+  const type = text => { const input = document.querySelector('#codex-follow-up'); input.value = text; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); };
+  type('Retained local text'); await view.tick();
+  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History remote-task')).click(); await view.tick();
+  type('Private first-account text'); await view.tick();
+  view.sendSnapshot({ ...data, activeAccountId: 'another-account', instanceUserScope: 'another-user', codexRemoteDraftScope: 'remote-two' }); await view.tick();
+  assert.equal(document.querySelector('#codex-follow-up').value, '');
+  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History local-task')).click(); await view.tick();
+  assert.equal(document.querySelector('#codex-follow-up').value, 'Retained local text');
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask' || request.type === 'sendCodexMessage'), false);
+});
+
+test('local execution catalogs require an explicit state check before recovering an unfinished task', async t => {
+  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
+  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('unfinished', { catalogOnly: true, status: 'running',
+    controls: { external: true, canResume: false } })] } }); await view.tick();
+  assert.equal(view.requests.some(request => request.type === 'codexCommand' && request.command.action === 'reconcile'), false);
+  const button = [...view.dom.window.document.querySelectorAll('button')].find(item => item.textContent === '核對任務狀態');
+  assert.equal(button.disabled, false); button.click(); await view.tick();
+  const checks = view.requests.filter(request => request.type === 'codexCommand' && request.command.action === 'reconcile');
+  assert.equal(checks.length, 1); assert.equal(checks[0].command.taskId, 'unfinished');
 });

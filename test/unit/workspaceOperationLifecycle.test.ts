@@ -54,13 +54,49 @@ test('host publishes one terminal receipt for preflight rejection and permits a 
   const f = fixture(); let calls = 0;
   f.host.dispatchMessage = async () => { calls++; };
   f.host.accountTransitionBusy = true;
-  await assert.rejects(f.host.handleMessage({ type: 'installWorkflowKit', releaseId: 'bundled', operationId: 'blocked', operationScope: f.host.getLocalOperationScope() }), /帳號正在切換/);
+  await assert.rejects(f.host.handleMessage({ type: 'clone', projectIds: [1], operationId: 'blocked', operationScope: f.host.getOperationScope() }), /帳號正在切換/);
   assert.equal(calls, 0); assert.equal(terminal(f.events, 'blocked').length, 1);
   assert.equal(f.operations.get('blocked')?.status, 'failed');
   assert.equal(f.operations.get('blocked')?.effect, 'none');
   f.host.accountTransitionBusy = false;
-  await f.host.handleMessage({ type: 'installWorkflowKit', releaseId: 'bundled', operationId: 'retry', operationScope: f.host.getLocalOperationScope() });
+  await f.host.handleMessage({ type: 'clone', projectIds: [1], operationId: 'retry', operationScope: f.host.getOperationScope() });
   assert.equal(calls, 1); assert.equal(f.operations.get('retry')?.status, 'succeeded');
+});
+
+test('local writes keep their receipt during account transitions while GitLab publication remains fenced', async () => {
+  const f = fixture(); let calls = 0;
+  f.host.dispatchMessage = async () => { calls++; };
+  f.host.accountTransitionBusy = true;
+  await f.host.handleMessage({ type: 'gitAction', operationId: 'local-commit', requestId: 'commit-domain', repoId: 'repo',
+    action: { type: 'commit', message: 'Local work' }, operationScope: f.host.getLocalOperationScope(), scopeEpoch: f.host.session.connectionEpoch - 1 });
+  assert.equal(calls, 1); assert.equal(f.operations.get('local-commit')?.status, 'succeeded');
+  await assert.rejects(f.host.handleMessage({ type: 'clone', projectIds: [1], operationId: 'remote-clone', scopeEpoch: f.host.session.connectionEpoch - 1 }), /已變更/);
+  assert.equal(calls, 1); assert.equal(f.operations.get('remote-clone')?.effect, 'none');
+});
+
+test('live account-bound results hide execution details and foreign roots even without a remote origin', () => {
+  const f = fixture();
+  f.host.codex = { peekSpecification: () => ({ source: { kind: 'free', expectedScope: 'b'.repeat(64) } }) };
+  const task = { id: 'retained-task', title: 'Retained result', root: 'C:/workspace', status: 'paused', createdAt: '2026-11-17', updatedAt: '2026-11-17',
+    threadId: 'PRIVATE-THREAD', messageQueue: [{ id: 'private', text: 'PRIVATE-MESSAGE', state: 'uncertain' }], result: { state: 'ready', summary: 'Frozen summary', reportPath: 'PRIVATE-PATH' } };
+  const result = f.host.projectCodexTasks([task, { ...task, id: 'foreign-task', root: 'C:/foreign' }]);
+  assert.equal(result.length, 1); assert.equal(result[0].accessMode, 'local-result');
+  assert.deepEqual(result[0].result, { state: 'ready', summary: 'Frozen summary' });
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE-THREAD|PRIVATE-MESSAGE|PRIVATE-PATH|foreign-task/);
+});
+
+test('Host rejects forged continuation and approval requests for another account local result', async () => {
+  const f = fixture(); let calls = 0;
+  const spec = { source: { kind: 'issue', projectId: 1, issueIid: 2 }, origin: { kind: 'issue', accountKey: 'other-account', baseUrl: 'https://other.test' } };
+  f.host.codex = { peekSpecification: () => spec };
+  f.host.localResultsReadOnly = new Set();
+  f.host.dispatchMessage = async () => { calls++; };
+  for (const request of [{ type: 'resumeCodexTask', taskId: 'retained' }, { type: 'setCodexAutoAccept', taskId: 'retained', enabled: true },
+    { type: 'codexHistory', taskId: 'retained' }, { type: 'codexCommand', command: { action: 'confirm-delivery', taskId: 'retained' } }]) {
+    await assert.rejects(f.host.handleMessage(request), /僅提供本機成果/);
+  }
+  assert.equal(calls, 0);
+  await f.host.handleMessage({ type: 'readCodexResult', taskId: 'retained' }); assert.equal(calls, 1);
 });
 
 test('stale scope and retired host requests fail inside the lifecycle; reconciliation never replays a task', async () => {
@@ -87,8 +123,8 @@ test('Git preflight rejection is explicitly no-effect even when its adapter neve
     f.host.accountTransitionBusy = write;
     const request = { type: 'gitAction', operationId: 'git-preflight', requestId: 'git-domain', repoId: 'repo',
       action: write ? { type: 'commit', message: 'Retain draft' } : { type: 'open', repoId: 'repo' },
-      ...(write ? {} : { hostSessionId: 'retired-host' }) };
-    await assert.rejects(f.host.handleMessage(request), write ? /帳號正在切換/ : /連線已更新/);
+      hostSessionId: 'retired-host' };
+    await assert.rejects(f.host.handleMessage(request), /連線已更新/);
     const receipt = f.operations.get('git-preflight');
     assert.equal(calls, 0, 'the Git adapter was never entered');
     assert.equal(receipt?.status, 'failed');
@@ -334,7 +370,10 @@ test('manual result confirmation preserves correlation and refuses stale scopes 
   await f.host.confirmOperationResult('unknown-git'); assert.equal(f.operations.get('unknown-git')?.effect, 'unknown');
   f.host.session.selectedGroup = { id: 9 };
   f.host.session.connectionEpoch++;
+  const originalContext = f.host.projectContext;
+  f.host.projectContext = { root: 'C:/different', revision: 'different' };
   await assert.rejects(f.host.confirmOperationResult('unknown-git'), /其他帳號或工作區/);
+  f.host.projectContext = originalContext;
   f.host.session.connectionEpoch--;
   vscode.window.showWarningMessage = async () => '已確認完成';
   try { await f.host.confirmOperationResult('unknown-git'); }

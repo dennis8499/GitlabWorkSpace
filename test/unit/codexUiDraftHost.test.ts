@@ -19,6 +19,7 @@ test('production Host restores conversation, answer, reply and launch drafts acr
   function createPanel() {
     const panel = Object.create(Panel.prototype), messages: any[] = [];
     panel.context = { globalStorageUri: { fsPath: directory } }; panel.viewGeneration = 1;
+    panel.session = { accounts: [] }; panel.resolveDraftNamespace = async () => 'local';
     panel.codexAccountKey = () => account; panel.resolveProjectContext = async () => ({ root });
     panel.codexUiQuestionFields = new Map([[JSON.stringify(['task', 'question']), new Set(['normal'])]]);
     panel.getCodexBridge = () => { throw new Error('Draft restoration must not start a task or model'); };
@@ -51,11 +52,14 @@ test('production Host restores conversation, answer, reply and launch drafts acr
   assert.deepEqual((await createPanel().request({ type: 'loadCodexUiDrafts', requestId: 'after-rejected-answer' })).snapshot.entries, restored.entries);
   root = 'repo-b'; assert.equal((await reopened.request({ type: 'loadCodexUiDrafts', requestId: 'other-root' })).snapshot.entries.length, 0);
   assert.match((await reopened.request({ type: 'saveCodexUiDrafts', requestId: 'stale-root', scope, updates: entries })).error, /環境已變更/);
-  root = 'repo-a'; account = 'account-b'; assert.equal((await reopened.request({ type: 'loadCodexUiDrafts', requestId: 'other-account' })).snapshot.entries.length, 0);
+  root = 'repo-a'; account = 'account-b'; assert.equal((await reopened.request({ type: 'loadCodexUiDrafts', requestId: 'other-account' })).snapshot.entries.length, 4, 'pure local drafts survive account changes');
   account = 'account-a'; assert.equal((await createPanel().request({ type: 'loadCodexUiDrafts', requestId: 'restart' })).snapshot.entries.length, 4);
   const delayed = createPanel(); let release!: () => void, reading!: () => void;
   const began = new Promise<void>(resolve => { reading = resolve; });
-  delayed.panel.codexUiDraftStore = { read: async () => { reading(); await new Promise<void>(resolve => { release = resolve; }); return restored; } };
+  const read = delayed.panel.codexUiDraftStore = new (require('../../src/codex/uiDraftStore').CodexUiDraftStore)(path.join(directory, 'codex-ui-drafts'));
+  const originalRead = read.read.bind(read);
+  const delayedRead = new Promise<void>(resolve => { release = resolve; });
+  read.read = async (scope: string) => { reading(); await delayedRead; return originalRead(scope); };
   const late = delayed.panel.codexUiDraftRequest({ type: 'loadCodexUiDrafts', requestId: 'late' });
   await began; root = 'repo-b'; release(); await late; assert.equal(delayed.messages.length, 0, 'old project drafts cannot hydrate a new project');
   root = 'repo-a'; await first.panel.codexUiDraftStore.removeTask('task');

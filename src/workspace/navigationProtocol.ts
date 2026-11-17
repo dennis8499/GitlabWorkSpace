@@ -3,6 +3,7 @@ import type { WorkspaceSectionState } from './workspaceProtocol';
 
 /** Host-owned, credential-free navigation data. Reading this never starts I/O. */
 export interface NavigationSnapshot {
+  gitlabConnection?: import('../connection/connectionState').GitLabConnectionState;
   scope: string;
   connectedScope?: string;
   connected: boolean;

@@ -36,11 +36,13 @@ export function AccountPanel({ snapshot, post: send, actions: sharedActions, act
     {error && <FeatureNotice tone="error" reason={error} />}
     {snapshot.accountOperation && <p class="account-progress" role="status">{operationLabel[snapshot.accountOperation]}</p>}
     <div class="account-cards">{(snapshot.accounts ?? []).map(account => <article class={`account-card ${snapshot.connected && snapshot.activeAccountId === account.id ? 'current' : ''}`} key={account.id}>
-      <AccountIdentity account={account} status={accountStatus(account, snapshot.activeAccountId, snapshot.connected)} />
+      <AccountIdentity account={account} status={accountStatus(account, snapshot.activeAccountId, snapshot.connected, snapshot.gitlabConnection)} />
       <div class="button-row"><button class="secondary small" type="button" {...availabilityProps(busy ? 'account-actions' : 'account-' + account.id,
-        firstBlocker(accountBusy, blockedWhen(snapshot.connected && snapshot.activeAccountId === account.id && !account.needsLogin, '目前已使用此帳號。')))}
-        onClick={() => account.needsLogin ? startLogin(account.id) : post({ type: 'switchAccount', accountId: account.id })}>
-        {account.needsLogin ? '登入此帳號' : snapshot.connected && snapshot.activeAccountId === account.id ? '使用中' : '切換帳號'}</button>
+        firstBlocker(accountBusy, blockedWhen(snapshot.connected && snapshot.activeAccountId === account.id && !account.needsLogin &&
+          (!snapshot.gitlabConnection || snapshot.gitlabConnection.status === 'connected'), '目前已使用此帳號。')))}
+        onClick={() => account.needsLogin || snapshot.activeAccountId === account.id && snapshot.gitlabConnection?.status === 'auth-required' ? startLogin(account.id) : post({ type: 'switchAccount', accountId: account.id })}>
+        {account.needsLogin || snapshot.activeAccountId === account.id && snapshot.gitlabConnection?.status === 'auth-required' ? '登入此帳號'
+          : snapshot.connected && snapshot.activeAccountId === account.id ? snapshot.gitlabConnection && snapshot.gitlabConnection.status !== 'connected' ? '重新驗證' : '使用中' : '切換帳號'}</button>
         <button class="quiet small" type="button" {...availabilityProps('account-actions', accountBusy)} aria-label={`重新登入 ${account.name || account.username} 帳號`} onClick={() => startLogin(account.id)}>重新登入</button>
         {!account.needsLogin && <button class="quiet small" type="button" {...availabilityProps('account-actions', accountBusy)} aria-label={`登出 ${account.name || account.username} 帳號`} onClick={() => post({ type: 'disconnect', accountId: account.id })}>登出</button>}
         <button class="quiet small danger" type="button" {...availabilityProps('account-actions', accountBusy)} aria-label={`移除 ${account.name || account.username} 帳號`} onClick={() => post({ type: 'removeAccount', accountId: account.id })}>移除</button></div>

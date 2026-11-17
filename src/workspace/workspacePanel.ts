@@ -55,6 +55,9 @@ import { ownedStoragePath } from '../storage/ownedStorage';
 import { CodexHostActions } from '../codex/hostActions';
 import { CodexLaunchCoordinator, launchRepositoryId } from '../codex/launchCoordinator';
 import { CodexUiDraftStore } from '../codex/uiDraftStore';
+import { CodexDraftNamespaces, type CodexDraftNamespace } from '../codex/draftNamespaces';
+import { CodexLocalResults } from '../codex/localResults';
+import { actionUsesGitLab, sourceUsesGitLab, taskUsesGitLab } from './gitLabDependency';
 import { codexUiPublicInteractionFields, parseCodexUiDraftKey, sanitizeCodexUiDraftValue } from '../codex/uiDraftProtocol';
 import { applyExecutionSelection } from '../codex/executionSelection';
 import { prepareFreeTask, captureCodexContext, contextHash, pathInside } from '../codex/freeTask';
@@ -147,6 +150,9 @@ function readFailureTransport(state: WorkspaceSectionState | undefined, error: u
 
 export class WorkspacePanel implements vscode.Disposable {
   private codex?: CodexBridge;
+  private localResults?: CodexLocalResults;
+  private gitLabWritesInFlight = 0;
+  private localResultsReadOnly = new Set<string>();
   private codexUiDraftStore?: CodexUiDraftStore;
   private readonly codexUiQuestionFields = new Map<string, ReadonlySet<string>>();
   private codexLogStates = new Map<string, string>();
@@ -354,7 +360,6 @@ export class WorkspacePanel implements vscode.Disposable {
     session.setBeforeTransition(async () => {
       this.assertAccountTransitionAllowed();
       this.codexWorkflows?.suspendReads();
-      this.codexReadAbort?.abort();
       this.reviewAuthHostNonce = randomUUID();
       this.reviewAuthTransition = true;
       this.skillsContextCache = undefined;
@@ -569,7 +574,7 @@ export class WorkspacePanel implements vscode.Disposable {
   getNavigationSnapshot(): import('./navigationProtocol').NavigationSnapshot {
     const baseUrl = this.session.baseUrl, group = this.session.selectedGroup;
     const loaded = !!baseUrl && !!group && this.loadedScopeKey === `${baseUrl}|${this.currentUser?.id}|${group.id}`;
-    return { scope: `${this.session.connectionEpoch}:${baseUrl ?? 'offline'}:${this.session.activeAccountId ?? 'none'}:${group?.id ?? 'none'}`, connectedScope: this.connectedScopeKey(),
+    return { scope: `${this.session.connectionEpoch}:${baseUrl ?? 'offline'}:${this.session.activeAccountId ?? 'none'}:${group?.id ?? 'none'}`, connectedScope: this.connectedScopeKey(), gitlabConnection: this.session.connectionState,
       connected: !!baseUrl, account: this.currentUser?.name ?? this.session.accounts.find(account => account.id === this.session.activeAccountId)?.name,
       group: group?.full_path, projects: loaded ? this.projects : [], issues: loaded ? this.issues : [], mergeRequests: loaded ? this.mergeRequests : [],
       sections: loaded || this.navigationBootstrapFailure?.scope === `${this.session.connectionEpoch}:${baseUrl}:${group?.id}`
@@ -930,15 +935,17 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private assertAccountTransitionAllowed(): void {
-    this.assertCodexEnvironmentTransitionAllowed();
-    if (this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites || this.writesInFlight ||
+    this.assertCodexEnvironmentTransitionAllowed(true);
+    if (this.repositoryOperationInProgress || this.gitRepositories?.hasActiveGitLabOperations || this.session.hasActiveWrites || this.gitLabWritesInFlight ||
       this.mrWritesInFlight.size || this.issueRelationWritesInFlight.size || this.timer.list().some(entry => entry.phase === 'sending')) {
       throw new Error('目前有 GitLab 寫入或 Repo 操作，完成後才能切換帳號或登出。');
     }
   }
 
-  private assertCodexEnvironmentTransitionAllowed(): void {
+  private assertCodexEnvironmentTransitionAllowed(gitLabOnly = false): void {
     if (this.codex?.list().some(task => !task.controls?.external && task.retention !== 'results-only' &&
+      (!gitLabOnly || !!task.origin || !!this.codex?.peekSpecification?.(task.id) && taskUsesGitLab(this.codex.peekSpecification(task.id)!) ||
+        task.delivery?.state === 'running' || task.publication?.state === 'pending' || Object.values(task.publications ?? {}).some(value => value.state === 'pending')) &&
       (['queued', 'starting', 'running', 'waiting', 'pausing', 'uncertain'].includes(task.status) || task.delivery?.state === 'running' ||
         task.delivery?.steps.some(step => step.state === 'sending' || step.state === 'uncertain') || task.publication?.state === 'pending' ||
         Object.values(task.publications ?? {}).some(receipt => receipt.state === 'pending') || task.cleanupState === 'running'))) {
@@ -1159,11 +1166,6 @@ export class WorkspacePanel implements vscode.Disposable {
       this.post({ type: 'gitActionResult', requestId: request.requestId });
       return;
     }
-    if (request.type === 'gitAction' && this.accountTransitionBusy &&
-      isGitWriteAction(request.action)) {
-      this.post({ type: 'gitActionResult', requestId: request.requestId, error: '帳號正在切換，請稍後再執行版控操作。' });
-      return;
-    }
     if (!this.gitRepositories) {
       this.post({ type: 'gitError', message: 'Git 版控服務尚未載入。' });
       return;
@@ -1373,7 +1375,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   getOperationScope(): string { return this.operationScope(); }
   getLocalOperationScope(): string {
-    return `local:${this.projectContext?.revision ?? this.groupRoot ?? 'none'}:${this.session.connectionEpoch ?? 0}`;
+    return `local:${this.projectContext?.revision ?? this.groupRoot ?? 'none'}`;
   }
   private actionScope(request: { type: string; [key: string]: unknown }): string {
     if (request.type === 'confirmOperationResult' && typeof request.targetOperationId === 'string') {
@@ -1402,11 +1404,20 @@ export class WorkspacePanel implements vscode.Disposable {
     if (request.type === 'refresh') request = { ...request, mode: this.activeMode,
       projectSource: this.activeMode === 'clone' && !this.isRemotePage() ? 'local' : this.projectSource };
     const scopeRevision = this.actionScope(request);
+    const command = request.command as { taskId?: string } | undefined;
+    const taskId = typeof request.taskId === 'string' ? request.taskId : command?.taskId;
+    const spec = taskId ? this.codex?.peekSpecification?.(taskId) ?? (this.context?.globalStorageUri?.fsPath ? (await this.localResultsService().record(taskId, this.projectContext?.root ?? this.groupRoot))?.spec : undefined) : undefined;
+    const original = request.type === 'confirmOperationResult' && typeof request.targetOperationId === 'string'
+      ? this.operations.get(request.targetOperationId)?.action ?? (request.recovery as OperationRecoveryMetadata | undefined)?.action : undefined;
+    const gitLabDependent = actionUsesGitLab(original ? { type: original } : request, spec);
     const policy = describeAction(request, { scopeRevision, localOperationScope: this.getLocalOperationScope(), accountKey: this.session.activeAccountId, rootKey: this.projectContext?.root ?? this.groupRoot });
     const checkCapability = () => {
       const originalAction = request.type === 'confirmOperationResult' && typeof request.targetOperationId === 'string'
         ? this.operations.get(request.targetOperationId)?.action : undefined;
       assertWorkspaceAction(getWorkspaceCapabilities(vscode.workspace?.workspaceFolders), originalAction ? { type: originalAction } : request);
+      if (taskId && (spec ? taskUsesGitLab(spec) && !this.canAccessCodexSpec(spec) : this.localResultsReadOnly?.has(taskId)) && !this.isLocalResultRequest(request)) {
+        throw new Error('此任務僅提供本機成果；請回原帳號核對權限後再接續或發布。');
+      }
     };
     if (policy.kind === 'control' || policy.kind === 'local') { checkCapability(); await withPythonRuntimeScope(task); return; }
     const requestId = request.operationId ?? randomUUID();
@@ -1424,8 +1435,8 @@ export class WorkspacePanel implements vscode.Disposable {
       try {
         checkCapability();
         if (request.hostSessionId !== undefined && request.hostSessionId !== this.operations.sessionId) throw new Error('工作台連線已更新，請重新執行操作。');
-        if (request.scopeEpoch !== undefined && request.scopeEpoch !== this.session.connectionEpoch || request.operationScope && request.operationScope !== this.actionScope(request)) throw new Error('工作區或帳號已變更，請重新執行操作。');
-        if (policy.kind === 'write' && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
+        if (gitLabDependent && request.scopeEpoch !== undefined && request.scopeEpoch !== this.session.connectionEpoch || request.operationScope && request.operationScope !== this.actionScope(request)) throw new Error('工作區或帳號已變更，請重新執行操作。');
+        if (gitLabDependent && policy.kind === 'write' && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
       } catch (error) {
         // None of these guards has entered the adapter. Publish an explicit
         // no-effect receipt so every view can release its provisional waiting.
@@ -1437,12 +1448,14 @@ export class WorkspacePanel implements vscode.Disposable {
         'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot'].includes(policy.action);
       const guardedWrite = policy.kind === 'write' && !contextChange;
       if (guardedWrite) this.writesInFlight++;
+      if (guardedWrite && gitLabDependent) this.gitLabWritesInFlight = (this.gitLabWritesInFlight ?? 0) + 1;
       try {
         const outcome = await this.withCodexWriteGuard(request, task);
         if (policy.kind === 'read' && scopeRevision !== this.actionScope(request)) return { status: 'cancelled' as const, effect: 'none' as const };
         return outcome;
       } finally {
         if (guardedWrite) this.writesInFlight--;
+        if (guardedWrite && gitLabDependent) this.gitLabWritesInFlight--;
       }
     })));
     const tracked = () => this.operations.run(state, execute);
@@ -1588,8 +1601,13 @@ export class WorkspacePanel implements vscode.Disposable {
         if (this.issueNavigation) await this.issuePanels.refreshActive();
         else await this.refresh({ forceNetwork: true, forceRepositories: true, refreshGitSnapshot: true, reason: 'manual' });
         break;
-      case 'codexCommand': await this.getCodexHostActions().run(request.command); break;
-      case 'listCodexTasks': await this.getCodexBridge().publish(); await this.getCodexLaunch().publish(); break;
+      case 'codexCommand':
+        if (!await this.localResultCommand(request.command)) {
+          if ('taskId' in request.command) await this.activateCodexTask();
+          await this.getCodexHostActions().run(request.command);
+        }
+        break;
+      case 'listCodexTasks': await this.publishCodexTasks(); await this.getCodexLaunch().publish(); break;
       case 'createCodexLaunch': await this.openCodexLaunch(request.source); break;
       case 'openLocalWiki': {
         await this.resolveProjectContext();
@@ -1619,9 +1637,9 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       }
       case 'openProjectWikiDocument': {
-        const spec = await this.getCodexWorkflowService().specification(request.taskId), check = this.checkLinkedCodexAccess(spec);
-        if (spec.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
-        const page = await this.wikiStore().readPage(spec.workflow.id, spec.origin, request.revision, request.slug, request.mode); check();
+        const spec = (await this.localResultsService().record(request.taskId, this.projectContext?.root ?? this.groupRoot))?.spec;
+        if (spec?.origin?.kind !== 'project-wiki' || !spec.workflow) throw new Error('此任務不是專案 Wiki。');
+        const page = await this.wikiStore().readPage(spec.workflow.id, spec.origin, request.revision, request.slug, request.mode);
         const filename = request.slug.split('/').at(-1)! + '.md';
         if (request.mode === 'diff') await getNativeDocuments().openDiff(filename, Buffer.from(page.previousContent, 'utf8'), Buffer.from(page.content, 'utf8'), `${page.title} · Wiki 差異`);
         else await getNativeDocuments().openText(filename, Buffer.from(page.content, 'utf8'), `${page.title} · Wiki 草稿`);
@@ -1697,7 +1715,7 @@ export class WorkspacePanel implements vscode.Disposable {
         } else { this.codexWorkflows?.cancelPreview(request.taskId); await bridge.message(request.taskId, request.text, this.operationContext.getStore() ?? request.operationId); }
         this.noteOutcome({ effect: 'applied' }); break;
       }
-      case 'resumeCodexTask': this.codexWorkflows?.cancelPreview(request.taskId); await this.getCodexBridge().resume(request.taskId); break;
+      case 'resumeCodexTask': this.codexWorkflows?.cancelPreview(request.taskId); await (await this.activateCodexTask()).resume(request.taskId); break;
       case 'cancelCodexTask': await this.getCodexBridge().cancel(request.taskId); break;
       case 'pauseCodexTask': await this.getCodexBridge().pause(request.taskId); this.noteOutcome({ effect: 'applied' }); break;
       case 'setCodexAutoAccept': await this.getCodexBridge().setAutoAccept(request.taskId, request.enabled); this.noteOutcome({ effect: 'applied' }); break;
@@ -1871,18 +1889,23 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       }
       case 'showCodexTask': {
-        const bridge = this.getCodexBridge(); await bridge.initialize();
-        if (bridge.historyDeletion?.(request.taskId)) throw new Error(bridge.historyDeletion(request.taskId) === 'deleted' ? '此紀錄已刪除。' : '此紀錄正在刪除，請稍後重試。');
-        if (!bridge.list().some(task => task.id === request.taskId)) {
+        if ((await this.localResultsService().list(this.projectContext?.root ?? this.groupRoot)).some(task => task.id === request.taskId)) {
+          await this.navigateTo('codex'); await this.publishCodexTasks(); this.post({ type: 'codexTaskStarted', taskId: request.taskId }); break;
+        }
+        if (!this.codex?.list().some(task => task.id === request.taskId)) {
           const launch = await this.pendingCodexTaskWorkspace(request.taskId);
           if (!launch) throw new Error('找不到 Codex 任務或成果。');
           if (launch.windowMode === 'origin') { await this.openTaskWorkspace(launch); break; }
           await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(launch.binding.workspaceFile), { forceNewWindow: true });
           break;
         }
-        await this.navigateTo('codex'); this.post({ type: 'codexTaskStarted', taskId: request.taskId }); break;
+        await this.navigateTo('codex'); await this.publishCodexTasks(); this.post({ type: 'codexTaskStarted', taskId: request.taskId }); break;
       }
-      case 'readCodexResult': await this.readLinkedCodexResult(request.taskId); break;
+      case 'readCodexResult': {
+        const content = await this.localResultsService().read(request.taskId, this.projectContext?.root ?? this.groupRoot);
+        await vscode.window.showTextDocument(await vscode.workspace.openTextDocument({ content, language: 'markdown' }), { preview: true });
+        break;
+      }
       case 'previewProjectWiki': await this.previewLinkedWiki(request); break;
       case 'cancelProjectWikiPreview': this.getCodexWorkflowService().cancelPreview(request.taskId); break;
       case 'publishProjectWiki': await this.getCodexWorkflowService().publishWiki(request.taskId, request.revision); break;
@@ -2452,7 +2475,7 @@ export class WorkspacePanel implements vscode.Disposable {
         } else if (mode === 'bmad') {
           await this.refreshBmadWorkflow(true);
         } else if (mode === 'codex') {
-          await this.getCodexBridge().publish();
+          await this.publishCodexTasks();
         } else if (mode === 'git') {
           await this.gitRepositories?.refresh();
           if (current()) {
@@ -2807,7 +2830,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const localRepositories = current.repositories.map(({ name, path: repoPath, remoteFingerprint }) => ({ name, path: repoPath, remoteFingerprint }));
     const revision = createHash('sha256').update(JSON.stringify([this.projectContextSignature(), this.projectContext?.revision,
       current.status, current.profile, localRepositories, installed, workspaceFile,
-      reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope])).digest('hex');
+      reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, releaseReviewRuntimeRoot])).digest('hex');
     const value = { ...resolveSkillsContext({ match, installed, revision }),
       reviewerRepositories, workspaceFile, workspaceRoot: reviewWorkspace,
       workspaceRootAmbiguous: openedFolders.length > 1 && !workspaceFile,
@@ -2829,9 +2852,77 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   async shutdownCodex(): Promise<void> { await this.codex?.shutdown(); }
-  async initializeStorageCleanup(): Promise<void> {
-    await this.getCodexBridge().publish();
+  private localResultsService(): CodexLocalResults {
+    return this.localResults ??= new CodexLocalResults(this.context.globalStorageUri.fsPath, key => this.sourceAccountLabel(key));
+  }
+  private sourceAccountLabel(key: string): string | undefined {
+    return this.session.accounts?.find(account => workflowHash(JSON.stringify([account.baseUrl, account.id, account.userId])) === key)?.name;
+  }
+  private isLocalResultRequest(request: { type: string; [key: string]: unknown }): boolean {
+    if (['readCodexResult', 'showCodexTask', 'openProjectWikiDocument'].includes(request.type)) return true;
+    const command = request.command as { action?: string } | undefined;
+    return request.type === 'codexCommand' && ['export-result', 'copy-handoff', 'open-artifact', 'new-from-result', 'restore-result', 'stop-cleanup', 'manual-handoff'].includes(command?.action ?? '');
+  }
+  private canAccessCodexOrigin(origin: CodexTaskOrigin): boolean {
+    return !!this.session.baseUrl && origin.accountKey === this.codexAccountKey() && origin.baseUrl === this.session.baseUrl &&
+      (!this.session.connectionState || this.session.connectionState.status === 'connected');
+  }
+  private canAccessCodexSpec(spec: CodexTaskSpec): boolean {
+    if (spec.origin) return this.canAccessCodexOrigin(spec.origin);
+    return !!this.session.baseUrl && (!this.session.connectionState || this.session.connectionState.status === 'connected') &&
+      !!spec.source.expectedScope && spec.source.expectedScope === workAccountScope({ baseUrl: this.session.baseUrl, accountKey: this.codexAccountKey() });
+  }
+  private projectCodexTasks(tasks: readonly import('../codex/protocol').CodexTaskState[]): import('../codex/protocol').CodexTaskState[] {
+    this.localResultsReadOnly ??= new Set();
+    const root = this.projectContext?.root ?? this.groupRoot;
+    return tasks.flatMap(task => {
+      const spec = this.codex?.peekSpecification?.(task.id), origin = task.origin ?? spec?.origin;
+      const remote = !!origin || !!spec && taskUsesGitLab(spec);
+      const authorized = origin ? this.canAccessCodexOrigin(origin) : !!spec && this.canAccessCodexSpec(spec);
+      if (task.retention === 'results-only' || !remote || authorized) { this.localResultsReadOnly.delete(task.id); return [task]; }
+      if (!root || !sameLocalPath(task.root, root)) return [];
+      this.localResultsReadOnly.add(task.id);
+      return [{ id: task.id, title: task.title, root: task.root, status: task.status, createdAt: task.createdAt, updatedAt: task.updatedAt,
+        accessMode: 'local-result' as const, ...(origin ? { localResultSource: { kind: origin.kind, projectPath: origin.projectPath,
+          iid: origin.iid, sourceSha: origin.sourceSha, accountLabel: this.sourceAccountLabel(origin.accountKey) } } : {}),
+        result: task.result ? { state: task.result.state, summary: task.result.summary } : undefined,
+        primaryAction: { kind: 'results' as const, label: '閱讀本機成果', enabled: true } }];
+    });
+  }
+  private async publishCodexTasks(): Promise<void> {
+    const context = await this.resolveProjectContext(); this.projectContext = context;
+    const catalog = await this.localResultsService().list(context.root, spec => this.canAccessCodexSpec(spec));
+    // Listing may inspect live state, but must never retry cleanup or claim execution ownership.
+    const byId = new Map(catalog.map(task => [task.id, task]));
+    if (this.codex?.isInitialized) for (const task of this.projectCodexTasks(this.codex.list())) byId.set(task.id, task);
+    const tasks = [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    this.localResultsReadOnly = new Set(tasks.filter(task => task.accessMode === 'local-result').map(task => task.id));
+    this.post({ type: 'codexEvent', event: { kind: 'tasks', tasks } });
+  }
+  private async activateCodexTask(): Promise<CodexBridge> {
+    const bridge = this.getCodexBridge(); await bridge.initialize();
     await this.recoverOriginCodexTasks();
+    return bridge;
+  }
+  private async localResultCommand(command: import('../codex/protocol').CodexCommand): Promise<boolean> {
+    if (!('taskId' in command) || !['export-result', 'copy-handoff', 'open-artifact'].includes(command.action)) return false;
+    const service = this.localResultsService(), root = this.projectContext?.root ?? this.groupRoot;
+    if (command.action === 'export-result') {
+      const folders = await vscode.window.showOpenDialog({ title: '匯出本機成果', canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
+      if (!folders?.[0] || folders[0].scheme !== 'file') return true;
+      const destination = path.join(folders[0].fsPath, `codex-result-${command.taskId}-${randomUUID().slice(0, 8)}`);
+      await service.export(command.taskId, destination, root);
+      await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(destination));
+    } else if (command.action === 'copy-handoff') await vscode.env.clipboard.writeText(await service.handoff(command.taskId, root));
+    else {
+      const saved = await service.results.readArtifact(command.taskId, 'artifactId' in command ? command.artifactId : '');
+      if (!saved.artifact.mediaType.startsWith('text/') && saved.artifact.mediaType !== 'application/json') throw new Error('二進位成果請使用匯出成果。');
+      await vscode.window.showTextDocument(await vscode.workspace.openTextDocument({ content: saved.bytes.toString('utf8'), language: 'plaintext' }), { preview: true });
+    }
+    return true;
+  }
+  async initializeStorageCleanup(): Promise<void> {
+    await this.publishCodexTasks();
     await this.workflowKit.initializeCleanup();
   }
 
@@ -2903,7 +2994,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private managedTaskFocusSnapshot(root?: string): WorkspaceSnapshot['managedTaskFocus'] {
     const focus = this.managedTaskFocus;
     if (focus && this.codex?.historyDeletion?.(focus.taskId)) { this.managedTaskFocus = undefined; return; }
-    if (!focus || !root || !sameLocalPath(root, focus.originRoot) || this.managedTaskFocusScope !== this.connectedScopeKey()) return;
+    if (!focus || !root || !sameLocalPath(root, focus.originRoot) || focus.accountId && this.managedTaskFocusScope !== this.connectedScopeKey()) return;
     if (focus.accountId && (focus.accountId !== this.session.activeAccountId || this.accountTransitionBusy ||
       !this.managedTaskFocusRetired && (!this.session.baseUrl || !this.currentUser))) return;
     return focus;
@@ -2913,10 +3004,11 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!vscode.workspace.isTrusted) throw new Error('請先信任此任務工作區。');
     if (manifest.windowMode === 'origin') {
       // Opening an envelope is observation, never another owner claim or dispatch.
-      const bridge = this.getCodexBridge(); await bridge.publish();
       const taskId = manifest.retired?.resultId ?? manifest.binding.taskId;
-      if (bridge.historyDeletion?.(taskId)) throw new Error('此任務紀錄已刪除或正在刪除，不會從舊入口重新執行。');
-      if (!bridge.list().some(task => task.id === taskId)) throw new Error('任務尚無已保存的執行紀錄；請回原 Group 的準備頁核對開始結果。');
+      if (this.codex?.historyDeletion?.(taskId) || await this.localResultsService().historyDeletion(taskId)) throw new Error('此任務紀錄已刪除或正在刪除，不會從舊入口重新執行。');
+      const tasks = await this.localResultsService().list(this.projectContext?.root ?? manifest.binding.originRoot);
+      if (!this.codex?.list().some(task => task.id === taskId) && !tasks.some(task => task.id === taskId)) throw new Error('任務尚無已保存的執行紀錄；請回原 Group 的準備頁核對開始結果。');
+      await this.publishCodexTasks();
       this.bindManagedTaskFocus(manifest, taskId);
       await this.show('codex', { refresh: false }); this.sendSnapshot(); this.post({ type: 'codexTaskStarted', taskId }); return;
     }
@@ -2924,9 +3016,9 @@ export class WorkspacePanel implements vscode.Disposable {
     this.managedTaskFocus = undefined;
     await this.codexLaunch?.publish();
     if (manifest.retired) {
-      const bridge = this.getCodexBridge(); await bridge.initialize();
-      if (bridge.historyDeletion?.(manifest.retired.resultId)) throw new Error('此任務紀錄已刪除或正在刪除，不會從舊入口重新執行。');
-      if (!bridge.list().some(task => task.id === manifest.retired!.resultId && task.savedResult)) throw new Error('此任務已封存，但成果不存在；不會從舊啟動檔重新執行。');
+      if (this.codex?.historyDeletion?.(manifest.retired.resultId) || await this.localResultsService().historyDeletion(manifest.retired.resultId)) throw new Error('此任務紀錄已刪除或正在刪除，不會從舊入口重新執行。');
+      if (!(await this.localResultsService().list()).some(task => task.id === manifest.retired!.resultId && task.savedResult)) throw new Error('此任務已封存，但成果不存在；不會從舊啟動檔重新執行。');
+      await this.publishCodexTasks();
       this.bindManagedTaskFocus(manifest, manifest.retired.resultId);
       await this.show('codex', { refresh: false }); this.sendSnapshot(); this.post({ type: 'codexTaskStarted', taskId: manifest.retired.resultId }); return;
     }
@@ -2979,7 +3071,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private getCodexLaunch(): CodexLaunchCoordinator {
     return this.codexLaunch ??= new CodexLaunchCoordinator({
       directory: path.join(this.context.globalStorageUri.fsPath, 'codex-launches'),
-      scope: () => workflowHash([this.codexAccountKey(), this.projectContext?.root ?? this.groupRoot ?? 'local'].join('\0')),
+      scope: source => sourceUsesGitLab(source) ? this.remoteDraftScope() : this.localDraftScope(),
+      legacyScope: draft => !!this.projectContext?.root && (!draft.root || sameLocalPath(draft.root, this.projectContext.root)) &&
+        (sourceUsesGitLab(draft.source) ? draft.scope === workflowHash([this.codexAccountKey(), this.projectContext.root].join('\0')) : this.legacyDraftScopes().includes(draft.scope)),
       restoreLatest: () => !this.managedTaskWorkspaceId,
       publish: draft => this.post({ type: 'codexLaunchDraft', draft }),
       inspect: (source, signal) => this.inspectCodexLaunch(source, signal),
@@ -2994,7 +3088,8 @@ export class WorkspacePanel implements vscode.Disposable {
         label: model.displayName, efforts: model.supportedReasoningEfforts.map(item => item.reasoningEffort), defaultEffort: model.defaultReasoningEffort })),
       skills: (root, source, signal) => this.getCodexBridge().skills(root, source, signal),
       enqueue: (spec, id) => this.openIsolatedCodexWorkspace(spec, id),
-      taskExists: async id => { await this.getCodexBridge().publish(); return this.getCodexBridge().list().some(task => task.id === id) || !!await this.pendingCodexTaskWorkspace(id); }
+      taskExists: async id => this.codex?.list().some(task => task.id === id) ||
+        (await this.localResultsService().list(this.projectContext?.root ?? this.groupRoot)).some(task => task.id === id) || !!await this.pendingCodexTaskWorkspace(id)
     });
   }
   private async codexUiDraftRequest(request: Extract<WorkspaceRequest, { type: 'loadCodexUiDrafts' | 'saveCodexUiDrafts' }>): Promise<void> {
@@ -3003,15 +3098,20 @@ export class WorkspacePanel implements vscode.Disposable {
     const currentView = async () => {
       if (generation !== this.viewGeneration || account !== this.codexAccountKey()) return false;
       const current = await this.resolveProjectContext();
-      return generation === this.viewGeneration && account === this.codexAccountKey() && (!scope || scope === workflowHash([account, current.root ?? this.groupRoot ?? 'local'].join('\0')));
+      return generation === this.viewGeneration && account === this.codexAccountKey() && (!scope || current.root === this.projectContext?.root && scope === this.localDraftScope());
     };
     try {
       const context = await this.resolveProjectContext();
       if (account !== this.codexAccountKey()) throw new Error('帳號已變更，草稿仍保留在原帳號。');
-      scope = workflowHash([account, context.root ?? this.groupRoot ?? 'local'].join('\0'));
+      this.projectContext = context;
+      scope = this.localDraftScope();
       if (request.type === 'saveCodexUiDrafts' && request.scope !== scope) throw new Error('草稿環境已變更，請重新載入目前專案的草稿。');
       const store = this.codexUiDraftStore ??= new CodexUiDraftStore(path.join(this.context.globalStorageUri.fsPath, 'codex-ui-drafts'));
-      const snapshot = request.type === 'loadCodexUiDrafts' ? await store.read(scope) : await store.save(scope, await Promise.all(request.updates.map(async update => {
+      const resolved = new Map<string, Promise<CodexDraftNamespace | undefined>>();
+      const namespaces = new CodexDraftNamespaces({ store, local: scope, remote: this.remoteDraftScope(), legacy: this.legacyDraftScopes(),
+        resolve: entry => { const key = JSON.stringify([entry.key, entry.value]); let pending = resolved.get(key);
+          if (!pending) { pending = this.resolveDraftNamespace(entry); resolved.set(key, pending); } return pending; } });
+      const snapshot = request.type === 'loadCodexUiDrafts' ? await namespaces.read() : await namespaces.save(scope, request.remoteScope, await Promise.all(request.updates.map(async update => {
         const [kind, id] = parseCodexUiDraftKey(update.key);
         if (kind === 'interaction' && update.value !== null && !this.codexUiQuestionFields.has(id) &&
           Object.keys((update.value as { values: Record<string, unknown> }).values).length) {
@@ -3026,6 +3126,33 @@ export class WorkspacePanel implements vscode.Disposable {
       if (await currentView().catch(() => false)) this.post({ type: 'codexUiDrafts', requestId: request.requestId,
         error: error instanceof Error ? error.message : '草稿暫時無法保存；目前輸入仍保留。' });
     }
+  }
+  private async resolveDraftNamespace(entry: import('../codex/uiDraftProtocol').CodexUiDraftEntry): Promise<CodexDraftNamespace | undefined> {
+    const [kind, id] = parseCodexUiDraftKey(entry.key);
+    if (kind === 'selection') return 'local';
+    let taskId = id;
+    if (['interaction', 'submission', 'reply'].includes(kind)) taskId = JSON.parse(id)[0];
+    if (kind === 'pending') taskId = (entry.value as { taskId?: string } | null)?.taskId ?? '';
+    if (!taskId) return;
+    if (await this.codexUiDraftStore?.isTaskDeleted(taskId)) return 'local';
+    if (kind === 'launch') {
+      const file = path.join(this.context.globalStorageUri.fsPath, 'codex-launches', id + '.json');
+      if (!await ownedStoragePath(this.context.globalStorageUri.fsPath, file)) return;
+      const info = await lstat(file); if (!info.isFile() || info.isSymbolicLink() || info.size > 2 * 1024 * 1024) return;
+      const draft = JSON.parse(await readFile(file, 'utf8')) as import('../codex/launchProtocol').CodexLaunchDraft;
+      if (draft.schema !== 'GitLabWorkspaceCodexLaunch/v1' || draft.id !== id || !draft.source ||
+        draft.root && !sameLocalPath(draft.root, this.projectContext?.root ?? '')) return;
+      if (sourceUsesGitLab(draft.source)) {
+        return draft.scope === this.remoteDraftScope() || draft.scope === workflowHash([this.codexAccountKey(), this.projectContext?.root ?? 'local'].join('\0')) ? 'remote' : undefined;
+      }
+      return draft.scope === this.localDraftScope() || this.legacyDraftScopes().includes(draft.scope) ? 'local' : undefined;
+    }
+    const spec = this.codex?.peekSpecification?.(taskId) ?? (await this.localResultsService().record(taskId, this.projectContext?.root ?? this.groupRoot))?.spec;
+    if (!spec) return;
+    if (this.projectContext?.root && !sameLocalPath(spec.root, this.projectContext.root)) return;
+    if (kind === 'reading' || kind === 'view') return 'local';
+    if (taskUsesGitLab(spec)) return spec.origin?.accountKey === this.codexAccountKey() ? 'remote' : undefined;
+    return 'local';
   }
   private assertExpectedWorkScope(source?: CodexTaskSource): void {
     if (source?.expectedScope && source.expectedScope !== workAccountScope({ baseUrl: this.session.baseUrl ?? '', accountKey: this.codexAccountKey() })) {
@@ -3332,12 +3459,12 @@ export class WorkspacePanel implements vscode.Disposable {
             if (fields) this.codexUiQuestionFields.set(JSON.stringify([event.taskId, interaction.id]), fields);
           }
         }
-        if (event.kind === 'tasks' || event.kind === 'tasksDelta') event = { ...event, tasks: event.tasks.filter(task => !task.origin || task.origin.accountKey === this.codexAccountKey()) };
+        if (event.kind === 'tasks' || event.kind === 'tasksDelta') event = { ...event, tasks: this.projectCodexTasks(event.tasks) };
         else if ('taskId' in event) {
           const taskId = event.taskId;
           if (this.codex?.historyDeletion?.(taskId) === 'deleted') return;
           const task = this.codex?.list().find(value => value.id === taskId);
-          if (task?.origin && task.origin.accountKey !== this.codexAccountKey()) return;
+          if (task?.origin && !this.canAccessCodexOrigin(task.origin)) return;
         }
         if (event.kind === 'tasks' || event.kind === 'tasksDelta') this.updateCodexStatus(this.codex?.list().filter(task => !task.origin || task.origin.accountKey === this.codexAccountKey()) ?? event.tasks);
         if (event.kind === 'tasks' || event.kind === 'tasksDelta') for (const task of event.tasks) {
@@ -3544,14 +3671,26 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private codexAccountKey(): string {
-    return workflowHash(JSON.stringify([this.session.baseUrl, this.session.activeAccountId, this.currentUser?.id]));
+    const account = this.session.accounts?.find(value => value.id === this.session.activeAccountId);
+    return workflowHash(JSON.stringify([account?.baseUrl ?? this.session.baseUrl, this.session.activeAccountId, account?.userId ?? this.currentUser?.id]));
+  }
+  private localDraftScope(): string {
+    return workflowHash(JSON.stringify(['local-v1', this.projectContext?.selectedFolderUri ?? '', this.projectContext?.root ?? this.groupRoot ?? 'local']));
+  }
+  private remoteDraftScope(): string { return workflowHash(JSON.stringify(['gitlab-v1', this.localDraftScope(), this.codexAccountKey()])); }
+  private legacyDraftScopes(): string[] {
+    const root = this.projectContext?.root ?? this.groupRoot ?? 'local';
+    const accounts = this.session.accounts ?? [];
+    const identities = [this.codexAccountKey(), workflowHash(JSON.stringify([undefined, undefined, undefined])),
+      ...accounts.flatMap(account => [workflowHash(JSON.stringify([account.baseUrl, account.id, account.userId])),
+        workflowHash(JSON.stringify([account.baseUrl, account.id, undefined])), workflowHash(JSON.stringify([undefined, account.id, undefined]))])];
+    return identities.map(account => workflowHash([account, root].join('\0')));
   }
 
   private checkLinkedCodexAccess(spec: CodexTaskSpec): () => void {
     const check = () => {
       if (this.disposed) throw new Error('工作台已關閉。');
-      if (!spec.origin || !this.session.baseUrl || spec.origin.accountKey !== this.codexAccountKey() ||
-        spec.origin.baseUrl !== this.session.baseUrl) throw new Error('任務所屬 GitLab 帳號已變更，請切回原帳號。');
+      if (!spec.origin || !this.canAccessCodexOrigin(spec.origin)) throw new Error('任務所屬 GitLab 帳號已變更或需要重新登入，請切回原帳號。');
       if (this.projectContext?.root && !sameLocalPath(this.projectContext.root, spec.root)) throw new Error('任務的工作區根目錄已變更，請回原根目錄核對並續作。');
     };
     check(); return check;
@@ -5119,6 +5258,8 @@ export class WorkspacePanel implements vscode.Disposable {
     const cloneRoot = this.projectContext?.root;
     const projectRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', cloneRoot, this.projects);
     const snapshot: WorkspaceSnapshot = {
+      gitlabConnection: this.session.connectionState,
+      codexDraftScope: this.localDraftScope(), codexRemoteDraftScope: this.remoteDraftScope(),
       managedTaskFocus: this.managedTaskFocusSnapshot(root),
       hostNavigationGeneration: this.uiIntents?.generation ?? 0,
       codexWorkspaceLayout: vscode.workspace.getConfiguration('gitlabWorkspace').get('codex.workspaceLayout') === 'classic' ? 'classic' : 'workspace',
@@ -5128,8 +5269,8 @@ export class WorkspacePanel implements vscode.Disposable {
       localOperationScope: this.getLocalOperationScope(),
       operations: [...this.operations.list(this.operationScope()), ...this.operations.list(this.getLocalOperationScope())],
       operationSnapshot: this.operations.snapshot(),
-      projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
-        this.accountTransitionBusy || this.cloneRootSelecting || this.projectRootSelecting || workflowKit.installing),
+      projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations ||
+        this.cloneRootSelecting || this.projectRootSelecting || workflowKit.installing),
       dashboardSections: this.dashboardSections,
       projectContext: this.projectContext,
       bmad: this.bmad?.snapshot?.root === root ? this.bmad?.snapshot : undefined,
@@ -5333,8 +5474,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private async connectedUserChanged(user: GitLabUser): Promise<void> {
     this.projectEnvironmentSnapshots?.clear();
     this.noteOutcome({ effect: 'applied' });
-    this.refreshAbort?.abort();
-    this.requestGeneration++;
+    if (this.isRemotePage()) { this.refreshAbort?.abort(); this.requestGeneration++; }
     this.previewAbort?.abort(); this.previewGeneration++; this.issuePreview = undefined;
     this.issueGraphAbort?.abort();
     this.issueBoardAbort?.abort();
@@ -5400,8 +5540,9 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async disconnectedView(): Promise<void> {
-    this.refreshAbort?.abort();
-    this.requestGeneration++;
+    if (['dashboard', 'developer', 'reviewer'].includes(this.activeMode) || this.activeMode === 'clone' && this.projectSource !== 'local') {
+      this.refreshAbort?.abort(); this.requestGeneration++;
+    }
     this.issueOpenGeneration++;
     this.issueBoardGeneration++;
     this.issueGraphAbort?.abort();
@@ -5433,7 +5574,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const epoch = this.session.connectionEpoch;
     if (this.repositoryOperationInProgress) throw new Error('Repo 操作完成後才能切換連線或 Group。');
     if (groupId && groupId === this.session.selectedGroup?.id) { this.noteOutcome({ effect: 'none' }); return true; }
-    this.assertCodexEnvironmentTransitionAllowed();
+    this.assertCodexEnvironmentTransitionAllowed(true);
     const groups = this.session.baseUrl ? await this.session.cachedRead('groups', (client) => client.listGroups()) : [];
     const selected = groupId ? groups.find((item) => item.id === groupId) : await vscode.window.showQuickPick(
       groups.map((group) => ({ label: group.full_path, description: group.name, group })),
@@ -5442,7 +5583,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!selected) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return false; }
     if (this.accountTransitionBusy || epoch !== this.session.connectionEpoch) throw new Error('帳號已變更，請重新選擇 Group。');
     if (selected.id === this.session.selectedGroup?.id) { this.noteOutcome({ effect: 'none' }); return true; }
-    this.assertCodexEnvironmentTransitionAllowed();
+    this.assertCodexEnvironmentTransitionAllowed(true);
     this.sendSnapshot();
     this.issueOpenGeneration++;
     this.issuePanels.close();
@@ -6912,10 +7053,10 @@ export class WorkspacePanel implements vscode.Disposable {
   /** Pin the selected project and its settings across dialogs and queued helpers. */
   private captureProjectAccess(groupScoped = false): () => void {
     const signature = () => JSON.stringify([this.projectContextSignature(), this.workspaceFoldersGeneration,
-      this.session.connectionEpoch, groupScoped ? this.session.selectedGroup?.id : undefined]);
+      groupScoped ? this.session.connectionEpoch : undefined, groupScoped ? this.session.selectedGroup?.id : undefined]);
     const expected = signature();
     const check = () => {
-      if (this.accountTransitionBusy) throw new Error('帳號正在驗證或切換，請稍後再操作。');
+      if (groupScoped && this.accountTransitionBusy) throw new Error('帳號正在驗證或切換，請稍後再操作。');
       if (signature() !== expected) throw new Error('專案根目錄或帳號已變更，請重新執行操作。');
     };
     check(); return check;

@@ -65,7 +65,7 @@ test('origin start claims and enqueues in the current Group without opening anot
   assert.equal(f.queued.length, 1, 'replaying a launch cannot enqueue it twice');
 });
 
-test('activation recovers only matching origin claims without replaying queued tasks', async t => {
+test('startup catalogs never acquire origin claims and explicit activation recovers only matching owners without replay', async t => {
   const f = await fixture(t);
   for (const entry of [
     { id: 'matching', mode: 'origin', account: 'account-a' },
@@ -84,7 +84,9 @@ test('activation recovers only matching origin claims without replaying queued t
     return claim(binding);
   };
   await f.panel.initializeStorageCleanup();
-  assert.deepEqual(f.calls, ['publish', 'claim:matching', 'claim:live-owner', 'kit-cleanup']);
+  assert.deepEqual(f.calls, ['kit-cleanup']);
+  await f.panel.activateCodexTask();
+  assert.deepEqual(f.calls, ['kit-cleanup', 'initialize', 'claim:matching', 'claim:live-owner']);
   assert.equal(f.queued.length, 0); assert.deepEqual(opened, []);
 });
 
@@ -93,7 +95,7 @@ test('opening an origin task viewport observes its state without claiming owners
     { source: f.spec.source, originRoot: f.root, preparedSpec: f.spec, windowMode: 'origin' }, 'origin-observer');
   f.tasks.push({ id: 'origin-observer', root: f.root, status: 'paused', controls: { external: true } });
   await f.panel.openTaskWorkspace(launch);
-  assert.deepEqual(f.calls, ['publish', 'show']); assert.equal(f.queued.length, 0); assert.deepEqual(opened, []);
+  assert.deepEqual(f.calls, ['show']); assert.equal(f.queued.length, 0); assert.deepEqual(opened, []);
   assert.equal(f.panel.managedTaskFocus.taskId, 'origin-observer');
   assert.equal(f.tasks[0].controls.external, true);
 });
@@ -104,7 +106,7 @@ test('deleted and pending origin task envelopes cannot claim ownership or replay
     const launch = await createTaskWorkspace(f.storage, { source: f.spec.source, originRoot: f.root, preparedSpec: f.spec, windowMode: 'origin' }, id);
     f.history.set(id, state);
     await assert.rejects(f.panel.openTaskWorkspace(launch), /紀錄已刪除或正在刪除/);
-    assert.deepEqual(f.calls, ['publish']); assert.deepEqual(f.queued, []); assert.deepEqual(opened, []);
+    assert.deepEqual(f.calls, []); assert.deepEqual(f.queued, []); assert.deepEqual(opened, []);
     assert.equal(f.panel.managedTaskFocus, undefined);
   });
 });
@@ -119,15 +121,15 @@ test('startup maintenance in an origin viewport never recovers its former owner 
   await f.panel.openTaskWorkspace(launch);
   assert.equal(f.calls.some(call => call.startsWith('claim:')), false);
   assert.equal(f.queued.length, 0); assert.equal(f.tasks[0].controls.external, true);
-  assert.deepEqual(f.calls, ['publish', 'kit-cleanup', 'publish', 'show']);
+  assert.deepEqual(f.calls, ['kit-cleanup', 'show']);
 });
 
-test('native account and Group commands reject owned queued running and delivering tasks before changing scope', async t => {
+test('native account and Group commands reject owned remote queued running and delivering tasks before changing scope', async t => {
   for (const entry of [
     { id: 'queued', status: 'queued' }, { id: 'running', status: 'running' },
     { id: 'delivering', status: 'completed', delivery: { state: 'running' } }
   ]) await t.test(entry.id, async t => {
-    const f = await fixture(t); f.tasks.push({ ...entry, root: f.root, controls: { external: false } });
+    const f = await fixture(t); f.tasks.push({ ...entry, root: f.root, origin: { kind: 'issue' }, controls: { external: false } });
     await assert.rejects(f.panel.accountFromSidebar('switchAccount', 'account-b'), /Codex.*暫停/);
     await assert.rejects(f.panel.selectGroupFromSidebar({ id: 2 }), /Codex.*暫停/);
     assert.deepEqual(f.calls, []); assert.equal(f.panel.session.activeAccountId, 'account-a'); assert.equal(f.panel.session.selectedGroup.id, 1);

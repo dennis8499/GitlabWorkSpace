@@ -1,5 +1,7 @@
 # 使用指南
 
+尚未登入或 GitLab 不可用時，可先使用本機 Repo、Git、Codex 與已安裝的工作流程；功能條件、草稿及唯讀成果的操作見 [GitLab 不可用時的功能](gitlab-independent-workflows.md)。
+
 GitLab Workspace 開啟共用 Dashboard，集中顯示本機 Repo、Git／Skills／BMAD 狀態與選用的 GitLab 摘要。本機 Repo、Git 版控、Skills、Wiki、分支審查、BMAD 與後臺 Log 不需要登入 GitLab 或選擇 Group；GitLab 專案下載、指派 Issue、Issue Board 與 MR 審查共用目前帳號選擇的 Group。閱讀或討論 Issue 不需要設定本機工作目錄。
 
 操作結果統一顯示於右上角訊息中心；「GitLab Workspace: 訊息中心」命令也可開啟。可篩選全部／未讀、展開詳情並標為已讀、全部已讀、移除或清空。最多保存本次工作階段 500 筆，切換帳號、Group 或根目錄仍保留原始來源；Extension Host 重啟後清空。執行進度、欄位提示、區段重試與必要確認視窗仍顯示在操作位置。

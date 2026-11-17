@@ -380,3 +380,17 @@ test('deleting a task removes its submitted launch record but preserves independ
   assert.equal(f.queued.length, 1);
   await f.launch.removeSubmittedTask(opened.id);
 });
+
+test('source-aware launch scopes preserve local preparation while isolating another account remote drafts', async t => {
+  const f = await fixture(t); let account = 'one';
+  f.options.scope = source => source?.kind === 'issue' ? account + ':remote' : 'stable:local';
+  const local = await f.launch.create({ kind: 'free', repository: f.repository, prompt: 'Local requirement' });
+  const remote = await f.launch.create({ kind: 'issue', projectId: 1, issueIid: 2 });
+  account = 'two';
+  assert.deepEqual((await f.launch.list()).map(draft => draft.id), [local.id]);
+  const edited = await f.launch.update(local.id, local.revision, { requirement: 'Keep local input' });
+  assert.equal(edited.requirement, 'Keep local input');
+  await assert.rejects(f.launch.show(remote.id), /目前帳號或工作區/);
+  account = 'one'; assert.equal((await f.launch.show(remote.id)).id, remote.id);
+  assert.equal(f.queued.length, 0);
+});

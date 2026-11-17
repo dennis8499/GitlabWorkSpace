@@ -55,6 +55,25 @@ function taskFor(key: string, value: unknown): string | undefined {
 /** Durable UI data only. No read, merge or conflict resolution dispatches a task. */
 export class CodexUiDraftStore {
   constructor(private readonly directory: string) {}
+  async scopes(): Promise<string[]> {
+    try {
+      if (!await ownedStoragePath(path.dirname(this.directory), this.directory)) return [];
+      return (await readdir(this.directory)).flatMap(name => /^([a-f0-9]{64})\.json$/.exec(name)?.[1] ?? []);
+    } catch (error) { if (missingFile(error)) return []; throw error; }
+  }
+  private migrationFile(identity: string): string { return path.join(this.directory, 'migration-' + createHash('sha256').update(identity).digest('hex') + '.json'); }
+  async hasMigration(identity: string): Promise<boolean> {
+    const file = this.migrationFile(identity);
+    if (!await ownedStoragePath(this.directory, file)) return false;
+    const info = await lstat(file);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 128) return fail();
+    const marker: unknown = JSON.parse(await readFile(file, 'utf8'));
+    return object(marker) && fields(marker, ['migrated']) && marker.migrated === true;
+  }
+  async markMigration(identity: string): Promise<void> {
+    await this.ensureDirectory();
+    await atomicNetworkJson(this.migrationFile(identity), { migrated: true });
+  }
   private file(scope: string): string {
     if (typeof scope !== 'string' || !/^[a-f0-9]{64}$/.test(scope)) return fail('Codex 草稿範圍無效。');
     return path.join(this.directory, scope + '.json');

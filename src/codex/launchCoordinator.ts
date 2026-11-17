@@ -19,7 +19,9 @@ export interface CodexLaunchInspection {
 }
 export interface CodexLaunchOptions {
   directory: string;
-  scope(): string;
+  scope(source?: CodexTaskSource): string;
+  /** Legacy aliases are accepted only for a Host-verified source/root. */
+  legacyScope?(draft: CodexLaunchDraft): boolean | Promise<boolean>;
   restoreLatest?(): boolean;
   publish(draft?: CodexLaunchDraft): void;
   inspect(source: CodexTaskSource, signal: AbortSignal): Promise<CodexLaunchInspection>;
@@ -88,14 +90,23 @@ export class CodexLaunchCoordinator {
     if (!validTaskId(id)) throw new Error('任務準備識別無效。');
     return path.join(this.options.directory, id + '.json');
   }
-  private async load(id: string, expectedScope = this.options.scope()): Promise<StoredDraft> {
+  private async load(id: string, expectedScope?: string): Promise<StoredDraft> {
     const file = this.file(id), info = await lstat(file);
     if (!info.isFile() || info.isSymbolicLink() || info.size > 2 * 1024 * 1024) throw new Error('任務準備資料無法驗證。');
     const draft = JSON.parse(await readFile(file, 'utf8')) as StoredDraft;
-    if (draft.schema !== 'GitLabWorkspaceCodexLaunch/v1' || draft.id !== id || draft.scope !== expectedScope ||
+    if (draft.schema !== 'GitLabWorkspaceCodexLaunch/v1' || draft.id !== id ||
       !Number.isSafeInteger(draft.revision) || !draft.source || !['free', 'issue', 'project-wiki', 'merge-request', 'skill', 'bmad', 'review', 'group-analysis'].includes(draft.source.kind) ||
       typeof draft.requirement !== 'string' || draft.requirement.length > 32000 || !Array.isArray(draft.repositories) || !Array.isArray(draft.checks)) {
       throw new Error('任務準備資料不屬於目前帳號或工作區。');
+    }
+    const currentScope = expectedScope ?? this.options.scope(draft.source);
+    if (draft.scope !== currentScope) {
+      if (!await this.options.legacyScope?.(draft)) throw new Error('任務準備資料不屬於目前帳號或工作區。');
+      // Keep the old file untouched until the next explicit edit; no check/dispatch authority migrates.
+      draft.scope = currentScope;
+      if (!['submitted', 'submitting', 'uncertain'].includes(draft.state)) {
+        draft.state = 'editing'; draft.checkOwner = undefined; draft.preparationId = undefined;
+      }
     }
     if (draft.additionalSkillIds !== undefined && !validIds(draft.additionalSkillIds) || draft.repositoryIds !== undefined && !validIds(draft.repositoryIds, 1000) ||
       draft.testCommands !== undefined && !validTests(draft.testCommands) || draft.suggestedTestCommands !== undefined && !validTests(draft.suggestedTestCommands) ||
@@ -108,7 +119,7 @@ export class CodexLaunchCoordinator {
   private async save(draft: CodexLaunchDraft): Promise<void> {
     draft.automaticDelivery = false;
     if (draft.source.kind === 'issue') draft.isolated = true;
-    if (draft.scope !== this.options.scope()) throw new Error('帳號或工作區已變更，請返回原任務環境。');
+    if (draft.scope !== this.options.scope(draft.source)) throw new Error('帳號或工作區已變更，請返回原任務環境。');
     draft.revision++; draft.updatedAt = new Date().toISOString();
     await atomicNetworkJson(this.file(draft.id), draft);
     if (this.active === draft.id) {
@@ -147,7 +158,7 @@ export class CodexLaunchCoordinator {
     const existing = !forkFrom && (await this.drafts()).find(draft => digest(identity(draft.source)) === digest(identity(source)));
     if (existing) return this.show(existing.id);
     const draft: StoredDraft = { schema: 'GitLabWorkspaceCodexLaunch/v1', id: randomUUID(), revision: 0,
-      scope: this.options.scope(), source: structuredClone(source), title: source.kind === 'free' ? '新的 Codex 任務' : '準備 GitLab 工作',
+      scope: this.options.scope(source), source: structuredClone(source), title: source.kind === 'free' ? '新的 Codex 任務' : '準備 GitLab 工作',
       state: 'editing', requirement: source.kind === 'free' ? source.prompt : source.requirement ?? '', repositories: [], models: [],
       model: source.model, effort: source.effort, isolated: source.kind === 'issue' ? source.isolated !== false : true,
       repositoryIds: source.kind === 'group-analysis' ? source.repositoryIds : undefined,
@@ -360,7 +371,7 @@ export class CodexLaunchCoordinator {
         if (current.state === 'checking' && current.checkOwner?.nonce === checkNonce) {
           current.state = 'editing'; current.checkOwner = undefined; current.revision++; current.updatedAt = new Date().toISOString();
           await atomicNetworkJson(this.file(id), current);
-          if (current.scope === this.options.scope() && this.active === id) this.options.publish(projectDraft(current));
+          if (current.scope === this.options.scope(current.source) && this.active === id) this.options.publish(projectDraft(current));
         }
         return projectDraft(current);
       });

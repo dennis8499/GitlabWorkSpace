@@ -19,9 +19,9 @@ export const codexStatusLabels: Record<CodexTaskState['status'], string> = {
 };
 
 /** Stays mounted at the dashboard root, independently of the visible workspace page. */
-export function useCodexWorkspace({ post, actions, initialState, onStateChange, onOpen, enabled, visible, scope, managedTaskFocus, accountId, root }: {
+export function useCodexWorkspace({ post, actions, initialState, onStateChange, onOpen, enabled, visible, scope, remoteScope, managedTaskFocus, accountId, root }: {
   post: Post; actions: ActionController; initialState?: CodexUiState; onStateChange(state: CodexUiState): void;
-  onOpen(): void; enabled: boolean; visible: boolean; scope?: string;
+  onOpen(): void; enabled: boolean; visible: boolean; scope?: string; remoteScope?: string;
   managedTaskFocus?: ManagedTaskFocus; accountId?: string; root?: string;
 }) {
   const [tasks, setTasks] = useState<CodexTaskState[]>([]);
@@ -147,6 +147,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
   const deletionRef = useRef(deletion); deletionRef.current = deletion;
   const restoredPending = useRef(new Set<string>());
   const previousScope = useRef(scope);
+  const previousRemoteScope = useRef(remoteScope);
   useEffect(() => { setUi(current => settleCodexDrafts(current, operations)); }, [operations]);
   useEffect(() => {
     if (!deletion.operationId) return;
@@ -160,6 +161,34 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
     if (pending.length) post({ type: 'reconcileOperations', pendingIds: pending.map(item => item.requestId) });
   };
   useEffect(() => {
+    if (previousRemoteScope.current !== remoteScope && previousScope.current === scope && remoteScope !== undefined) {
+      previousRemoteScope.current = remoteScope;
+      const remoteIds = new Set(tasksRef.current.filter(task => task.origin || task.localResultSource).map(task => task.id));
+      const localInputs = <T,>(values: Record<string, T> = {}) => Object.fromEntries(Object.entries(values).filter(([id]) => !remoteIds.has(id)));
+      const keep = (entry: { key: string; value: unknown }) => {
+        const [kind, id] = JSON.parse(entry.key);
+        if (['reading', 'view', 'selection'].includes(kind)) return true;
+        if (kind === 'launch') return !launchRef.current || id !== launchRef.current.id || !['issue', 'merge-request', 'project-wiki'].includes(launchRef.current.source.kind);
+        const taskId = ['interaction', 'submission', 'reply'].includes(kind) ? JSON.parse(id)[0] : kind === 'pending' ? (entry.value as { taskId?: string } | null)?.taskId : id;
+        return !remoteIds.has(taskId);
+      };
+      const current = uiRef.current;
+      const remoteLaunchId = launchRef.current && ['issue', 'merge-request', 'project-wiki'].includes(launchRef.current.source.kind) ? launchRef.current.id : undefined;
+      const next = restoreCodexUi({ ...current, drafts: localInputs(current.drafts),
+        pending: Object.fromEntries(Object.entries(current.pending).filter(([, value]) => !remoteIds.has(value.taskId))),
+        interactionDrafts: Object.fromEntries(Object.entries(current.interactionDrafts ?? {}).filter(([, value]) => !remoteIds.has(value.taskId))),
+        interactionSubmissions: Object.fromEntries(Object.entries(current.interactionSubmissions ?? {}).filter(([, value]) => !remoteIds.has(value.taskId))),
+        workflow: { replies: Object.fromEntries(Object.entries(current.workflow?.replies ?? {}).filter(([, value]) => !remoteIds.has(value.taskId))) },
+        launchDrafts: Object.fromEntries(Object.entries(current.launchDrafts ?? {}).filter(([id]) => id !== remoteLaunchId)),
+        launchDraftBases: Object.fromEntries(Object.entries(current.launchDraftBases ?? {}).filter(([id]) => id !== remoteLaunchId)),
+        draftSync: current.draftSync ? { ...current.draftSync, bases: current.draftSync.bases.filter(keep) } : undefined });
+      draftSync.current = new CodexDraftSync(next); draftRequest.current = undefined; draftError.current = undefined;
+      setUi(() => next, false);
+      if (launchRef.current && ['issue', 'merge-request', 'project-wiki'].includes(launchRef.current.source.kind)) { setLaunch(undefined); launchRef.current = undefined; setLaunchVisible(false); }
+      transcriptCache.current = localInputs(transcriptCache.current); setItems(transcriptCache.current);
+      setInteractions(values => localInputs(values)); setSecretAnswers({}); setHistory(values => localInputs(values));
+    }
+    previousRemoteScope.current = remoteScope;
     if (previousScope.current !== scope) {
       previousScope.current = scope;
       tasksRef.current = tasksRef.current.filter(task => !task.origin); setTasks(tasksRef.current); knownTasks.current = new Set(tasksRef.current.map(task => task.id));
@@ -321,7 +350,7 @@ export function useCodexWorkspace({ post, actions, initialState, onStateChange, 
       urgentDraftRequests.current.clear(); reloadAfterUrgent.current = false;
       draftRequest.current = undefined; draftSync.current!.failed();
     };
-  }, [enabled, scope]);
+  }, [enabled, scope, remoteScope]);
   useEffect(() => { focusManagedTask(); }, [enabled, scope, managedTaskFocus?.taskId, managedTaskFocus?.originRoot, managedTaskFocus?.accountId, accountId, root]);
   const select = (id: string) => { flushReading(); manualSelection.current = true; setLaunchVisible(false); setItems(transcriptCache.current); setUi(current => ({ ...current, selectedTaskId: id })); };
   const deleteHistory = (taskIds: string[]) => {

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { connectionLabel } from './connection/connectionState';
 import type { GitRepositoryService } from './git/gitRepositoryService';
 import type { GitRepositorySummary } from './git/gitProtocol';
 import type { NavigationSnapshot } from './workspace/navigationProtocol';
@@ -129,7 +130,7 @@ export class NavigationViews implements vscode.Disposable {
       void vscode.commands.executeCommand('setContext', 'gitlabWorkspace.connected', state.connected);
       void vscode.commands.executeCommand('setContext', 'gitlabWorkspace.hasGroup', !!state.group);
     }
-    this.workView.description = [state.account, state.group].filter(Boolean).join(' · ');
+    this.workView.description = [state.account, state.group, state.gitlabConnection ? connectionLabel(state.gitlabConnection) : undefined].filter(Boolean).join(' · ');
     const errors = Object.values(state.sections).filter(section => section?.status === 'error').length;
     this.workView.message = state.connected && state.group && this.workFailureScope === state.scope ? '無法載入目前帳號／Group。請重新整理，或開啟工作台查看訊息。'
       : errors ? '部分資料無法載入。可重新整理，或開啟工作台查看原因。' : undefined;

@@ -31,8 +31,11 @@ export class CodexTaskStore {
   problems: CodexStorageProblem[] = [];
   private cleanupProblems: CodexStorageProblem[] = [];
   constructor(readonly directory: string, private readonly cleanup: (plan: CodexCleanupPlan) => Promise<void> = plan => cleanupTaskStorage(path.dirname(directory), plan)) {}
-  async load(ids?: readonly string[]): Promise<CodexTaskRecord[]> {
-    await mkdir(this.directory, { recursive: true, mode: 0o700 });
+  async load(ids?: readonly string[], options: { readOnly?: boolean } = {}): Promise<CodexTaskRecord[]> {
+    if (options.readOnly) {
+      try { if (!(await lstat(this.directory)).isDirectory() || !await ownedStoragePath(path.dirname(this.directory), this.directory)) return []; }
+      catch (error) { if (missingFile(error)) return []; throw error; }
+    } else await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const selected = ids ? new Set(ids) : undefined;
     if (selected && [...selected].some(id => !validTaskId(id))) throw new Error('Codex 任務識別無效。');
     const records: CodexTaskRecord[] = [], problems: CodexStorageProblem[] = selected

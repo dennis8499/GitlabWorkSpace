@@ -2,7 +2,7 @@ import type { CodexInteraction } from './protocol';
 /** Durable UI drafts are data only; loading them never dispatches an operation. */
 export interface CodexUiDraftEntry { key: string; revision: number; value: unknown | null; }
 export interface CodexUiDraftConflict { id: string; key: string; value: unknown | null; createdAt: string; }
-export interface CodexUiDraftSnapshot { scope: string; entries: CodexUiDraftEntry[]; conflicts: CodexUiDraftConflict[]; deletedTaskIds?: string[]; }
+export interface CodexUiDraftSnapshot { scope: string; remoteScope?: string; entries: CodexUiDraftEntry[]; conflicts: CodexUiDraftConflict[]; deletedTaskIds?: string[]; }
 export const codexUiDraftKinds = ['draft', 'pending', 'reading', 'interaction', 'submission', 'view', 'reply', 'launch', 'selection'] as const;
 export type CodexUiDraftKind = typeof codexUiDraftKinds[number];
 export function codexUiPublicInteractionFields(interaction: Pick<CodexInteraction, 'kind' | 'questions' | 'schema'>): ReadonlySet<string> | undefined {

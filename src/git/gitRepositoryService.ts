@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { gitActionRemote } from '../workspace/gitLabDependency';
 import { assertWorkspaceAction, getWorkspaceCapabilities, VIRTUAL_WORKSPACE_REASON } from '../workspace/workspaceCapabilities';
 import type { NotificationCenter } from '../notifications/notificationCenter';
 import { createHash, randomUUID } from 'node:crypto';
@@ -134,6 +136,28 @@ export class GitRepositoryService implements vscode.Disposable {
   get gitExecutable(): string | undefined { return this.api?.git.path; }
   private pendingActions = 0;
   get hasActiveOperations(): boolean { return this.activeOperations.size > 0 || this.pendingActions > 0; }
+  private credentialOperations = 0;
+  private readonly operationCredentials = new AsyncLocalStorage<{ remoteUrls: readonly string[]; credentials?: { baseUrl: string; token: string } }>();
+  get hasActiveGitLabOperations(): boolean { return this.credentialOperations > 0; }
+  private async withOperationCredentials<T>(repositoryId: string, action: GitAction, task: () => Promise<T>): Promise<T> {
+    const remote = gitActionRemote(action);
+    const repository = this.api?.repositories.find(value => this.repositoryId(value.rootUri.fsPath) === repositoryId);
+    // Push checks the remote branch through the fetch URL before writing through the push URL.
+    const remoteUrls = remote && repository ? [...new Set((action.type === 'push' ? ['fetch', 'push'] : ['fetch'])
+      .map(command => gitNetworkRemoteUrl([command, remote], repository.state.remotes)).filter((url): url is string => !!url))] : [];
+    const binding: { remoteUrls: readonly string[]; credentials?: { baseUrl: string; token: string } } = { remoteUrls };
+    const usesAccount = remoteUrls.some(url => isTrustedGitLabRemote(this.gitlabSession.baseUrl, url)) &&
+      !this.gitlabSession.isTransitioning && (!this.gitlabSession.connectionState || this.gitlabSession.connectionState.status === 'connected');
+    if (usesAccount) this.credentialOperations++;
+    try {
+      if (usesAccount) {
+        const epoch = this.gitlabSession.connectionEpoch;
+        binding.credentials = await this.gitlabSession.getCloneCredentials().catch(() => undefined);
+        if (epoch !== this.gitlabSession.connectionEpoch || this.gitlabSession.isTransitioning) throw new Error('Git 認證環境已變更，請重新確認操作。');
+      }
+      return await this.operationCredentials.run(binding, task);
+    } finally { if (usesAccount) this.credentialOperations--; }
+  }
 
   async getInventory(): Promise<ScannedRepository[]> {
     if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return [];
@@ -591,7 +615,6 @@ export class GitRepositoryService implements vscode.Disposable {
     const generation = selection ? ++this.nextSelectionGeneration : undefined;
     if (generation !== undefined) this.selectionGenerations.set(repositoryId, generation);
     if (generation !== undefined) this.readGenerations.set(readKey, generation);
-    if (write && this.gitlabSession.isTransitioning) throw new Error('帳號正在切換，請稍後再執行版控操作。');
     if (write) this.pendingActions++;
     const managed = write || action.type === 'open' || action.type === 'refresh';
     if (managed) this.managedRefreshes.set(repositoryId, (this.managedRefreshes.get(repositoryId) ?? 0) + 1);
@@ -601,7 +624,8 @@ export class GitRepositoryService implements vscode.Disposable {
       if (result) { result.busy = this.activeOperations.has(repositoryId); if (write) result.revision = this.revisionByRepository.get(repositoryId) ?? 0; this.rememberSummary(result); }
       return result;
     };
-    const operation = this.gitlabSession.log?.run('git', action.type, { repositoryPath }, task) ?? task();
+    const execute = () => this.withOperationCredentials(repositoryId, action, task);
+    const operation = this.gitlabSession.log?.run('git', action.type, { repositoryPath }, execute) ?? execute();
     if (!write) this.readTasks.set(readKey, operation);
     try { return await operation; }
     finally {
@@ -1705,6 +1729,15 @@ export class GitRepositoryService implements vscode.Disposable {
   private async environmentFor(repository: GitRepository, args: readonly string[] = []): Promise<NodeJS.ProcessEnv> {
     const environment: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
     const url = gitNetworkRemoteUrl(args, repository.state.remotes);
+    const binding = this.operationCredentials.getStore();
+    if (binding) {
+      if (!url) return environment;
+      if (!binding.remoteUrls.includes(url)) throw new Error('Git 遠端已變更，已停止操作；請重新確認。');
+      return binding.credentials && isTrustedGitLabRemote(binding.credentials.baseUrl, url)
+        ? { ...createScopedGitEnvironment(url, binding.credentials.token, { preserveCredentialHelpers: true }), GITLAB_WORKSPACE_SCOPED_AUTH: '1' }
+        : environment;
+    }
+    if (this.gitlabSession.connectionState && this.gitlabSession.connectionState.status !== 'connected') return environment;
     if (!url || !isTrustedGitLabRemote(this.gitlabSession.baseUrl, url) || this.gitlabSession.isTransitioning) return environment;
     const epoch = this.gitlabSession.connectionEpoch;
     const credentials = await this.gitlabSession.getCloneCredentials().catch(() => undefined);

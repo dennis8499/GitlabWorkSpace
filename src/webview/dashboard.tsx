@@ -23,6 +23,7 @@ import type { UiIntentField, UiIntentValues } from '../workspace/uiIntentProtoco
 import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { CodexSettings } from './CodexSettings';
 import { useCodexWorkspace, codexStatusLabels } from './useCodexWorkspace';
+import { connectionLabel } from '../connection/connectionState';
 import type { CodexTaskState } from '../codex/protocol';
 import { CodexWorkflowLaunch, taskForSource } from './CodexWorkflowLaunch';
 import type { CodexUiState } from './codexUiState';
@@ -363,8 +364,8 @@ function DashboardOverview({ snapshot, tasks, notifications, onTask, disabled, o
 
     <section class="home-card home-gitlab-card" aria-label="GitLab 摘要">
       <div class="home-card-heading"><div><span class="eyebrow">選用整合</span><h2>GitLab</h2></div>
-        <span class={`home-connection-pill ${snapshot.connected ? 'connected' : ''}`}>{snapshot.connected ? '已連線' : '尚未連線'}</span></div>
-      {!snapshot.connected ? <><p class="subtle">連線後可在這裡查看專案、指派給你的 Issue 與待審查 MR。本機功能不需要 GitLab。</p>
+        <span class={`home-connection-pill ${snapshot.gitlabConnection?.status === 'connected' || !snapshot.gitlabConnection && snapshot.connected ? 'connected' : ''}`} role="status">{connectionLabel(snapshot.gitlabConnection, snapshot.connected)}</span></div>
+      {!snapshot.connected || snapshot.gitlabConnection?.status === 'auth-required' ? <><p class="subtle">連線後可在這裡查看專案、指派給你的 Issue 與待審查 MR。本機功能不需要 GitLab。</p>
         <button class="primary" type="button" onClick={() => post({ type: 'connect' })}>連接 GitLab</button></>
         : !snapshot.group ? <><p class="subtle">已登入 {snapshot.currentUser?.name ?? snapshot.baseUrl}，選擇 Group 後即可載入遠端摘要。</p>
           <button class="primary" type="button" disabled={disabled} onClick={() => post({ type: 'selectGroup' })}>選擇 GitLab Group</button></>
@@ -410,7 +411,8 @@ function App() {
   const codex = useCodexWorkspace({ post, actions, initialState: initial?.codexUi,
     managedTaskFocus: snapshot?.managedTaskFocus, accountId: snapshot?.activeAccountId,
     root: snapshot?.projectContext?.root ?? snapshot?.groupRoot,
-    scope: `${snapshot?.instanceUserScope ?? ''}:${snapshot?.activeAccountId ?? ''}:${snapshot?.projectContext?.root ?? snapshot?.groupRoot ?? ''}`,
+    scope: snapshot?.codexDraftScope ?? `${snapshot?.instanceUserScope ?? ''}:${snapshot?.activeAccountId ?? ''}:${snapshot?.projectContext?.root ?? snapshot?.groupRoot ?? ''}`,
+    remoteScope: snapshot?.codexRemoteDraftScope,
     enabled: !!snapshot && !localProjectBlocker(snapshot.workspaceCapabilities), visible: mode === 'codex', onOpen: () => modeChange('codex'),
     onStateChange: codexUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), codexUi }) });
   const [gitPanelVisited, setGitPanelVisited] = useState(initial?.mode === 'git');
@@ -542,7 +544,7 @@ function App() {
   const [mrSelection, setMrSelection] = useState<{ projectId: number; iid: number }>();
   const previewSelectionRef = useRef(previewSelection); previewSelectionRef.current = previewSelection;
   const mrSelectionRef = useRef(mrSelection); mrSelectionRef.current = mrSelection;
-  const blockingWrite = useActionSelector(actions, () => ['repositories', 'skills', 'connection'].some(resource => actions.hasPendingWrite(resource)));
+  const blockingWrite = useActionSelector(actions, () => ['repositories', 'skills'].some(resource => actions.hasPendingWrite(resource)));
   const [skillBranches, setSkillBranches] = useState<{ repo: string; revision: string; requestId: string; branches: string[]; status: 'loading' | 'ready' | 'error'; error?: string }>();
   const [reviewSessions, setReviewSessions] = useState<{ revision: string; tool: ReviewerToolId; sessions: ReviewSessionSummary[]; error?: string }>();
   const [reviewerCapabilityRead, setReviewerCapabilityRead] = useState<{ revision: string; tool: ReviewerToolId; requestId: string;

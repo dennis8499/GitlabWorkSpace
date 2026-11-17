@@ -256,6 +256,57 @@ test('local Git environment does not read account secrets', async t => {
   assert.equal(reads, 0);
 });
 
+test('Git operation authentication is captured once and cannot inherit a later account or changed remote', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const session = f.session as any; session.baseUrl = 'https://gitlab.test'; session.connectionEpoch = 1;
+  f.repository.state.remotes = [{ name: 'origin', fetchUrl: 'https://gitlab.test/team/repo.git' }];
+  let reads = 0;
+  session.getCloneCredentials = async () => { reads++; return { baseUrl: 'https://gitlab.test', token: 'fixed-fixture-token' }; };
+  await f.service.withOperationCredentials(f.id, { type: 'push', remote: 'origin', branch: 'main' }, async () => {
+    assert.equal(f.service.hasActiveGitLabOperations, true);
+    const first = await f.service.environmentFor(f.repository, ['push', 'origin']);
+    session.baseUrl = 'https://another.test'; session.connectionEpoch++;
+    const second = await f.service.environmentFor(f.repository, ['push', 'origin']);
+    assert.deepEqual(second, first); assert.equal(reads, 1);
+    f.repository.state.remotes[0].fetchUrl = 'https://another.test/team/repo.git';
+    await assert.rejects(f.service.environmentFor(f.repository, ['push', 'origin']), /遠端已變更/);
+  });
+  assert.equal(f.service.hasActiveGitLabOperations, false);
+  session.baseUrl = undefined;
+  await f.service.withOperationCredentials(f.id, { type: 'fetch', remote: 'origin' }, async () => {
+    session.baseUrl = 'https://another.test';
+    const environment = await f.service.environmentFor(f.repository, ['fetch', 'origin']);
+    assert.equal(environment.GITLAB_WORKSPACE_SCOPED_AUTH, undefined);
+  });
+  assert.equal(reads, 1);
+  session.connectionState = { status: 'auth-required' };
+  await f.service.withOperationCredentials(f.id, { type: 'rebasePreview', ref: 'main', pullSource: { remote: 'origin', branch: 'main' } }, async () => {
+    assert.equal((await f.service.environmentFor(f.repository, ['fetch', 'origin'])).GITLAB_WORKSPACE_SCOPED_AUTH, undefined);
+  });
+  assert.equal(reads, 1);
+});
+
+test('Push captures distinct fetch and push destinations without sharing credentials with a foreign host', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  Object.assign(f.session, { baseUrl: 'https://gitlab.test', connectionEpoch: 1 });
+  let reads = 0;
+  (f.session as any).getCloneCredentials = async () => { reads++; return { baseUrl: 'https://gitlab.test', token: 'fixture-token' }; };
+  f.repository.state.remotes = [{ name: 'origin', fetchUrl: 'https://gitlab.test/team/read.git', pushUrl: 'https://gitlab.test/team/write.git' }];
+  await f.service.withOperationCredentials(f.id, { type: 'push', remote: 'origin', branch: 'main' }, async () => {
+    assert.equal((await f.service.environmentFor(f.repository, ['ls-remote', 'origin'])).GITLAB_WORKSPACE_SCOPED_AUTH, '1');
+    assert.equal((await f.service.environmentFor(f.repository, ['push', 'origin'])).GITLAB_WORKSPACE_SCOPED_AUTH, '1');
+    assert.equal(reads, 1);
+  });
+  f.repository.state.remotes[0].fetchUrl = 'https://mirror.test/team/read.git';
+  await f.service.withOperationCredentials(f.id, { type: 'push', remote: 'origin', branch: 'main' }, async () => {
+    assert.equal((await f.service.environmentFor(f.repository, ['ls-remote', 'origin'])).GITLAB_WORKSPACE_SCOPED_AUTH, undefined);
+    assert.equal((await f.service.environmentFor(f.repository, ['push', 'origin'])).GITLAB_WORKSPACE_SCOPED_AUTH, '1');
+    f.repository.state.remotes[0].pushUrl = 'https://gitlab.test/changed.git';
+    await assert.rejects(f.service.environmentFor(f.repository, ['push', 'origin']), /遠端已變更/);
+  });
+  assert.equal(reads, 2); assert.equal(f.service.hasActiveGitLabOperations, false);
+});
+
 test('manual Fetch preserves reachable tags, FETCH_HEAD and Repo settings while internal branch fetches stay narrow', async t => {
   const f = await fixture(); t.after(() => f.service.dispose());
   await f.service.fetchRemote(f.repository, 'origin');

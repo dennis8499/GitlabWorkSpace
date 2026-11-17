@@ -139,7 +139,7 @@ const uiDraftUpdate: Check = value => {
 };
 export const workspaceRequestSchemas = {
   loadCodexUiDrafts: { requestId: identity },
-  saveCodexUiDrafts: { requestId: identity, scope: value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value), updates: array(uiDraftUpdate, 100), resolveConflictIds: optional(array(identity, 100)) },
+  saveCodexUiDrafts: { requestId: identity, scope: value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value), remoteScope: optional(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)), updates: array(uiDraftUpdate, 100), resolveConflictIds: optional(array(identity, 100)) },
   codexCommand: { command: isCodexCommand },
   startCodexTask: { source: taskSource }, openLocalWiki: { repository: path }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key), force: optional(boolean) },
   createCodexLaunch: { source: optional(taskSource) },

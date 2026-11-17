@@ -2,7 +2,9 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
-0.54.3 提供本機連線復原入口。登入遇到 `metadata-missing / ENOENT` 時，可從通知選擇「修復本機連線」，或執行「修復本機 GitLab 連線」命令，再依獨立 PowerShell 視窗完成一次離線復原。既有鎖不會因更新而直接移除。詳見[復原步驟](docs/network-policy.md#api-控制鎖離線復原)與[版本說明](docs/releases/v0.54.3.md)。
+0.55.0 讓本機工作流程依自身條件啟用，GitLab 未登入或不可用時仍可操作 Git、Codex 與已安裝的 Skills／Wiki／BMAD；切換帳號保留本機草稿，舊成果可閱讀與匯出。詳見[版本說明](docs/releases/v0.55.0.md)與[功能盤點](docs/gitlab-independent-workflows.md)。
+
+本版也保留 0.54.3 的本機連線復原入口。登入遇到 `metadata-missing / ENOENT` 時，可從通知選擇「修復本機連線」，或執行「修復本機 GitLab 連線」命令，再依獨立 PowerShell 視窗完成一次離線復原。既有鎖不會因更新而直接移除。詳見[復原步驟](docs/network-policy.md#api-控制鎖離線復原)與[版本說明](docs/releases/v0.54.3.md)。
 
 ## 目錄
 
@@ -16,6 +18,10 @@
 - [授權](#授權)
 
 ## 功能
+
+尚未設定 GitLab、Token 失效或服務暫時無法連線時，仍可使用本機 Repo、Git、Codex 與已安裝的 Skills／Wiki／BMAD。純本機任務、草稿及選取狀態會保留於原專案，登入或切換 GitLab 帳號不會要求停止這些工作。Codex 執行仍需要自己的登入、模型服務及必要工具。
+
+工作台與側欄會區分帳號尚未驗證、需要重新登入及暫時無法連線。已保存的 GitLab 關聯報告與 Wiki 草稿提供本機唯讀閱讀／匯出入口；讀取不啟動 CLI、來源更新或任務清理。操作範圍及必要條件見 [GitLab 不可用時的功能](docs/gitlab-independent-workflows.md)。
 
 本地 Wiki 原生入口可離線使用；既有任務與獨立工具不必補建整條流程。操作見 [Codex 工作台](docs/codex-bridge.md)與 [Wiki 流程](docs/wiki-workflows.md)，實作與驗證範圍見[本輪紀錄](docs/work/work-20261116-cli-group-flow/verification.md)。
 

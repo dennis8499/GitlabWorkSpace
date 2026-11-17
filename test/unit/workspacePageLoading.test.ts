@@ -1107,5 +1107,26 @@ test('Group selection preserves local scope, Skills state and helper guards whil
   assert.deepEqual(local, []);
   assert.deepEqual(remote.map(read => read.resource), ['groups'], 'selection itself reads Group choices but does not refresh the local page');
   host.session.connectionEpoch++;
-  assert.throws(localGuard, /已變更/, 'account epoch protection still applies');
+  assert.doesNotThrow(localGuard, 'local helper guards survive account epoch changes');
+  assert.throws(remoteGuard, /已變更/, 'remote guards retain account epoch protection');
+});
+
+test('pure local tasks and managed focus survive account changes while remote tasks and credentials block transitions', () => {
+  const { host, context } = fixture('codex');
+  host.timer.list = () => []; host.mrWritesInFlight = new Map(); host.issueRelationWritesInFlight = new Map();
+  host.gitRepositories.hasActiveOperations = true; host.gitRepositories.hasActiveGitLabOperations = false;
+  let origin: any;
+  host.codex = { list: () => [{ id: 'task', status: 'running', origin }], peekSpecification: () => ({ source: { kind: 'free', repository: context.root, prompt: 'local' }, origin }) };
+  host.managedTaskFocus = { taskId: 'task', originRoot: context.root };
+  host.managedTaskFocusScope = host.connectedScopeKey();
+  const scope = host.getLocalOperationScope();
+  host.session.connectionEpoch++; host.session.selectedGroup = { id: 99 };
+  assert.equal(host.getLocalOperationScope(), scope);
+  assert.equal(host.managedTaskFocusSnapshot(context.root).taskId, 'task');
+  assert.doesNotThrow(() => host.assertAccountTransitionAllowed());
+  assert.equal(host.managedTaskFocusSnapshot('C:/different'), undefined);
+  origin = { kind: 'issue' };
+  assert.throws(() => host.assertAccountTransitionAllowed(), /Codex 任務/);
+  origin = undefined; host.gitRepositories.hasActiveGitLabOperations = true;
+  assert.throws(() => host.assertAccountTransitionAllowed(), /GitLab 寫入/);
 });

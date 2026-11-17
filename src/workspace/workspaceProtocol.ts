@@ -185,6 +185,9 @@ export interface WorkflowKitReleaseSummary {
 /** Initial owner-view selection, published only after its managed binding is verified. */
 export interface ManagedTaskFocus { taskId: string; originRoot: string; accountId?: string; }
 export interface WorkspaceSnapshot {
+  gitlabConnection?: import('../connection/connectionState').GitLabConnectionState;
+  codexDraftScope?: string;
+  codexRemoteDraftScope?: string;
   managedTaskFocus?: ManagedTaskFocus;
   hostNavigationGeneration?: number;
   codexWorkspaceLayout?: 'workspace' | 'classic';
@@ -286,7 +289,7 @@ export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId
 
 export type WorkspaceRequest = (NotificationRequest
   | { type: 'loadCodexUiDrafts'; requestId: string }
-  | { type: 'saveCodexUiDrafts'; requestId: string; scope: string; updates: import('../codex/uiDraftProtocol').CodexUiDraftEntry[]; resolveConflictIds?: string[] }
+  | { type: 'saveCodexUiDrafts'; requestId: string; scope: string; remoteScope?: string; updates: import('../codex/uiDraftProtocol').CodexUiDraftEntry[]; resolveConflictIds?: string[] }
   | { type: 'startCodexTask'; source: import('../codex/protocol').CodexTaskSource }
   | { type: 'openLocalWiki'; repository: string }
   | { type: 'createCodexLaunch'; source?: import('../codex/protocol').CodexTaskSource }

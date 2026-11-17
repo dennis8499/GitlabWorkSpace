@@ -10,6 +10,7 @@ import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
 import { AccountStore, accountId, type GitLabAccount } from './accountStore';
 import type { OperationLog } from '../logging/operationLog';
+import { observeConnection, type GitLabConnectionState } from './connectionState';
 
 const TOKEN_SECRET_KEY = 'gitlabWorkspace.accessToken';
 const BASE_URL_KEY = 'gitlabWorkspace.baseUrl';
@@ -59,6 +60,7 @@ export class GitLabSession {
   private connectionEpochValue = 0;
   private connectionAttempt = 0;
   private connectionTransition = false;
+  private health?: GitLabConnectionState;
   private cachedClient?: GitLabClient;
   private clientCheck?: Promise<GitLabClient>;
   private connectionAbort = new AbortController();
@@ -110,6 +112,18 @@ export class GitLabSession {
   get activeAccountId(): string | undefined { return this.accountStore.activeId; }
   get hasActiveWrites(): boolean { return this.activeWrites > 0; }
   get isTransitioning(): boolean { return this.connectionTransition; }
+  get connectionState(): GitLabConnectionState {
+    if (this.health?.status === 'connecting') return this.health;
+    if (this.accountStore.active?.needsLogin) return { status: 'auth-required' };
+    if (this.baseUrl) return this.health ?? { status: 'unverified' };
+    if (this.health?.status === 'auth-required' || this.health?.status === 'unavailable') return this.health;
+    return { status: this.accounts.length ? 'auth-required' : 'unconfigured' };
+  }
+  private setHealth(state: GitLabConnectionState): void {
+    if (state.status === this.health?.status) return;
+    this.health = state;
+    for (const listener of this.instanceCheckListeners) { try { listener(); } catch { /* Health observers cannot change request outcomes. */ } }
+  }
   setBeforeTransition(handler: () => Promise<void>): void { this.beforeTransition = handler; }
   setAfterTransition(handler: () => Promise<void>): void { this.afterTransition = handler; }
   initialize(options: { allowNetwork?: boolean } = {}): Promise<void> {
@@ -132,7 +146,24 @@ export class GitLabSession {
     this.log?.addSecret(token);
     const fetcher = this.testFetcher ?? fetch;
     const epoch = this.connectionEpochValue;
-    return new GitLabClient(url, token, this.log?.wrapFetch(fetcher) ?? fetcher,
+    const observed: FetchLike = async (input, init) => {
+      const pathname = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url).pathname;
+      const relevant = connected && !/\/(metadata|version|graphql)$/.test(pathname);
+      const current = () => relevant && epoch === this.connectionEpochValue && !this.connectionTransition && url === this.baseUrl;
+      try {
+        const response = await fetcher(input, init);
+        if (current()) {
+          if (response.status === 401) this.setHealth({ status: 'auth-required' });
+          else if (response.ok) this.setHealth({ status: 'connected' });
+        }
+        return response;
+      } catch (error) {
+        const timeout = init?.signal?.reason?.name === 'TimeoutError';
+        if (current() && (!init?.signal?.aborted || timeout)) this.setHealth(observeConnection(this.connectionState, timeout ? init?.signal?.reason : error));
+        throw error;
+      }
+    };
+    return new GitLabClient(url, token, this.log?.wrapFetch(observed) ?? observed,
       connected ? this.connectionAbort.signal : undefined,
       connected ? context => { if (epoch === this.connectionEpochValue) this.invalidateAfterWrite(context); } : undefined, undefined,
       connected ? async task => {
@@ -563,8 +594,18 @@ export class GitLabSession {
     await this.initialize();
     const normalizedUrl = normalizeGitLabBaseUrl(baseUrl);
     const probeClient = this.makeClient(normalizedUrl, token);
-    const user = await probeClient.getCurrentUser();
-    if (expectedAccountId && accountId(normalizedUrl, user.id) !== expectedAccountId) throw new Error('Token 身分與儲存帳號不同，請使用新增帳號登入。');
+    const initialConnection = this.baseUrl;
+    if (!initialConnection) this.setHealth({ status: 'connecting' });
+    let user: GitLabUser;
+    try { user = await probeClient.getCurrentUser(); }
+    catch (error) {
+      if (!initialConnection && attempt === this.connectionAttempt) this.setHealth(observeConnection({ status: 'unverified' }, error));
+      throw error;
+    }
+    if (expectedAccountId && accountId(normalizedUrl, user.id) !== expectedAccountId) {
+      if (!initialConnection && attempt === this.connectionAttempt) this.setHealth({ status: 'auth-required' });
+      throw new Error('Token 身分與儲存帳號不同，請使用新增帳號登入。');
+    }
     if (attempt !== this.connectionAttempt) throw staleConnectionError();
     await this.activateAccount(normalizedUrl, token, user, attempt);
     return user;
@@ -619,6 +660,7 @@ export class GitLabSession {
     this.groupProjectIds.clear();
     this.projectCollectionRevisions.clear();
     this.currentUserIdValue = user.id;
+    this.setHealth({ status: 'connected' });
     this.cachedClient = this.makeClient(normalizedUrl, token, true);
   }
 
@@ -665,6 +707,7 @@ export class GitLabSession {
     this.connectionAbort = new AbortController();
     this.readCache.clear();
     this.cachedClient = undefined;
+    this.health = undefined;
     this.clientCheck = undefined;
     this.currentMetadata = undefined;
     this.currentIssueCapabilities = undefined;

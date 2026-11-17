@@ -481,6 +481,7 @@ export class CodexResultStore {
     this.validate(manifest, id); if (verifyAll) await this.verify(root, manifest); return structuredClone(manifest);
   }
   async read(id: string): Promise<CodexResultManifest> { return this.load(id, true); }
+  async has(id: string): Promise<boolean> { return ownedStoragePath(this.directory, this.resultRoot(id)); }
   async list(): Promise<CodexResultManifest[]> {
     try {
       const entries = await readdir(this.directory, { withFileTypes: true }), results: CodexResultManifest[] = [];

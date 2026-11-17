@@ -6,7 +6,7 @@ import type { Memento, SecretStorage } from 'vscode';
 import type { GitLabClient, GitLabIssueCapabilities } from '../../src/api/gitLabClient';
 import type { GitLabMetadata } from '../../src/api/types';
 import { GitLabSession } from '../../src/connection/session';
-import { accountTokenKey } from '../../src/connection/accountStore';
+import { accountId, accountTokenKey } from '../../src/connection/accountStore';
 import { groupWorkspaceReadKey } from '../../src/api/gitLabReadKeys';
 
 class MemoryStore implements Memento {
@@ -40,6 +40,50 @@ class MemorySecrets {
   async delete(key: string): Promise<void> { this.values.delete(key); }
   onDidChange = () => ({ dispose() {} });
 }
+
+test('a mismatched relogin identity leaves connecting state and preserves any existing verified account', async () => {
+  const state = new MemoryStore(), secrets = new MemorySecrets(), session = new GitLabSession(secrets, state, true);
+  session.setFetchForTesting(async input => new Response(JSON.stringify(String(input).endsWith('/user') ? { id: 2, name: 'Second', username: 'second' } : {}), { status: String(input).endsWith('/user') ? 200 : 403 }));
+  await session.initialize({ allowNetwork: false });
+  await assert.rejects(session.connect('https://gitlab.test', 'wrong-account-token', accountId('https://gitlab.test', 1)), /身分與儲存帳號不同/);
+  assert.equal(session.connectionState.status, 'auth-required'); assert.equal(session.baseUrl, undefined);
+  assert.equal(session.activeAccountId, undefined); assert.equal(secrets.values.size, 0);
+  await session.connect('https://gitlab.test', 'verified-account-token', accountId('https://gitlab.test', 2));
+  const active = session.activeAccountId!;
+  await assert.rejects(session.connect('https://gitlab.test', 'wrong-relogin-token', accountId('https://gitlab.test', 1)), /身分與儲存帳號不同/);
+  assert.equal(session.connectionState.status, 'connected'); assert.equal(session.activeAccountId, active);
+  assert.equal(await secrets.get(accountTokenKey(active)), 'verified-account-token');
+});
+
+test('connection status remains local at startup and distinguishes resource denial, expired credentials and transport failure', async () => {
+  const state = new MemoryStore(), secrets = new MemorySecrets(), session = new GitLabSession(secrets, state, true);
+  let status = 200, failTransport = false;
+  session.setFetchForTesting(async input => {
+    const url = String(input);
+    if (!url.endsWith('/user')) return new Response('{}', { status: 403 });
+    if (failTransport) throw new TypeError('fixture transport failure');
+    return new Response(JSON.stringify(status === 200 ? { id: 7, name: 'User', username: 'user' } : {}), { status });
+  });
+  await session.initialize({ allowNetwork: false }); assert.equal(session.connectionState.status, 'unconfigured');
+  await session.connect('https://gitlab.test', 'fixture-token'); assert.equal(session.connectionState.status, 'connected');
+  const restored = new GitLabSession(secrets, state, true); let reads = 0;
+  restored.setFetchForTesting(async () => { reads++; throw new Error('startup must stay local'); });
+  await restored.initialize({ allowNetwork: false });
+  assert.equal(restored.connectionState.status, 'unverified'); assert.equal(reads, 0);
+  status = 403;
+  await assert.rejects(session.cachedRead('health-denial', client => client.getCurrentUser()));
+  assert.equal(session.connectionState.status, 'connected');
+  status = 401;
+  await assert.rejects(session.cachedRead('health-expired', client => client.getCurrentUser()));
+  assert.equal(session.connectionState.status, 'auth-required');
+  status = 200;
+  await session.cachedRead('health-recovered', client => client.getCurrentUser());
+  assert.equal(session.connectionState.status, 'connected');
+  failTransport = true;
+  await assert.rejects(session.cachedRead('health-unreachable', client => client.getCurrentUser()));
+  assert.equal(session.connectionState.status, 'unavailable');
+  assert.equal([...secrets.values.values()].includes('fixture-token'), true, 'health failures preserve stored credentials');
+});
 
 async function serve(response: (tokenHeader: string | undefined) => { status: number; body: unknown }): Promise<{ server: Server; baseUrl: string; tokens: Array<string | undefined> }> {
   const tokens: Array<string | undefined> = [];

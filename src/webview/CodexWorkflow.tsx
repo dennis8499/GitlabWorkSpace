@@ -51,7 +51,7 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
     if (next && next !== workflowRef.current) updateWorkflow(() => next);
   }, [operations]);
   useEffect(() => {
-    if (task.retention === 'results-only') return;
+    if (task.retention === 'results-only' || task.accessMode === 'local-result') return;
     const pending = Object.values(workflowRef.current.replies).filter(item => item.pending && !restored.current.has(item.pending.requestId)).map(item => item.pending!);
     for (const item of pending) { restored.current.add(item.requestId); actions.restorePending(item); }
     if (pending.length) post({ type: 'reconcileOperations', pendingIds: pending.map(item => item.requestId) });
@@ -71,6 +71,13 @@ export function CodexWorkflowResult({ task, payload, post, active, actions: shar
     else if (result.reportPath || result.handoffPath) post({ type: 'readCodexResult', taskId: task.id });
   }, [linked, active, task.id, task.status, task.retention, task.turnId, result?.draftId, result?.reportPath, result?.handoffPath]);
   if (task.savedResult) return <SavedCodexResult task={task} post={post} />;
+  if (task.accessMode === 'local-result') return <section class="codex-workflow-result" aria-label="本機唯讀成果">
+    <p role="status">已保存的本機內容；來源的最新狀態及遠端權限尚未核對。</p>
+    {task.result && <ResultSummary task={task} />}
+    <p class="subtle">可閱讀與匯出已有文件。接續、重新驗證來源與發布需要回到原 GitLab 帳號。</p>
+    <div class="button-row"><button type="button" onClick={() => post({ type: 'readCodexResult', taskId: task.id })}>閱讀本機成果</button>
+      <button type="button" onClick={() => post({ type: 'codexCommand', command: { action: 'export-result', taskId: task.id } })}>匯出已保存文件</button></div>
+  </section>;
   if (!task.origin) return result ? <section class="codex-workflow-result" aria-label="本機工作成果"><ResultSummary task={task} />
     <CodexWorkEvidence task={task} post={post} />
     <CodexNextSteps task={task} post={post} />

@@ -335,6 +335,11 @@ export class CodexBridge {
       }
     }).catch(error => { this.initialized = undefined; throw error; });
   }
+  get isInitialized(): boolean { return !!this.initialized; }
+  peekSpecification(id: string): CodexTaskSpec | undefined {
+    const spec = this.records.get(id)?.spec;
+    return spec ? structuredClone(spec) : undefined;
+  }
   private reload(ids?: readonly string[], fullSnapshot = false): Promise<void> {
     const task = this.reloadTask.then(() => this.reloadNow(ids, fullSnapshot));
     this.reloadTask = task.catch(() => {}); return task;
