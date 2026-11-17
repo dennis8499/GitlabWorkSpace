@@ -160,7 +160,7 @@ export class IssuePanels implements vscode.Disposable {
   };
 
   constructor(
-    private readonly context: vscode.ExtensionContext,
+    _context: vscode.ExtensionContext,
     private readonly session: GitLabSession,
     private readonly refreshIssues: () => void,
     private readonly operations?: OperationTracker

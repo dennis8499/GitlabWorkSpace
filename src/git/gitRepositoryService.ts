@@ -250,7 +250,7 @@ export class GitRepositoryService implements vscode.Disposable {
   readonly onDidChangeRepositoryList = this.repositoryListEmitter.event;
   readonly onDidMessage = this.panelEmitter.event;
 
-  constructor(private readonly extensionUri: vscode.Uri, private readonly storageUri: vscode.Uri, session: GitLabSession,
+  constructor(private readonly extensionUri: vscode.Uri, _storageUri: vscode.Uri, session: GitLabSession,
     private readonly notifications?: NotificationCenter) {
     this.gitlabSession = session;
     this.initialization = this.initialize();
@@ -1193,7 +1193,7 @@ export class GitRepositoryService implements vscode.Disposable {
     this.lastDiffs.set(repositoryId, { path: diffPath, staged, ref, parent, text, epoch });
   }
 
-  private async performAction(repository: GitRepository, repositoryId: string, action: GitAction): Promise<void | boolean> {
+  private async performAction(repository: GitRepository, _repositoryId: string, action: GitAction): Promise<void | boolean> {
     switch (action.type) {
       case 'stageFile': {
         const file = await this.safeRelativePath(repository, action.path);
@@ -1621,11 +1621,6 @@ export class GitRepositoryService implements vscode.Disposable {
     if (selected === 'merges' || selected === 'preserve') return 'rebase-merges';
     if (selected === 'interactive') return 'interactive';
     return 'merge';
-  }
-
-  private async getParent(repository: GitRepository, ref: string): Promise<string | undefined> {
-    const result = await this.runGit(repository, ['rev-parse', '--verify', '--quiet', ref + '^']);
-    return result.code === 0 ? result.stdout.trim() : undefined;
   }
 
   private async fetchRemote(repository: GitRepository, remote: string, branch?: string): Promise<void> {

@@ -22,12 +22,12 @@
 | 行為回歸 | 255 通過、0 失敗 | [Node 紀錄](behavior/behavior-node.log) |
 | Cucumber | 39 scenarios／171 steps 全通過 | [Issue](behavior/behavior-issues.log)、[連線](behavior/behavior-connect.log) |
 | 發行工具 | 42 通過、0 失敗 | [紀錄](release/release-tooling.log) |
-| Python 安裝與回復整合 | CommitReviewer 1 項、WorkflowKit 16 項全通過 | [CommitReviewer](release/release-commit_reviewer_integration_test.py.log)、[WorkflowKit](release/release-workflowkit_131_integration_test.py.log) |
+| Python 安裝與回復整合 | CommitReviewer 1 項、WorkflowKit 16 項全通過 | CommitReviewer（歷史原始檔已清理，原路徑：`release/release-commit_reviewer_integration_test.py.log`）、WorkflowKit（歷史原始檔已清理，原路徑：`release/release-workflowkit_131_integration_test.py.log`） |
 | 四主題、240／320／1280 px | 60 案例通過，含進度高度與輸入框鍵盤焦點檢查 | [機器結果](evidence/ui-verification.json) |
 | 10,000 筆對話 | 批次更新 p95 31.9 ms，最多掛載 15 列；切換／重開／補載／串流錨點與焦點通過 | [效能結果](codex-performance.json) |
 | 暖切頁 | p95 32 ms（目標 ≤ 200 ms） | [畫面探測](evidence/ui-verification.json) |
 | VSIX 與內容身分 | 封裝與驗證通過；新增 Codex 編譯模組與正式 bundle 逐檔比對 | [封裝結果](package-verified/results.json)、[身分與 SHA-256](artifact-identity.json) |
-| 最終原生一般功能 | 1.90.0／1.145.2 各 15 通過，4 線上或專用案例未啟用；安裝與 BMAD 時間門檻分開驗證 | [1.90.0](native-verified/native-core-1.90.0.log)、[1.145.2](native-verified/native-core-1.145.2.log) |
+| 最終原生一般功能 | 1.90.0／1.145.2 各 15 通過，4 線上或專用案例未啟用；安裝與 BMAD 時間門檻分開驗證 | [1.90.0](native-verified/native-core-1.90.0.log)、1.145.2（歷史原始檔已清理，原路徑：`native-verified/native-core-1.145.2.log`） |
 | Workspace Trust | 1.90.0／1.145.2 均通過，未信任前不啟動擴充功能 | [1.90.0](native/trust-1.90.0.log)、[1.145.2](native/trust-1.145.2.log) |
 | 原生安裝矩陣 | WorkflowKit 1.0.0／1.3.1／1.3.4／1.3.5／1.5.0 全通過；初次整體套件的監看失敗詳見下節 | `.gitlab-workspace-validation/runs/2026-11-07T05-07-03.950Z-29096/extension.log` |
 
@@ -54,3 +54,5 @@
 - Webview 探測使用產出 bundle、固定主題與合成 Host；不等同 NVDA 或實際桌面 125%／200% 縮放的人工可及性驗收。
 - 未在 PATH 或兩個標準安裝位置找到 NVDA，故保留 NVDA 人工驗收；本輪未變更系統顯示縮放。
 - 本機驗證與封裝不代表已發布，也不會替使用者提交、推送、建立 MR 或發布 Wiki。
+
+2026-11-17 整理：已清除的原始截圖與成功日誌改為歷史路徑註記；當時的版本、驗證結果與限制維持原紀錄。

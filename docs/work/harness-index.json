@@ -1,0 +1,115 @@
+{
+  "date": "2026-11-17",
+  "note": "Identical historical harness snapshots share one byte-identical source. Former paths remain historical provenance in existing JSON; use canonical paths to reproduce a run. Independent runners and distinct harness contents are retained.",
+  "copies": [
+    {
+      "sha256": "00ba94a32b2ad7de24d4aa75d1381c454ad94b787f1f2721ab92edc02e92bb86",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/baseline/graph/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/provisional/graph/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "a57600f9fc9ffaa970554566e4bca85273bb1cdfc06470b0160d765587dfc094",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/final/large-list/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/baseline/large-list/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/revision/large-list/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "50c7987428527122a01c004af6d2d764f7a94d577cd163957c1d51f512aadc08",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/baseline/list/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/provisional/list/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "367ea6d65298222b55c03e25a34bef0136cd6a3492878552635eea15d88e7487",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/baseline/repo/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/provisional/repo/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "baef1f29b25abfcd2898bacdaf0dfe62fdef9c1fd41d91923fce6dd904b9f5a1",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/final/functional/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/revision/functional-final/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "60839b058914200938f91f27742e5a43d67b832007c91d04a709cfe941fc1004",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/final/matrix/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/revision/matrix/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "c2356c231471bea6a17c8dd1aff2e3564e379b3e157741fe7a749eb8b7807a21",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/final/motion/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/revision/motion/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "704c251d268219b5f2fb71a280a3468e09aa16e9583dd80e6dcc7e044adaf6f1",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/final/resource-smoke/timer-1-animation-1/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/resources-final-retry/timer-0-animation-1/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resources-final/timer-0-animation-0/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resources-final/timer-0-animation-1/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resources-final/timer-1-animation-0/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resources-final/timer-1-animation-1/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "c97ab65f1c23768807cc5f7f41115785aec171e33e71adc882571eff2f7d92fd",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/final/virtual-consumers/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/revision3/virtual-consumers-zoom/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "3a2a6582621c43a40325934ec36fd2003638ab5fa17ad3f944a875adf345de68",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/provisional/functional/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/provisional/functional-2/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "e2e02598d825986df310e865aaec2b7b7447aab82add1a3b3b694ae940dd7b4a",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/provisional/functional-4/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/provisional/functional-5/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "e2266a972a24415317de0281384cd982c5c31db2dcd3a3a23401b8d95547b447",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/revision/functional/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/provisional/functional-6/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "67669fea45118be13d3571fdc621fc1e2eea6a307dd75556be9cc0fe3214acbe",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/resources/timer-0-animation-0/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/resource-smoke/timer-0-animation-0/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resource-smoke/timer-0-animation-1/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resource-smoke/timer-1-animation-0/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resource-smoke/timer-1-animation-1/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resources/timer-0-animation-1/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resources/timer-1-animation-0/harness.mjs",
+        "docs/work/work-20261031-audit-improvements/evidence/resources/timer-1-animation-1/harness.mjs"
+      ]
+    },
+    {
+      "sha256": "08ac19e9d787d68a8ebd01dc221083b22428b645dbdddd3c7008792c2f1cabae",
+      "canonical": "docs/work/work-20261031-audit-improvements/evidence/revision2/virtual-consumers/harness.mjs",
+      "former_paths": [
+        "docs/work/work-20261031-audit-improvements/evidence/revision3/virtual-consumers/harness.mjs"
+      ]
+    }
+  ]
+}

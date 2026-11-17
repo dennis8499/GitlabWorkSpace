@@ -421,8 +421,6 @@ export function IssueView({ codexTasks = [], active = true, onBack, snapshot, na
   // Input handlers persist synchronously; effects only cover host-driven changes.
   useEffect(() => { saveDraftsRef.current(); }, [form, editing, mode, projectId, comment, reply, internal]);
   useEffect(() => () => saveDraftsRef.current(), []);
-  const [duration, _setDuration] = useState('');
-  const [summary, _setSummary] = useState('');
   const [targetProject, setTargetProject] = useState('');
   const [targetQuery, setTargetQuery] = useState('');
   const [targetProjectResults, setTargetProjectResults] = useState<GitLabProject[]>([]);

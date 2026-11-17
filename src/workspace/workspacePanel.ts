@@ -122,7 +122,6 @@ import { localPathKey, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type Sca
 const execFileAsync = promisify(execFile);
 const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
-const _MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
 const ALLOWED_MODES = new Set<WorkspaceMode>(['dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'codex']);
 
@@ -2593,11 +2592,6 @@ export class WorkspacePanel implements vscode.Disposable {
       scopeKey: JSON.stringify([this.session.baseUrl, this.session.activeAccountId, this.session.connectionEpoch, this.projectContextSignature()]),
       signal
     });
-  }
-
-  private async resolveWorkspaceRoot(projects: readonly GitLabProject[], signal?: AbortSignal): Promise<{ root?: string; error?: string; match: GroupWorkspaceMatch }> {
-    const match = await this.inspectEnvironment(projects, signal);
-    return { root: match.root, error: match.reason, match };
   }
 
   private invalidateProjectRoot(reason?: string): void {
@@ -6217,7 +6211,7 @@ export class WorkspacePanel implements vscode.Disposable {
       connectionGeneration === this.requestGeneration && sectionGeneration === this.mergeRequestSectionGenerations[section] &&
       this.selectedMergeRequest?.request.project_id === projectId && this.selectedMergeRequest.request.iid === iid;
     try {
-      const _client = (await this.session.getClient()).withReadSignal(controller.signal);
+      (await this.session.getClient()).withReadSignal(controller.signal);
       if (!isCurrent()) return;
       if (section === 'diffs') {
         const verified = await readVerifiedMergeRequestDiff(this.session, this.session.selectedGroup?.id ?? 0, selected.request,
@@ -6783,16 +6777,6 @@ export class WorkspacePanel implements vscode.Disposable {
     throw new Error(this.projectContext?.error ?? this.workspaceRootError ?? '請在 VS Code 開啟或選擇專案資料夾。');
   }
 
-  private matchedGroupRepository(projectId: number, relativePath?: string): string {
-    const root = this.requireGroupRoot();
-    const match = this.getSkillsContext().groupMatch;
-    const candidates = match.status === 'matched' && match.root && sameLocalPath(match.root, root)
-      ? match.repositories.filter(repo => repo.matched && repo.projectId === projectId &&
-        (relativePath === undefined || sameLocalPath(repo.path, path.join(root, relativePath)))) : [];
-    if (candidates.length !== 1) throw new Error('無法唯一對應已核對的本機 Repo；請確認 project ID、remote 與實際路徑。');
-    return candidates[0].path;
-  }
-
 
 
 
@@ -6827,14 +6811,6 @@ export class WorkspacePanel implements vscode.Disposable {
     if (skills.installed.profile !== skills.mode || !workflowKitInterfaceCompatible(skills.installed) ||
         !workflowKitInstallationVerified(skills.installed)) {
       throw new Error(skills.reason ?? '請先在設定中安裝或更新目前專案的工作流程包。');
-    }
-  }
-
-  private async confirmSkillsContext(revision: string, featureId: string): Promise<void> {
-    await this.refreshWorkflowKit();
-    const current = this.getSkillsContext();
-    if (current.revision !== revision || !current.availableFeatures.includes(featureId)) {
-      throw new Error('Skills 環境或版本已變更，請重新確認任務。');
     }
   }
 

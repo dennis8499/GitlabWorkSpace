@@ -16,14 +16,14 @@
 
 實際開啟多張 PNG 檢視，包括四主題、短窗、窄窗與 200% 主操作：
 
-- [深色總覽](evidence/ui-matrix/dark-100-desktop-dashboard.png)：所有無 class 的一般按鈕使用 VS Code token，避免白色瀏覽器預設外觀。
-- [高對比深色 Skills](evidence/ui-matrix/hc-dark-100-desktop-skills.png)：修正 Skills／BMAD 次導覽未套樣式，提供 32px 控制、選取與焦點外框，並補上對應的 tabpanel。
-- [深色 200% 窄窗工具](evidence/ui-matrix/dark-200-narrow-tools-return.png)：返回任務按鈕與說明可換行，設定分頁選取樣式保留。
-- [高對比亮色 200% 窄窗準備](evidence/ui-matrix/hc-light-200-narrow-launch-action.png)：模型與成功檢查摘要收合，開始執行按鈕可完整顯示。
-- [深色 200% 短窗 BMAD](evidence/ui-matrix/dark-200-short-bmad-action.png)：捲動後主操作可達，不因短窗固定區域被遮擋。
-- [高對比亮色 200% 短窗訊息](evidence/ui-matrix/hc-light-200-short-notifications.png)：訊息摘要、狀態與關閉操作可辨識。
+- 深色總覽（歷史原始檔已清理，原路徑：`evidence/ui-matrix/dark-100-desktop-dashboard.png`）：所有無 class 的一般按鈕使用 VS Code token，避免白色瀏覽器預設外觀。
+- 高對比深色 Skills（歷史原始檔已清理，原路徑：`evidence/ui-matrix/hc-dark-100-desktop-skills.png`）：修正 Skills／BMAD 次導覽未套樣式，提供 32px 控制、選取與焦點外框，並補上對應的 tabpanel。
+- 深色 200% 窄窗工具（歷史原始檔已清理，原路徑：`evidence/ui-matrix/dark-200-narrow-tools-return.png`）：返回任務按鈕與說明可換行，設定分頁選取樣式保留。
+- 高對比亮色 200% 窄窗準備（歷史原始檔已清理，原路徑：`evidence/ui-matrix/hc-light-200-narrow-launch-action.png`）：模型與成功檢查摘要收合，開始執行按鈕可完整顯示。
+- 深色 200% 短窗 BMAD（歷史原始檔已清理，原路徑：`evidence/ui-matrix/dark-200-short-bmad-action.png`）：捲動後主操作可達，不因短窗固定區域被遮擋。
+- 高對比亮色 200% 短窗訊息（歷史原始檔已清理，原路徑：`evidence/ui-matrix/hc-light-200-short-notifications.png`）：訊息摘要、狀態與關閉操作可辨識。
 
-另以 `QA_HEADERS=1` 在 320×520 CSS px 重跑四主題的本機 Repo／Issue 詳情標頭，[8 場景](evidence/ui-matrix/headers-320.json) 均無水平溢出、操作遮擋或腳本錯誤，並實際開啟圖片檢視。[Repo 標頭](evidence/ui-matrix/dark-320-header-repositories.png) 的資料夾、帳號、工具與一鍵掃描可換列；[Issue 標頭](evidence/ui-matrix/light-320-header-issue.png) 的長標題可換行，操作按鈕整顆換列，避免中文字被拆行。
+另以 `QA_HEADERS=1` 在 320×520 CSS px 重跑四主題的本機 Repo／Issue 詳情標頭，[8 場景](evidence/ui-matrix/headers-320.json) 均無水平溢出、操作遮擋或腳本錯誤，並實際開啟圖片檢視。Repo 標頭（歷史原始檔已清理，原路徑：`evidence/ui-matrix/dark-320-header-repositories.png`） 的資料夾、帳號、工具與一鍵掃描可換列；Issue 標頭（歷史原始檔已清理，原路徑：`evidence/ui-matrix/light-320-header-issue.png`） 的長標題可換行，操作按鈕整顆換列，避免中文字被拆行。
 
 ## 暖操作
 
@@ -49,3 +49,5 @@
 沙箱內 Electron 啟動被 Windows AppContainer ACL 阻擋，故經工具自動核准後在一般權限執行同一隔離測試；未更改 ACL、使用者 profile 或真實帳號。未執行 NVDA 人工驗證。
 
 最低支援的 VS Code 1.90.0 亦以相同私有測試與 11 檔最終資產，另建拋棄式 profile 重跑：[12／12 原生縮放](evidence/native-zoom-vscode-1.90.json) 通過，DPR 1.5／1.875／3，最小 viewport 464×292 CSS px；完整資產 hash 與最終矩陣相同。同次執行 [Native readonly Git Diff snapshots](evidence/native-zoom-vscode-1.90/validation.json) 通過文字／二進位 bytes、唯讀拒寫、最後分頁關閉後快照釋放與工作檔不變檢查。共 2 個測試通過、exit 0，沒有重跑安裝器或變更全域編譯輸出。
+
+2026-11-17 整理：已清除的原始截圖與成功日誌改為歷史路徑註記；當時的版本、驗證結果與限制維持原紀錄。
