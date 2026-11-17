@@ -61,7 +61,8 @@ export class NotificationCenter {
     if (!message.trim()) return;
     const level = input.level ?? 'info';
     const nextLevel = previous && severity[previous.level] > severity[level] ? previous.level : level;
-    if (previous?.messages.includes(message) && previous.level === nextLevel) return;
+    const upgradeTarget = previous?.target?.kind === 'logs' && input.target?.kind === 'networkRecovery';
+    if (previous?.messages.includes(message) && previous.level === nextLevel && !upgradeTarget) return;
     const removed = this.dismissed.get(id);
     if (!previous && removed?.messages.includes(message) && severity[removed.level] >= severity[level]) return;
     this.dismissed.delete(id);
@@ -72,7 +73,7 @@ export class NotificationCenter {
       level: nextLevel, messages: [...(previous?.messages ?? []).filter(value => value !== message), message].slice(-100),
       createdAt: previous?.createdAt ?? now, updatedAt: now, contentRevision: this.revision + 1, read: false,
       origin: origin && { ...origin, baseUrl: origin.baseUrl && this.sanitizer(origin.baseUrl), root: origin.root && this.sanitizer(origin.root) },
-      target: previous?.target ?? input.target ?? context?.target ?? { kind: 'logs' }
+      target: upgradeTarget ? input.target : previous?.target ?? input.target ?? context?.target ?? { kind: 'logs' }
     };
     this.entries.delete(id); this.entries.set(id, next);
     this.revision++; this.versions.set(id, this.revision);

@@ -2,6 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NotificationCenter } from '../../src/notifications/notificationCenter';
 
+test('an unchanged login error upgrades its log target to recovery without duplicating the receipt', () => {
+  const center = new NotificationCenter();
+  center.publish({ operationId: 'login-recovery', level: 'error', message: '本機連線失敗', target: { kind: 'logs' } });
+  const previous = center.snapshot(); center.markRead([previous.items[0].id]);
+  const target = { kind: 'networkRecovery' as const, recoveryId: 'host-owned-id' };
+  center.publish({ operationId: 'login-recovery', level: 'error', message: '本機連線失敗', target });
+  const upgraded = center.snapshot();
+  assert.equal(upgraded.items.length, 1); assert.deepEqual(upgraded.items[0].messages, ['本機連線失敗']);
+  assert.deepEqual(upgraded.items[0].target, target); assert.equal(upgraded.items[0].read, false);
+  assert.ok(upgraded.items[0].contentRevision > previous.items[0].contentRevision);
+  center.publish({ operationId: 'login-recovery', level: 'error', message: '本機連線失敗', target: { kind: 'logs' } });
+  assert.deepEqual(center.snapshot(), upgraded);
+  center.dispose();
+});
+
+test('recovery target upgrades preserve existing task destinations and dismissed notices', () => {
+  const center = new NotificationCenter(), recovery = { kind: 'networkRecovery' as const, recoveryId: 'host-owned-id' };
+  center.publish({ operationId: 'task', message: 'failure', target: { kind: 'task', taskId: 'task-a' } });
+  center.publish({ operationId: 'task', message: 'different failure', target: recovery });
+  assert.deepEqual(center.snapshot().items[0].target, { kind: 'task', taskId: 'task-a' });
+  center.publish({ operationId: 'dismissed', message: 'failure', target: { kind: 'logs' } });
+  center.remove('operation:dismissed');
+  center.publish({ operationId: 'dismissed', message: 'failure', target: recovery });
+  assert.deepEqual(center.snapshot().items.map(item => item.id), ['operation:task']);
+  center.dispose();
+});
+
 test('operation notifications retain their origin destination and snapshots do not expose mutable store objects', async () => {
   const center = new NotificationCenter();
   await center.run({ operationId: 'issue-1', title: 'Issue', origin: { accountId: 'account-1', groupId: 2 }, target: { kind: 'issue', projectId: 3, iid: 4 } }, async () => {

@@ -24,6 +24,7 @@
     "onCommand:gitlabWorkspace.removeAccount",
     "onCommand:gitlabWorkspace.openAdmin",
     "onCommand:gitlabWorkspace.showLogs",
+    "onCommand:gitlabWorkspace.repairApiControl",
     "onCommand:gitlabWorkspace.scanRepositories",
     "onView:gitlabWorkspace.repositories",
     "onView:gitlabWorkspace.myWork"
@@ -210,6 +211,11 @@
         "category": "GitLab Workspace",
         "command": "gitlabWorkspace.showLogs",
         "title": "開啟 Log"
+      },
+      {
+        "category": "GitLab Workspace",
+        "command": "gitlabWorkspace.repairApiControl",
+        "title": "修復本機 GitLab 連線"
       },
       {
         "category": "GitLab Workspace",
@@ -600,5 +606,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.54.2"
+  "version": "0.54.3"
 }

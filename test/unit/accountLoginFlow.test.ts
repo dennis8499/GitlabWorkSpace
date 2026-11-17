@@ -5,6 +5,9 @@ import { GitLabSession } from '../../src/connection/session';
 import { accountTokenKey } from '../../src/connection/accountStore';
 import type { IssueNavigation } from '../../src/workspace/workspaceProtocol';
 import { OperationLog } from '../../src/logging/operationLog';
+import { GitLabNetworkError } from '../../src/api/gitLabNetworkGate';
+import { ApiControlRecovery } from '../../src/connection/apiControlRecovery';
+import { NotificationCenter } from '../../src/notifications/notificationCenter';
 
 const loader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const original = loader._load;
@@ -17,6 +20,7 @@ const vscode = {
     withProgress: async (_options: unknown, task: () => Promise<void>): Promise<void> => task(),
     showQuickPick: async (_items: any[], _options?: unknown): Promise<any> => undefined,
     showInformationMessage: async (_message: string, ..._actions: string[]): Promise<string | undefined> => undefined,
+    showWarningMessage: async (_message: string): Promise<string | undefined> => undefined,
     createWebviewPanel: (..._args: unknown[]): any => { throw new Error('Unexpected panel creation'); } }
 };
 loader._load = (name, parent, main) => name === 'vscode' ? vscode : original(name, parent, main);
@@ -36,6 +40,7 @@ function fixture() {
     store: async (key: string, value: string) => { secrets.values.set(key, value); }, delete: async (key: string) => { secrets.values.delete(key); } };
   const logMetadata: unknown[] = [], registeredSecrets: string[] = [];
   const log: any = { addSecret: (secret: string) => registeredSecrets.push(secret), wrapFetch: (fetcher: unknown) => fetcher,
+    sanitize: (value: string) => value, record: () => undefined,
     run: async (feature: string, action: string, context: unknown, task: () => Promise<unknown>) => {
       logMetadata.push({ feature, action, context }); return task();
     } };
@@ -103,6 +108,71 @@ const accountResult = (messages: any[], requestId: string) => {
   assert.ok(result, `login ${requestId} has a domain result`);
   return result;
 };
+
+test('metadata-missing login offers Host-owned recovery before error receipts lose structured diagnostics', async () => {
+  const f = fixture(), root = path.resolve('recovery-fixture'), leasePath = path.join(root, 'api', 'a'.repeat(64), 'control.lock');
+  const failure = new GitLabNetworkError('本機 API 控制鎖缺少擁有者資料。', undefined, undefined,
+    { phase: 'admission', code: 'metadata-missing', runtimePath: root, leasePath, requestStarted: false });
+  f.host.apiControlRecovery = new ApiControlRecovery({ scriptPath: path.join(root, 'repair.ps1'), runtimeRoot: root, platform: 'win32' });
+  f.host.notificationCenter = new NotificationCenter();
+  f.session.connect = async () => { throw failure; };
+  await authenticate(f.host, login('recovery-login'));
+  assert.equal(accountResult(f.messages, 'recovery-login').error, failure.message);
+  const notice = f.host.notifications.snapshot().items[0];
+  assert.equal(notice.target.kind, 'networkRecovery'); assert.equal(f.probes(), 0);
+  assert.doesNotMatch(JSON.stringify(notice), /one-secret|control\.lock|recovery-fixture/);
+  const calls: unknown[] = [];
+  f.host.repairApiControl = async (id: string) => { calls.push(id); };
+  f.host.getNotificationOrigin = () => ({ accountId: 'changed-account' });
+  await f.host.openNotificationTarget(notice.id);
+  assert.deepEqual(calls, [notice.target.recoveryId]);
+});
+
+test('saved-account switch preserves metadata failure identity and exposes recovery without retrying', async () => {
+  const f = fixture(); await authenticate(f.host, login('saved-before-recovery'));
+  const root = path.resolve('switch-recovery-fixture'), leasePath = path.join(root, 'api', 'b'.repeat(64), 'control.lock');
+  const failure = new GitLabNetworkError('本機 API 控制鎖缺少擁有者資料。', undefined, undefined,
+    { phase: 'admission', code: 'metadata-missing', runtimePath: root, leasePath, requestStarted: false });
+  f.host.apiControlRecovery = new ApiControlRecovery({ scriptPath: path.join(root, 'repair.ps1'), runtimeRoot: root, platform: 'win32' });
+  f.host.notificationCenter = new NotificationCenter();
+  let attempts = 0;
+  f.session.switchAccount = async () => { attempts++; throw failure; };
+  await assert.rejects(f.host.switchAccount(f.session.activeAccountId), error => error === failure);
+  assert.equal(attempts, 1); assert.equal(f.host.notifications.snapshot().items[0].target.kind, 'networkRecovery');
+  assert.equal(f.host.accountTransitionBusy, false);
+});
+
+test('native recovery works offline without an account or project and distinguishes launch from repair', async t => {
+  const f = fixture(), info: string[] = [], launches: string[] = [];
+  t.mock.method(vscode.window, 'showInformationMessage', async (message: string) => { info.push(message); return undefined; });
+  f.host.apiControlRecovery = {
+    inspect: async () => [{ recoveryId: 'native-target', leasePath: 'fixture-lock', status: 'Empty', entries: [] }],
+    launch: async (id: string) => { launches.push(id); return { status: 'Launched', leasePath: 'fixture-lock' }; }
+  };
+  await f.host.repairApiControl();
+  assert.deepEqual(launches, ['native-target']); assert.equal(f.probes(), 0);
+  assert.equal(info.length, 1); assert.match(info[0], /已提交.*要求/); assert.match(info[0], /先確認獨立 PowerShell 視窗出現/);
+  assert.equal(f.session.activeAccountId, undefined);
+});
+
+test('native recovery preserves nonempty locks and treats absent or cancelled selection as inspection only', async t => {
+  const f = fixture(), info: string[] = [], warnings: string[] = [];
+  t.mock.method(vscode.window, 'showInformationMessage', async (message: string) => { info.push(message); return undefined; });
+  t.mock.method(vscode.window, 'showWarningMessage', async (message: string) => { warnings.push(message); return undefined; });
+  t.mock.method(vscode.window, 'showQuickPick', async () => undefined);
+  let candidates: any[] = [];
+  f.host.apiControlRecovery = { inspect: async () => candidates, launch: async () => assert.fail('No empty target was selected') };
+  await f.host.repairApiControl();
+  candidates = [{ recoveryId: 'missing', leasePath: 'fixture-lock', status: 'Missing', entries: [] }];
+  await f.host.repairApiControl();
+  candidates = [{ recoveryId: 'nonempty', leasePath: 'fixture-lock', status: 'NotEmpty', entries: ['owner.json.tmp'] }];
+  await f.host.repairApiControl();
+  candidates = [candidates[0], { ...candidates[0], recoveryId: 'another' }];
+  await f.host.repairApiControl();
+  assert.equal(info.length, 2); assert.match(info[0], /沒有找到/); assert.match(info[1], /已不存在/);
+  assert.equal(warnings.length, 1); assert.match(warnings[0], /owner.json.tmp/); assert.match(warnings[0], /保留全部/);
+  assert.equal(f.probes(), 0);
+});
 
 test('login uses the existing validated account store and replays receipts without authenticating twice', async () => {
   const { host, session, messages, secrets, globalState, snapshots, logMetadata, registeredSecrets, probes } = fixture();

@@ -39,7 +39,7 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.openCodexMode', 'gitlabWorkspace.createCodexTask', 'gitlabWorkspace.createCodexTaskFromSelection',
       'gitlabWorkspace.openRepository',
       'gitlabWorkspace.addAccount', 'gitlabWorkspace.switchAccount', 'gitlabWorkspace.removeAccount',
-      'gitlabWorkspace.openAdmin', 'gitlabWorkspace.showLogs', 'gitlabWorkspace.scanRepositories'
+      'gitlabWorkspace.openAdmin', 'gitlabWorkspace.showLogs', 'gitlabWorkspace.repairApiControl', 'gitlabWorkspace.scanRepositories'
     ]) {
       assert.ok(commands.includes(command), `${command} is registered`);
     }
@@ -66,6 +66,7 @@ suite('GitLab Workspace extension activation', () => {
     assert.equal(settingsCommand?.title, '設定');
     assert.ok(extension.packageJSON.activationEvents.includes('onCommand:gitlabWorkspace.openSettings'));
     assert.ok(extension.packageJSON.activationEvents.includes('onCommand:gitlabWorkspace.showLogs'));
+    assert.ok(extension.packageJSON.activationEvents.includes('onCommand:gitlabWorkspace.repairApiControl'));
     assert.ok(extension.packageJSON.contributes.menus.commandPalette.some((item: { command: string; when?: string }) =>
       item.command === 'gitlabWorkspace.openAdmin' && item.when === 'false'));
   });

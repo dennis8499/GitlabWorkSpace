@@ -3,6 +3,17 @@ import test from 'node:test';
 import { NotificationCenter } from '../../src/notifications/notificationCenter';
 import { withNativeCommandFeedback } from '../../src/notifications/nativeCommandFeedback';
 
+test('native recovery feedback opens the Host-owned repair action once', async () => {
+  const center = new NotificationCenter(), opened: string[] = [];
+  center.publish({ operationId: 'recovery', level: 'error', message: 'Local coordination failed', target: { kind: 'networkRecovery', recoveryId: 'opaque' } });
+  await withNativeCommandFeedback(async () => false, {
+    operationId: 'recovery', snapshot: () => center.snapshot(), workbenchVisible: () => false,
+    show: async (_level, _message, action) => { assert.equal(action, '修復本機連線'); return action; },
+    openTarget: async id => { opened.push(id); }, openMessages: async () => assert.fail('Recovery has a direct destination')
+  });
+  await Promise.resolve(); assert.deepEqual(opened, ['operation:recovery']); center.dispose();
+});
+
 test('a native failure opens the Host-owned destination once, without reopening messages', async () => {
   const center = new NotificationCenter(), opened: string[] = [];
   await withNativeCommandFeedback(() => center.runCommand({ operationId: 'task-error', title: 'Task', target: { kind: 'task', taskId: 'task-1' } }, async () => { throw new Error('Task failed'); }), {

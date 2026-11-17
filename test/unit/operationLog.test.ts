@@ -18,6 +18,13 @@ function fixture(): { log: OperationLog; output: Array<{ level: LogLevel; line: 
   }) };
 }
 
+test('activation diagnostics record the installed extension version through the log allowlist', () => {
+  const { log, entries } = fixture();
+  log.record({ feature: 'workspace', action: 'activate', result: 'success', extensionVersion: '0.54.3' });
+  assert.equal(entries()[0].extensionVersion, '0.54.3');
+  log.dispose();
+});
+
 test('sends successful and failed operations to the native sink, captures their original account and correlates API requests', async () => {
   const { log, entries, output } = fixture();
   let accountId = 'first';

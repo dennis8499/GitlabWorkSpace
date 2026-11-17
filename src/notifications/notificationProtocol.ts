@@ -2,7 +2,14 @@ export type NotificationLevel = 'info' | 'warn' | 'error';
 export type NotificationTarget = { kind: 'task'; taskId: string }
   | { kind: 'issue' | 'mergeRequest'; projectId: number; iid: number }
   | { kind: 'tools'; section?: 'codex' | 'workflowkit' }
+  | { kind: 'networkRecovery'; recoveryId: string }
   | { kind: 'logs' };
+
+export function notificationTargetLabel(target?: NotificationTarget): string {
+  return target?.kind === 'task' ? '開啟任務' : target?.kind === 'issue' ? '返回 Issue'
+    : target?.kind === 'mergeRequest' ? '開啟 MR' : target?.kind === 'tools' ? '修復環境'
+      : target?.kind === 'networkRecovery' ? '修復本機連線' : '查看 Log';
+}
 
 export interface NotificationOrigin {
   accountId?: string;

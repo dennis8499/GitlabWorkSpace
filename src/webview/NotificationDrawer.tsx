@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
+import { notificationTargetLabel } from '../notifications/notificationProtocol';
 import type { usePresence } from './motion';
 import { NativeDialog } from './NativeDialog';
 
@@ -51,7 +52,7 @@ export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRe
           <summary ref={element => { if (element) summaries.current.set(item.id, element); else summaries.current.delete(item.id); }}><span class="notification-level">{item.level === 'error' ? '錯誤' : item.level === 'warn' ? '警告' : '資訊'}</span><strong>{item.title}</strong>{!item.read && <span class="notification-unread">未讀</span>}<time dateTime={new Date(item.updatedAt).toISOString()}>{new Date(item.updatedAt).toLocaleTimeString()}</time><span class="notification-preview">{item.messages.at(-1)}</span></summary>
           <div class="notification-detail">{item.messages.map((message, index) => <p key={index}>{message}</p>)}
             <div class="button-row">
-              <button type="button" onClick={() => { post({ type: 'openNotificationTarget', id: item.id, destination: 'origin' }); onClose(); }}>{item.target?.kind === 'task' ? '開啟任務' : item.target?.kind === 'issue' ? '返回 Issue' : item.target?.kind === 'mergeRequest' ? '開啟 MR' : item.target?.kind === 'tools' ? '修復環境' : '查看 Log'}</button>
+              <button type="button" onClick={() => { post({ type: 'openNotificationTarget', id: item.id, destination: 'origin' }); onClose(); }}>{notificationTargetLabel(item.target)}</button>
               {item.target && item.target.kind !== 'logs' && <button class="quiet" type="button" onClick={() => post({ type: 'openNotificationTarget', id: item.id, destination: 'logs' })}>查看 Log</button>}
             </div>
             {item.origin && <p class="subtle notification-origin">{[item.origin.baseUrl, item.origin.accountId && `帳號 ${item.origin.accountId}`, item.origin.groupId && `Group ${item.origin.groupId}`, item.origin.root].filter(Boolean).join(' · ')}</p>}

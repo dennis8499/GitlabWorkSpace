@@ -95,6 +95,12 @@ Windows compiler cache 的新目錄及新編譯檔案明確由目前使用者持
 
 `metadata-missing / ENOENT` 表示擁有者檔案持續讀不到，無法單憑 Log 判斷目錄是否為空。這類未知鎖不自動回收。請在產生 Log 的電腦，以原 OS 使用者執行以下步驟；不要改為清理其他電腦或其他使用者的 runtime。
 
+0.54.3 起，Windows 可直接從登入失敗通知或訊息中心選擇「修復本機連線」，也可在命令面板執行「GitLab Workspace: 修復本機 GitLab 連線」。入口不需先登入或開啟專案；多個鎖須選定一個目標。若鎖已不存在，直接重試登入；若鎖含其他項目，保留資料並顯示診斷。
+
+確認獨立 PowerShell 視窗出現後，依其中提示保存工作、停止相關任務，完全關閉所有使用相同 runtime 的 VS Code、Extension Host、其他編輯器及 CLI 客戶端。只關閉目前一個視窗或重新載入 Extension Host 不足以完成離線復原。修復期間不要重新啟動客戶端，在獨立視窗輸入 Y 明確確認後，工具會重新檢查程序、路徑及空目錄並執行修復；輸入 Q 可取消。看到 Removed 或 Missing 後，再重新開啟 VS Code 登入。此流程不會自動終止程序或重送請求。
+
+無法啟動獨立視窗時，仍可使用以下相容命令手動操作。互動模式也可執行 `repair-api-control.ps1 -RuntimeRoot <完整路徑> -LeasePath <完整路徑> -Interactive`；此模式不可與 `-Apply` 或 `-ClientsStopped` 混用。
+
 1. 取得 [repair-api-control.ps1](../resources/repair-api-control.ps1)。VSIX 也包含相同檔案，位於 `extension/resources/repair-api-control.ps1`；安裝後位於擴充功能目錄的 `resources/`。將工具複製到可操作的資料夾。
 2. 停止相關任務，完全結束所有 VS Code 視窗、Extension Host 及其他使用此 runtime 的客戶端；修復期間不要重啟。程序檢查是輔助，`-ClientsStopped` 代表你已確認所有相關客戶端停止。
 3. 開啟獨立 PowerShell，在工具所在目錄執行檢查。`$runtimePath` 須與 Log 的 `runtimePath` 相同；若使用自訂 runtime，請代入該完整本機路徑。
@@ -112,7 +118,7 @@ Windows compiler cache 的新目錄及新編譯檔案明確由目前使用者持
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-api-control.ps1 -RuntimeRoot $runtimePath -LeasePath $leasePath -Apply -ClientsStopped
    ```
 
-5. 確認 `Removed` 或 `Missing` 後，安裝 `gitlab-workspace-0.54.2.vsix`，再重新開啟 VS Code 並連線 GitLab。若已安裝修正版，直接重新開啟即可。
+5. 確認 `Removed` 或 `Missing` 後，安裝 `gitlab-workspace-0.54.3.vsix`，再重新開啟 VS Code 並連線 GitLab。若已安裝修正版，直接重新開啟即可。
 
 工具預設只檢查；套用前兩次檢查宿主程序，核對實際路徑與所有祖先目錄，拒絕網路路徑、重新導向及其他鎖種類。實際移除使用非遞迴的空目錄刪除。`NotEmpty`、權限不足、程序檢查失敗或目錄改變時停止，保留全部檔案；請保存 `Entries` 與相關 Log 供後續診斷。`state.json`、`network-policy.json`、Git 鎖與非空目錄均不在清理範圍內。
 

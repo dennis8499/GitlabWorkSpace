@@ -73,6 +73,8 @@ import { reviewSessionActions } from './reviewSessionProtocol';
 import { canonicalReviewRequestId, canReprepareCodexTask } from '../codex/protocol';
 import { codexRootKey } from '../codex/taskStore';
 import { atomicNetworkJson, networkRuntimeRoot } from '../api/localNetworkLease';
+import { ApiControlRecovery, type ApiControlInspection, type ApiControlLaunch } from '../connection/apiControlRecovery';
+import { GitLabNetworkError } from '../api/gitLabNetworkGate';
 import { CodexWorkspaceLease } from '../codex/workspaceLease';
 import { canonicalRuntime } from '../codex/taskValidation';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
@@ -332,6 +334,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private readonly gitMessages: vscode.Disposable;
   private readonly gitRepositoryChanges: vscode.Disposable;
   private readonly readInvalidation: vscode.Disposable;
+  private apiControlRecovery?: ApiControlRecovery;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -728,6 +731,9 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!notice) throw new Error('這則訊息已移除。');
     const target = destination === 'logs' ? { kind: 'logs' } as const : notice.target;
     if (!target || target.kind === 'logs') { await vscode.commands.executeCommand('gitlabWorkspace.showLogs'); return; }
+    // A local runtime is shared across accounts; revalidate the Host-owned target
+    // without requiring the failed login's account or Group to remain selected.
+    if (target.kind === 'networkRecovery') { await this.repairApiControl(target.recoveryId); return; }
     const current = () => {
       const now = this.getNotificationOrigin();
       if (this.disposed || !notice.origin || ['accountId', 'baseUrl', 'groupId', 'root'].some(key => notice.origin?.[key as keyof NotificationOrigin] !== now[key as keyof NotificationOrigin])) {
@@ -742,6 +748,46 @@ export class WorkspacePanel implements vscode.Disposable {
       if (target.kind === 'issue') await this.openIssue(target.projectId, target.iid);
       else { await this.navigateTo('reviewer'); current(); await this.loadMergeRequest(target.projectId, target.iid); }
     }
+  }
+
+  private getApiControlRecovery(): ApiControlRecovery {
+    return this.apiControlRecovery ??= new ApiControlRecovery({
+      scriptPath: vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'repair-api-control.ps1').fsPath
+    });
+  }
+
+  private captureApiControlRecovery(error: unknown, message: string, operationId = this.operationContext.getStore()): void {
+    // Capture before account receipts and operation notifications stringify the error.
+    if (!(error instanceof GitLabNetworkError) || error.diagnostics?.code !== 'metadata-missing') return;
+    const target = this.getApiControlRecovery().capture(error);
+    if (target) this.notifications.publish({ level: 'error', title: '登入 GitLab', message, operationId,
+      origin: this.getNotificationOrigin(), target });
+  }
+
+  async repairApiControl(recoveryId?: string): Promise<void> {
+    await this.runLogged('repairApiControl', async () => {
+      const recovery = this.getApiControlRecovery(), candidates = await recovery.inspect(recoveryId);
+      if (!candidates.length) { await vscode.window.showInformationMessage('目前沒有找到本機 API 控制鎖，可重新嘗試登入 GitLab。'); return; }
+      const selected = candidates.length === 1 ? candidates[0] : (await vscode.window.showQuickPick(candidates.map((candidate, index) => ({
+        label: `${candidate.status === 'Empty' ? '可離線復原' : candidate.status === 'Missing' ? '鎖已不存在' : '需要檢查'}的連線鎖 ${index + 1}`,
+        detail: candidate.leasePath, candidate
+      })), { title: '修復本機 GitLab 連線', placeHolder: '選擇要檢查的單一連線鎖', ignoreFocusOut: true }))?.candidate;
+      if (!selected) return;
+      const explain = async (result: ApiControlInspection | ApiControlLaunch): Promise<void> => {
+        if (result.status === 'Launched') {
+          this.session.log?.record({ feature: 'api-coordination', action: 'launchRecovery', result: 'success', network: false,
+            leasePath: result.leasePath, message: '已提交開啟獨立復原視窗的要求；修復尚未完成。' });
+          await vscode.window.showInformationMessage('已提交開啟復原視窗的要求。請先確認獨立 PowerShell 視窗出現，再依其中提示停止相關客戶端並復原；完成後重新開啟 VS Code 登入。');
+        } else if (result.status === 'Missing') {
+          await vscode.window.showInformationMessage('指定的本機連線鎖已不存在，可重新嘗試登入 GitLab。');
+        } else if (result.status === 'NotEmpty') {
+          const message = `連線鎖內仍有檔案，已保留全部內容，無法進行空鎖復原。路徑：${result.leasePath}；項目：${result.entries.join('、')}`;
+          this.session.log?.record({ feature: 'api-coordination', action: 'inspectRecovery', result: 'error', network: false, leasePath: result.leasePath, message });
+          await vscode.window.showWarningMessage(this.session.log?.sanitize(message) ?? sanitizeDiagnostic(message));
+        }
+      };
+      await explain(selected.status === 'Empty' ? await recovery.launch(selected.recoveryId) : selected);
+    }, { network: false });
   }
 
   async openNotifications(): Promise<void> {
@@ -5257,6 +5303,7 @@ export class WorkspacePanel implements vscode.Disposable {
           : readableError(error);
       const safeMessage = token ? message.split(token).join('[redacted]') : message;
       const operationId = request.operationId ?? this.operationContext.getStore();
+      this.captureApiControlRecovery(error, safeMessage, operationId);
       if (operationId) this.operations.noteError(operationId, safeMessage);
       this.noteOutcome({ status: 'failed', effect: 'none' });
       reply({ error: safeMessage });
@@ -5279,6 +5326,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (account.needsLogin) return this.connect(account.id, onLoginOutcome);
     this.accountTransitionBusy = true; this.accountOperation = 'switch'; this.sendSnapshot(); await this.syncSidebarState?.();
     try { await this.connectedUserChanged(await this.session.switchAccount(selected)); }
+    catch (error) { this.captureApiControlRecovery(error, readableError(error)); throw error; }
     finally { this.accountTransitionBusy = false; this.accountOperation = undefined; this.sendSnapshot(); await this.syncSidebarState?.(); }
   }
 

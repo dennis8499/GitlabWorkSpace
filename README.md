@@ -2,7 +2,7 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
-0.54.2 修正 API 控制鎖釋放失敗後卡住連線，以及原生登入失敗卻記錄成功的問題。既有 `metadata-missing / ENOENT` 可依[離線復原步驟](docs/network-policy.md#api-控制鎖離線復原)先檢查鎖目錄。詳見[版本說明](docs/releases/v0.54.2.md)。
+0.54.3 提供本機連線復原入口。登入遇到 `metadata-missing / ENOENT` 時，可從通知選擇「修復本機連線」，或執行「修復本機 GitLab 連線」命令，再依獨立 PowerShell 視窗完成一次離線復原。既有鎖不會因更新而直接移除。詳見[復原步驟](docs/network-policy.md#api-控制鎖離線復原)與[版本說明](docs/releases/v0.54.3.md)。
 
 ## 目錄
 

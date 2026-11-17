@@ -41,7 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   log.setContextSource(() => ({ accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }));
   context.subscriptions.push({ dispose: () => { log.dispose(); logChannel.dispose(); } }, notifications, operations);
   try { await session.initialize({ allowNetwork: false }); } catch { notifications.publish({ level: 'warn', message: '既有 GitLab 帳號尚未完成遷移；設定與 Token 已保留，連線時會重試。' }); }
-  log.record({ feature: 'workspace', action: 'activate', result: 'success' });
+  log.record({ feature: 'workspace', action: 'activate', result: 'success', extensionVersion: context.extension.packageJSON.version });
   let refreshWorkspaceAfterIssueChange = (): void => undefined;
   const issuePanels = new IssuePanels(context, session, () => refreshWorkspaceAfterIssueChange(), operations);
   const gitRepositories = new GitRepositoryService(context.extensionUri, context.globalStorageUri, session, notifications);
@@ -115,6 +115,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     registerLoggedCommand('gitlabWorkspace.switchAccount', (id?: string) => getWorkspace().accountFromSidebar('switchAccount', id)),
     registerLoggedCommand('gitlabWorkspace.removeAccount', (id?: string) => getWorkspace().accountFromSidebar('removeAccount', id)),
     vscode.commands.registerCommand('gitlabWorkspace.showLogs', () => logChannel.show(false)),
+    vscode.commands.registerCommand('gitlabWorkspace.repairApiControl', async () => {
+      try { await getWorkspace().repairApiControl(); return true; }
+      catch (error) { await vscode.window.showErrorMessage(log.sanitize(readableError(error))); return false; }
+    }),
     vscode.commands.registerCommand('gitlabWorkspace.openAdmin', () => logChannel.show(false)),
     registerLoggedCommand('gitlabWorkspace.scanRepositories', () => getWorkspace().scanFromSidebar()),
     registerLoggedCommand('gitlabWorkspace.cloneRepositories', () => getWorkspace().cloneFromSidebar('pick')),

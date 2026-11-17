@@ -2,6 +2,7 @@ export type LogLevel = 'info' | 'warn' | 'error';
 export type LogResult = 'started' | 'success' | 'error' | 'cancelled';
 
 export interface LogContext {
+  extensionVersion?: string;
   accountId?: string;
   baseUrl?: string;
   groupId?: number;
