@@ -4,11 +4,12 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES, MAX_INSTALLER_BYTES, PackageIntegrityError, parseDescriptor, type ReleaseDescriptor } from '../../src/workspace/workflowKitReleases';
+import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES, PackageIntegrityError, parseDescriptor, type ReleaseDescriptor } from '../../src/workspace/workflowKitReleases';
 
+const installerLimit = 16 * 1024 * 1024;
 const sha = (data: Uint8Array) => createHash('sha256').update(data).digest('hex');
-function release(version = '1.0.0', source: 'github' | 'gitea' = 'github', contract = 2) {
-  const zip = Buffer.from('verified release ZIP'), installer = Buffer.from('verified release installer');
+function release(version = '1.0.0', source: 'github' | 'gitea' = 'github', contract = 2, installer = Buffer.from('verified release installer')) {
+  const zip = Buffer.from('verified release ZIP');
   const descriptor: ReleaseDescriptor = { schema: 'workflowkit-release/v1', package: 'gitlab-workspace-kit', version,
     workspaceContract: contract, installerApi: 1, statusApi: 1, minimumExtensionVersion: '0.33.0', profiles: ['group', 'repository'],
     skills: ['codebase-wiki', 'merge-reviewer', 'release-reviewer', 'output-style'], assets: {
@@ -135,20 +136,56 @@ test('downloads, verifies and persists only the selected release and supports of
   assert.deepEqual(await readFile(result.archivePath), Buffer.from('verified release ZIP'));
 });
 
-test('downloads expanded installer metadata and rejects executables above the bounded limit', async t => {
-  const item = release('1.5.0');
-  const bytes = Buffer.alloc(4 * 1024 * 1024 + 1, 35);
-  const installer = { ...item.descriptor.assets.installer, size: bytes.length, sha256: sha(bytes) };
-  item.files.set(installer.name, bytes);
-  Object.assign(item.api.assets.find(asset => asset.name === installer.name)!, { size: bytes.length, digest: `sha256:${sha(bytes)}` });
-  updateDescriptor(item, { assets: { ...item.descriptor.assets, installer } });
-  const { manager } = await context(t, [item]);
+test('downloads and caches an installer of the WorkflowKit 1.12.0 size', async t => {
+  const bytes = Buffer.alloc(8_396_806, 35);
+  const { manager, root } = await context(t, [release('1.12.0', 'github', 2, bytes)]);
   const [selected] = await manager.refresh('github');
+  assert.equal(selected.version, '1.12.0');
   assert.equal(selected.available, true);
   const result = await manager.getRelease(selected.id);
   assert.deepEqual(await readFile(result.installerPath), bytes);
-  assert.throws(() => parseDescriptor({ ...selected.descriptor, assets: { ...selected.descriptor.assets,
-    installer: { ...installer, size: MAX_INSTALLER_BYTES + 1 } } }), PackageIntegrityError);
+  const restarted = new WorkflowKitReleaseManager(root, async () => { throw new Error('Unexpected network request'); });
+  const [cached] = await restarted.useCached('github');
+  assert.equal(cached.id, selected.id);
+  assert.equal(cached.cached, true);
+});
+test('downloads an installer at the size limit and reports an oversized index', async t => {
+  const bytes = Buffer.alloc(installerLimit, 35);
+  const item = release('1.12.0', 'github', 2, bytes);
+  const { manager } = await context(t, [item]);
+  const [selected] = await manager.refresh('github');
+  assert.equal(selected.available, true);
+  assert.deepEqual(await readFile(await manager.prepareInstaller(selected.id)), bytes);
+
+  const { assets } = item.descriptor;
+  assert.throws(() => parseDescriptor({ ...item.descriptor, assets: { ...assets,
+    installer: { ...assets.installer, size: installerLimit + 1 } } }), {
+    name: 'PackageIntegrityError', message: /安裝器.*16777217 bytes.*16 MiB/
+  });
+});
+test('rejects oversized installer downloads before writing to the cache', async t => {
+  const item = release();
+  const { root, respond } = await context(t, [item]);
+  const installerUrl = item.base + item.descriptor.assets.installer.name;
+  const oversizedBody = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(installerLimit));
+      controller.enqueue(new Uint8Array(1));
+      controller.close();
+    }
+  });
+  const responses = [
+    new Response('', { headers: { 'Content-Length': String(installerLimit + 1) } }),
+    new Response(oversizedBody, { headers: { 'Content-Length': String(installerLimit) } })
+  ];
+  for (const response of responses) {
+    const manager = new WorkflowKitReleaseManager(root, async input => String(input) === installerUrl ? response : respond(input));
+    const [selected] = await manager.refresh('github');
+    await assert.rejects(manager.prepareInstaller(selected.id), {
+      name: 'PackageIntegrityError', message: /下載附件超過容量限制/
+    });
+    assert.deepEqual(await readdir(root), []);
+  }
 });
 test('rejects tampered cached executable bytes before running a status helper', async t => {
   const { manager } = await context(t); const [item] = await manager.refresh('github');

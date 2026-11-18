@@ -11,9 +11,10 @@ import { installedKitIdentity } from './workflowKitIntegration';
 export { compareVersions } from './workflowKitVersion';
 
 export const TOOL_SOURCE_KEY = 'gitlabWorkspace.workflowKit.source';
-export const MAX_PACKAGE_BYTES = 80 * 1024 * 1024;
-export const MAX_INSTALLER_BYTES = 8 * 1024 * 1024;
-const META = 1024 * 1024;
+const MIB = 1024 * 1024;
+export const MAX_PACKAGE_BYTES = 80 * MIB;
+export const MAX_INSTALLER_BYTES = 16 * MIB;
+const META = MIB;
 export const WORKFLOW_KIT_RELEASES: Record<RemoteToolSource, string> = {
   github: 'https://github.com/dennis8499/WorkflowKit/releases',
   gitea: 'https://tech-sharing.cathaysec.com.tw/01002903/WorkflowKit/releases'
@@ -401,7 +402,12 @@ export function parseDescriptor(value: unknown): ReleaseDescriptor {
     !data.assets?.package || !data.assets?.installer || Object.keys(data.assets).length !== 2) throw new PackageIntegrityError('WorkflowKit Release 索引格式無效。');
   for (const [kind, asset] of Object.entries(data.assets)) {
     if (!asset || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(asset.name) || !/^[a-f0-9]{64}$/.test(asset.sha256) ||
-      !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > (kind === 'installer' ? MAX_INSTALLER_BYTES : MAX_PACKAGE_BYTES)) throw new PackageIntegrityError('Release 附件索引無效。');
+      !Number.isSafeInteger(asset.size) || asset.size <= 0 || (kind !== 'installer' && asset.size > MAX_PACKAGE_BYTES)) {
+      throw new PackageIntegrityError('Release 附件索引無效。');
+    }
+    if (kind === 'installer' && asset.size > MAX_INSTALLER_BYTES) {
+      throw new PackageIntegrityError(`Release 安裝器 ${asset.name} 有 ${asset.size} bytes，超過 ${MAX_INSTALLER_BYTES / MIB} MiB 上限。`);
+    }
   }
   if (!data.assets.package.name.endsWith('.zip') || !data.assets.installer.name.endsWith('.py')) throw new PackageIntegrityError('Release 附件類型無效。');
   return data;

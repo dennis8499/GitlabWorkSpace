@@ -2,6 +2,8 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
+0.55.1 修正「工具與環境」安裝 WorkflowKit v1.12.0 時顯示「Release 附件索引無效」的問題。新版支援最大 16 MiB 的獨立安裝器。詳見 [0.55.1 發行說明](docs/releases/v0.55.1.md)。
+
 0.55.0 讓本機工作流程依自身條件啟用，GitLab 未登入或不可用時仍可操作 Git、Codex 與已安裝的 Skills／Wiki／BMAD；切換帳號保留本機草稿，舊成果可閱讀與匯出。詳見[版本說明](docs/releases/v0.55.0.md)與[功能盤點](docs/gitlab-independent-workflows.md)。
 
 本版也保留 0.54.3 的本機連線復原入口。登入遇到 `metadata-missing / ENOENT` 時，可從通知選擇「修復本機連線」，或執行「修復本機 GitLab 連線」命令，再依獨立 PowerShell 視窗完成一次離線復原。既有鎖不會因更新而直接移除。詳見[復原步驟](docs/network-policy.md#api-控制鎖離線復原)與[版本說明](docs/releases/v0.54.3.md)。
