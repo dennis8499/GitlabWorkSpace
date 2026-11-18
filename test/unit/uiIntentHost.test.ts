@@ -33,7 +33,7 @@ test('only the latest choice commits, and fields serialize independently', async
 test('native navigation fences old requests only for the affected fields', async () => {
   const host = new HostUiIntents();
   const oldMode = host.register('mode', { uiIntentId: id(1), hostNavigationGeneration: 0 });
-  const event = host.navigate({ mode: 'codex' });
+  const event = host.navigate({ mode: 'sa' });
   assert.equal(event.generation, 1);
   assert.equal(await host.apply(oldMode, async () => assert.fail('old mode applied')), false);
   const late = host.register('mode', { uiIntentId: id(9), hostNavigationGeneration: 0 });

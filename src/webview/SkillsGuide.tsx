@@ -182,7 +182,7 @@ export function SkillsGuide({ state, onChange, onEnvironmentChange = onChange, o
             {card.id !== 'ingest' && <details class="workflow-alternatives"><summary>其他方式</summary><button class="secondary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
               onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button><FeatureNotices id="skills-copy" items={{ '複製提示詞': copyBlocked }} /><p class="subtle">在相同專案根目錄的 Codex 對話貼上提示詞。</p></details>}</div>
           <FeatureNotices id="skills-run" items={{ '使用 Codex 執行': runBlocked }}>{!available && <button type="button" onClick={onOpenSettings}>準備環境與 Skills</button>}</FeatureNotices>
-          <p class="skills-next-step">確認任務設定後開始，進度、待回覆要求與成果會保留在 Codex 頁。</p>
+          <p class="skills-next-step">選擇模型和思考強度後，在 VS Code 終端機與 Codex 互動。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
         {(tool === 'merge-reviewer' || tool === 'release-reviewer') && onLoadReviewSessions && <ReviewSessions tool={tool}

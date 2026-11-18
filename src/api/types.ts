@@ -100,13 +100,6 @@ export interface GitLabProject {
   };
 }
 
-export interface GitLabWikiPage {
-  slug: string;
-  title: string;
-  content: string;
-  format: string;
-}
-
 export interface GitLabIssue {
   id: number;
   iid: number;

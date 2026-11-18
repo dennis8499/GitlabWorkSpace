@@ -12,7 +12,7 @@
 - 持久 outbox、operation ID 及發布收據避免未知結果重送；逐任務程序與既有資源鎖保留。新增 metadata 快取、查詢合併、任務增量更新及分段耗時。
 - 安全 Markdown、程式碼複製與 Host 核對的檔案行號；Issue 行內交接、逐討論 MR 回覆、Wiki 渲染／原文／差異及逐頁結果。
 
-[操作文件](../../codex-bridge.md) · [0.47.0 版本說明](../../releases/v0.47.0.md)
+[操作文件](https://github.com/dennis8499/GitlabWorkSpace/blob/v0.55.1/docs/codex-bridge.md) · [0.47.0 版本說明](../../releases/v0.47.0.md)
 
 ## 最終候選驗證
 

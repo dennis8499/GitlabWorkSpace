@@ -60,16 +60,6 @@ test('dashboard directs BMAD installation to WorkflowKit before GitLab login', a
   assert.equal(view.requests.some(item => ['connect', 'installWorkflowKit', 'copyBmadPrompt', 'openCodexTerminal'].includes(item.type)), false);
 });
 
-test('tool repair focuses its environment section and returns to the same preparation without starting work', async t => {
-  const view = await mount(t);
-  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data: { type: 'openSettings', focusSection: 'codex', draftId: 'saved-draft' } }));
-  await view.tick();
-  assert.equal(view.document.activeElement?.getAttribute('data-settings-section'), 'codex');
-  const button = [...view.document.querySelectorAll('.tool-drawer button')].find(item => item.textContent === '返回任務準備');
-  assert.ok(button); button.click(); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'showCodexLaunch')?.draftId, 'saved-draft');
-  assert.equal(view.requests.some(item => item.type === 'submitCodexLaunch' || item.type === 'startCodexTask'), false);
-});
 
 test('task drafts and copy requests stay associated with the selected root', async t => {
   const rootA = 'C:/專案/服務 A', rootB = 'C:/專案/服務 B';
@@ -95,6 +85,24 @@ test('settings shows the observed external BMAD version without claiming kit own
   const view = await mount(t, data);
   await view.click('開始使用'); await view.click('開啟 WorkflowKit 設定');
   assert.match(view.document.querySelector('.tool-drawer').textContent, /外部安裝（保留，由使用者管理）.*v6\.12\.4/s);
+});
+
+test('BMAD runs the current validated request in Codex CLI only after the user selects Execute', async t => {
+  const data = bmadWorkspaceSnapshot(), view = await mount(t, data);
+  await view.click('開始使用');
+  const form = view.document.querySelector('.bmad-prompt-form');
+  const execute = [...form.querySelectorAll('button')].find(button => button.textContent === '使用 Codex 執行');
+  assert.equal(execute.disabled, true);
+  const input = form.querySelector('#bmad-requirement');
+  input.value = '實作付款驗證\n保留測試證據'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.equal(view.requests.some(request => request.type === 'runCodexCli'), false);
+  assert.equal(execute.disabled, false);
+  execute.click(); await view.tick();
+  const commands = view.requests.filter(request => request.type === 'runCodexCli');
+  assert.deepEqual(commands.map(requestShape), [{
+    type: 'runCodexCli', source: { kind: 'bmad', request: { command: 'task', requirement: input.value, revision: data.bmad.revision } }
+  }]);
+  assert.equal(view.requests.some(request => request.type === 'copyBmadCommand'), false);
 });
 
 test('dashboard sends native command identity and exact revision while leaving observed progress unchanged', async t => {

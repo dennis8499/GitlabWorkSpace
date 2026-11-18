@@ -9,434 +9,12 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
-function commitReviewSkills() {
-  return { mode: 'group', root: 'C:/workspace', revision: 'commit-skills-current',
-    installed: { status: 'installed', capabilities: ['commit-draft', 'mr-precheck'] },
-    availableFeatures: ['commit-draft', 'mr-precheck'], repositories: [{ name: 'service', path: 'C:/workspace/repo-a' }] };
-}
-
-test('CommitReviewer Git shortcuts use the selected Repo and leave the Commit message untouched', async t => {
-  const view = await mountGit(t);
-  view.sendSnapshot({ ...snapshot('git'), skillsContext: commitReviewSkills() }); await view.tick();
-  const document = view.dom.window.document, composer = document.querySelector('.git-commit-composer textarea');
-  composer.value = 'Existing developer draft'; composer.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  const buttons = document.querySelectorAll('.git-control-panel .commit-review-launch button');
-  const launch = buttons.length ? buttons : document.querySelectorAll('.commit-review-launch button');
-  assert.equal(launch.length, 2);
-  for (const [index, mode] of ['commit', 'mr'].entries()) {
-    launch[index].click(); await view.tick();
-    const request = view.requests.findLast(request => request.type === 'prepareCommitReview');
-    assert.equal(request.mode, mode); assert.equal(request.repo, 'C:/workspace/repo-a');
-    assert.equal(request.revision, 'commit-skills-current');
-  }
-  assert.equal(composer.value, 'Existing developer draft');
-  assert.equal(gitActions(view, 'commit').length, 0);
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
-});
-
-test('CommitReviewer Issue shortcuts carry Issue identity from preview and embedded detail', async t => {
-  const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] }; data.skillsContext = commitReviewSkills();
-  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  for (const [index, mode] of ['commit', 'mr'].entries()) {
-    document.querySelectorAll('.issue-detail .commit-review-launch button')[index].click(); await view.tick();
-    const request = view.requests.findLast(request => request.type === 'prepareCommitReview');
-    assert.equal(request.mode, mode); assert.equal(request.projectId, 1); assert.equal(request.issueIid, 1);
-    assert.equal(request.repo, undefined); assert.equal(request.revision, 'commit-skills-current');
-  }
-  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
-  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
-  document.querySelector('.issue-embed .commit-review-launch button').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'prepareCommitReview').issueIid, 1);
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
-});
-
-function linkedWorkflowTask(kind, patch = {}) {
-  return { id: 'linked-workflow', title: 'Linked work', root: 'C:/workspace/team', status: 'completed',
-    createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z',
-    controls: { canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false },
-    origin: { kind, accountKey: 'account', baseUrl: 'https://gitlab.example.test', projectId: 1, projectPath: 'team/alpha',
-      repositoryRoot: 'C:/workspace/team/alpha', webUrl: 'https://gitlab.example.test/team/alpha', iid: kind === 'issue' ? 1 : 4,
-      sourceBranch: 'feature', sourceSha: gitHead, targetSha: gitParent }, ...patch };
-}
-
-function codexLaunchFixture(patch = {}) {
-  return { schema: 'GitLabWorkspaceCodexLaunch/v1', id: 'launch-fixture', revision: 1, scope: 'team-scope', state: 'editing', title: 'Prepare fixture',
-    source: { kind: 'free', repository: 'C:/workspace/repo', prompt: '' }, requirement: '', repositoryId: 'repo-1',
-    repositories: [{ id: 'repo-1', name: 'Fixture', path: 'C:/workspace/repo' }],
-    models: [{ id: 'fixture-model', label: 'Fixture model', efforts: ['low', 'high'], defaultEffort: 'high' }], isolated: true,
-    checks: [{ id: 'repository', label: 'Repo', state: 'ready' }], updatedAt: '2026-11-10T00:00:00Z', ...patch };
-}
-
-test('Codex launch autosaves revision-bound edits, retains later input and submits only on confirmation', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  let draft = codexLaunchFixture(); view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  const document = view.dom.window.document, input = () => document.querySelector('#codex-launch-requirement');
-  const edit = text => { input().value = text; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); };
-  const autosave = async () => { await new Promise(resolve => setTimeout(resolve, 450)); await view.tick(); return view.rawRequests.findLast(item => item.type === 'updateCodexLaunch'); };
-  edit('First requirement'); const first = await autosave(); assert.equal(first.revision, 1); assert.equal(first.patch.requirement, 'First requirement');
-  edit('Later requirement');
-  draft = { ...draft, revision: 2, requirement: first.patch.requirement }; view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  assert.equal(input().value, 'Later requirement', 'an acknowledged earlier save cannot erase newer typing');
-  const second = await autosave(); assert.equal(second.revision, 2); assert.equal(second.patch.requirement, 'Later requirement');
-  draft = { ...draft, revision: 3, requirement: second.patch.requirement }; view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  const model = document.querySelector('.codex-launch-options select'); model.value = 'fixture-model'; model.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
-  const effort = document.querySelectorAll('.codex-launch-options select')[1]; effort.value = 'high'; effort.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-  const settings = await autosave(); assert.equal(settings.patch.model, 'fixture-model'); assert.equal(settings.patch.effort, 'high');
-  draft = { ...draft, ...settings.patch, revision: 4 }; view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  assert.equal(view.requests.some(item => item.type === 'submitCodexLaunch'), false);
-  document.querySelector('.codex-launch-actions button[type="button"]').click(); await view.tick();
-  const check = view.rawRequests.findLast(item => item.type === 'checkCodexLaunch'); assert.equal(check.revision, 4); assert.equal(check.patch.requirement, 'Later requirement');
-  draft = { ...draft, revision: 5, state: 'ready' }; view.send({ type: 'codexLaunchDraft', draft });
-  view.receipt(check, { resourceKey: `codex-launch:${draft.id}`, effect: 'none' }); await view.tick();
-  const submit = document.querySelector('.codex-launch-actions button[type="submit"]'); submit.click(); submit.click(); await view.tick();
-  const requests = view.rawRequests.filter(item => item.type === 'submitCodexLaunch'); assert.equal(requests.length, 1);
-  assert.equal(requests[0].revision, 5); assert.equal(requests[0].patch.model, 'fixture-model'); assert.equal(requests[0].patch.effort, 'high');
-});
-
-test('Codex launch requires acknowledgement of changed sources and saves current input with that acknowledgement', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const change = { key: 'source-change-2', previous: { sourceSha: 'a'.repeat(40), targetSha: 'b'.repeat(40), title: 'Previous issue title', updatedAt: '2026-11-09T00:00:00Z' },
-    current: { sourceSha: 'c'.repeat(40), targetSha: 'd'.repeat(40), title: 'Updated issue title', updatedAt: '2026-11-10T00:00:00Z' }, discussionsChanged: true, acknowledged: false };
-  let draft = codexLaunchFixture({ revision: 7, state: 'ready', source: { kind: 'merge-request', projectId: 1, iid: 4, intent: 'fix-comments', discussionIds: [] }, sourceChange: change });
-  view.send({ type: 'codexLaunchDraft', draft, open: true }); await view.tick(); const document = view.dom.window.document;
-  const submit = () => document.querySelector('.codex-launch-actions button[type="submit"]'), acknowledge = () => document.querySelector('.codex-launch-source-change button');
-  const comparison = document.querySelector('.codex-launch-source-change').textContent;
-  for (const text of [change.previous.sourceSha, change.current.sourceSha, change.previous.targetSha, change.current.targetSha, change.previous.title, change.current.title, change.previous.updatedAt, change.current.updatedAt, 'MR 討論']) assert.ok(comparison.includes(text));
-  assert.equal(submit().disabled, true);
-  document.querySelector('.codex-launch form').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
-  assert.equal(view.rawRequests.some(request => request.type === 'submitCodexLaunch'), false, 'form submit cannot bypass acknowledgement');
-  document.querySelector('.codex-launch-actions button[type="button"]').click(); await view.tick();
-  const recheck = view.rawRequests.findLast(request => request.type === 'checkCodexLaunch'); assert.ok(recheck, 'recheck remains available');
-  draft = { ...draft, revision: 8 }; view.send({ type: 'codexLaunchDraft', draft }); view.receipt(recheck, { resourceKey: `codex-launch:${draft.id}`, effect: 'none' }); await view.tick();
-  assert.equal(submit().disabled, true, 'same source recheck does not acknowledge the change');
-  const input = document.getElementById('codex-launch-requirement'); input.value = 'Unsaved acknowledgement requirement'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const model = document.querySelector('.codex-launch-options select'); model.value = 'fixture-model'; model.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-  acknowledge().click(); await view.tick(); const saved = view.rawRequests.findLast(request => request.type === 'updateCodexLaunch');
-  assert.equal(saved.revision, 8); assert.equal(saved.patch.acknowledgedSource, change.key); assert.equal(saved.patch.requirement, 'Unsaved acknowledgement requirement'); assert.equal(saved.patch.model, 'fixture-model');
-  assert.equal(submit().disabled, true, 'only the Host acknowledgement enables starting');
-  input.value = 'Later input during acknowledgement'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  draft = { ...draft, ...saved.patch, revision: 9, sourceChange: { ...change, acknowledged: true } }; view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  assert.equal(input.value, 'Later input during acknowledgement'); assert.equal(submit().disabled, false);
-  view.send({ type: 'codexLaunchDraft', draft: { ...draft, revision: 10, sourceChange: { ...change, key: 'source-change-3', acknowledged: false } } }); await view.tick();
-  assert.equal(submit().disabled, true, 'a subsequent source change requires a new explicit acknowledgement');
-  assert.equal(view.rawRequests.some(request => request.type === 'submitCodexLaunch'), false);
-});
-
-test('Codex launch preserves local edits when another window wins the revision race', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const draft = codexLaunchFixture(); view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  const input = () => view.dom.window.document.querySelector('#codex-launch-requirement');
-  input().value = 'My unsaved requirement'; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  await new Promise(resolve => setTimeout(resolve, 450)); await view.tick();
-  const request = view.rawRequests.findLast(item => item.type === 'updateCodexLaunch'); assert.equal(request.revision, 1);
-  // The Host rejects this save and publishes the newer authoritative version from another window.
-  const remote = { ...draft, revision: 2, requirement: 'The other window requirement' };
-  view.send({ type: 'codexLaunchDraft', draft: remote }); await view.tick();
-  assert.equal(input().value, 'My unsaved requirement', 'a newer revision alone is not an acknowledgement of these fields');
-  await new Promise(resolve => setTimeout(resolve, 500)); await view.tick();
-  assert.equal(view.rawRequests.filter(item => item.type === 'updateCodexLaunch').length, 1, 'a conflict cannot auto-overwrite another window');
-  const saved = JSON.parse(JSON.stringify(view.savedState));
-  const restored = await mount(saved, data, {}, () => {}, { autoOperations: false }); t.after(() => restored.dom.window.close());
-  restored.send({ type: 'codexLaunchDraft', draft: remote }); await restored.tick();
-  assert.equal(restored.dom.window.document.querySelector('#codex-launch-requirement').value, 'My unsaved requirement', 'conflicting input remains durable');
-  await new Promise(resolve => setTimeout(resolve, 500)); await restored.tick();
-  assert.equal(restored.rawRequests.filter(item => item.type === 'updateCodexLaunch').length, 0, 'recreation retains the conflict until explicit resolution');
-  assert.equal(restored.rawRequests.some(item => item.type === 'submitCodexLaunch'), false);
-});
-
-test('Codex launch automatically saves restored input when its original revision is still current', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const draft = codexLaunchFixture({ revision: 7 }); view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  const input = view.dom.window.document.querySelector('#codex-launch-requirement');
-  input.value = 'Recover this final keystroke'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const saved = JSON.parse(JSON.stringify(view.savedState));
-  const restored = await mount(saved, data, {}, () => {}, { autoOperations: false }); t.after(() => restored.dom.window.close());
-  restored.send({ type: 'codexLaunchDraft', draft }); await restored.tick();
-  await new Promise(resolve => setTimeout(resolve, 500)); await restored.tick();
-  const requests = restored.rawRequests.filter(item => item.type === 'updateCodexLaunch');
-  assert.equal(requests.length, 1, 'same-base recovery resumes autosave without another keystroke');
-  assert.equal(requests[0].revision, 7); assert.equal(requests[0].patch.requirement, 'Recover this final keystroke');
-  assert.equal(restored.rawRequests.some(item => item.type === 'submitCodexLaunch'), false);
-});
-
-test('Codex launch preserves the last keystroke across Webview recreation and binds MR discussion selection', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data); t.after(() => view.dom.window.close());
-  let draft = codexLaunchFixture({ source: { kind: 'merge-request', projectId: 1, iid: 4, intent: 'fix-comments', discussionIds: [] },
-    discussions: [{ id: 'discussion-a', summary: 'Fix the boundary case', selected: false }, { id: 'discussion-b', summary: 'Clarify the result', selected: false }] });
-  view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  const document = view.dom.window.document, input = document.querySelector('#codex-launch-requirement');
-  input.value = 'Unsaved last keystroke'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const saved = JSON.parse(JSON.stringify(view.savedState));
-  const restored = await mount(saved, data); t.after(() => restored.dom.window.close());
-  restored.send({ type: 'codexLaunchDraft', draft }); await restored.tick();
-  assert.equal(restored.dom.window.document.querySelector('#codex-launch-requirement').value, 'Unsaved last keystroke');
-  const selected = restored.dom.window.document.querySelector('.codex-launch-discussion input'); selected.click(); await restored.tick();
-  await new Promise(resolve => setTimeout(resolve, 450)); await restored.tick();
-  const request = restored.rawRequests.findLast(item => item.type === 'updateCodexLaunch'); assert.ok(request);
-  assert.deepEqual(JSON.parse(JSON.stringify(request.patch.discussionIds)), ['discussion-a']);
-  draft = { ...draft, requirement: request.patch.requirement, source: { ...draft.source, discussionIds: request.patch.discussionIds }, revision: 2 };
-  restored.send({ type: 'codexLaunchDraft', draft }); await restored.tick();
-  restored.send({ type: 'codexLaunchDraft', draft: { ...draft, revision: 1, requirement: 'Stale response', source: { ...draft.source, discussionIds: [] } } }); await restored.tick();
-  assert.equal(restored.dom.window.document.querySelector('#codex-launch-requirement').value, 'Unsaved last keystroke');
-  assert.equal(restored.dom.window.document.querySelector('.codex-launch-discussion input').checked, true);
-});
-
-test('Issue preview and detail launch development by identity and reopen the active task without duplicating work', async t => {
-  const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] };
-  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  document.querySelector('.issue-detail .codex-workflow-launch button').click(); await view.tick();
-  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'issue', projectId: 1, issueIid: 1 });
-  const task = linkedWorkflowTask('issue', { status: 'running' });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const launch = document.querySelector('.issue-detail .codex-workflow-launch button'); assert.equal(launch.textContent, '查看開發任務');
-  launch.click(); await view.tick(); assert.equal(view.requests.findLast(request => request.type === 'showCodexTask').taskId, task.id);
-  assert.equal(view.requests.filter(request => request.type === 'startCodexTask').length, 1);
-  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } });
-  await view.tick();
-  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
-  assert.ok(document.querySelector('.issue-embed .codex-workflow-launch button'));
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, status: 'completed', result: { state: 'ready', summary: 'Implementation verified.',
-    files: ['src/main.ts'], tests: [{ command: 'npm test', exitCode: 0 }] } }] } }); await view.tick();
-  assert.match(document.querySelector('.issue-embed .codex-workflow-launch details').textContent, /npm test.*exit 0/);
-});
-
-test('Issue preview and detail preserve independent Clone isolation for Build and explicit Build Auto preparation', async t => {
-  for (const location of ['preview', 'detail']) for (const buildMode of ['build', 'auto']) await t.test(`${location}/${buildMode}`, async t => {
-    const data = snapshot(); data.selectedIssue = { project: data.projects[0], issue: data.issues[0] };
-    const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
-    const document = view.dom.window.document;
-    if (location === 'detail') {
-      view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
-      view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
-    }
-    const panel = document.querySelector(`${location === 'preview' ? '.issue-detail' : '.issue-embed'} .codex-workflow-launch`);
-    assert.equal(panel.querySelector('input[type="checkbox"]'), null, 'preparation options have one authoritative editor');
-    const launch = buildMode === 'auto' ? [...panel.querySelectorAll('button')].find(button => button.textContent === '使用 Build Auto') : panel.querySelector('button');
-    assert.ok(launch); launch.click(); await view.tick();
-    const source = view.requests.findLast(request => request.type === 'startCodexTask').source;
-    assert.deepEqual(JSON.parse(JSON.stringify(source)), { kind: 'issue', projectId: 1, issueIid: 1,
-      ...(buildMode === 'auto' ? { isolated: true, buildMode: 'auto' } : {}) });
-    const draft = codexLaunchFixture({ source });
-    view.send({ type: 'codexLaunchDraft', draft, open: true }); await view.tick();
-    assert.equal(document.querySelector('.codex-launch input[type="checkbox"]'), null, 'Issue isolation cannot be disabled and no automatic publication checkbox is offered');
-    assert.match(document.querySelector('.codex-launch').textContent, /在獨立本機 Repo 副本執行/);
-    assert.equal([...document.querySelectorAll('.codex-launch button')].some(button => button.textContent === '複製手動執行資料'), false);
-    assert.equal(document.querySelector('.codex-launch-actions button[type="submit"]').textContent, '開始任務');
-    document.querySelector('.codex-launch-actions button[type="button"]').click(); await view.tick();
-    const check = view.rawRequests.findLast(request => request.type === 'checkCodexLaunch');
-    assert.equal(check.draftId, draft.id); assert.equal(check.revision, draft.revision); assert.equal(check.patch.isolated, true);
-    assert.equal(view.requests.filter(request => request.type === 'startCodexTask').length, 1);
-    assert.equal(view.rawRequests.some(request => request.type === 'submitCodexLaunch'), false, 'Opening and checking preparation never starts execution');
-  });
-});
-
-test('Project Wiki shows a safe preview and sends publication only after the explicit publish action', async t => {
-  const data = snapshot('clone'), view = await mount({ mode: 'clone', projectSource: 'gitlab' }, data);
-  t.after(() => view.dom.window.close()); const document = view.dom.window.document;
-  const launch = document.querySelector('.repo-row .codex-workflow-launch button'); assert.ok(launch); launch.click(); await view.tick();
-  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'project-wiki', projectId: 1 });
-  const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'generated', summary: 'Draft ready' } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } });
-  view.send({ type: 'codexTaskStarted', taskId: task.id }); await view.tick();
-  assert.equal(document.querySelector('#codex-execution-panel').hidden, false);
-  assert.equal(view.requests.some(request => request.type === 'previewProjectWiki' && request.taskId === task.id), false, 'new tasks stay in conversation until results are opened');
-  document.querySelector('#codex-results-tab').click(); await view.tick();
-  assert.ok(view.requests.some(request => request.type === 'previewProjectWiki' && request.taskId === task.id));
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, result: task.result, wiki: { id: task.result.draftId, revision: 'previewed-revision',
-    sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha', pages: [{ slug: 'codebase/index', title: 'Overview',
-      action: 'create', published: false, content: '# Overview\n<script>window.wikiInjected=true</script>' }] } }); await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'publishProjectWiki').length, 0);
-  assert.equal(view.dom.window.wikiInjected, undefined); assert.match(document.querySelector('.codex-wiki-preview .codex-markdown').textContent, /<script>/);
-  assert.equal(document.querySelector('.codex-wiki-preview h1').textContent, 'Overview');
-  const publish = [...document.querySelectorAll('.codex-wiki-preview button')].find(button => button.textContent === '發布至 GitLab Wiki');
-  publish.focus(); assert.equal(document.activeElement, publish); publish.click(); await view.tick();
-  const sent = view.requests.findLast(request => request.type === 'publishProjectWiki');
-  assert.equal(sent.taskId, task.id); assert.equal(sent.revision, 'previewed-revision'); assert.equal(sent.content, undefined);
-  for (const status of ['completed', 'uncertain']) {
-    view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, status, controls: { ...task.controls, canResume: false, canDelete: false },
-      result: { ...task.result, state: 'uncertain', summary: 'Verify the timed-out publication.' } }] } });
-    view.send({ type: 'codexWorkflowResult', taskId: task.id, result: { ...task.result, state: 'uncertain' }, wiki: { id: task.result.draftId,
-      revision: 'unknown-publication', error: 'Confirm the remote result.', uncertain: true, sourceBranch: 'main', sourceSha: gitHead,
-      progress: { status: 'partial', completed: 1, total: 2, nextCursor: 'remaining-pages' }, projectPath: 'team/alpha',
-      pages: [{ slug: 'codebase/index', title: 'Overview', action: 'create', published: false, content: '# Overview' }] } });
-    await view.tick();
-    const button = text => [...document.querySelectorAll('.codex-wiki-preview button')].find(item => item.textContent === text);
-    const publicationCount = view.requests.filter(request => request.type === 'publishProjectWiki').length;
-    for (const [label, details] of [['重新預覽／核對結果', { refresh: true }], ['繼續核對其餘頁面', { cursor: 'remaining-pages' }], ['確認後允許重試', { confirmRetry: true }]]) {
-      const read = button(label); assert.equal(read.disabled, false, `${status} publication must allow ${label}`);
-      read.click(); await view.tick();
-      assert.deepEqual(view.requests.findLast(request => request.type === 'previewProjectWiki'), { type: 'previewProjectWiki', taskId: task.id, ...details });
-    }
-    for (const [label, mode] of [['在編輯器開啟 Markdown', 'source'], ['開啟差異', 'diff']]) {
-      assert.equal(button(label).disabled, false); button(label).click(); await view.tick();
-      assert.deepEqual(view.requests.findLast(request => request.type === 'openProjectWikiDocument'),
-        { type: 'openProjectWikiDocument', taskId: task.id, revision: 'unknown-publication', slug: 'codebase/index', mode });
-    }
-    assert.equal(button('發布至 GitLab Wiki').disabled, true); button('發布至 GitLab Wiki').click(); await view.tick();
-    assert.equal(view.requests.filter(request => request.type === 'publishProjectWiki').length, publicationCount, 'read-only recovery never repeats publication');
-  }
-  view.sendSnapshot({ ...data, activeAccountId: 'another', instanceUserScope: 'another-user', activeMode: 'codex' }); await view.tick();
-  assert.equal(document.querySelector('.codex-wiki-preview'), null, 'another account cannot see the previous draft');
-});
-
-test('Wiki opens native source and diff documents with scoped identity while filtering unchanged pages locally', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'initial', summary: 'Ready' } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  view.dom.window.document.querySelector('#codex-results-tab').click(); await view.tick();
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: { id: task.result.draftId, revision: 'preview', sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha', pages: [
-    { slug: 'codebase/index', title: 'Overview', content: '# Overview\nnew', previousContent: '# Overview\nold', action: 'update', published: false },
-    { slug: 'codebase/same', title: 'Same', content: '# Same', previousContent: '# Same', action: 'unchanged', published: true }
-  ] } }); await view.tick();
-  const document = view.dom.window.document, button = text => [...document.querySelectorAll('.codex-wiki-preview button')].find(item => item.textContent === text);
-  assert.equal(document.querySelector('.codex-wiki-content h1').textContent, 'Overview');
-  for (const [label, mode] of [['在編輯器開啟 Markdown', 'source'], ['開啟差異', 'diff']]) {
-    button(label).click(); await view.tick();
-    assert.deepEqual(view.requests.findLast(item => item.type === 'openProjectWikiDocument'),
-      { type: 'openProjectWikiDocument', taskId: task.id, revision: 'preview', slug: 'codebase/index', mode });
-  }
-  const pages = () => [...document.querySelectorAll('.codex-wiki-pages button')];
-  assert.equal(pages().length, 2); pages()[1].click(); await view.tick();
-  assert.equal(document.querySelector('.codex-wiki-content h1').textContent, 'Same');
-  button('開啟差異').click(); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'openProjectWikiDocument').slug, 'codebase/same');
-  const requestCount = view.requests.length;
-  document.querySelector('.codex-wiki-preview input[type="checkbox"]').click(); await view.tick();
-  assert.equal(pages().length, 1); assert.match(pages()[0].textContent, /Overview/);
-  assert.equal(document.querySelector('.codex-wiki-content h1').textContent, 'Overview');
-  assert.equal(view.requests.length, requestCount, 'filtering pages is local');
-  assert.equal(view.requests.some(item => item.type === 'publishProjectWiki'), false);
-});
-
-test('MR reply drafts survive recreation and are never marked published on dispatch or failed receipts', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('merge-request', { result: { state: 'ready', summary: 'Fix ready', replyDrafts: [{ discussionId: 'discussion-one', body: 'Generated draft' }] } });
-  const show = async target => { target.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await target.tick(); target.dom.window.document.querySelector('#codex-results-tab').click(); await target.tick(); };
-  await show(view); const document = view.dom.window.document;
-  const input = () => document.querySelector('.codex-workflow-result textarea');
-  input().value = 'My reply'; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const saved = view.savedState; await view.tick();
-  const publish = () => [...document.querySelectorAll('.codex-workflow-result button')].find(item => /發布這則回覆|正在核對發布|已發布/.test(item.textContent));
-  publish().click(); await view.tick();
-  const request = view.rawRequests.findLast(item => item.type === 'codexCommand' && item.command.action === 'publish-reply'); assert.ok(request.operationId);
-  assert.notEqual(publish().textContent, '已發布'); assert.equal(publish().disabled, true);
-  input().value = 'Later edit'; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  view.send({ type: 'operationChanged', operation: { requestId: request.operationId, scopeRevision: request.operationScope, resourceKey: `codex:${task.id}`, action: 'codexCommand', label: 'Publish', kind: 'write',
-    status: 'failed', effect: 'none', phase: 'Failed', error: 'Denied', startedAt: 1, finishedAt: 2 } }); await view.tick();
-  assert.equal(input().value, 'Later edit'); assert.equal(publish().disabled, false); assert.notEqual(publish().textContent, '已發布');
-  const restored = await mount(JSON.parse(JSON.stringify(view.savedState)), data, {}, () => {}, { autoOperations: false }); t.after(() => restored.dom.window.close()); await show(restored);
-  assert.equal(restored.dom.window.document.querySelector('.codex-workflow-result textarea').value, 'Later edit');
-  assert.ok(saved.codexUi.workflow.replies, 'the last input is stored before a render');
-  publish().click(); await view.tick();
-  const retried = view.rawRequests.findLast(item => item.type === 'codexCommand' && item.command.action === 'publish-reply');
-  const result = { requestId: retried.operationId, scopeRevision: retried.operationScope, resourceKey: `codex:${task.id}`, action: 'codexCommand', label: 'Publish', kind: 'write', phase: 'Confirmed', startedAt: 3, finishedAt: 4 };
-  view.send({ type: 'operationChanged', operation: { ...result, status: 'failed', effect: 'unknown' } }); await view.tick();
-  assert.equal(publish().disabled, true); assert.notEqual(publish().textContent, '已發布');
-  assert.equal(input().value, 'Later edit');
-  view.send({ type: 'operationChanged', operation: { ...result, status: 'succeeded', effect: 'applied', revision: 2 } }); await view.tick();
-  assert.equal(publish().textContent, '已發布');
-  input().value = 'Another reply'; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  assert.equal(publish().disabled, false, 'a confirmed receipt never claims that newer text was published');
-});
-
-test('Issue handoff reloads saved Markdown inside the result view and opens reviewer preparation explicitly', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('issue', { isolated: true, workingDirectory: 'C:/isolated/issue-1', result: { state: 'ready', summary: 'Implementation verified', files: ['main.ts'] } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const document = view.dom.window.document;
-  document.querySelector('#codex-results-tab').click(); await view.tick();
-  [...document.querySelectorAll('.codex-workflow-result button')].find(button => button.textContent === '開啟實作目錄').click(); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'codexCommand').command.action, 'open-worktree');
-  const ready = { ...task, result: { ...task.result, handoffPath: 'C:/runtime/handoff.md' } };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [ready] } }); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'readCodexResult').taskId, task.id);
-  const handoff = '# Handoff\n\nVerified implementation.\n\n[Changed file](src/main.ts#L9)\n\n```ts\nconst verified = true;\n```';
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, result: ready.result, handoff }); await view.tick();
-  assert.equal(document.querySelector('.codex-handoff h1').textContent, 'Handoff');
-  document.querySelector('.codex-handoff .codex-markdown-file').click(); await view.tick();
-  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(item => item.type === 'codexCommand').command)),
-    { action: 'open-file', taskId: task.id, path: 'src/main.ts', line: 9 });
-  document.querySelector('.codex-handoff .codex-markdown-code button').click(); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'copy').text, 'const verified = true;');
-  [...document.querySelectorAll('.codex-handoff button')].find(button => button.textContent === '複製交接草稿').click(); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'copy').text, handoff);
-  [...document.querySelectorAll('.codex-handoff button')].find(button => button.textContent === '準備 CommitReviewer 檢查').click(); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'codexCommand').command.action, 'handoff-review');
-  assert.equal(view.requests.some(item => ['publishProjectWiki', 'publishCodexReview'].includes(item.type)), false);
-});
-
-test('Wiki preview progress stops, resumes by cursor and never auto-loads another batch on a revision update', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('project-wiki', { result: { state: 'draft', draftId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', revision: 'initial', summary: 'Ready' } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  assert.equal(view.requests.some(request => request.type === 'previewProjectWiki'), false);
-  view.dom.window.document.querySelector('#codex-results-tab').click(); await view.tick();
-  const preview = { id: task.result.draftId, revision: 'partial', sourceBranch: 'main', sourceSha: gitHead, projectPath: 'team/alpha',
-    pages: [{ slug: 'codebase/index', title: 'Overview', content: '# Overview', action: 'unchecked', published: false }],
-    progress: { status: 'loading', completed: 0, total: 1, nextCursor: 'batch-1' } };
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: preview }); await view.tick();
-  const document = view.dom.window.document;
-  const buttons = () => [...document.querySelectorAll('.codex-wiki-preview button')];
-  const publish = () => buttons().find(button => button.textContent === '發布至 GitLab Wiki');
-  assert.equal(publish().disabled, true);
-  buttons().find(button => button.textContent === '停止核對').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'cancelProjectWikiPreview').taskId, task.id);
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: { ...preview, progress: { ...preview.progress, status: 'cancelled' } } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, result: { ...task.result, revision: 'partial' } }] } }); await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'previewProjectWiki').length, 1);
-  buttons().find(button => button.textContent === '繼續核對其餘頁面').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'previewProjectWiki').cursor, 'batch-1');
-  assert.equal(view.requests.filter(request => request.type === 'publishProjectWiki').length, 0);
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, wiki: { ...preview, revision: 'ready',
-    pages: [{ ...preview.pages[0], action: 'create' }], progress: { status: 'ready', completed: 1, total: 1 } } }); await view.tick();
-  assert.equal(publish().disabled, false);
-});
-
-test('ten thousand Codex messages mount only the visible rows and keep the focused reply during streamed updates', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('issue', { id: 'long-transcript', status: 'running', threadId: 'thread', turnId: 'turn', result: undefined });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const entries = Array.from({ length: 10_000 }, (_, index) => ({ id: String(index), threadId: 'thread', turnId: 'turn', kind: 'agent', text: 'Reply ' + index }));
-  view.send({ type: 'codexEvent', event: { kind: 'history', taskId: task.id, items: entries } }); await view.tick();
-  const document = view.dom.window.document, rows = () => document.querySelectorAll('.codex-transcript .virtual-list-row');
-  assert.ok(rows().length < 80); assert.equal(rows()[0].getAttribute('aria-setsize'), '10000');
-  const focused = document.querySelector('.codex-transcript button'); focused.focus();
-  view.send({ type: 'codexEvent', event: { kind: 'output', taskId: task.id, replace: true,
-    items: entries.slice(-100).map(item => ({ ...item, text: item.text + ' updated' })) } }); await view.tick();
-  assert.equal(document.activeElement, focused); assert.ok(rows().length < 80);
-});
-
-test('One-click MR review fills its report draft and preserves the task binding through edits and publication', async t => {
-  const data = snapshot('reviewer');
-  const mr = { id: 4, iid: 4, project_id: 1, title: 'Review change', state: 'opened', source_branch: 'feature', target_branch: 'main',
-    web_url: 'https://gitlab.example.test/team/alpha/-/merge_requests/4', diff_refs: { head_sha: gitHead } };
-  data.mergeRequests = [mr]; data.selectedMergeRequest = { request: mr, diffs: [], discussions: [],
-    sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'current', checkedAt: Date.now() }, sourceSha: gitHead, targetSha: gitParent };
-  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close()); const document = view.dom.window.document;
-  document.querySelector('.reviewer-detail .codex-workflow-launch button').click(); await view.tick();
-  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'startCodexTask').source)), { kind: 'merge-request', projectId: 1, iid: 4 });
-  const task = linkedWorkflowTask('merge-request', { result: { state: 'ready', reportPath: 'C:/workspace/team/alpha/review-reports/report.md', summary: 'Review ready' } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  assert.ok(view.requests.some(request => request.type === 'readCodexResult' && request.taskId === task.id));
-  view.send({ type: 'codexWorkflowResult', taskId: task.id, result: task.result, report: '# 合併審查\n\nNo blocking findings.' }); await view.tick();
-  [...document.querySelectorAll('.review-tabs button')].find(button => button.textContent === '審查報告').click(); await view.tick();
-  const input = document.querySelector('.reviewer-detail textarea'); assert.match(input.value, /No blocking findings/);
-  input.value += '\nReviewed by developer.'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  [...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '作一般留言發布').click(); await view.tick();
-  const sent = view.requests.findLast(request => request.type === 'publishCodexReview');
-  assert.equal(sent.taskId, task.id); assert.match(sent.body, /Reviewed by developer/);
-  view.sendSnapshot({ ...data, selectedMergeRequest: { ...data.selectedMergeRequest, sourceSha: 'c'.repeat(40), request: { ...mr, diff_refs: { head_sha: 'c'.repeat(40) } } } }); await view.tick();
-  assert.equal([...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '作一般留言發布').disabled, true);
-});
-
-test('persistent navigation exposes all eight modes, follows host navigation and never reads on focus', async t => {
+test('persistent navigation exposes the supported modes, follows host navigation and never reads on focus', async t => {
   const data = snapshot('developer');
   const view = await mount({ mode: 'developer' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document, buttons = [...document.querySelectorAll('.mode-navigation button')];
-  assert.deepEqual(buttons.map(button => button.textContent), ['總覽', '專案', '我的工作', '待審查', '版控', 'Codex', '工作流程']);
+  assert.deepEqual(buttons.map(button => button.textContent), ['總覽', '專案', '我的工作', '待審查', '版控', '工作流程']);
   const search = document.querySelector('input[aria-label="搜尋 Issue"]');
   search.value = 'Alpha'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
   const before = view.requests.length;
@@ -546,7 +124,7 @@ test('a virtual workspace keeps GitLab data visible and blocks local controls ev
   assert.equal(document.querySelector('.clone-submit').disabled, true);
   assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === '一鍵掃描 Repo').disabled, true);
   assert.match(document.querySelector('.app-shell').textContent, /需要磁碟上的專案資料夾/);
-  assert.equal(view.requests.some(request => ['clone', 'scanRepositories', 'listCodexTasks'].includes(request.type)), false);
+  assert.equal(view.requests.some(request => ['clone', 'scanRepositories', 'runCodexCli'].includes(request.type)), false);
   view.sendSnapshot({ ...data, activeMode: 'git' }); await view.tick();
   assert.equal(document.querySelector('.git-workbench'), null);
   view.sendSnapshot({ ...data, activeMode: 'developer' }); await view.tick();
@@ -586,7 +164,7 @@ test('MR merge control follows Host availability and offers an explicit recheck'
     freshness: { state: 'not_checked' }, sourceSha: gitHead, mergeAvailability: { status: 'unknown', reason: 'Permission not confirmed' } };
   const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  [...document.querySelectorAll('.review-tabs button')].find(button => button.textContent === '審查報告').click(); await view.tick();
+  [...document.querySelectorAll('.review-tabs button')].find(button => button.textContent === '留言與核准').click(); await view.tick();
   const merge = () => [...document.querySelectorAll('button')].find(button => button.textContent === '合併 MR');
   assert.equal(merge().disabled, true); assert.match(document.body.textContent, /Permission not confirmed/);
   [...document.querySelectorAll('button')].find(button => button.textContent === '重新檢查合併條件').click(); await view.tick();
@@ -1976,720 +1554,14 @@ test('offline Dashboard keeps local Repo and tool entry points available without
   assert.match(document.querySelector('.home-gitlab-card').textContent, /尚未連線/);
   assert.equal(document.querySelector('.home-repository').disabled, false);
   assert.ok(document.querySelector('.home-tool-card').textContent.includes('前往設定管理 WorkflowKit'));
-  assert.deepEqual(view.requests.filter(request => !['listCodexTasks', 'loadCodexUiDrafts'].includes(request.type)),
-    [{ type: 'ready', projectSource: 'gitlab', developerView: 'list' }], 'the offline page opens without dispatching a GitLab read');
-  assert.ok(view.requests.some(request => request.type === 'listCodexTasks'), 'saved Codex tasks are queried locally');
-  const localDraftReads = view.requests.filter(request => request.type === 'loadCodexUiDrafts');
-  assert.ok(localDraftReads.length > 0, 'saved Codex drafts are queried locally');
-  for (const request of localDraftReads) {
-    assert.deepEqual(Object.keys(request).sort(), ['requestId', 'type']);
-    assert.equal(typeof request.requestId, 'string');
-    assert.ok(request.requestId.length > 0);
-  }
+  assert.deepEqual(view.requests, [{ type: 'ready', projectSource: 'gitlab', developerView: 'list' }],
+    'the offline page opens without dispatching a GitLab read or restoring retired Codex tasks');
 
   document.querySelector('.home-repository').click(); await view.tick();
   assert.equal(view.requests.at(-1).type, 'gitOpenRepository');
   assert.equal(view.requests.at(-1).path, 'C:/workspace/service');
   document.querySelector('.home-gitlab-card .primary').click(); await view.tick();
   assert.equal(view.requests.at(-1).type, 'connect');
-});
-
-test('Codex task management filters archived records and exposes native task creation and scoped approvals', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const controls = { external: false, canPause: false, canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false, approvals: { command: true, file: true, permissions: true } };
-  const tasks = ['Alpha', 'Beta', 'Archived'].map((title, index) => ({ id: `evolution-${index}`, title, root: `C:/workspace/repo-${index}`, status: 'completed', createdAt: `2026-11-07T00:00:0${index}Z`, updatedAt: '2026-11-07T00:00:00Z', controls, archived: index === 2 }));
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const names = () => [...document.querySelectorAll('.codex-task-select strong')].map(node => node.textContent);
-  assert.equal(names().length, 2); assert.ok(!names().includes('Archived'));
-  const search = document.querySelector('.codex-task-filter input[type="search"]'); search.value = 'Beta'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  assert.deepEqual(names(), ['Beta']); search.value = ''; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  const showArchived = [...document.querySelectorAll('.codex-tasks label')].find(label => label.textContent.includes('顯示已封存')).querySelector('input'); showArchived.click(); await view.tick();
-  assert.equal(names().length, 3);
-  [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes('Alpha')).click(); await view.tick();
-  assert.deepEqual([...document.querySelectorAll('.codex-approval-options label')].map(label => label.textContent), ['命令', '檔案修改']);
-  const options = document.querySelectorAll('.codex-approval-options input'); assert.equal(options.length, 2);
-  const file = options[1]; file.click(); await view.tick();
-  const approval = view.requests.findLast(request => request.type === 'codexCommand' && request.command.action === 'approvals');
-  assert.equal(approval.command.taskId, 'evolution-0'); assert.deepEqual(JSON.parse(JSON.stringify(approval.command.settings)), { command: true, file: false, permissions: false });
-  [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent === '建立 Codex 任務').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'codexCommand').command.action, 'create');
-});
-
-test('Codex renders structured progress and keeps recovery available when resume is blocked', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const task = { id: 'recover-task', title: 'Recover', root: 'C:/workspace/repo', status: 'uncertain', createdAt: '2026-11-07', updatedAt: '2026-11-07',
-    controls: { external: false, canPause: false, canResume: false, canDelete: false, canAutoAccept: false, autoAccept: false },
-    progress: { plan: [{ step: '<script>untrusted()</script>', status: 'inProgress' }], model: 'fixture-model', tokens: { total: 12, input: 8, output: 4 }, waitReason: 'resource' } };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  assert.match(document.querySelector('.codex-task-details').textContent, /fixture-model/); assert.match(document.querySelector('.codex-task-details').textContent, /12/);
-  assert.equal(document.querySelector('.codex-task-details script'), null);
-  const recovery = [...document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '核對任務狀態');
-  assert.equal(recovery.disabled, false); recovery.click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'codexCommand').command.action, 'reconcile');
-  view.send({ type: 'codexEvent', event: { kind: 'environment', environment: { state: 'blocked', storageProblems: [{ id: 'broken-task', reason: 'Invalid record' }] } } }); await view.tick();
-  assert.match(document.querySelector('.codex-tasks').textContent, /broken-task/);
-});
-
-test('Codex task projections render messages, bind answers and expose stop, resume and history controls', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const event = async value => { view.send({ type: 'codexEvent', event: value }); await view.tick(); };
-  const task = { id: 'codex-ui-test', title: 'Wiki task', root: 'C:/workspace', status: 'waiting',
-    createdAt: '2026-11-03T00:00:00Z', updatedAt: '2026-11-03T00:00:00Z', threadId: 'thread-ui', turnId: 'turn-ui', controls: { canPause: true, canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false, external: false } };
-  await event({ kind: 'tasks', tasks: [] }); await event({ kind: 'tasks', tasks: [task] });
-  await event({ kind: 'output', taskId: task.id, replace: true, items: [{ id: 'message', kind: 'agent', text: 'Streaming result' }] });
-  assert.equal(document.querySelector('.codex-workspace').hidden, false);
-  assert.match(document.querySelector('.codex-conversation').textContent, /Streaming result/);
-  await event({ kind: 'interactions', taskId: task.id, interactions: [{ id: 'question-ui', taskId: task.id,
-    kind: 'questions', title: 'Choose scope', questions: [{ id: 'scope', question: 'Which scope?' }] }] });
-  const answer = document.querySelector('.codex-interaction input'); answer.value = 'Local only';
-  answer.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.codex-interaction').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
-  const replied = view.requests.findLast(request => request.type === 'answerCodex');
-  assert.equal(replied.taskId, task.id); assert.equal(replied.interactionId, 'question-ui');
-  assert.equal(replied.answer.answers.scope, 'Local only');
-  await event({ kind: 'interactions', taskId: task.id, interactions: [] });
-  assert.equal(document.querySelector('.codex-interaction'), null);
-  const control = text => [...document.querySelectorAll('.codex-conversation button')].find(button => button.textContent === text);
-  await event({ kind: 'tasks', tasks: [{ ...task, status: 'running' }] });
-  control('暫停').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'pauseCodexTask');
-  assert.equal(view.requests.at(-1).taskId, task.id);
-  await event({ kind: 'tasks', tasks: [{ ...task, status: 'completed' }] });
-  const resume = control('接續修正'); assert.ok(resume); assert.equal(resume.disabled, false);
-  resume.click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'resumeCodexTask'); assert.equal(view.requests.at(-1).taskId, task.id);
-  const followUp = document.getElementById('codex-follow-up'); followUp.value = 'Continue';
-  followUp.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.codex-message').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'sendCodexMessage').text, 'Continue');
-  await event({ kind: 'history', taskId: task.id, items: [{ id: 'old', kind: 'agent', text: 'Saved result' }], nextCursor: 'older' });
-  control('讀取更早的對話').click(); await view.tick();
-  assert.equal(view.requests.at(-1).type, 'codexHistory'); assert.equal(view.requests.at(-1).cursor, 'older');
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
-});
-
-test('Codex interaction drafts survive task switches and receipts control retry without persisting secrets', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false });
-  t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const tasks = ['a', 'b'].map(id => ({ id, title: `Answer task ${id}`, root: `C:/workspace/${id}`, status: 'waiting',
-    createdAt: '2026-11-10T00:00:00Z', updatedAt: '2026-11-10T00:00:00Z', controls: { canPause: true, canAutoAccept: true, external: false } }));
-  const interaction = { id: 'answer-a', taskId: 'a', kind: 'questions', title: 'Choose scope', questions: [
-    { id: 'scope', question: 'Which scope?', options: [{ label: 'Local', description: 'Only this repository' }] },
-    { id: 'token', question: 'Temporary secret', isSecret: true }] };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'interactions', taskId: 'a', interactions: [interaction] } }); await view.tick();
-  const fields = () => [...document.querySelectorAll('.codex-interaction input')];
-  const type = async (index, value) => { fields()[index].value = value; fields()[index].dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
-  const select = async id => { [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes(`Answer task ${id}`)).click(); await view.tick(); };
-  await type(0, 'Local only'); await type(1, 'memory-secret-123'); await select('b'); await select('a');
-  assert.equal(fields()[0].value, 'Local only'); assert.equal(fields()[1].value, 'memory-secret-123');
-  assert.ok(!JSON.stringify(view.savedState).includes('memory-secret-123'), 'secret answers never enter Webview persistence');
-  document.querySelector('#codex-results-tab').click(); await view.tick();
-  assert.equal(document.querySelector('.codex-attention').hidden, false, 'waiting requests remain visible from results');
-  const submit = () => document.querySelector('.codex-interaction button[type="submit"]');
-  document.querySelector('.codex-interaction').requestSubmit(); await view.tick();
-  const first = view.rawRequests.findLast(request => request.type === 'answerCodex');
-  assert.equal(first.answer.answers.token, 'memory-secret-123'); assert.equal(submit().disabled, true);
-  view.receipt(first, { status: 'failed', effect: 'none', error: 'Connection unavailable' }); await view.tick();
-  assert.equal(submit().disabled, false); assert.equal(fields()[0].value, 'Local only');
-  assert.match(document.querySelector('.codex-interaction').textContent, /Connection unavailable/);
-  document.querySelector('.codex-interaction').requestSubmit(); await view.tick();
-  const second = view.rawRequests.findLast(request => request.type === 'answerCodex'); assert.notEqual(second.operationId, first.operationId);
-  view.receipt(second, { status: 'failed', effect: 'unknown', error: 'Result unknown' }); await view.tick();
-  assert.equal(submit().disabled, true);
-  [...document.querySelectorAll('.codex-interaction button')].find(button => button.textContent === '重新讀取狀態').click(); await view.tick();
-  assert.equal(submit().disabled, true, 'refresh never permits resending an unknown answer');
-  assert.ok(view.requests.some(request => request.type === 'reconcileOperations' && request.pendingIds?.includes(second.operationId)));
-  const restored = await mount(view.savedState, data, {}, () => {}, { autoOperations: false }); t.after(() => restored.dom.window.close());
-  restored.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await restored.tick();
-  restored.send({ type: 'codexEvent', event: { kind: 'interactions', taskId: 'a', interactions: [interaction] } }); await restored.tick();
-  const restoredFields = restored.dom.window.document.querySelectorAll('.codex-interaction input');
-  assert.equal(restoredFields[0].value, 'Local only'); assert.equal(restoredFields[1].value, '', 'secrets are cleared on Webview recreation');
-});
-
-test('Codex displays queued messages beside the composer and keeps result and execution views separate', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document, task = { id: 'queued-composer', title: 'Queued', root: 'C:/workspace', status: 'queued',
-    createdAt: '2026-11-10', updatedAt: '2026-11-10', pendingMessages: 2, controls: { canPause: true, external: false } };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const input = document.querySelector('#codex-follow-up'); input.value = 'Additional requirement'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  assert.equal(document.querySelector('.codex-message button[type="submit"]').disabled, false);
-  assert.match(document.querySelector('.codex-message-status').textContent, /2 則.*排隊/);
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, status: 'completed', result: { state: 'ready', summary: 'Ready for review' }, controls: { canResume: true, external: false } }] } }); await view.tick();
-  assert.equal(document.querySelector('#codex-results-panel').hidden, true, 'completion keeps the current conversation visible');
-  assert.equal(document.querySelector('#codex-execution-panel').hidden, false);
-  document.querySelector('#codex-results-tab').click(); await view.tick();
-  assert.equal(document.querySelector('#codex-results-panel').hidden, false);
-  assert.equal(document.querySelector('.codex-controls .primary'), null, 'the active results view has no redundant open-results action');
-  assert.equal(document.querySelector('.codex-details-drawer').hidden, true);
-  document.querySelector('.codex-details-toggle').click(); await view.tick(); assert.equal(document.querySelector('.codex-details-drawer').hidden, false);
-});
-
-test('Codex layout changes preserve one controller, mounted inputs and task drafts without dispatching work', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('merge-request', { id: 'layout-task', status: 'waiting', controls: { canPause: true, canResume: false },
-    result: { state: 'ready', replyDrafts: [{ discussionId: 'layout-discussion', body: 'Generated reply' }] } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } });
-  view.send({ type: 'codexEvent', event: { kind: 'interactions', taskId: task.id, interactions: [{ id: 'layout-question', taskId: task.id, kind: 'questions', title: 'Confirm requirements', questions: [{ id: 'answer', question: 'What should change?' }] }] } });
-  await view.tick(); const document = view.dom.window.document;
-  const input = document.getElementById('codex-follow-up'), answer = document.querySelector('.codex-interaction input'), reply = document.querySelector('.codex-workflow-result textarea');
-  for (const [element, value] of [[input, 'Saved follow-up'], [answer, 'Saved answer'], [reply, 'Saved MR reply']]) {
-    element.value = value; element.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  }
-  document.querySelector('.codex-details-toggle').click(); await view.tick(); input.focus();
-  const before = view.rawRequests.length;
-  for (const layout of ['classic', 'workspace', 'classic', 'workspace']) {
-    view.sendSnapshot({ ...data, codexWorkspaceLayout: layout }); await view.tick();
-    assert.equal(document.querySelector('.codex-workspace').dataset.layout, layout);
-    assert.equal(document.querySelectorAll('.codex-workspace').length, 1); assert.equal(document.querySelectorAll('.codex-message').length, 1);
-    assert.equal(document.querySelectorAll('.codex-interaction').length, 1); assert.equal(document.querySelector('.codex-tasks header span').textContent, '1 項任務');
-    assert.equal(document.getElementById('codex-follow-up'), input); assert.equal(document.querySelector('.codex-interaction input'), answer); assert.equal(document.querySelector('.codex-workflow-result textarea'), reply);
-    assert.equal(document.activeElement, input); assert.equal(input.value, 'Saved follow-up'); assert.equal(answer.value, 'Saved answer'); assert.equal(reply.value, 'Saved MR reply');
-    assert.equal(document.querySelector('.codex-journey').hidden, layout === 'classic'); assert.equal(document.querySelector('.codex-content-tabs').hidden, layout === 'classic');
-    assert.equal(document.getElementById('codex-execution-panel').hidden, false); assert.equal(document.getElementById('codex-results-panel').hidden, layout !== 'classic');
-    assert.equal(document.querySelector('.codex-details-drawer').hidden, false);
-  }
-  document.getElementById('codex-results-tab').click(); await view.tick();
-  for (const layout of ['classic', 'workspace']) {
-    view.sendSnapshot({ ...data, codexWorkspaceLayout: layout }); await view.tick();
-    assert.equal(document.getElementById('codex-results-panel').hidden, false);
-    assert.equal(document.getElementById('codex-execution-panel').hidden, layout !== 'classic');
-    assert.equal(document.getElementById('codex-results-tab').getAttribute('aria-selected'), 'true', 'classic preserves the saved workspace tab');
-  }
-  assert.equal(view.rawRequests.slice(before).filter(request => /codex/i.test(request.type) && !['loadCodexUiDrafts', 'saveCodexUiDrafts'].includes(request.type)).length, 0, 'layout alone does not dispatch Codex execution requests');
-});
-
-test('Codex offers reprepare only for stopped GitLab tasks with known publication and outbox state', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close()); const document = view.dom.window.document;
-  let revision = 0; const show = async patch => { view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [linkedWorkflowTask('issue', { ...patch, revision: ++revision })] } }); await view.tick(); };
-  const button = () => [...document.querySelectorAll('.codex-secondary-controls button')].find(element => element.textContent === '重新準備');
-  for (const kind of ['issue', 'merge-request', 'project-wiki']) {
-    await show({ origin: linkedWorkflowTask(kind).origin }); assert.ok(button()); button().click(); await view.tick();
-    assert.equal(view.rawRequests.findLast(request => request.type === 'codexCommand').command.action, 'reprepare');
-  }
-  for (const patch of [{ status: 'running' }, { status: 'queued' }, { status: 'waiting' }, { status: 'uncertain' }, { origin: undefined }, { controls: { external: true } },
-    { publication: { state: 'pending' } }, { publications: { reply: { state: 'pending' } } }, { result: { state: 'uncertain' } }, { uncertainMessages: 1 }, { messageQueue: [{ id: 'uncertain', state: 'uncertain', text: 'Retained' }] },
-    { controls: { canResume: true, canDelete: false } }, { recovery: { cleanup: 'unknown' } }, { recovery: { publication: 'unknown' } }, { recovery: { publication: 'pending' } }, { messageQueue: [{ id: 'sending', state: 'sending', text: 'Sending' }] }]) {
-    await show(patch); assert.equal(button(), undefined, JSON.stringify(patch));
-  }
-  assert.equal(view.rawRequests.some(request => ['startCodexTask', 'resumeCodexTask', 'submitCodexLaunch'].includes(request.type)), false, 'reprepare opens preparation without starting work');
-});
-
-test('Codex layout changes preserve the active launch panel and its unsaved last input', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data); t.after(() => view.dom.window.close());
-  view.send({ type: 'codexLaunchDraft', draft: codexLaunchFixture(), open: true }); await view.tick();
-  const document = view.dom.window.document, input = document.getElementById('codex-launch-requirement');
-  input.value = 'Last launch edit'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); input.focus();
-  for (const layout of ['classic', 'workspace']) {
-    view.sendSnapshot({ ...data, codexWorkspaceLayout: layout }); await view.tick();
-    assert.equal(document.querySelector('.codex-workspace').dataset.layout, layout); assert.equal(document.querySelectorAll('.codex-launch').length, 1);
-    assert.equal(document.getElementById('codex-launch-requirement'), input); assert.equal(document.activeElement, input); assert.equal(input.value, 'Last launch edit');
-  }
-  assert.equal(view.rawRequests.some(request => ['startCodexTask', 'resumeCodexTask', 'submitCodexLaunch'].includes(request.type)), false);
-});
-
-test('Codex Host hydration preserves typing, urgent last input and recoverable conflicts without dispatching work', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoDrafts: false }); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('issue', { id: 'host-draft-task', status: 'paused' }), scope = 'host-draft-fixture', key = JSON.stringify(['draft', task.id]);
-  const show = async target => { target.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [] } }); target.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await target.tick(); };
-  await show(view); const document = view.dom.window.document, input = document.getElementById('codex-follow-up');
-  const edit = text => { input.value = text; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); };
-  edit('Typed before hydration');
-  const load = view.rawRequests.find(request => request.type === 'loadCodexUiDrafts'); view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope, entries: [], conflicts: [] } }); await view.tick();
-  assert.equal(input.value, 'Typed before hydration'); const first = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');
-  assert.equal(first.updates.find(update => update.key === key).revision, 0);
-  edit('Last unsaved letter'); view.dom.window.dispatchEvent(new view.dom.window.Event('pagehide')); await view.tick();
-  const urgent = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts'); assert.notEqual(urgent.requestId, first.requestId);
-  assert.equal(urgent.updates.find(update => update.key === key).value.text, 'Last unsaved letter');
-  view.dom.window.dispatchEvent(new view.dom.window.Event('pagehide')); await view.tick(); assert.equal(view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts').requestId, urgent.requestId, 'one urgent copy per entry revision');
-  const winner = { ...first.updates.find(update => update.key === key), revision: 1 }, conflict = { id: 'retained-last-letter', key, value: urgent.updates.find(update => update.key === key).value, createdAt: '2026-11-10T00:00:00Z' };
-  const stored = { scope, entries: [winner], conflicts: [conflict] };
-  view.send({ type: 'codexUiDrafts', requestId: first.requestId, snapshot: { ...stored, conflicts: [] } }); await view.tick(); assert.equal(input.value, 'Last unsaved letter');
-  view.send({ type: 'codexUiDrafts', requestId: urgent.requestId, snapshot: stored }); await view.tick();
-  const reload = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'); view.send({ type: 'codexUiDrafts', requestId: reload.requestId, snapshot: stored }); await view.tick();
-  assert.equal(input.value, 'Last unsaved letter'); assert.equal(document.querySelector('.codex-draft-sync').dataset.state, 'conflict');
-  document.querySelector('.codex-draft-sync details').open = true;
-  [...document.querySelectorAll('.codex-draft-sync button')].find(button => button.textContent === '使用已保存內容').click(); await view.tick();
-  const resolution = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts'); assert.deepEqual(JSON.parse(JSON.stringify(resolution.resolveConflictIds)), [conflict.id]);
-  assert.equal(resolution.updates.find(update => update.key === key).revision, 1);
-  view.send({ type: 'codexUiDrafts', requestId: resolution.requestId, snapshot: { ...stored, conflicts: [] } }); await view.tick();
-  assert.equal(input.value, 'Typed before hydration'); assert.equal(document.querySelector('.codex-draft-sync').dataset.state, 'saved');
-  const count = view.rawRequests.length; await view.tick(); assert.equal(view.rawRequests.length, count, 'idempotent resolution does not loop');
-  const reopened = await mount(undefined, data, {}, () => {}, { autoDrafts: false }); t.after(() => reopened.dom.window.close()); await show(reopened);
-  reopened.send({ type: 'codexUiDrafts', requestId: reopened.rawRequests.find(request => request.type === 'loadCodexUiDrafts').requestId, snapshot: stored }); await reopened.tick();
-  assert.equal(reopened.dom.window.document.getElementById('codex-follow-up').value, 'Typed before hydration');
-  assert.match(reopened.dom.window.document.querySelector('.codex-draft-sync').textContent, /Last unsaved letter/);
-  assert.equal([...view.rawRequests, ...reopened.rawRequests].some(request => ['startCodexTask', 'resumeCodexTask', 'answerCodex', 'sendCodexMessage'].includes(request.type)), false);
-});
-
-test('Codex times out an unacknowledged urgent save and ignores its late response after retry', async t => {
-  const deadlines = new Map(); let timerId = 100000;
-  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, window => {
-    const set = window.setTimeout.bind(window), clear = window.clearTimeout.bind(window);
-    window.setTimeout = (callback, delay, ...args) => { if (delay !== 10000) return set(callback, delay, ...args); const id = ++timerId; deadlines.set(id, () => callback(...args)); return id; };
-    window.clearTimeout = id => { if (deadlines.has(id)) deadlines.delete(id); else clear(id); };
-  }, { autoDrafts: false }); t.after(() => view.dom.window.close());
-  const scope = 'urgent-timeout-fixture', task = linkedWorkflowTask('issue', { id: 'urgent-timeout-task', status: 'paused' });
-  view.send({ type: 'codexUiDrafts', requestId: view.rawRequests.find(request => request.type === 'loadCodexUiDrafts').requestId, snapshot: { scope, entries: [], conflicts: [] } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const document = view.dom.window.document, input = document.getElementById('codex-follow-up');
-  const edit = text => { input.value = text; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); };
-  edit('Original'); const first = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');
-  edit('Later preserved input'); view.dom.window.dispatchEvent(new view.dom.window.Event('pagehide')); await view.tick();
-  const urgent = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts'), winner = { ...first.updates[0], revision: 1 };
-  view.send({ type: 'codexUiDrafts', requestId: first.requestId, snapshot: { scope, entries: [winner], conflicts: [] } }); await view.tick();
-  assert.equal(deadlines.size, 1, 'the urgent write retains its own deadline after the normal acknowledgement');
-  [...deadlines.values()][0](); await view.tick(); assert.equal(document.querySelector('.codex-draft-sync').dataset.state, 'error'); assert.equal(input.value, 'Later preserved input');
-  [...document.querySelectorAll('.codex-draft-sync button')].find(button => button.textContent === '重新讀取並保存').click(); await view.tick();
-  const reload = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'), conflict = { id: 'urgent-copy', key: winner.key, value: urgent.updates[0].value, createdAt: '2026-11-10T00:00:00Z' };
-  view.send({ type: 'codexUiDrafts', requestId: reload.requestId, snapshot: { scope, entries: [winner], conflicts: [conflict] } }); await view.tick();
-  view.send({ type: 'codexUiDrafts', requestId: urgent.requestId, snapshot: { scope, entries: [], conflicts: [] } }); await view.tick();
-  assert.equal(input.value, 'Later preserved input'); assert.equal(document.querySelector('.codex-draft-sync').dataset.state, 'conflict');
-  assert.equal(view.rawRequests.some(request => ['sendCodexMessage', 'resumeCodexTask', 'startCodexTask'].includes(request.type)), false);
-});
-
-test('Codex retains expired public question drafts across Host reopen without applying them to new request IDs', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data); t.after(() => view.dom.window.close());
-  const task = linkedWorkflowTask('issue', { id: 'archived-question-task', status: 'waiting' });
-  const show = async (target, id) => { target.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); target.send({ type: 'codexEvent', event: { kind: 'interactions', taskId: task.id, interactions: [{ id, taskId: task.id, kind: 'questions', title: 'Confirm work', questions: [{ id: 'public', question: 'Public answer' }, { id: 'secret', question: 'Secret answer', isSecret: true }] }] } }); await target.tick(); };
-  await show(view, 'original-question'); const document = view.dom.window.document;
-  for (const [selector, value] of [['input[type="text"]', 'Keep this public answer'], ['input[type="password"]', 'NEVER-PERSIST-THIS-SECRET']]) {
-    const field = document.querySelector('.codex-interaction ' + selector); field.value = value; field.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  }
-  await view.tick(); assert.equal(document.querySelector('.codex-draft-sync').dataset.state, 'saved');
-  view.send({ type: 'codexEvent', event: { kind: 'interactions', taskId: task.id, interactions: [] } }); await view.tick(); await show(view, 'new-question');
-  assert.equal(document.querySelector('.codex-interaction input[type="text"]').value, ''); assert.match(document.querySelector('.codex-previous-questions').textContent, /Keep this public answer/);
-  assert.doesNotMatch(JSON.stringify(view.rawRequests.filter(request => request.type === 'saveCodexUiDrafts')), /NEVER-PERSIST-THIS-SECRET/);
-  const stored = view.savedState.codexUi.draftSync;
-  const reopened = await mount(undefined, data, {}, () => {}, { autoDrafts: false }); t.after(() => reopened.dom.window.close()); await show(reopened, 'new-question-after-restart');
-  reopened.send({ type: 'codexUiDrafts', requestId: reopened.rawRequests.find(request => request.type === 'loadCodexUiDrafts').requestId, snapshot: { scope: stored.scope, entries: stored.bases, conflicts: [] } }); await reopened.tick();
-  assert.equal(reopened.dom.window.document.querySelector('.codex-interaction input[type="text"]').value, '');
-  assert.match(reopened.dom.window.document.querySelector('.codex-previous-questions').textContent, /Keep this public answer/);
-  assert.equal(reopened.rawRequests.some(request => ['answerCodex', 'sendCodexMessage', 'resumeCodexTask'].includes(request.type)), false);
-});
-
-test('Codex exposes complete queued and uncertain message text without resending it', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document, uncertain = 'Preserved requirement\n<script>neverExecute()</script>\n' + 'x'.repeat(20000);
-  const task = { id: 'recover-message', title: 'Saved messages', root: 'C:/workspace', status: 'paused', createdAt: '2026-11-10', updatedAt: '2026-11-10',
-    pendingMessages: 2, uncertainMessages: 1, controls: { canResume: true, external: false }, messageQueue: [
-      { id: 'queued', state: 'queued', text: 'First requirement' }, { id: 'unknown', state: 'uncertain', text: uncertain }, { id: 'sending', state: 'sending', text: 'Sending requirement' }] };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const details = document.querySelector('.codex-message-queue'); assert.ok(details); details.open = true;
-  assert.match(details.textContent, /等待傳送/); assert.match(details.textContent, /送出結果待核對/); assert.match(details.textContent, /正在傳送/);
-  assert.equal(details.querySelectorAll('pre')[1].textContent, uncertain); assert.equal(details.querySelector('script'), null);
-  details.querySelectorAll('button')[1].click(); await view.tick();
-  assert.deepEqual(view.requests.findLast(request => request.type === 'copy'), { type: 'copy', text: uncertain });
-  assert.equal(view.requests.some(request => request.type === 'sendCodexMessage'), false, 'inspection and copy never resend the saved operation');
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, pendingMessages: 0, uncertainMessages: 0, messageQueue: [] }] } }); await view.tick();
-  assert.equal(document.querySelector('.codex-message-queue'), null);
-});
-
-test('Codex keeps a global return path to a prepared task without navigating on background updates', async t => {
-  const view = await mount({ mode: 'dashboard' }, snapshot('dashboard')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document, draft = codexLaunchFixture();
-  view.send({ type: 'codexLaunchDraft', draft }); await view.tick();
-  assert.equal(document.querySelector('.page').dataset.mode, 'dashboard');
-  const banner = document.querySelector('.codex-launch-return'); assert.match(banner.textContent, /Prepare fixture/);
-  banner.querySelector('button').click(); await view.tick();
-  assert.equal(document.querySelector('.page').dataset.mode, 'codex'); assert.equal(document.querySelector('.codex-launch-container').hidden, false);
-  assert.equal(document.querySelector('.codex-launch-return'), null);
-  document.querySelector('.mode-navigation [data-mode="clone"]').click(); await view.tick();
-  view.send({ type: 'codexLaunchDraft', draft: { ...draft, revision: 2, title: 'Retained preparation' }, hidden: true }); await view.tick();
-  assert.equal(document.querySelector('.page').dataset.mode, 'clone'); assert.match(document.querySelector('.codex-launch-return').textContent, /Retained preparation/);
-  document.querySelector('.codex-launch-return button').click(); await view.tick();
-  assert.equal(document.querySelector('.page').dataset.mode, 'codex'); assert.equal(document.querySelector('.codex-launch-container').hidden, false);
-});
-
-test('a cold managed Wiki keeps its own task through a persisted blocked MR and late UI hydration', async t => {
-  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os'), path = await import('node:path');
-  const { CodexLaunchCoordinator } = await import('../../out/src/codex/launchCoordinator.js');
-  const directory = await mkdtemp(path.join(tmpdir(), 'glw-cold-draft-ui-')); t.after(() => rm(directory, { recursive: true, force: true }));
-  await mkdir(path.join(directory, 'launches'));
-  const draft = codexLaunchFixture({ id: 'f553532c-3971-4faa-a4c9-05fd79197dda', state: 'blocked',
-    source: { kind: 'merge-request', projectId: 2, iid: 1, reviewerTool: 'merge-reviewer' }, title: 'Blocked MR !1', scope: 'user-2-same-group' });
-  const draftFile = path.join(directory, 'launches', draft.id + '.json'), before = JSON.stringify(draft); await writeFile(draftFile, before);
-  let view, restoreLatest = true;
-  const messages = [], forbidden = async () => { throw new Error('Restoring a preparation cannot run a model or inspect a remote source'); };
-  const coordinator = new CodexLaunchCoordinator({ directory: path.dirname(draftFile), scope: () => draft.scope, restoreLatest: () => restoreLatest,
-    publish: draft => { const message = { type: 'codexLaunchDraft', draft }; messages.push(message); view?.send(message); },
-    inspect: forbidden, prepare: forbidden, environment: forbidden, models: forbidden, enqueue: forbidden, taskExists: forbidden });
-  t.after(() => coordinator.dispose());
-  await coordinator.publish(); assert.equal(messages[0].draft.id, draft.id, 'ordinary startup can see the real persisted MR preparation');
-  view = await mount({ mode: 'codex', codexUi: { selectedTaskId: 'old-group', drafts: {}, pending: {} } }, snapshot('codex'), {}, () => {}, { autoDrafts: false });
-  t.after(() => view.dom.window.close());
-  const old = { id: 'old-group', title: 'Old Group', root: 'C:/workspace', status: 'completed', createdAt: '2026-11-14', updatedAt: '2026-11-14', controls: { external: true } };
-  const own = { ...old, id: 'managed-wiki', title: 'Own Wiki', controls: { external: false } };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); view.send(messages[0]); await view.tick();
-  assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, '__launch');
-  let release, entered;
-  const gate = new Promise(resolve => { release = resolve; }), began = new Promise(resolve => { entered = resolve; });
-  const load = coordinator.load.bind(coordinator);
-  coordinator.load = async (...args) => { const result = await load(...args); entered(); await gate; return result; };
-  const late = coordinator.publish(); await began;
-  restoreLatest = false; const binding = coordinator.publish();
-  view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick(); release(); await Promise.all([binding, late]); await view.tick();
-  const request = view.rawRequests.find(request => request.type === 'loadCodexUiDrafts');
-  view.send({ type: 'codexUiDrafts', requestId: request.requestId, snapshot: { scope: draft.scope, conflicts: [],
-    entries: [{ key: JSON.stringify(['selection', 'current']), revision: 4, value: old.id }] } }); await view.tick();
-  const document = view.dom.window.document, select = document.querySelector('.codex-mobile-tasks select');
-  assert.equal(select.value, own.id); assert.equal(document.querySelector('.codex-launch-container')?.hidden ?? true, true);
-  assert.equal(view.savedState.codexUi.selectedTaskId, own.id); assert.equal(await readFile(draftFile, 'utf8'), before);
-  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
-  select.value = old.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
-  assert.equal(select.value, old.id, 'later manual task selection remains available');
-  const explicit = await coordinator.show(draft.id); view.send({ type: 'codexLaunchDraft', draft: explicit, open: true }); await view.tick();
-  assert.equal(select.value, '__launch'); assert.equal(document.querySelector('.codex-launch-container').hidden, false, 'explicit continue still opens the retained preparation');
-});
-
-test('managed task selection received immediately after the first snapshot survives listener enablement', async t => {
-  const old = linkedWorkflowTask('merge-request', { id: 'completed-merge', title: 'Previous Merge', controls: { external: true } });
-  const own = linkedWorkflowTask('merge-request', { id: 'new-release-owner', title: 'Own Release', controls: { external: false } });
-  let delivered = false;
-  const data = { ...snapshot('codex'), activeAccountId: 'account-2',
-    managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'account-2' } };
-  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, window => {
-    window.addEventListener('message', event => {
-      if (event.data?.type !== 'snapshot' || delivered) return;
-      delivered = true;
-      // Host readiness sends the first snapshot, then its retained task-start
-      // notice. The second message need not wait for Preact's enabled effect.
-      window.setTimeout(() => window.dispatchEvent(new window.MessageEvent('message', { data: { type: 'codexTaskStarted', taskId: own.id } })), 0);
-    });
-  }, { autoDrafts: false });
-  t.after(() => view.dom.window.close());
-  assert.equal(delivered, true);
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
-  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'); assert.ok(load);
-  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'new-owner-account-root', conflicts: [],
-    entries: [{ key: JSON.stringify(['selection', 'current']), revision: 4, value: old.id }] } }); await view.tick();
-  assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, own.id,
-    'the owner notice cannot disappear before the first enabled listener exists');
-  assert.equal(view.savedState.codexUi.selectedTaskId, own.id);
-  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
-});
-
-test('managed task selection beside a connected snapshot survives scope hydration without carrying old drafts', async t => {
-  const old = linkedWorkflowTask('merge-request', { id: 'old-scope-merge', title: 'Previous Merge', controls: { external: true } });
-  const own = linkedWorkflowTask('merge-request', { id: 'connected-release-owner', title: 'Own Release', controls: { external: false } });
-  const offline = { ...snapshot('codex'), connected: false, baseUrl: undefined, currentUser: undefined, activeAccountId: undefined,
-    instanceUserScope: 'offline-instance', connectedScope: undefined };
-  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: { [old.id]: { text: 'Old account draft', revision: 1 } }, pending: {} } },
-    offline, {}, () => {}, { autoDrafts: false });
-  t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
-  const connected = { ...snapshot('codex'), instanceUserScope: 'connected-user-2', activeAccountId: 'account-2', connectedScope: 'new-team-scope',
-    managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'account-2' } };
-  // Native account initialization changes the frontend scope. Its immediately
-  // following task-start notice can still be handled by the old effect.
-  view.sendSnapshot(connected); view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
-  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'); assert.ok(load);
-  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'connected-user-2-root', conflicts: [],
-    entries: [{ key: JSON.stringify(['selection', 'current']), revision: 8, value: old.id }] } }); await view.tick();
-  const select = view.dom.window.document.querySelector('.codex-mobile-tasks select');
-  assert.equal(select.value, own.id, 'scope reset and delayed storage cannot erase the explicit owner selection');
-  assert.equal(view.savedState.codexUi.drafts[old.id], undefined, 'the unrelated account draft remains isolated');
-  select.value = old.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
-  assert.equal(select.value, old.id, 'a later explicit manual selection still takes precedence');
-  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
-});
-
-test('managed task cold focus uses the first hydrated selection revision instead of a restored stale CAS base', async t => {
-  const selection = JSON.stringify(['selection', 'current']);
-  const old = linkedWorkflowTask('merge-request', { id: 'stored-release', controls: { external: true } });
-  const own = linkedWorkflowTask('merge-request', { id: 'cold-merge-owner', controls: { external: false } });
-  const data = { ...snapshot('codex'), activeAccountId: 'owner-account',
-    managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'owner-account' } };
-  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {},
-    draftSync: { scope: 'shared-cold-owner-scope', bases: [{ key: selection, revision: 2, value: old.id }] } } },
-  data, {}, () => {}, { autoDrafts: false });
-  t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } });
-  view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick();
-  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts'); assert.ok(load);
-  // Another window changed this shared preference twice while this view was
-  // closed. Only automatic owner focus may adopt its freshly loaded CAS base.
-  const remote = { key: selection, revision: 4, value: old.id };
-  view.send({ type: 'codexUiDrafts', requestId: load.requestId,
-    snapshot: { scope: 'shared-cold-owner-scope', entries: [remote], conflicts: [] } }); await view.tick();
-  const save = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts' && request.updates.some(entry => entry.key === selection)); assert.ok(save);
-  const update = save.updates.find(entry => entry.key === selection);
-  const conflict = update.revision === remote.revision ? [] : [{ id: 'cold-selection-cas-conflict', key: selection,
-    value: update.value, createdAt: '2026-11-14T11:03:19.251Z' }];
-  view.send({ type: 'codexUiDrafts', requestId: save.requestId, snapshot: { scope: 'shared-cold-owner-scope',
-    entries: conflict.length ? [remote] : [{ ...update, revision: 5 }], conflicts: conflict } }); await view.tick();
-  const document = view.dom.window.document;
-  assert.equal(document.querySelector('.codex-mobile-tasks select').value, own.id);
-  assert.equal(document.querySelector('.codex-draft-sync').dataset.state, 'saved',
-    'system owner focus must not manufacture a selection conflict against a known newer revision');
-  assert.equal(update.revision, 4, 'the automatic preference uses the initial authoritative revision');
-  assert.equal(view.rawRequests.some(request => ['submitCodexLaunch', 'startCodexTask', 'resumeCodexTask'].includes(request.type)), false);
-});
-
-test('managed task pending focus cannot rebase a manual choice made before initial hydration', async t => {
-  const selection = JSON.stringify(['selection', 'current']);
-  const old = linkedWorkflowTask('merge-request', { id: 'manual-cas-old', controls: { external: true } });
-  const manual = linkedWorkflowTask('merge-request', { id: 'manual-cas-choice', controls: { external: true } });
-  const own = linkedWorkflowTask('merge-request', { id: 'manual-cas-owner', controls: { external: false } });
-  const data = { ...snapshot('codex'), managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team' } };
-  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {},
-    draftSync: { scope: 'manual-cold-owner-scope', bases: [{ key: selection, revision: 2, value: old.id }] } } },
-  data, {}, () => {}, { autoDrafts: false });
-  t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, manual, own] } }); await view.tick();
-  const select = view.dom.window.document.querySelector('.codex-mobile-tasks select');
-  select.value = manual.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
-  view.send({ type: 'codexTaskStarted', taskId: own.id }); await view.tick();
-  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts');
-  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'manual-cold-owner-scope', conflicts: [],
-    entries: [{ key: selection, revision: 4, value: old.id }] } }); await view.tick();
-  assert.equal(select.value, manual.id, 'late owner notices and hydration preserve the explicit choice');
-  const save = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');
-  assert.deepEqual(JSON.parse(JSON.stringify(save.updates)), [{ key: selection, revision: 2, value: manual.id }],
-    'manual selection keeps normal CAS protection instead of using automatic rebasing');
-});
-
-test('managed task focus waits for its local owner catalog and does not repeat after manual selection', async t => {
-  const old = linkedWorkflowTask('merge-request', { id: 'focus-old', controls: { external: true } });
-  const own = linkedWorkflowTask('merge-request', { id: 'focus-own', controls: { external: false } });
-  const data = { ...snapshot('codex'), activeAccountId: 'owner-account', managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team', accountId: 'owner-account' } };
-  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, () => {}, { autoDrafts: false });
-  t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old] } }); await view.tick();
-  const select = () => view.dom.window.document.querySelector('.codex-mobile-tasks select'); assert.equal(select().value, old.id);
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, { ...own, controls: { external: true } }] } }); await view.tick();
-  assert.equal(select().value, old.id, 'a foreign owner with the same task id is insufficient');
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
-  assert.equal(select().value, own.id, 'the delayed local owner consumes the durable focus once');
-  select().value = old.id; select().dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
-  view.sendSnapshot(data); view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
-  assert.equal(select().value, old.id, 'later snapshots and catalogs preserve the manual choice');
-});
-
-test('managed task focus rejects mismatched roots and accounts while ordinary views retain selection', async t => {
-  for (const mismatch of ['root', 'account', 'ordinary']) await t.test(mismatch, async sub => {
-    const old = linkedWorkflowTask('merge-request', { id: 'affinity-old', controls: { external: true } });
-    const own = linkedWorkflowTask('merge-request', { id: 'affinity-own', controls: { external: false } });
-    const focus = { taskId: own.id, originRoot: mismatch === 'root' ? 'C:/another-group' : 'C:/workspace/team', accountId: 'owner-account' };
-    const data = { ...snapshot('codex'), activeAccountId: mismatch === 'account' ? 'another-account' : 'owner-account',
-      ...(mismatch === 'ordinary' ? {} : { managedTaskFocus: focus }) };
-    const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, () => {}, { autoDrafts: false });
-    sub.after(() => view.dom.window.close());
-    view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
-    assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, old.id);
-    if (mismatch !== 'ordinary') {
-      view.sendSnapshot({ ...data, activeAccountId: 'owner-account', managedTaskFocus: { ...focus, originRoot: 'C:/workspace/team' } }); await view.tick();
-      view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); await view.tick();
-      assert.equal(view.dom.window.document.querySelector('.codex-mobile-tasks select').value, own.id, 'the earlier mismatch did not consume the pending focus');
-    }
-  });
-});
-
-test('managed task focus respects an explicit manual choice made before its owner arrives', async t => {
-  const old = linkedWorkflowTask('merge-request', { id: 'manual-before-owner', controls: { external: true } });
-  const own = linkedWorkflowTask('merge-request', { id: 'late-owner', controls: { external: false } });
-  const data = { ...snapshot('codex'), managedTaskFocus: { taskId: own.id, originRoot: 'C:/workspace/team' } };
-  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: old.id, drafts: {}, pending: {} } }, data, {}, () => {}, { autoDrafts: false });
-  t.after(() => view.dom.window.close()); view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old] } }); await view.tick();
-  const select = view.dom.window.document.querySelector('.codex-mobile-tasks select'); select.value = old.id; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [old, own] } }); view.sendSnapshot(data); await view.tick();
-  assert.equal(select.value, old.id, 'manual selection cancels a focus which is still waiting for its catalog');
-});
-
-test('Codex transcript opens repository file lines and copies complete code blocks through Host commands', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document, task = { id: 'markdown-actions', title: 'Markdown actions', root: 'C:/workspace', status: 'paused', createdAt: '2026-11-10', updatedAt: '2026-11-10' };
-  const code = 'const answer = 42;\nconsole.log(answer);';
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'output', taskId: task.id, items: [{ id: 'result', kind: 'agent', text: '[source](src/auth.ts#L12)\n\n```typescript\n' + code + '\n```', final: true }] } }); await view.tick();
-  document.querySelector('.codex-markdown-file').click(); await view.tick();
-  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'codexCommand').command)), { action: 'open-file', taskId: task.id, path: 'src/auth.ts', line: 12 });
-  document.querySelector('.codex-markdown-code button').click(); await view.tick();
-  assert.deepEqual(view.requests.findLast(request => request.type === 'copy'), { type: 'copy', text: code });
-});
-
-test('Codex task deltas preserve unrelated task drafts and reject reordered updates', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document, tasks = ['a', 'b'].map(id => ({ id, revision: 2, title: `Delta task ${id}`, root: `C:/workspace/${id}`,
-    status: 'running', createdAt: '2026-11-10', updatedAt: '2026-11-10', controls: { canPause: true, external: false } }));
-  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
-  await send({ kind: 'tasks', tasks });
-  [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes('Delta task b')).click(); await view.tick();
-  const input = document.querySelector('#codex-follow-up'); input.value = 'Keep task B draft'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  await send({ kind: 'tasksDelta', revision: 10, tasks: [{ ...tasks[0], revision: 3, status: 'completed' }], removedIds: [] });
-  assert.equal(document.querySelectorAll('.codex-task-select strong').length, 2); assert.equal(document.querySelector('#codex-follow-up').value, 'Keep task B draft');
-  await send({ kind: 'tasksDelta', revision: 9, tasks: [], removedIds: ['b'] });
-  assert.equal(document.querySelectorAll('.codex-task-select strong').length, 2, 'older transport deltas are ignored');
-  await send({ kind: 'tasksDelta', revision: 11, tasks: [{ ...tasks[0], revision: 1 }], removedIds: [] });
-  assert.match([...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes('Delta task a')).textContent, /本輪完成/);
-  await send({ kind: 'tasksDelta', revision: 12, tasks: [], removedIds: ['a'] });
-  assert.equal(document.querySelectorAll('.codex-task-select strong').length, 1); assert.equal(view.savedState.codexUi.drafts.b.text, 'Keep task B draft');
-});
-
-test('Codex automatically reconciles an interrupted task once without a revision feedback loop', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const task = { id: 'recover-on-select', revision: 1, title: 'Recover on select', root: 'C:/workspace', status: 'uncertain',
-    createdAt: '2026-11-10', updatedAt: '2026-11-10', controls: { canResume: false, external: false } };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const calls = () => view.requests.filter(request => request.type === 'codexCommand' && request.command.action === 'reconcile');
-  assert.equal(calls().length, 1);
-  view.send({ type: 'codexEvent', event: { kind: 'tasksDelta', revision: 1, tasks: [{ ...task, revision: 2, recovery: { checkedAt: new Date().toISOString(), execution: 'unknown', cleanup: 'unknown', publication: 'unknown', message: 'Still checking' } }], removedIds: [] } }); await view.tick();
-  assert.equal(calls().length, 1, 'a saved reconciliation receipt cannot recursively trigger another check');
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ ...task, id: 'external', controls: { canResume: false, external: true } }] } }); await view.tick();
-  assert.equal(calls().length, 1, 'another window retains execution ownership');
-});
-
-test('Codex drafts survive task switches, blocked sends, failure, late receipts and Webview recreation', async t => {
-  const data = snapshot('codex');
-  const view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const tasks = ['a', 'b'].map(id => ({ id, title: `Draft task ${id}`, root: `C:/workspace/${id}`, status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' }));
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [] } }); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const input = () => document.querySelector('#codex-follow-up');
-  const type = async text => { input().value = text; input().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
-  const select = async id => { [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent.includes(`Draft task ${id}`)).click(); await view.tick(); };
-  const submit = async () => { document.querySelector('.codex-message').requestSubmit(); await view.tick(); };
-  await type('Draft A'); await select('b'); await type('Draft B'); await select('a'); assert.equal(input().value, 'Draft A');
-  await submit(); const request = view.rawRequests.findLast(item => item.type === 'sendCodexMessage'); assert.ok(request.operationId);
-  assert.equal(input().value, 'Draft A', 'unacknowledged send retains text');
-  await type('Later edit'); await submit();
-  assert.equal(view.rawRequests.filter(item => item.type === 'sendCodexMessage').length, 1, 'conflicting send is blocked'); assert.equal(input().value, 'Later edit');
-  view.receipt(request, { effect: 'applied' }); await view.tick(); assert.equal(input().value, 'Later edit', 'late success retains newer edits');
-  await submit(); const failed = view.rawRequests.findLast(item => item.type === 'sendCodexMessage');
-  view.receipt(failed, { status: 'failed', effect: 'none', error: 'Fixture rejection' }); await view.tick(); assert.equal(input().value, 'Later edit');
-  const saved = view.savedState;
-  const restored = await mount(saved, data); t.after(() => restored.dom.window.close());
-  restored.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await restored.tick();
-  assert.equal(restored.dom.window.document.querySelector('#codex-follow-up').value, 'Later edit');
-  await submit(); const accepted = view.rawRequests.findLast(item => item.type === 'sendCodexMessage');
-  view.receipt(accepted, { effect: 'applied' }); await view.tick(); assert.equal(input().value, '');
-  await type('New text after acceptance'); view.receipt(accepted, { effect: 'applied' }); await view.tick(); assert.equal(input().value, 'New text after acceptance');
-});
-
-test('Codex last-keystroke drafts and pending IDs are durable before the next render', async t => {
-  const data = snapshot('codex');
-  const view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const task = { id: 'durable-task', title: 'Durable task', root: 'C:/workspace/a', status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' };
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await view.tick();
-  const document = view.dom.window.document, input = document.querySelector('#codex-follow-up');
-  input.value = 'Last keystroke'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  assert.equal(view.savedState.codexUi.drafts[task.id].text, 'Last keystroke', 'input is durable within the input event');
-  document.querySelector('.codex-message').requestSubmit();
-  const request = view.rawRequests.findLast(item => item.type === 'sendCodexMessage');
-  assert.equal(request.text, 'Last keystroke');
-  assert.equal(view.savedState.codexUi.pending[request.operationId].text, 'Last keystroke', 'pending identity is durable before rendering');
-  input.value = 'Later edit'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const saved = view.savedState; view.dom.window.close();
-  const restored = await mount(saved, data, {}, () => {}, { autoOperations: false }); t.after(() => restored.dom.window.close());
-  restored.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [task] } }); await restored.tick();
-  assert.equal(restored.dom.window.document.querySelector('#codex-follow-up').value, 'Later edit');
-  assert.ok(restored.requests.some(item => item.type === 'reconcileOperations' && item.pendingIds.includes(request.operationId)));
-  assert.equal(restored.requests.some(item => item.type === 'sendCodexMessage'), false);
-  restored.receipt(request, { effect: 'applied' }); await restored.tick();
-  assert.equal(restored.dom.window.document.querySelector('#codex-follow-up').value, 'Later edit');
-});
-
-test('Codex waits for a materialized turn before automatically reading history', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const task = { id: 'new-thread', title: 'New task', root: 'C:/workspace', threadId: 'new-thread', status: 'starting', createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z' };
-  const send = async value => { view.send({ type: 'codexEvent', event: value }); await view.tick(); };
-  await send({ kind: 'tasks', tasks: [task] });
-  assert.equal(view.requests.some(request => request.type === 'codexHistory'), false);
-  view.dom.window.document.querySelector('.codex-details-toggle').click(); await view.tick();
-  assert.equal([...view.dom.window.document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '讀取對話').disabled, true);
-  await send({ kind: 'tasks', tasks: [{ ...task, status: 'running', turnId: 'turn' }] });
-  assert.equal(view.requests.some(request => request.type === 'codexHistory'), false);
-  await send({ kind: 'tasks', tasks: [{ ...task, status: 'completed', turnId: 'turn' }] });
-  assert.equal(view.requests.findLast(request => request.type === 'codexHistory').taskId, task.id);
-});
-
-test('Codex only opens for an explicit start and binds auto-accept and deletion to the selected task', async t => {
-  const view = await mount({ mode: 'dashboard' }, snapshot('dashboard'), {}, () => {}, { autoDrafts: false }); t.after(() => view.dom.window.close());
-  const load = view.rawRequests.find(request => request.type === 'loadCodexUiDrafts');
-  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'delete-fixture', entries: [], conflicts: [] } }); await view.tick();
-  const document = view.dom.window.document;
-  const task = { id: 'first', title: 'First task', root: 'C:/workspace/repo', status: 'paused', createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z',
-    controls: { external: false, canPause: false, canResume: true, canDelete: true, canAutoAccept: true, autoAccept: false } };
-  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
-  await send({ kind: 'tasks', tasks: [task] });
-  assert.equal(document.querySelector('.page').dataset.mode, 'dashboard', 'background task updates never navigate');
-  await send({ kind: 'output', taskId: task.id, items: [{ id: 'background', kind: 'agent', text: 'Background output is retained' }] });
-  assert.equal(document.querySelector('.codex-item.agent'), null, 'hidden console buffers streaming updates');
-  view.send({ type: 'codexTaskStarted', taskId: task.id }); await view.tick();
-  assert.equal(document.querySelector('.page').dataset.mode, 'codex');
-  assert.equal(document.querySelector('.codex-workspace').hidden, false);
-  assert.match(document.querySelector('.codex-output').textContent, /Background output is retained/);
-  const checkbox = document.querySelector('.codex-auto-accept input'); assert.equal(checkbox.checked, false);
-  checkbox.click(); await view.tick();
-  const request = view.requests.findLast(value => value.type === 'setCodexAutoAccept');
-  assert.equal(request.taskId, task.id); assert.equal(request.enabled, true);
-  await send({ kind: 'tasks', tasks: [{ ...task, controls: { ...task.controls, autoAccept: true } }] });
-  assert.equal(document.querySelector('.codex-auto-accept input').checked, true);
-  const input = document.getElementById('codex-follow-up'); input.value = 'Delete this draft'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.codex-details-toggle').click(); await view.tick();
-  [...document.querySelectorAll('.codex-extra-controls button')].find(button => button.textContent === '停止並保留成果').click(); await view.tick();
-  const cleanup = view.requests.findLast(value => value.type === 'codexCommand' && value.command.action === 'stop-cleanup');
-  assert.equal(cleanup.command.taskId, task.id);
-  assert.equal(view.requests.some(value => value.type === 'deleteCodexTask'), false, 'cleanup uses the result-preserving retirement path');
-  await send({ kind: 'tasks', tasks: [] });
-  assert.equal(view.savedState.codexUi.drafts[task.id].text, 'Delete this draft', 'catalog absence alone cannot erase saved content');
-  const saving = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');
-  view.send({ type: 'codexUiDrafts', requestId: saving.requestId, snapshot: { scope: 'delete-fixture', entries: [], conflicts: [], deletedTaskIds: [task.id] } }); await view.tick();
-  assert.equal(view.savedState.codexUi.drafts[task.id], undefined); assert.equal(document.querySelector('.codex-message'), null);
-  await send({ kind: 'output', taskId: task.id, items: [{ id: 'late', kind: 'agent', text: 'Late output must not reappear' }] });
-  assert.doesNotMatch(document.querySelector('.codex-workspace').textContent, /Late output/);
-});
-
-test('Codex merges saved pages with live output and preserves reading position across streaming and page changes', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document, task = { id: 'reading', title: 'Reading task', root: 'C:/workspace', status: 'running',
-    threadId: 'thread', turnId: 'turn-b', createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z' };
-  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
-  const item = (turnId, id, text, final = false) => ({ threadId: 'thread', turnId, id, kind: 'agent', text, final });
-  await send({ kind: 'tasks', tasks: [task] });
-  await send({ kind: 'output', taskId: task.id, items: [item('turn-b', 'answer', 'Live answer')] });
-  await send({ kind: 'history', taskId: task.id, items: [item('turn-a', 'answer', 'Earlier answer', true), item('turn-b', 'answer', 'Stale partial')], nextCursor: 'older' });
-  assert.deepEqual([...document.querySelectorAll('.codex-item.agent .codex-markdown')].map(node => node.textContent.trim()), ['Earlier answer', 'Live answer']);
-  const output = document.querySelector('.codex-output'); let height = 1000;
-  Object.defineProperties(output, { scrollHeight: { get: () => height }, clientHeight: { value: 300 } });
-  output.scrollTop = 100; output.dispatchEvent(new view.dom.window.Event('scroll')); await view.tick();
-  height = 1200;
-  await send({ kind: 'output', taskId: task.id, items: [item('turn-b', 'answer', 'Live answer grows')] });
-  assert.equal(output.scrollTop, 100);
-  await view.waitFor(() => view.savedState.codexUi.reading?.[task.id]?.follow === false, 'the bounded reading save preserves an unfollowed transcript');
-  [...document.querySelectorAll('.codex-output button')].find(button => button.textContent === '讀取更早的對話').click(); await view.tick();
-  height = 1500;
-  await send({ kind: 'history', taskId: task.id, cursor: 'older', items: [item('turn-0', 'answer', 'Oldest answer', true)] });
-  assert.equal(output.scrollTop, 400, 'prepending history retains the visible content anchor');
-  output.dispatchEvent(new view.dom.window.Event('scroll')); await view.tick();
-  document.querySelector('.mode-navigation [data-mode="dashboard"]').click(); await view.tick();
-  document.querySelector('.mode-navigation [data-mode="codex"]').click(); await view.tick();
-  assert.equal(output.scrollTop, 400);
-  [...document.querySelectorAll('.codex-reading-actions button')].find(button => button.textContent === '回到最新').click(); await view.tick();
-  assert.equal(view.savedState.codexUi.reading[task.id].follow, true);
-});
-
-test('Codex restores older cached pages and a saved reading position when its webview is recreated', async t => {
-  const task = { id: 'reopened', title: 'Reopened task', root: 'C:/workspace', status: 'running', threadId: 'thread', turnId: 'turn',
-    createdAt: '2026-11-06T00:00:00Z', updatedAt: '2026-11-06T00:00:00Z' };
-  const view = await mount({ mode: 'codex', codexUi: { selectedTaskId: task.id, drafts: {}, pending: {}, reading: { [task.id]: { top: 400, follow: false } } } }, snapshot('codex'));
-  t.after(() => view.dom.window.close());
-  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
-  await send({ kind: 'tasks', tasks: [task] });
-  const output = view.dom.window.document.querySelector('.codex-output');
-  Object.defineProperties(output, { scrollHeight: { value: 1500 }, clientHeight: { value: 300 } });
-  await send({ kind: 'history', taskId: task.id, cursor: 'older', nextCursor: 'oldest', items: [
-    { id: 'earlier', kind: 'agent', text: 'Previously loaded older page' }, { id: 'latest', kind: 'agent', text: 'Latest page' }
-  ] });
-  assert.match(output.textContent, /Previously loaded older page/);
-  assert.equal(output.scrollTop, 400);
-  [...output.querySelectorAll('button')].find(button => button.textContent === '讀取更早的對話').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'codexHistory').cursor, 'oldest');
 });
 
 test('a connected Dashboard without a selected Group offers Group selection', async t => {
@@ -2715,28 +1587,6 @@ test('MR tabs move focus without activating remote content and associate every p
   assert.equal(document.activeElement, tabs[1]); assert.equal(tabs[0].getAttribute('aria-selected'), 'true'); assert.equal(view.requests.length, before);
   tabs[1].click(); await view.tick(); assert.equal(tabs[1].getAttribute('aria-selected'), 'true');
   assert.equal(document.getElementById(tabs[1].getAttribute('aria-controls')).hidden, false);
-});
-
-test('Codex requests and complete states announce once and expose intentional focus actions', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const task = { id: 'accessible-task', title: 'Accessible task', root: 'C:/workspace/repo', status: 'running', createdAt: '2026-11-05T00:00:00Z', updatedAt: '2026-11-05T00:00:00Z' };
-  const send = async event => { view.send({ type: 'codexEvent', event }); await view.tick(); };
-  await send({ kind: 'tasks', tasks: [] }); await send({ kind: 'tasks', tasks: [task] });
-  const input = document.getElementById('codex-follow-up'); input.focus();
-  const status = () => document.querySelector('.codex-announcement').textContent;
-  const before = status();
-  for (const text of ['Stream', 'Streaming reply']) await send({ kind: 'output', taskId: task.id, replace: true, items: [{ id: 'reply', kind: 'agent', text }] });
-  assert.equal(status(), before, 'stream tokens do not reannounce');
-  const approvalDetail = Array.from({ length: 50 }, (_, index) => `git status detail line ${index + 1}`).join('\n');
-  await send({ kind: 'interactions', taskId: task.id, interactions: [{ id: 'approval-1', taskId: task.id, kind: 'command', title: 'Run Git', detail: approvalDetail }] });
-  const detail = document.querySelector('.codex-interaction pre');
-  assert.equal(detail.textContent, approvalDetail); assert.equal(detail.tabIndex, 0); assert.equal(detail.getAttribute('aria-label'), 'Run Git詳細內容');
-  assert.equal(document.activeElement, input); assert.match(status(), /等待回覆/); assert.match(document.querySelector('.codex-interaction').textContent, /Repo：C:\/workspace\/repo/);
-  [...document.querySelectorAll('.codex-reading-actions button')].find(button => button.textContent.startsWith('前往待回覆要求')).click(); await view.tick(); assert.equal(document.activeElement, document.querySelector('.codex-interaction'));
-  [...document.querySelectorAll('button')].find(button => button.textContent === '跳至最新回覆').click(); await view.tick(); assert.equal(document.activeElement, document.querySelector('.codex-item.agent'));
-  document.querySelector('[aria-label="複製 Codex 回覆"]').click(); assert.equal(view.requests.at(-1).text, 'Streaming reply');
-  await send({ kind: 'tasks', tasks: [{ ...task, status: 'completed' }] }); assert.match(status(), /本輪完成/);
 });
 
 test('Dashboard reports cached partial and failed GitLab sections with individual retry actions', async t => {
@@ -2775,7 +1625,8 @@ test('MR reasons are deduplicated and remain visible with changes or discussion 
     diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead };
   const view = await mount({ mode: 'reviewer', reviewerTab: 'changes' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const branch = [...document.querySelectorAll('button')].find(button => button.textContent === '手動選擇分支審查');
+  const [branch, release] = document.querySelectorAll('.mr-cli-review-actions button');
+  assert.equal(branch.getAttribute('aria-describedby'), release.getAttribute('aria-describedby'));
   const explanation = document.getElementById(branch.getAttribute('aria-describedby'));
   assert.ok(explanation); assert.equal(explanation.closest('[hidden]'), null);
   assert.equal([...document.querySelectorAll('.feature-notice-reason')].filter(item => item.textContent.includes('MR 還有未解決的討論。')).length, 1);
@@ -2895,10 +1746,6 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
   dom.window.addEventListener('error', (event) => runtimeErrors.push(event.error?.stack ?? event.message));
   dom.window.structuredClone = structuredClone;
   const requests = [], rawRequests = [];
-  let draftContext = initialSnapshot;
-  const draftScope = () => draftContext?.codexDraftScope ?? JSON.stringify([draftContext?.instanceUserScope ?? '', draftContext?.activeAccountId ?? '', draftContext?.groupRoot ?? draftContext?.projectContext?.root ?? '']);
-  const draftStores = new Map(), draftConflicts = new Map();
-  if (initialState?.codexUi?.draftSync?.scope) draftStores.set(initialState.codexUi.draftSync.scope, new Map(initialState.codexUi.draftSync.bases.map(entry => [entry.key, JSON.parse(JSON.stringify(entry))])));
   for (const [key, value] of Object.entries(storage)) dom.window.localStorage.setItem(key, JSON.stringify(value));
   let state = initialState;
   let stateSaves = 0;
@@ -2909,22 +1756,6 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
       // The native picker is outside this DOM fixture; choose its tools item explicitly.
       if (message.type === 'pickWorkbenchControl' && message.kind === 'tools') queueMicrotask(() => {
         dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'openSettings' } }));
-      });
-      if (['loadCodexUiDrafts', 'saveCodexUiDrafts'].includes(message.type) && options.autoDrafts !== false) queueMicrotask(() => {
-        const scope = draftScope(), entries = draftStores.get(scope) ?? new Map(), conflicts = draftConflicts.get(scope) ?? [];
-        draftStores.set(scope, entries); draftConflicts.set(scope, conflicts);
-        if (message.type === 'saveCodexUiDrafts' && message.scope === scope) {
-          const applied = new Set();
-          for (const update of message.updates) {
-            const previous = entries.get(update.key);
-            if (JSON.stringify(previous?.value ?? null) === JSON.stringify(update.value)) applied.add(update.key);
-            else if ((previous?.revision ?? 0) === update.revision) { entries.set(update.key, { key: update.key, value: JSON.parse(JSON.stringify(update.value)), revision: update.revision + 1 }); applied.add(update.key); }
-            else conflicts.push({ id: `fixture-conflict-${conflicts.length + 1}`, key: update.key, value: JSON.parse(JSON.stringify(update.value)), createdAt: new Date().toISOString() });
-          }
-          for (let index = conflicts.length - 1; index >= 0; index--) if (message.resolveConflictIds?.includes(conflicts[index].id) && applied.has(conflicts[index].key)) conflicts.splice(index, 1);
-        }
-        dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'codexUiDrafts', requestId: message.requestId,
-          ...(message.type === 'saveCodexUiDrafts' && message.scope !== scope ? { error: 'Fixture scope changed' } : { snapshot: { scope, remoteScope: draftContext?.codexRemoteDraftScope, entries: [...entries.values()], conflicts: [...conflicts] } }) } }));
       });
       const selectionFields = { setMode: ['mode', message.mode], setProjectSource: ['projectSource', message.source],
         setMergeRequestFilter: ['mergeRequestFilter', message.filter], setWorkflowKitSource: ['workflowKitSource', message.source] };
@@ -2974,7 +1805,6 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
     get savedState() { return state; },
     get stateSaves() { return stateSaves; },
     sendSnapshot(value) {
-      draftContext = value;
       dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: value } }));
     },
     send(value) {
@@ -3124,7 +1954,7 @@ test('account header delegates to the native picker and account management prese
 
 test('legacy admin mode restores My Work while retaining saved selections and drafts', async (t) => {
   const saved = { mode: 'admin', scopeKey: 'team-scope', selectedProjectIds: [2], selectedIds: { clone: 2 },
-    requirement: 'Preserve this analysis draft', reports: { '1:4': { text: 'Preserve this MR report', sha: '' } } };
+    reports: { 'note:1:4': { text: 'Preserve this MR comment', sha: '' } } };
   const view = await mount(saved, snapshot('admin'));
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
@@ -3133,7 +1963,6 @@ test('legacy admin mode restores My Work while retaining saved selections and dr
   assert.equal(view.savedState.mode, 'developer');
   assert.deepEqual(view.savedState.selectedProjectIds, saved.selectedProjectIds);
   assert.deepEqual(view.savedState.selectedIds, saved.selectedIds);
-  assert.equal(view.savedState.requirement, saved.requirement);
   assert.deepEqual(view.savedState.reports, saved.reports);
   assert.equal(view.requests.some(request => ['openLogs', 'queryLogs', 'setLogVisibility'].includes(request.type)), false, 'restoring the old page does not reveal Output automatically');
 });
@@ -3194,25 +2023,6 @@ test('offline local Repo inventory exposes every copy, scan progress, cancellati
   await view.tick();
   document.querySelector('.repository-scan-trigger').click();
   assert.equal(view.requests.at(-1).type, 'scanRepositories');
-});
-
-test('local Wiki shortcuts remain available offline and keep source selection separate from remote drafts', async t => {
-  const data = { ...snapshot('clone'), connected: false, baseUrl: undefined, group: undefined,
-    localWorkspaceRepositories: [{ path: 'C:/workspace/服務 A', name: '服務 A', remotes: [], repositoryId: 'local-repo' }] };
-  const view = await mount({ mode: 'clone' }, data);
-  t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const shortcut = document.querySelector('.local-wiki-launch');
-  assert.ok(shortcut);
-  assert.equal(shortcut.disabled, false);
-  assert.equal(document.querySelector('.local-repositories-panel .codex-workflow-launch'), null);
-  shortcut.click(); await view.tick();
-  const request = view.requests.findLast(item => item.type === 'openLocalWiki');
-  assert.equal(request.repository, 'C:/workspace/服務 A');
-  assert.equal(view.requests.some(item => item.type === 'startCodexTask'), false);
-  const remote = await mount({ mode: 'clone' }, snapshot('clone'));
-  t.after(() => remote.dom.window.close());
-  assert.ok([...remote.dom.window.document.querySelectorAll('.codex-workflow-launch button')].some(button => button.textContent === '產生 GitLab Wiki 草稿'));
 });
 
 test('Issue preview reports loading and retry states while the work list stays visible', async (t) => {
@@ -3730,37 +2540,31 @@ test('reviewer native branch picks preserve manual edits and correlate field, Re
   });
 });
 
-test('MR branch review keeps the selected workspace Repo and carried branches in preview and copy inputs', async t => {
+test('MR one-click routes both reviewers to local Codex CLI with the current MR scope', async t => {
   const data = snapshot('reviewer');
   setSkillsContext(data);
-  data.skillsContext.reviewerRepositories = [
-    { name: 'alpha', path: 'C:/workspace/team/alpha' },
-    { name: 'beta', path: 'C:/workspace/team/beta' }
-  ];
-  const request = { id: 41, iid: 4, project_id: 2, title: 'Beta review', state: 'opened', source_branch: 'feature/payment', target_branch: 'main', web_url: 'https://gitlab.example.test/team/beta/-/merge_requests/4' };
+  const request = { id: 41, iid: 4, project_id: 2, title: 'Beta review', state: 'opened', source_branch: 'feature/payment',
+    target_branch: 'main', web_url: 'https://gitlab.example.test/team/beta/-/merge_requests/4' };
   data.mergeRequests = [request];
   data.selectedMergeRequest = { request, diffs: [], discussions: [], warnings: [], freshness: { state: 'not_checked' },
     sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } } };
   const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  [...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '手動選擇分支審查').click(); await view.tick();
-  assert.deepEqual(view.requests.findLast(request => request.type === 'openBranchReview'), { type: 'openBranchReview', projectId: 2, iid: 4 });
-  const inputs = { 'merge-repo.repo': 'C:/workspace/team/beta', 'merge-repo.base': 'origin/main', 'merge-repo.head': 'origin/feature/payment' };
-  view.send({ type: 'branchReviewReady', revision: 'obsolete-revision', inputs }); await view.tick();
-  assert.equal(document.querySelector('.page').dataset.mode, 'reviewer', 'an obsolete entry reply cannot change modes or inputs');
-  view.send({ type: 'branchReviewReady', revision: data.skillsContext.revision, inputs }); await view.tick();
-  assert.equal(selectedSkillTool(document), 'merge-reviewer');
-  for (const [key, value] of Object.entries(inputs)) assert.equal(document.getElementById(`wiki-input-${key}`).value, value);
-  assert.equal(view.requests.filter(request => request.type === 'loadSkillBranches').length, 0, 'carried branches need no background list read');
-  assert.ok(document.querySelector('.wiki-prompt-preview').textContent.includes('--project "C:/workspace/team/beta"'));
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, true, 'MR branches still require the existing explicit confirmation');
-  [...document.querySelectorAll('.wiki-guide-card button')].find(button => button.textContent === '確認使用分支審查').click(); await view.tick();
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
-  document.querySelector('.wiki-copy-button').click(); await view.tick();
-  const copy = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
-  assert.equal(copy.featureId, 'merge-repo');
-  assert.equal(copy.revision, data.skillsContext.revision);
-  for (const [key, value] of Object.entries(inputs)) assert.equal(copy.inputs[key], value);
+  assert.equal(view.requests.some(message => message.type === 'runCodexCli'), false);
+  const buttons = [...document.querySelectorAll('.mr-cli-review-actions button')];
+  assert.deepEqual(buttons.map(button => button.textContent), ['一鍵 MergeReviewer', '一鍵 ReleaseReviewer']);
+  for (const [index, reviewerTool] of ['merge-reviewer', 'release-reviewer'].entries()) {
+    assert.equal(buttons[index].disabled, false);
+    buttons[index].click(); await view.tick();
+    assert.deepEqual(structuredClone(view.requests.findLast(message => message.type === 'runCodexCli')), {
+      type: 'runCodexCli', source: { kind: 'merge-request', projectId: 2, iid: 4, reviewerTool, expectedScope: data.connectedScope }
+    });
+  }
+  assert.equal(view.requests.filter(message => message.type === 'runCodexCli').length, 2);
+  assert.equal(view.requests.some(message => ['postMergeRequestNote', 'publishCodexReview', 'openBranchReview'].includes(message.type)), false);
+  document.querySelector('#mr-detail-tab-report').click(); await view.tick();
+  assert.match(document.querySelector('#mr-detail-panel-report').textContent, /MR 留言/);
+  assert.equal(document.querySelector('.mr-cli-review-actions').closest('.reviewer-detail'), document.querySelector('.reviewer-detail'));
 });
 
 test('reviewer branch picker failures keep free-form input and a new explicit retry available', async t => {
@@ -3852,7 +2656,7 @@ test('mixed workspaces use the common root for downloads, sync and settings', as
   assert.equal(view.requests.at(-1).setting, 'gitlabWorkspace.projectRoot');
 });
 
-test('clone destination precedes project choices and downloaded Repo Wiki shortcuts never publish remotely', async t => {
+test('clone destination precedes project choices without a Wiki task shortcut', async t => {
   const state = snapshot('clone'); setProjectContext(state, 'C:/group', false);
   state.projectLocalRepositories = { 1: { path: 'C:/group/alpha', state: 'ready' } };
   const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, state); t.after(() => view.dom.window.close());
@@ -3860,10 +2664,8 @@ test('clone destination precedes project choices and downloaded Repo Wiki shortc
   const choices = document.querySelector('.clone-list-column .repo-list');
   assert.match(destination.textContent, /C:\/group/);
   assert.ok(destination.compareDocumentPosition(choices) & view.dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'users see the fixed download destination before selecting repositories');
-  const localWiki = document.querySelector('.clone-list-column .local-wiki-launch'); assert.equal(localWiki.textContent, '本地 Codebase Wiki');
-  localWiki.click(); await view.tick();
-  assert.deepEqual(view.requests.findLast(request => request.type === 'openLocalWiki'), { type: 'openLocalWiki', repository: 'C:/group/alpha' });
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask' || request.type === 'publishProjectWiki'), false, 'choosing a local Wiki entry cannot generate or publish a GitLab Wiki');
+  assert.equal(document.querySelector('.clone-list-column .local-wiki-launch'), null);
+  assert.equal(view.requests.some(request => request.type === 'runCodexCli'), false);
 });
 
 test('settings display the same root for installation and Skills', async t => {
@@ -4668,13 +3470,13 @@ test('MR reports publish as manual comments while approval and merge remain SHA 
   data.instance={version:'16.11.0',enterprise:true};
   data.mergeRequests=[request]; data.selectedMergeRequest={request,mergeAvailability:{status:'allowed'},diffs:[],discussions:[],sections:{diffs:{status:'ready'},discussions:{status:'ready'}},warnings:[],freshness:{state:'current',checkedAt:Date.now()},sourceSha:gitHead,targetSha:gitParent};
   const view=await mount({mode:'reviewer'},data); t.after(() => view.dom.window.close()); const document=view.dom.window.document;
-  [...document.querySelectorAll('[role=tab]')].find(button => button.textContent==='審查報告').click(); await view.tick();
+  [...document.querySelectorAll('[role=tab]')].find(button => button.textContent==='留言與核准').click(); await view.tick();
   const input=document.querySelector('.reviewer-detail textarea'); input.value='Merge Report: service\nStatic findings'; input.dispatchEvent(new view.dom.window.Event('input',{bubbles:true})); await view.tick();
   const buttons=[...document.querySelectorAll('.reviewer-detail button')];
   assert.equal(buttons.some(button => /匯入報告|核對貼上|發布審查報告/.test(button.textContent)),false);
   assert.equal(buttons.find(button => button.textContent==='核准').disabled,false);
   assert.equal(buttons.find(button => button.textContent==='合併 MR').disabled,false);
-  buttons.find(button => button.textContent==='作一般留言發布').click(); await view.tick();
+  buttons.find(button => button.textContent==='發布留言').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type==='postMergeRequestNote').body,input.value);
 });
 
@@ -5248,211 +4050,6 @@ test('project operation details use a contained modal below 600 available pixels
   });
 });
 
-function historyTask(id, patch = {}) {
-  return { id, title: `History ${id}`, root: 'C:/workspace/repo', status: 'completed', createdAt: '2026-11-16T00:00:00Z', updatedAt: '2026-11-16T00:00:00Z',
-    controls: { external: false, canResume: true, canDelete: true, canDeleteHistory: true }, ...patch };
-}
-
-test('Codex history deletion has a direct task action, waits for confirmation and fences late snapshots', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const tasks = [historyTask('done'), historyTask('running', { status: 'running', controls: { canPause: true, canDeleteHistory: false, deleteHistoryBlockedReason: '請先暫停任務。' } })];
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const document = view.dom.window.document, action = id => document.querySelector(`[aria-label="刪除 History ${id} 的執行紀錄"]`);
-  assert.equal(action('running').disabled, true); assert.equal(action('running').title, '請先暫停任務。');
-  action('done').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'deleteCodexTask').taskId, 'done');
-  assert.equal(action('done').disabled, true); assert.ok(document.querySelector('.codex-task-select').textContent.includes('History done'), 'the record remains until Host confirms');
-  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTask').operationId, deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
-  assert.equal(action('done').disabled, false); assert.match(document.querySelector('.codex-deletion-status').textContent, /取消/);
-  action('done').click(); await view.tick();
-  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTask').operationId, deletedTaskIds: ['done'], failures: [] }); await view.tick();
-  assert.equal(action('done'), null); assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History running');
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } });
-  view.send({ type: 'codexEvent', event: { kind: 'output', taskId: 'done', items: [{ id: 'late', kind: 'agent', text: 'Deleted history must not return' }] } });
-  await view.tick(); assert.equal(action('done'), null); assert.doesNotMatch(document.querySelector('.codex-workspace').textContent, /Deleted history must not return/);
-});
-
-test('Codex bulk history selection is scoped to current filters and partial failures remain retryable', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const tasks = [historyTask('a'), historyTask('b'), historyTask('busy', { status: 'running', controls: { canDeleteHistory: false, canPause: true } })];
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const document = view.dom.window.document, find = text => [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent === text);
-  find('管理紀錄').click(); await view.tick();
-  document.querySelector('.codex-history-selection input').click(); await view.tick();
-  assert.equal(document.querySelector('[aria-label="選取 History busy"]').disabled, true);
-  assert.equal(document.querySelector('[aria-label="選取 History busy"]').checked, false);
-  assert.equal(document.querySelector('.codex-history-selection button').textContent, '刪除選取紀錄（2）');
-  const search = document.querySelector('.codex-task-filter input[type="search"]'); search.value = 'History a'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  assert.equal(document.querySelector('.codex-history-selection button').disabled, true, 'changing filters clears the former selection');
-  search.value = ''; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  document.querySelector('.codex-history-selection input').click(); await view.tick(); document.querySelector('.codex-history-selection button').click(); await view.tick();
-  assert.deepEqual(JSON.parse(JSON.stringify(view.requests.findLast(request => request.type === 'deleteCodexTasks').taskIds)), ['a', 'b']);
-  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTasks').operationId, deletedTaskIds: ['a'], failures: [{ taskId: 'b', reason: '紀錄暫時被另一個視窗使用' }] }); await view.tick();
-  assert.equal(document.querySelector('[aria-label="選取 History a"]'), null);
-  assert.equal(document.querySelector('[aria-label="選取 History b"]').checked, true);
-  assert.match(document.querySelector('.codex-deletion-failures').textContent, /History b.*另一個視窗/s);
-  document.querySelector('.codex-history-selection button').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type === 'deleteCodexTask').taskId, 'b');
-});
-
-test('Codex narrow task drawer includes filters and history management and restores its trigger focus', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('a'), historyTask('b')] } }); await view.tick();
-  const document = view.dom.window.document, trigger = document.querySelector('.codex-mobile-tasks [aria-haspopup="dialog"]');
-  trigger.focus(); trigger.click(); await view.tick();
-  const dialog = document.querySelector('.codex-task-dialog');
-  assert.equal(dialog.hasAttribute('open'), true); assert.equal(dialog.getAttribute('aria-modal'), 'true');
-  assert.ok(dialog.querySelector('input[type="search"]')); assert.ok([...dialog.querySelectorAll('button')].some(button => button.textContent === '管理紀錄'));
-  assert.equal(document.querySelector('.codex-conversation').hasAttribute('inert'), true);
-  dialog.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await view.tick();
-  assert.equal(dialog.hasAttribute('open'), false); assert.equal(document.activeElement, trigger);
-  trigger.click(); await view.tick(); [...dialog.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History b')).click(); await view.tick();
-  assert.equal(dialog.hasAttribute('open'), false); assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History b'); assert.equal(document.activeElement, trigger);
-});
-
-test('Codex reading saves are bounded while text edits stay immediate and navigation flushes the final anchor', async t => {
-  const timers = new Map(); let nextTimer = 90000;
-  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, window => {
-    const schedule = window.setTimeout.bind(window), cancel = window.clearTimeout.bind(window);
-    window.setTimeout = (callback, delay, ...args) => { if (delay !== 250) return schedule(callback, delay, ...args); const id = ++nextTimer; timers.set(id, () => callback(...args)); return id; };
-    window.clearTimeout = id => { if (!timers.delete(id)) cancel(id); };
-  }); t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('a'), historyTask('b')] } }); await view.tick();
-  const document = view.dom.window.document, scroll = top => { const output = document.querySelector('.codex-output'); output.scrollTop = top; output.dispatchEvent(new view.dom.window.Event('scroll')); };
-  for (const top of [10, 20, 30]) scroll(top);
-  assert.equal(timers.size, 1, 'a burst schedules one bounded save rather than restarting a debounce');
-  assert.equal(view.savedState.codexUi.reading?.a, undefined);
-  const input = document.getElementById('codex-follow-up'); input.value = 'Latest typed requirement'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  assert.equal(view.savedState.codexUi.drafts.a.text, 'Latest typed requirement');
-  const flush = [...timers.values()][0]; timers.clear(); flush(); await view.tick();
-  assert.equal(view.savedState.codexUi.reading.a.top, 30);
-  scroll(75); [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History b')).click(); await view.tick();
-  assert.equal(view.savedState.codexUi.reading.a.top, 75); assert.equal(timers.size, 0);
-  scroll(125); document.querySelector('.mode-navigation [data-mode="clone"]').click(); await view.tick();
-  assert.equal(view.savedState.codexUi.reading.b.top, 125); assert.equal(timers.size, 0);
-});
-
-test('Codex deleting the selected middle record keeps its next neighbour through the final receipt', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const tasks = ['a', 'b', 'c'].map(id => historyTask(id));
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const document = view.dom.window.document;
-  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History b')).click(); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'tasksDelta', revision: 1, tasks: [], removedIds: ['b'] } }); await view.tick();
-  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History c');
-  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['b'], failures: [] }); await view.tick();
-  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History c', 'the final cleanup must preserve the neighbouring selection');
-  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['c'], failures: [] }); await view.tick();
-  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History a', 'deleting the final row selects its previous neighbour');
-});
-
-test('Codex cross-window history deletion fences stale tasks and drafts without settling another pending deletion', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, () => {}, { autoDrafts: false, autoOperations: false }); t.after(() => view.dom.window.close());
-  const load = view.rawRequests.find(request => request.type === 'loadCodexUiDrafts');
-  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: 'cross-window-history', entries: [], conflicts: [] } }); await view.tick();
-  const tasks = [historyTask('a'), historyTask('b')], document = view.dom.window.document;
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const input = document.getElementById('codex-follow-up'); input.value = 'Draft acknowledgement still in flight'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  const saving = view.rawRequests.findLast(request => request.type === 'saveCodexUiDrafts');
-  document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').click(); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'historyDeleted', taskIds: ['a'] } }); await view.tick();
-  assert.equal(document.querySelector('[aria-label="刪除 History a 的執行紀錄"]'), null);
-  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, true, 'observing another deletion cannot settle the pending batch');
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } });
-  view.send({ type: 'codexEvent', event: { kind: 'output', taskId: 'a', items: [{ id: 'late', kind: 'agent', text: 'Stale external output' }] } });
-  view.send({ type: 'codexUiDrafts', requestId: saving.requestId, snapshot: { scope: 'cross-window-history', entries: saving.updates.map(update => ({ ...update, revision: 1 })), conflicts: [] } }); await view.tick();
-  assert.equal(document.querySelector('[aria-label="刪除 History a 的執行紀錄"]'), null); assert.equal(view.savedState.codexUi.drafts.a, undefined);
-  assert.doesNotMatch(document.querySelector('.codex-workspace').textContent, /Stale external output/);
-  view.send({ type: 'codexHistoryDeleted', requestId: view.rawRequests.findLast(request => request.type === 'deleteCodexTask').operationId, deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
-  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, false);
-});
-
-test('Codex a delayed deletion receipt from the old scope cannot settle a new confirmation', async t => {
-  const data = snapshot('codex'), view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const tasks = [historyTask('a'), historyTask('b')], document = view.dom.window.document;
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  document.querySelector('[aria-label="刪除 History a 的執行紀錄"]').click(); await view.tick();
-  const first = view.rawRequests.findLast(request => request.type === 'deleteCodexTask');
-  view.sendSnapshot({ ...data, groupRoot: 'C:/workspace/second', instanceUserScope: 'second-instance', operationScope: 'second-scope', localOperationScope: 'second-scope' }); await view.tick();
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').click(); await view.tick();
-  const second = view.rawRequests.findLast(request => request.type === 'deleteCodexTask'); assert.notEqual(second.operationId, first.operationId);
-  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
-  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, true, 'an uncorrelated receipt cannot settle an active confirmation');
-  view.send({ type: 'codexHistoryDeleted', requestId: first.operationId, deletedTaskIds: ['a'], failures: [{ taskId: 'old-record', reason: 'Old scope failure' }] }); await view.tick();
-  assert.equal(document.querySelector('[aria-label="刪除 History a 的執行紀錄"]'), null, 'authoritative global deletion markers are still applied');
-  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, true);
-  assert.equal(document.querySelector('.codex-deletion-failures'), null, 'old failures cannot replace the active confirmation state');
-  view.send({ type: 'codexHistoryDeleted', requestId: second.operationId, deletedTaskIds: [], failures: [], cancelled: true }); await view.tick();
-  assert.equal(document.querySelector('[aria-label="刪除 History b 的執行紀錄"]').disabled, false);
-});
-
-test('Codex bulk history deletion respects the 1000-record boundary and keeps failed selections for retry', async t => {
-  for (const count of [1000, 1001]) await t.test(`${count} available histories`, async t => {
-    const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-    let tasks = Array.from({ length: count }, (_, index) => historyTask(String(index).padStart(4, '0')));
-    view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-    const document = view.dom.window.document;
-    [...document.querySelectorAll('.codex-tasks button')].find(button => button.textContent === '管理紀錄').click(); await view.tick();
-    assert.match(document.querySelector('.codex-history-selection').textContent, /最多 1,000 筆/);
-    document.querySelector('.codex-history-selection input').click(); await view.tick();
-    assert.equal(document.querySelector('.codex-history-selection button').textContent, '刪除選取紀錄（1000）');
-    if (count === 1001) {
-      tasks = tasks.map(task => task.id === '1000' ? { ...task, pinned: true } : task);
-      view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-      const extra = document.querySelector('[aria-label="選取 History 1000"]');
-      assert.equal(extra.disabled, true); assert.match(extra.title, /已選取 1,000 筆/);
-      document.querySelector('[aria-label="選取 History 0000"]').click(); await view.tick();
-      assert.equal(extra.disabled, false, 'unselecting one record makes room for another'); extra.click(); await view.tick();
-    }
-    document.querySelector('.codex-history-selection button').click(); await view.tick();
-    const request = view.rawRequests.findLast(item => item.type === 'deleteCodexTasks');
-    assert.equal(request.taskIds.length, 1000); assert.equal(new Set(request.taskIds).size, 1000);
-    if (count === 1001) { assert.ok(request.taskIds.includes('1000')); assert.equal(request.taskIds.includes('0000'), false); }
-    const failed = request.taskIds.at(-1);
-    view.send({ type: 'codexHistoryDeleted', requestId: request.operationId, deletedTaskIds: request.taskIds.slice(0, -1), failures: [{ taskId: failed, reason: 'Retry this record' }] }); await view.tick();
-    assert.equal(document.querySelector('.codex-history-selection button').textContent, '刪除選取紀錄（1）');
-    assert.equal(document.querySelector(`[aria-label="選取 History ${failed}"]`).checked, true);
-    document.querySelector('.codex-history-selection button').click(); await view.tick();
-    assert.equal(view.requests.findLast(item => item.type === 'deleteCodexTask').taskId, failed);
-  });
-});
-
-test('Codex sustained scrolling persists every 250ms before scrolling stops', async t => {
-  const timers = new Map(); let nextTimer = 100000, now = 0;
-  const view = await mount({ mode: 'codex' }, snapshot('codex'), {}, window => {
-    const schedule = window.setTimeout.bind(window), cancel = window.clearTimeout.bind(window);
-    window.setTimeout = (callback, delay, ...args) => { if (delay !== 250) return schedule(callback, delay, ...args); const id = ++nextTimer; timers.set(id, { due: now + delay, callback: () => callback(...args) }); return id; };
-    window.clearTimeout = id => { if (!timers.delete(id)) cancel(id); };
-  }); t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('sustained')] } }); await view.tick();
-  const scroll = top => { const output = view.dom.window.document.querySelector('.codex-output'); output.scrollTop = top; output.dispatchEvent(new view.dom.window.Event('scroll')); };
-  const advance = async duration => {
-    now += duration;
-    for (const [id, timer] of [...timers]) if (timer.due <= now) { timers.delete(id); timer.callback(); }
-    await view.tick();
-  };
-  scroll(10); await advance(200); scroll(20); await advance(49);
-  assert.equal(view.savedState.codexUi.reading?.sustained, undefined);
-  await advance(1); assert.equal(view.savedState.codexUi.reading.sustained.top, 20, 'the first save happens at the original deadline while new scroll events continue');
-  scroll(30); await advance(200); scroll(40); await advance(50);
-  assert.equal(view.savedState.codexUi.reading.sustained.top, 40, 'the next interval also persists without waiting for a scrolling pause');
-});
-
-test('Codex deletion follows pinned and creation-time order when selecting the adjacent task', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  const tasks = [historyTask('a', { createdAt: '2026-11-16' }), historyTask('b', { createdAt: '2026-11-14' }),
-    historyTask('c', { createdAt: '2026-11-01', pinned: true }), historyTask('d', { createdAt: '2026-11-15' })];
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks } }); await view.tick();
-  const document = view.dom.window.document;
-  assert.deepEqual([...document.querySelectorAll('.codex-task-select strong')].map(node => node.textContent), ['★ History c', 'History a', 'History d', 'History b']);
-  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History c')).click(); await view.tick();
-  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['c'], failures: [] }); await view.tick();
-  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History a', 'a pinned item selects its visible next neighbour rather than the next stored item');
-  view.send({ type: 'codexHistoryDeleted', deletedTaskIds: ['a'], failures: [] }); await view.tick();
-  assert.equal(document.querySelector('.codex-task-heading h2').textContent, 'History d', 'creation time determines the next neighbour after the pinned item is gone');
-});
-
 test('GitLab health failures keep native local entry points and offer account repair', async t => {
   for (const status of ['unverified', 'auth-required', 'unavailable']) {
     const data = { ...snapshot('dashboard'), gitlabConnection: { status }, localWorkspaceRepositories: [{ name: 'service', path: 'C:/workspace/service', repositoryId: 'service' }] };
@@ -5463,61 +4060,4 @@ test('GitLab health failures keep native local entry points and offer account re
     assert.equal(view.dom.window.document.querySelectorAll('.home-tool-card button:disabled').length, 0);
     if (status === 'auth-required') assert.match(view.dom.window.document.querySelector('.home-gitlab-card button').textContent, /連接 GitLab/);
   }
-});
-
-test('local result views expose documents without execution, publication or automatic recovery requests', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('retained', { status: 'uncertain', accessMode: 'local-result',
-    localResultSource: { kind: 'issue', projectPath: 'team/service', iid: 4, sourceSha: 'a'.repeat(40) }, controls: undefined,
-    result: { state: 'draft', summary: 'Saved document' }, primaryAction: { kind: 'results', label: '閱讀本機成果', enabled: true } })] } }); await view.tick();
-  const document = view.dom.window.document;
-  assert.match(document.querySelector('[aria-label="本機唯讀成果"]').textContent, /Saved document/);
-  assert.equal(document.querySelector('#codex-follow-up'), null);
-  assert.equal(view.requests.some(request => request.type === 'codexHistory' || request.type === 'previewProjectWiki' || request.type === 'codexCommand' && request.command.action === 'reconcile'), false);
-  const read = [...document.querySelectorAll('[aria-label="本機唯讀成果"] button')].find(button => button.textContent === '閱讀本機成果');
-  read.click(); await view.tick();
-  assert.equal(view.requests.at(-1).type, 'readCodexResult'); assert.equal(view.requests.at(-1).taskId, 'retained');
-});
-
-test('pure local Codex input and selected task survive GitLab account scope changes', async t => {
-  const data = { ...snapshot('codex'), codexDraftScope: 'local-workspace', codexRemoteDraftScope: 'remote-one' };
-  const view = await mount({ mode: 'codex' }, data); t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('local-task')] } }); await view.tick();
-  const textarea = view.dom.window.document.querySelector('#codex-follow-up');
-  textarea.value = 'Unsent local requirement'; textarea.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
-  view.sendSnapshot({ ...data, activeAccountId: 'another-account', instanceUserScope: 'another-user', codexRemoteDraftScope: 'remote-two' }); await view.tick();
-  assert.equal(view.dom.window.document.querySelector('#codex-follow-up').value, 'Unsent local requirement');
-  assert.equal(view.dom.window.document.querySelector('.codex-task-heading h2').textContent, 'History local-task');
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask' || request.type === 'sendCodexMessage'), false);
-});
-
-test('account changes remove remote Codex input while preserving local drafts without submitting either', async t => {
-  const data = { ...snapshot('codex'), codexDraftScope: 'local-workspace', codexRemoteDraftScope: 'remote-one' };
-  const view = await mount({ mode: 'codex' }, data, {}, () => {}, { autoDrafts: false }); t.after(() => view.dom.window.close());
-  const load = view.rawRequests.findLast(request => request.type === 'loadCodexUiDrafts');
-  view.send({ type: 'codexUiDrafts', requestId: load.requestId, snapshot: { scope: data.codexDraftScope, remoteScope: data.codexRemoteDraftScope, entries: [], conflicts: [] } }); await view.tick();
-  const remote = historyTask('remote-task', { origin: { kind: 'issue', projectPath: 'team/service', projectId: 1, iid: 4,
-    accountKey: 'owner', baseUrl: 'https://gitlab.example.test', repositoryRoot: 'C:/workspace/repo', sourceSha: 'a'.repeat(40), sourceBranch: 'main' } });
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('local-task'), remote] } }); await view.tick();
-  const document = view.dom.window.document;
-  const type = text => { const input = document.querySelector('#codex-follow-up'); input.value = text; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); };
-  type('Retained local text'); await view.tick();
-  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History remote-task')).click(); await view.tick();
-  type('Private first-account text'); await view.tick();
-  view.sendSnapshot({ ...data, activeAccountId: 'another-account', instanceUserScope: 'another-user', codexRemoteDraftScope: 'remote-two' }); await view.tick();
-  assert.equal(document.querySelector('#codex-follow-up').value, '');
-  [...document.querySelectorAll('.codex-task-select')].find(button => button.textContent.includes('History local-task')).click(); await view.tick();
-  assert.equal(document.querySelector('#codex-follow-up').value, 'Retained local text');
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask' || request.type === 'sendCodexMessage'), false);
-});
-
-test('local execution catalogs require an explicit state check before recovering an unfinished task', async t => {
-  const view = await mount({ mode: 'codex' }, snapshot('codex')); t.after(() => view.dom.window.close());
-  view.send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [historyTask('unfinished', { catalogOnly: true, status: 'running',
-    controls: { external: true, canResume: false } })] } }); await view.tick();
-  assert.equal(view.requests.some(request => request.type === 'codexCommand' && request.command.action === 'reconcile'), false);
-  const button = [...view.dom.window.document.querySelectorAll('button')].find(item => item.textContent === '核對任務狀態');
-  assert.equal(button.disabled, false); button.click(); await view.tick();
-  const checks = view.requests.filter(request => request.type === 'codexCommand' && request.command.action === 'reconcile');
-  assert.equal(checks.length, 1); assert.equal(checks[0].command.taskId, 'unfinished');
 });

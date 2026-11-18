@@ -15,11 +15,9 @@ import { disposeNativeDocuments } from './git/nativeDocuments';
 import { OperationTracker, operationLabels } from './workspace/operations';
 import { OperationReceiptFileStore } from './workspace/operationReceiptStore';
 import { cleanupLegacyLogs } from './storage/legacyLogs';
-import path from 'node:path';
-import { readTaskWorkspace } from './codex/taskWorkspace';
 
 let activeOperations: OperationTracker | undefined;
-let shutdownCodex: (() => Promise<void>) | undefined;
+let shutdownCliTerminals: (() => Promise<void>) | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
   context.subscriptions.push({ dispose: disposeNativeDocuments });
@@ -48,9 +46,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   let navigation: NavigationViews | undefined;
   const workspacePanel = new WorkspacePanel(context, session, issuePanels, () => navigation?.refresh(), gitRepositories, notifications, operations);
   navigation = new NavigationViews(gitRepositories, workspacePanel, error => notifications.publish({ level: 'error', title: '側欄資料', message: readableError(error), origin: workspacePanel?.getNotificationOrigin() }));
-  shutdownCodex = () => workspacePanel!.shutdownCodex();
+  shutdownCliTerminals = () => workspacePanel.shutdownCliTerminals();
   try { await workspacePanel.initializeStorageCleanup(); }
-  catch { notifications.publish({ level: 'warn', title: '儲存區清理', message: '部分儲存資料尚未完成清理；已保留原件，可在 Codex 重新讀取後重試。' }); }
+  catch { notifications.publish({ level: 'warn', title: '儲存區清理', message: '部分儲存資料尚未完成清理；已保留原件，下次啟動會重試。' }); }
   gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);
 
   refreshWorkspaceAfterIssueChange = () => {
@@ -76,7 +74,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       const operationId = metadata.operationId ?? randomUUID();
       const aliases: Record<string, string> = {
         openCloneMode: 'openProjects', openSaMode: 'openAnalysis', openBmadMode: 'openBmad', openDeveloperMode: 'openMyWork',
-        openReviewerMode: 'openReviewer', openGitMode: 'openGit', openCodexMode: 'openCodex', openRepository: 'openRepository',
+        openReviewerMode: 'openReviewer', openGitMode: 'openGit', openRepository: 'openRepository',
         cloneRepositories: 'clone', cloneAllRepositories: 'clone', cloneSelectedRepositories: 'clone', syncLocalDefaultBranches: 'syncRepos'
       };
       const task = () => getWorkspace().runCommandAction(metadata.action ?? aliases[action] ?? action, () => Promise.resolve(callback.apply(thisArg, args)), { ...metadata, operationId });
@@ -133,15 +131,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     registerLoggedCommand('gitlabWorkspace.openDeveloperMode', () => getWorkspace().navigateTo('developer')),
     registerLoggedCommand('gitlabWorkspace.openReviewerMode', () => getWorkspace().navigateTo('reviewer')),
     registerLoggedCommand('gitlabWorkspace.openGitMode', (repoId?: string) => getWorkspace().navigateTo('git', repoId)),
-    registerLoggedCommand('gitlabWorkspace.createCodexTask', () => getWorkspace().createCodexTask()),
-    registerLoggedCommand('gitlabWorkspace.createCodexTaskFromSelection', () => getWorkspace().createCodexTask('selection')),
-    registerLoggedCommand('gitlabWorkspace.openCodexMode', () => getWorkspace().navigateTo('codex')),
     registerLoggedCommand('gitlabWorkspace.openRepository', async (value?: string | RepositoryNode) => {
       const id = typeof value === 'string' ? value : value?.kind === 'repository' ? value.repository.id : await navigation?.findRepository();
       if (id) await getWorkspace().navigateTo('git', id);
     }),
-    registerLoggedCommand('gitlabWorkspace.openLocalWiki', (value?: string | RepositoryNode) => getWorkspace().openLocalWiki(
-      typeof value === 'string' ? value : value?.kind === 'repository' ? value.repository.path : undefined)),
     registerLoggedCommand('gitlabWorkspace.refreshRepositories', () => navigation?.refreshRepositories()),
     registerLoggedCommand('gitlabWorkspace.refreshMyWork', () => navigation?.refreshMyWork()),
     registerLoggedCommand('gitlabWorkspace.loadMoreMyWork', (node?: WorkNode) => navigation?.loadMore(node)),
@@ -162,15 +155,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       if (selected) await vscode.commands.executeCommand('gitlabWorkspace.' + selected.command);
     })
   );
-  const taskWorkspaceFile = vscode.workspace.workspaceFile;
-  if (taskWorkspaceFile?.scheme === 'file' && path.basename(taskWorkspaceFile.fsPath) === 'task.code-workspace') {
-    try {
-      const manifest = await readTaskWorkspace(context.globalStorageUri.fsPath, taskWorkspaceFile.fsPath);
-      await workspacePanel.openTaskWorkspace(manifest);
-    } catch (error) {
-      notifications.publish({ level: 'error', title: '開啟 Codex 任務', message: readableError(error) });
-    }
-  }
   if (testMode) return {
     getWorkspaceForTesting: () => getWorkspace(),
     getNavigationForTesting: () => navigation,
@@ -196,8 +180,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
 }
 
 export async function deactivate(): Promise<void> {
-  await shutdownCodex?.(); shutdownCodex = undefined;
-  await activeOperations?.flush(); activeOperations = undefined;
+  const shutdown = shutdownCliTerminals;
+  const operations = activeOperations;
+  shutdownCliTerminals = undefined;
+  activeOperations = undefined;
+  try { await shutdown?.(); }
+  finally { await operations?.flush(); }
 }
 
 function readableError(error: unknown): string {

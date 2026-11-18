@@ -1,6 +1,6 @@
 # 使用指南
 
-尚未登入或 GitLab 不可用時，可先使用本機 Repo、Git、Codex 與已安裝的工作流程；功能條件、草稿及唯讀成果的操作見 [GitLab 不可用時的功能](gitlab-independent-workflows.md)。
+尚未登入或 GitLab 不可用時，可先使用本機 Repo、Git 與已安裝的工作流程。詳見 [GitLab 不可用時的功能](gitlab-independent-workflows.md)。
 
 GitLab Workspace 開啟共用 Dashboard，集中顯示本機 Repo、Git／Skills／BMAD 狀態與選用的 GitLab 摘要。本機 Repo、Git 版控、Skills、Wiki、分支審查、BMAD 與後臺 Log 不需要登入 GitLab 或選擇 Group；GitLab 專案下載、指派 Issue、Issue Board 與 MR 審查共用目前帳號選擇的 Group。閱讀或討論 Issue 不需要設定本機工作目錄。
 
@@ -29,7 +29,7 @@ HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。GitLab Token 不會�
 
 切換或登出會暫停並保存正在執行的 Issue 計時；切回後需手動繼續。Issue 編輯、留言與工時草稿依站台及帳號保存。GitLab 寫入或修改 Repo 進行中時，需等操作完成才能切換或登出。更新後會自動遷移舊的單帳號資料；新資料保存成功後才清理舊設定。
 
-介面入口、鍵盤及原生設定見 [介面操作說明](ui-navigation.md)，Codex 草稿與回執見 [Codex Bridge](codex-bridge.md)。
+介面入口、鍵盤及原生設定見 [介面操作說明](ui-navigation.md)。
 
 ## 工作台導覽
 
@@ -39,10 +39,9 @@ HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。GitLab Token 不會�
 
 - **我的工作**：預設顯示指派給目前帳號的未結案 Issue。使用 **清單／圖譜** 切換顯示方式；清單模式可選 Issue Board，查看看板中指派給你的 Issue；圖譜模式會顯示相關 Issue 與關係，可選 Board 來醒目標示所屬項目。可搜尋標題、Repo 或編號，依狀態、專案、標籤及 Group Milestone 篩選，並新增 Issue。Board、搜尋與圖譜顯示偏好會隨群組保存。
 - **專案**：查看遠端專案與本機狀態。下載、更新與 Skills 共用 **設定 → gitlabWorkspace.projectRoot**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
-- **工作流程**：提供 Codebase Wiki、MergeReviewer、ReleaseReviewer、CommitReviewer 與 BMAD；Skills 預設「查詢 Wiki」。填妥表單後按 **使用 Codex 執行**，在任務準備確認來源與設定，再按 **開始任務**。可用功能的手動提示詞位於 **其他方式**。
+- **工作流程**提供 Codebase Wiki、MergeReviewer、ReleaseReviewer、CommitReviewer 與 BMAD。填妥表單後按 **使用 Codex 執行**，再選擇模型與思考強度。
 - **待審查**：查看指派給自己的 Merge Request，詳情分為 **變更、討論、審查報告**。分支狀態與下一步操作顯示在主要區域；完整 SHA 位於技術詳情。
-- **BMAD 開發流程**：透過 WorkflowKit 安裝 BMAD，選入口並輸入需求，使用 Codex 任務執行；能力參考、既有產物及手動指令仍可查看，可免登入 GitLab 使用。
-- **Codex**：集中查看任務準備、執行紀錄、待回答要求、驗證與成果；原工作區可完成操作，不必為新任務切換 VS Code 視窗。
+- **BMAD 開發流程**提供入口、能力參考、既有產物及手動指令。選入口並輸入需求後可在整合終端執行，無須登入 GitLab。
 - **版控**：開啟所有由 VS Code 內建 Git 偵測到的本機 Repo。左側檢視分支、標籤、Stash 與復原點，中央顯示提交圖或 Diff，右側檢視工作中變更、提交內容並撰寫 Commit；此頁不需要 GitLab 連線或選取 Group。
 
 操作紀錄由 **工具與環境 → 開啟 Log** 或 **GitLab Workspace: 開啟 Log** 進入 VS Code 原生 Output 的 GitLab Workspace 通道。背景錯誤不會自動展開 Output；保存及輪替沿用 VS Code，舊版 JSONL 不再讀取或遷移。
@@ -73,22 +72,9 @@ Issue 詳情分成三個任務分頁：
 
 工時未選日期時使用送出當下的時間；指定日期使用本機時區的當日零時。GitLab 明確拒絕時會保留待送出工時及原因，可修正後重試；連線中斷等結果不明的情況仍須先到 GitLab 對帳。Issue 刪除會確認專案 Owner 權限，無法確認時可重新檢查或在 GitLab 開啟。
 
-工作流程頁的 **使用 Codex 執行** 會準備任務並核對必填欄位、來源 Repo、套件與必要 Skills。任務透過本機 Codex CLI 的 App Server 執行，沿用 CLI 登入與設定；不需要 Codex 桌面 App 或另一個終端 Auto-Accept。Group 引用使用 `Repo/檔案路徑`，Wiki 更新沿用來源、index、log 與人工 notes 的維護規則。
+## 在整合終端執行 Codex
 
-
-專案下載與 Skills 安裝使用共用專案根目錄。切換 GitLab 帳號或 Group 不會切換本機目錄；多資料夾工作區需明確選擇目前專案資料夾。任務會分別顯示工作區、來源 Repo、實際執行目錄與成果位置；隔離目錄不會取代原工作區根目錄。
-
-## Codex 任務與自動核准
-
-通常先在 VS Code 開啟準備下載 Group Repo 的根目錄，`gitlabWorkspace.projectRoot` 留白即可使用此位置。在 **專案** 頁核對清單上方的下載位置，勾選要下載的 Repo。下載完成後可直接從 Repo 列開啟本地 Codebase Wiki，或從 Issue、MR、工作流程建立任務。
-
-新任務由原 Group／Repo 視窗管理問答、暫停、接續及交付。Issue 開發和 MR 討論修正使用獨立 Repo 副本，原下載 Repo 的未提交修改不帶入；需要瀏覽修改時使用 **開啟實作目錄**。舊版獨立任務視窗仍沿原位置與所有權規則操作，不會自動搬移。
-
-Group **需求影響分析** 可選 Repo，根據本機已提交版本產生規格及 Issue 草稿；檢閱後選卡建立 Issue。Issue 開發完成後先核對需求、差異、提交與實際驗證，再按 **檢閱並確認交付**，由 Host 推送並建立 Draft MR。成果的 **下一步** 可接續 MR 審查；討論修正、發布報告及 Wiki 都需明確操作，不會自行跨階段啟動。**本輪完成** 只表示模型回合已結束；驗證失敗或缺證據仍需處理。實作與驗證合計達三輪上限時，保留成果並重新準備任務或轉交人工；結果未知時先核對，不重送。
-
-**本機自動核准** 只控制任務中的命令與檔案修改要求。機器設定 `gitlabWorkspace.codex.autoApproveLocalOperations` 預設關閉，只作新任務預設；建立後每個任務保存自己的開關，改機器預設不改舊任務。暫停、重新載入或重開 VS Code 後，保存 ON 的任務顯示 **接續後啟用**，明確開始／接續後才處理要求；自動核准失敗時關閉該任務開關並提示核對。額外權限、問題、MCP 表單與登入仍需回答，GitLab 成果交付另需檢閱確認。
-
-可用功能的 **其他方式 → 複製提示詞** 只寫入剪貼簿，不啟動任務。手動使用時在畫面所示根目錄啟動新的 Codex CLI 對話，再貼上資料；外部對話不提供工作台的完整進度、驗證與交付收據。Issue 開發、MR 討論修正、GitLab Wiki 與受管 Ingest 使用整合任務入口。
+從工作流程頁選 **使用 Codex 執行**，或從 MR 詳情選其中一個 Reviewer。選定模型與思考強度後，擴充功能核對來源、工作位置及工具，在目前 VS Code 視窗開啟整合終端。問答與核准依 CLI 設定處理。[Codex CLI 操作說明](codex-cli.md)
 
 ## Skills、Wiki 與審查
 
@@ -102,13 +88,9 @@ Skill 收到完整輸入後，第一個 helper 凍結所選 Repo 的兩個分支
 
 每次在所選 Repo 的 `review-reports/` 產生一份繁體中文 Markdown，標題為「合併審查: {Repo}」或「上版檢查: {Repo}」。報告固定依序為「審查結論、問題總攬、問題詳情（工程師參考）、範圍與限制、技術審查紀錄（工程師參考）」；問題先說明影響、操作情境與建議，再列觸發條件、技術原因、影響範圍、工程修正與固定證據。ReleaseReviewer 的新增部署依賴及人工 Checklist 放在範圍與限制，與直接上版阻擋、證據缺口分開。人工確認需核對人、日期與開通／套用後證據，工單申請不算完成。已儲存工作區的 `.code-workspace` 只界定相關 Repo 範圍，不改變報告位置。
 
-按 **使用 Codex 執行** 後，在任務準備核對來源、模型、驗證命令與位置，再按 **開始任務**。進度、問答與成果集中於 Codex 頁；環境變更或檢查失敗會保留草稿並提供修復入口。表單依根目錄與工具保存；根目錄或帳號切換後，舊回應不套用至新環境。
+**本地 Codebase Wiki** 在 **工作流程 → Skills** 中提供建立／更新、查詢與品質檢查。Group 視窗使用 `GroupRoot/wiki/`，直接開啟單 Repo 時使用 `RepoRoot/wiki/`。在 Group 中選 Repo 只縮小來源範圍。完整單 Repo 更新檢查所選 Repo 的 coverage，局部更新檢查指定範圍。[Wiki 工作流程](wiki-workflows.md)
 
-**本地 Codebase Wiki** 可由 Repo 列、原生 Repo 右鍵選單或命令 **本地 Wiki** 進入；Repo 捷徑固定該 Repo 作為來源，再選建立／更新、查詢或品質檢查。Skills 的 Ingest 表單另提供單一路徑或全部專案。Group 視窗保存於 `GroupRoot/wiki/`，直接開啟單 Repo 時保存於 `RepoRoot/wiki/`；選 Repo 只縮小來源，不在 Group 內另建一份 Repo Wiki。Query 不自動建立或更新 Wiki；完整單 Repo 更新只要求所選 Repo coverage，局部更新不要求其他 Repo 的全量 coverage。
-
-**產生 GitLab Wiki 草稿** 是另一個專案功能，以目前遠端預設分支的固定 SHA 生成隔離草稿，檢閱頁面與差異後再發布至 GitLab。已保存成果的 **依來源變更更新 GitLab Wiki** 會核對該專案目前預設分支，再建立新任務；不是恢復已清理的舊 thread。詳細來源、增量及保存規則見 [Wiki 工作流程](wiki-workflows.md)。
-
-待審查頁的 **前往分支審查** 可帶入可確認的 MR 分支候選，fork 或映射不明時要求補齊。完成後可把報告作一般留言發布，核准與合併由使用者決定。
+MR 詳情的 **一鍵 MergeReviewer** 與 **一鍵 ReleaseReviewer** 使用核對後的 MR head 與目標分支 SHA。完成後在終端查看本機報告位置。一般留言、核准與合併在原 MR 頁操作。
 
 立即合併會依 GitLab 回報的使用者權限、草稿、衝突、rebase 與合併狀態啟用；尚未確認或未通過時可手動重新檢查，或在 GitLab 開啟。確認後會再次核對條件與來源 SHA。
 
@@ -122,14 +104,14 @@ Skill 收到完整輸入後，第一個 helper 凍結所選 Repo 的兩個分支
 
 1. 開啟 WorkflowKit 設定，檢查並安裝或更新整合包。根目錄已有外部 BMAD 時會保留原安裝，畫面顯示管理模式。
 2. 在 **開始使用** 選擇入口並輸入需求，按 **使用 Codex 執行**。
-3. 在任務準備確認來源、模型與工作位置，再按 **開始任務**；於原工作區的 Codex 頁回答問題與檢閱成果。
-4. 在 **目前進度** 查看已保存產物；實際成果位置以任務摘要為準。手動使用 BMAD 的原生預設產出為根目錄下的 `_bmad-output/`。
+3. 選模型與思考強度，在整合終端進行問答並檢閱成果。
+4. 在 **目前進度** 查看已保存產物。BMAD 的原生預設產出為根目錄下的 `_bmad-output/`。
 
 **我想做什麼** 依工作需求推薦能力，說明輸入、Codex 原生指令、預期產物與下一步。小功能或修錯可以直接使用 `$bmad-build`；需要跨多次實作時再使用 `$bmad-spec` 與 Story Breakdown，大型產品才視需要加入 PRD、UX、架構與 Sprint。完整能力目錄可展開參考。
 
 **目前進度** 先顯示摘要，展開後查看個別 Spec、Sprint、Story、原生狀態與來源文件；支援 Spec 搭配 `stories.yaml`，也支援 PRD／Sprint 追蹤。Build 完成與 Story 待審查分別呈現。缺少正式完成標記時顯示狀態未明，無法讀取或訊號衝突時列出原因。
 
-頁面依已儲存文件觀察進度，整合任務的即時狀態由 Codex 頁顯示；自行啟動的外部 Codex 則由終端確認。複製指令、切換能力或開啟終端均不會推進進度；缺少原生完成訊號時保留未明狀態。
+執行中的狀態可在終端查看。頁面依已儲存的原生文件與完成標記更新進度。
 
 ### 工作流程包安裝與更新
 
@@ -147,7 +129,7 @@ VS Code 設定 `gitlabWorkspace.projectRoot` 留白使用所選專案資料夾�
 
 安裝／更新會在目標根目錄的 `.gitignore` 加入工作流程包管理區塊，忽略包內 Skills、輔助檔案與安裝紀錄，並保留原有忽略規則。同版本重新安裝也會補上此區塊。WorkflowKit 管理內建 BMAD；既有外部 BMAD 保留由使用者管理。個人 Skills、Wiki、工作紀錄與審查報告仍可納入版控；`AGENTS.md`、`Codex.md` 與 `.codex` 設定也保留原有版控行為。已被 Git 追蹤的檔案不會因新增忽略規則而自動取消追蹤。
 
-升級依舊安裝紀錄驗證後移除已撤下的受管理整合；工作紀錄、鎖、既有產物與其他獨立 Skills 保留。既有 Codex 任務依其原有契約讀取與恢復，已封存成果不重新派送舊工作。
+升級依舊安裝紀錄驗證受管理項目。工作紀錄、既有產物及獨立 Skills 保留。v0.55.1 的擴充功能任務可使用舊版讀取。
 
 ## 專案與 Git 操作
 

@@ -11,6 +11,7 @@ import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath, toString: () => `file:${fsPath}` });
 const configuredRoots = new Map<string, string>();
 const opened: string[] = [], shown: string[] = [], copied: string[] = [], terminals: any[] = [];
+const fixtureExecutable = { file: 'fixture-codex', version: '0.169.0' };
 const watches: Array<{ base: string; pattern: string }> = [];
 let _terminalAvailable = true;
 const vscode = {
@@ -129,109 +130,41 @@ test('BMAD loads installed progress offline from the selected root and resolves 
   assert.notEqual(next.revision, first.revision);
 });
 
-test('Codex and clipboard share the verified BMAD task, and background continuation survives page changes', async t => {
+test('BMAD CLI prepares the selected Skill and writes only to its advertised runtime and output roots', async t => {
   const f = await fixture(t);
   f.setKitState({ status: 'installed', version: '1.3.5', integrity: 'verified', workspaceContract: 2,
     installerApi: 1, capabilities: ['bmad-workflow'] } as any);
   await f.refresh(); await waitForBmadRegistration(f.host);
   const snapshot = await f.refresh();
   const request = { revision: snapshot.revision, command: 'task', requirement: '建立付款流程規格' };
-  const spec = await f.host.prepareCodexTask({ kind: 'bmad', request });
+  const prepared = await f.host.prepareBmadCli(request, fixtureExecutable, () => undefined);
   await f.host.copyBmadCommand(request);
-  assert.ok(spec.prompt.startsWith(copied[copied.length - 1]), 'Both modes share the verified task instruction before Host-owned output binding');
-  assert.ok(spec.bmadArtifacts?.outputRoot.startsWith(path.join(f.host.context.globalStorageUri.fsPath, 'codex-bmad-artifacts')));
-  assert.ok(spec.prompt.includes(JSON.stringify(spec.bmadArtifacts.outputRoot)));
-  assert.equal(spec.root, await fs.realpath(f.root));
-  assert.equal(spec.skill.name, 'bmad-help'); assert.match(spec.prompt, /建立付款流程規格/);
-  f.host.activeMode = 'dashboard'; f.host.bmad.setContext(f.root, f.host.projectContext.revision, false);
-  const resumed = await f.host.prepareCodexTask(spec.source, spec);
-  assert.equal(resumed.environmentKey, spec.environmentKey);
-  vscode.workspace.isTrusted = false;
-  await assert.rejects(f.host.prepareCodexTask(spec.source, spec), /信任/);
+  assert.ok(prepared.prompt.startsWith(copied.at(-1)!));
+  assert.equal(prepared.root, await fs.realpath(f.root));
+  assert.equal(prepared.skill.name, 'bmad-help');
+  const [project, output, runtime] = prepared.writableRoots;
+  assert.equal(project, prepared.root);
+  assert.equal(path.dirname(output), path.join(f.host.context.globalStorageUri.fsPath, 'codex-bmad-artifacts'));
+  assert.ok(prepared.prompt.includes(JSON.stringify(output)));
+  assert.equal(runtime, path.join(prepared.root, '.gitlab-workspace', 'runtime'));
+  for (const current of [output, runtime]) assert.equal((await fs.lstat(current)).isDirectory(), true);
+  assert.equal(terminals.length, 0, 'preparation alone does not create a terminal');
 });
 
-test('simplified entries bind one verified router and keep native candidates out of additional Skills', async t => {
-  const f = await fixture(t);
-  await f.write(f.root, '.agents/skills/wk-plan/SKILL.md', '---\nname: wk-plan\n---\nChoose the current planning capability.\n');
-  await f.write(f.root, '.agents/skills/bmad-spec/SKILL.md', '---\nname: bmad-spec\n---\n');
-  f.setKitState({ status: 'installed', bmadMode: 'bundled', workspaceContract: 2, installerApi: 1,
-    integrity: 'verified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow', 'bmad-entrypoints'] });
-  await f.refresh(); await waitForBmadRegistration(f.host);
-  const snapshot = await f.refresh(), request = { revision: snapshot.revision, command: 'entry', entry: 'plan', nativeSkill: 'bmad-spec', requirement: '整理付款需求' };
-  const spec = await f.host.prepareCodexTask({ kind: 'bmad', request });
-  assert.equal(spec.skill.name, 'wk-plan');
-  assert.deepEqual(spec.additionalSkills, []);
-  assert.match(spec.prompt, /^\$wk-plan/);
-  assert.match(spec.prompt, /\$bmad-spec/);
-  assert.ok(!spec.prompt.includes('$bmad-architecture'));
-});
-
-test('project entry stages proposed rules outside the original project writable scope', async t => {
+test('BMAD CLI project rules remain staged outside the original project writable scope', async t => {
   const f = await fixture(t);
   await f.write(f.root, '.agents/skills/wk-project/SKILL.md', '---\nname: wk-project\n---\nReview and propose project rules.\n');
+  await f.write(f.root, 'AGENTS.md', 'Original project rules');
   f.setKitState({ status: 'installed', bmadMode: 'bundled', workspaceContract: 2, installerApi: 1,
     integrity: 'verified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow', 'bmad-entrypoints'] });
   await f.refresh(); await waitForBmadRegistration(f.host);
   const snapshot = await f.refresh();
-  const spec = await f.host.prepareCodexTask({ kind: 'bmad', request: { revision: snapshot.revision, command: 'entry', entry: 'project', requirement: '整理代理規則' } });
-  assert.equal(spec.executionRoot, spec.bmadArtifacts.projectChangesRoot);
-  assert.ok(spec.executionRoot.startsWith(f.host.context.globalStorageUri.fsPath));
-  assert.ok(!spec.writableRoots.includes(f.root));
-  assert.match(spec.prompt, /人工確認後才套回原專案/);
-});
-
-test('helper runtime is narrowly authorized and Host creates it before task startup', async t => {
-  const f = await fixture(t), executionRoot = path.join(f.host.context.globalStorageUri.fsPath, 'task-clone');
-  await fs.mkdir(executionRoot);
-  const source = { kind: 'skill', skillId: 'bmad-help' }, helperRuntime = path.join(f.root, '.gitlab-workspace', 'runtime');
-  const prepared = () => ({ source, title: 'Helper scope', root: f.root, executionRoot, writableRoots: [executionRoot],
-    prompt: 'Run selected helper', workspaceKey: 'workspace', environmentKey: 'environment',
-    skill: { name: 'bmad-help', path: path.join(f.root, '.agents', 'skills', 'bmad-help', 'SKILL.md') } });
-  f.host.prepareCodexEnvironment = async () => prepared();
-  const spec = await f.host.prepareCodexTask(source);
-  assert.deepEqual(spec.writableRoots, [executionRoot, helperRuntime]);
-  assert.ok(!spec.writableRoots.includes(f.root));
-  assert.ok(!spec.writableRoots.includes(path.join(f.root, '.git')));
-  await assert.rejects(fs.lstat(helperRuntime), { code: 'ENOENT' });
-  await f.host.getCodexBridge().options.started(spec, new AbortController().signal);
-  assert.equal((await fs.lstat(helperRuntime)).isDirectory(), true);
-  await f.write(f.root, '.gitlab-workspace/runtime/retained.txt', 'Existing runtime');
-  await f.host.getCodexBridge().options.started(spec, new AbortController().signal);
-  assert.equal(await fs.readFile(path.join(helperRuntime, 'retained.txt'), 'utf8'), 'Existing runtime');
-
-  for (const binding of [{ review: { tool: 'merge-reviewer', requestId: 'review', revision: 'revision' } },
-    { commitReview: { runtimeRoot: path.join(executionRoot, 'commit-review') } }]) {
-    f.host.prepareCodexEnvironment = async () => ({ ...prepared(), ...binding });
-    assert.deepEqual((await f.host.prepareCodexTask(source)).writableRoots, [executionRoot], 'Native reviewers retain their own runtime scopes');
-  }
-  f.host.prepareCodexEnvironment = async () => prepared();
-  assert.deepEqual((await f.host.prepareCodexTask(source, prepared())).writableRoots, [executionRoot], 'Legacy tasks without a managed workspace do not gain new permissions');
-});
-
-test('helper runtime is not created without its explicit writable root', async t => {
-  const f = await fixture(t), helperRuntime = path.join(f.root, '.gitlab-workspace', 'runtime');
-  await f.host.getCodexBridge().options.started({ root: f.root, source: { kind: 'skill' }, writableRoots: [f.second] }, new AbortController().signal);
-  await assert.rejects(fs.lstat(helperRuntime), { code: 'ENOENT' });
-});
-
-test('BMAD result reports open only regular bounded files inside the task output', async t => {
-  const f = await fixture(t), outputRoot = path.join(f.host.context.globalStorageUri.fsPath, 'codex-bmad-artifacts', 'task');
-  const report = path.join(outputRoot, 'planning-artifacts', 'prd.md');
-  await fs.mkdir(path.dirname(report), { recursive: true }); await fs.writeFile(report, 'Reviewed requirements');
-  let reportPath = report;
-  f.host.getCodexBridge = () => ({ initialize: async () => undefined, list: () => [{ id: 'task', result: { reportPath } }],
-    specification: async () => ({ root: f.root, bmadArtifacts: { outputRoot } }) });
-  f.host.getCodexWorkflowService = () => { throw new Error('BMAD reports must not use the GitLab workflow reader'); };
-  await f.host.readLinkedCodexResult('task'); assert.deepEqual(shown, [report]);
-  const outside = path.join(f.root, 'outside.md'), sibling = path.join(path.dirname(outputRoot), 'foreign.md');
-  await fs.writeFile(outside, 'Original project file'); await fs.writeFile(sibling, 'Other task file');
-  for (const rejected of [outside, sibling, outputRoot, path.dirname(report), path.join(outputRoot, 'missing.md')]) {
-    reportPath = rejected;
-    await assert.rejects(f.host.readLinkedCodexResult('task'));
-  }
-  reportPath = path.join(outputRoot, 'oversized.md'); await fs.writeFile(reportPath, Buffer.alloc(2 * 1024 * 1024 + 1));
-  await assert.rejects(f.host.readLinkedCodexResult('task'), /BMAD/);
-  assert.deepEqual(shown, [report], 'Invalid reports never reach the editor');
+  const prepared = await f.host.prepareBmadCli({ revision: snapshot.revision, command: 'entry', entry: 'project', requirement: '整理代理規則' }, fixtureExecutable, () => undefined);
+  assert.equal(prepared.executionRoot, path.join(prepared.writableRoots[0], 'project'));
+  assert.ok(prepared.executionRoot.startsWith(f.host.context.globalStorageUri.fsPath));
+  assert.ok(!prepared.writableRoots.includes(f.root));
+  assert.equal(await fs.readFile(path.join(prepared.executionRoot, 'AGENTS.md'), 'utf8'), 'Original project rules');
+  assert.equal(await fs.readFile(path.join(f.root, 'AGENTS.md'), 'utf8'), 'Original project rules');
 });
 
 test('copy works offline without launching and stale artifact revisions are rejected', async t => {

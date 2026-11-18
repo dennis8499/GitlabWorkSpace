@@ -231,7 +231,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
             onClick={() => onCopyCommand(taskRequest())}>複製 BMAD 提示詞</button>
             <button type="button" class="secondary" {...availabilityProps('bmad-root', rootBlocked)} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button>
             <p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞。</p></details></div>
-        <FeatureNotices id="bmad-actions" items={bmadBlockers}>{!taskReady && <><button type="button" onClick={onRefresh}>重新偵測</button><button type="button" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></>}</FeatureNotices><p>確認任務設定後開始；到 Codex 頁回覆問題與檢閱成果，到「目前進度」查看已儲存的產物。</p>
+        <FeatureNotices id="bmad-actions" items={bmadBlockers}>{!taskReady && <><button type="button" onClick={onRefresh}>重新偵測</button><button type="button" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></>}</FeatureNotices><p>選擇模型和思考強度後，在 VS Code 終端機與 Codex 互動。「目前進度」顯示已儲存的產物。</p>
         {!taskReady && <p class="bmad-environment-notice" role="status">請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。</p>}
       </div>
       <div class="bmad-prerequisites"><h3>執行環境</h3><p>使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。</p>
@@ -278,7 +278,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onEnvir
     </section>}
 
     {selectedSection === 'progress' && <section id="bmad-section-progress" class="bmad-section bmad-position" role="tabpanel" aria-labelledby="bmad-tab-progress">
-      <div class="bmad-section-heading"><div><h2>從專案產物看目前位置</h2><p>顯示已儲存文件的原生狀態。Codex 執行活動顯示於下方任務面板。</p></div></div>
+      <div class="bmad-section-heading"><div><h2>從專案產物看目前位置</h2><p>顯示已儲存文件的原生狀態。</p></div></div>
       {snapshot.currentCandidates.length ? <ul class="bmad-current-list">{snapshot.currentCandidates.map((candidate, index) => {
         const node = nodesById.get(candidate.stepId);
         const artifactId = candidate.artifactId && stepsById.get(candidate.stepId)?.artifacts.some(artifact => artifact.id === candidate.artifactId) ? candidate.artifactId : undefined;

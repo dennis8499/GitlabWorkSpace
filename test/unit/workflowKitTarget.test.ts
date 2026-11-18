@@ -492,41 +492,6 @@ test('copying rechecks compatibility and rejects stale context and retired featu
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'retired-feature', inputs: { 'retired-feature.id': 'work-20261011-unknown' } }), /整合介面尚未受此工作台支援|未知|功能/);
 });
 
-test('one-click Wiki uses the clipboard preparation and rejects a changed project before resuming', async t => {
-  const [, repo, other] = await directories(t); const { host, installed } = fixture([repo]);
-  installed.set(repo, 'repository'); await host.refreshWorkflowKit();
-  const skill = path.join(repo, '.agents/skills/codebase-wiki/SKILL.md');
-  await mkdir(path.dirname(skill), { recursive: true }); await writeFile(skill, '---\nname: codebase-wiki\n---\n');
-  const source = { kind: 'skill', featureId: 'query', inputs: { 'query.question': 'Explain this Repo' }, revision: host.getSkillsContext().revision };
-  const spec = await host.prepareCodexTask(source);
-  let copied = ''; vscode.env.clipboard.writeText = async text => { copied = text; };
-  await host.copySkillGuidePrompt(source);
-  assert.equal(spec.prompt, copied); assert.equal(spec.root, await realpath(repo)); assert.equal(spec.skill.name, 'codebase-wiki');
-  assert.equal((await host.prepareCodexTask(source, spec)).environmentKey, spec.environmentKey);
-  configuredRoots.set(uri(repo).toString(), other);
-  await assert.rejects(host.prepareCodexTask(source, spec), /根目錄已變更/);
-});
-
-test('MR branch handoff uses the actual mapped Repo and does not copy or launch Codex', async t => {
-  const [group, repo] = await directories(t);
-  const { host } = fixture([group], true);
-  const _target = project(1, 'service');
-  host.session.getClient = async () => ({ getMergeRequest: async () => ({ project_id: 1, target_project_id: 1, source_project_id: 1,
-    source_branch: 'feature', target_branch: 'main' }) });
-  host.navigateTo = async () => undefined;
-  let result: any;
-  host.post = (message: any) => { if (message.type === 'branchReviewReady') result = message; };
-  await host.refreshWorkflowKit();
-  await host.openBranchReview(1, 2);
-  assert.equal(result.inputs['merge-repo.repo'], repo);
-  assert.equal(result.inputs['merge-repo.base'], 'origin/main');
-  assert.equal(result.inputs['merge-repo.head'], 'origin/feature');
-  host.session.getClient = async () => ({ getMergeRequest: async () => ({ project_id: 1, target_project_id: 1, source_project_id: 2,
-    source_branch: 'feature', target_branch: 'main' }) });
-  await host.openBranchReview(1, 2);
-  assert.equal(result.inputs['merge-repo.repo'], ''); assert.match(result.notice, /fork/);
-});
-
 test('concurrent checks coalesce and each Skills page entry rechecks locally without a full Repo scan', async t => {
   const [group] = await directories(t); const { host } = fixture([group], true);
   let reads = 0, packages = 0, resolutions = 0, scans = 0;

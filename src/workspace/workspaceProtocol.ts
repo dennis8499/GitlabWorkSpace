@@ -15,13 +15,13 @@ import type { RepositoryScanState, ScannedRepository } from '../git/repositorySc
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
 
-export type WorkspaceMode = 'dashboard' | 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git' | 'codex';
+export type WorkspaceMode = 'dashboard' | 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git';
 
 /** Older versions persisted modes that no longer have a workspace page. */
 export function normalizeWorkspaceMode(value: unknown): WorkspaceMode {
   switch (value) {
     case 'dashboard':
-    case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': case 'codex': return value;
+    case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': return value;
     case 'admin': return 'developer';
     default: return 'dashboard';
   }
@@ -30,7 +30,7 @@ export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
 export type ToolSource = 'gitea' | 'github';
 export type RemoteToolSource = Exclude<ToolSource, 'bundled'>;
-export const workspaceSettingIds = ['gitlabWorkspace.projectRoot', 'gitlabWorkspace.codex.executablePath', 'gitlabWorkspace.codex.autoApproveLocalOperations', 'gitlabWorkspace.pythonPath',
+export const workspaceSettingIds = ['gitlabWorkspace.projectRoot', 'gitlabWorkspace.codex.executablePath', 'gitlabWorkspace.pythonPath',
   'gitlabWorkspace.repositoryScan.excludeDirectories', 'gitlabWorkspace.reviewRuntimePath'] as const;
 export type WorkspaceSettingId = typeof workspaceSettingIds[number];
 export type ToolArchiveFormat = 'zip' | 'tar.xz';
@@ -183,14 +183,9 @@ export interface WorkflowKitReleaseSummary {
 }
 
 /** Initial owner-view selection, published only after its managed binding is verified. */
-export interface ManagedTaskFocus { taskId: string; originRoot: string; accountId?: string; }
 export interface WorkspaceSnapshot {
   gitlabConnection?: import('../connection/connectionState').GitLabConnectionState;
-  codexDraftScope?: string;
-  codexRemoteDraftScope?: string;
-  managedTaskFocus?: ManagedTaskFocus;
   hostNavigationGeneration?: number;
-  codexWorkspaceLayout?: 'workspace' | 'classic';
   workspaceCapabilities?: WorkspaceCapabilities;
   bmad?: BmadWorkflowSnapshot;
   bmadEnvironment?: BmadEnvironmentCheck;
@@ -288,41 +283,8 @@ export interface CloneOperationState {
 export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId' | 'resourceKey' | 'action' | 'label' | 'correlationId' | 'lockKey' | 'kind'>;
 
 export type WorkspaceRequest = (NotificationRequest
-  | { type: 'loadCodexUiDrafts'; requestId: string }
-  | { type: 'saveCodexUiDrafts'; requestId: string; scope: string; remoteScope?: string; updates: import('../codex/uiDraftProtocol').CodexUiDraftEntry[]; resolveConflictIds?: string[] }
-  | { type: 'startCodexTask'; source: import('../codex/protocol').CodexTaskSource }
-  | { type: 'openLocalWiki'; repository: string }
-  | { type: 'createCodexLaunch'; source?: import('../codex/protocol').CodexTaskSource }
-  | { type: 'updateCodexLaunch'; draftId: string; revision: number; patch: import('../codex/protocol').CodexLaunchPatch }
-  | { type: 'checkCodexLaunch'; draftId: string; revision?: number; patch?: import('../codex/protocol').CodexLaunchPatch }
-  | { type: 'submitCodexLaunch'; draftId: string; revision?: number; patch?: import('../codex/protocol').CodexLaunchPatch }
-  | { type: 'cancelCodexLaunch'; draftId: string; revision?: number }
-  | { type: 'showCodexLaunch'; draftId: string; revision?: number }
-  | { type: 'pickCodexLaunch' }
-  | { type: 'repairCodexLaunch'; draftId: string; action: NonNullable<import('../codex/protocol').CodexLaunchCheck['repair']> }
-  | { type: 'codexCommand'; command: import('../codex/protocol').CodexCommand }
-  | { type: 'showCodexTask'; taskId: string }
-  | { type: 'readCodexResult'; taskId: string }
-  | { type: 'openCodexOrigin'; taskId: string }
-  | { type: 'openCodexChanges'; taskId: string }
-  | { type: 'previewProjectWiki'; taskId: string; refresh?: boolean; confirmRetry?: boolean; cursor?: string }
-  | { type: 'openProjectWikiDocument'; taskId: string; revision: string; slug: string; mode: 'source' | 'diff' }
-  | { type: 'cancelProjectWikiPreview'; taskId: string }
-  | { type: 'publishProjectWiki'; taskId: string; revision: string }
-  | { type: 'publishCodexReview'; taskId: string; body: string }
-  | { type: 'listCodexTasks' }
-  | { type: 'codexHistory'; taskId: string; cursor?: string; force?: boolean }
-  | { type: 'sendCodexMessage'; taskId: string; text: string }
-  | { type: 'cancelCodexTask'; taskId: string }
-  | { type: 'pauseCodexTask'; taskId: string }
-  | { type: 'deleteCodexTask'; taskId: string }
-  | { type: 'deleteCodexTasks'; taskIds: string[] }
-  | { type: 'setCodexAutoAccept'; taskId: string; enabled: boolean }
-  | { type: 'resumeCodexTask'; taskId: string }
-  | { type: 'answerCodex'; taskId: string; interactionId: string; answer: import('../codex/protocol').CodexInteractionAnswer }
-  | { type: 'checkCodex' }
-  | { type: 'configureCodex'; action: 'login' | 'sandbox' | 'executable' }
-  | GitPanelRequest
+  | { type: 'runCodexCli'; source: import('../codex/cliProtocol').CodexCliSource }
+  | { type: 'codexCliSettings'; action: 'check' | 'login' | 'executable' }
   | { type: 'ready'; projectSource?: 'gitlab' | 'local'; developerView?: 'list' | 'graph'; mergeRequestFilter?: MergeRequestFilter }
   | { type: 'reconcileOperations'; pendingIds?: string[] }
   | { type: 'confirmOperationResult'; targetOperationId: string; recovery?: OperationRecoveryMetadata }
@@ -393,8 +355,6 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'reconcileMergeRequestWrite'; projectId: number; iid: number }
   | { type: 'loadMergeRequestSection'; section: 'diffs' | 'discussions'; projectId: number; iid: number }
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
-  | { type: 'openBranchReview'; projectId: number; iid: number }
-  | { type: 'prepareCommitReview'; mode: 'commit' | 'mr'; revision: string; repo?: string; projectId?: number; issueIid?: number }
   | { type: 'loadSkillBranches'; repo: string; revision: string; requestId: string }
   | { type: 'pickSkillBranch'; repo: string; revision: string; requestId: string; field: 'merge-repo.base' | 'merge-repo.head' | 'release-review.base' | 'release-review.head' }
   | { type: 'loadReviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
@@ -422,19 +382,12 @@ export type WorkspaceResponse =
   | import('./uiIntentProtocol').UiIntentResult
   | import('./uiIntentProtocol').HostNavigation
   | { type: 'protocolError'; operationId?: string; message: string }
-  | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
-  | { type: 'codexTaskStarted'; taskId: string }
-  | { type: 'codexHistoryDeleted'; requestId?: string; deletedTaskIds: string[]; failures: Array<{ taskId: string; reason: string }>; cancelled?: boolean }
-  | { type: 'codexLaunchDraft'; draft?: import('../codex/protocol').CodexLaunchDraft; open?: boolean; hidden?: boolean }
-  | { type: 'codexUiDrafts'; requestId: string; snapshot?: import('../codex/uiDraftProtocol').CodexUiDraftSnapshot; error?: string }
-  | { type: 'codexWorkflowResult'; taskId: string; result?: import('../codex/protocol').CodexTaskResult; report?: string; handoff?: string; wiki?: import('../codex/workflowProtocol').ProjectWikiPreview }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
-  | { type: 'openSettings'; focusSection?: 'workflowkit' | 'codex'; draftId?: string }
+  | { type: 'openSettings'; focusSection?: 'workflowkit' | 'codex' }
+  | { type: 'codexCliStatus'; version: string; loggedIn: boolean }
   | { type: 'operationChanged'; operation: WorkspaceOperationState }
   | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
-  | { type: 'commitReviewReady'; revision: string; mode: 'commit' | 'mr'; inputs: Record<string, string>; notice?: string }
-  | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
   | { type: 'skillBranches'; revision: string; repo: string; requestId: string; branches: string[]; error?: string }
   | { type: 'skillBranchSelected'; revision: string; repo: string; requestId: string; field: string; branch?: string }
   | { type: 'reviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId;

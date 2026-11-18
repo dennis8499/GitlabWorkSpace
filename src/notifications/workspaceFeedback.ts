@@ -55,8 +55,6 @@ export function collectWorkspaceFeedback(center: NotificationCenter, response: W
     state('git-service', response.available ? undefined : response.message, 'error', 'Git 版控服務');
   } else if (response.type === 'skillBranches') {
     state(`skill-branches:${response.revision}:${response.repo}`, response.error, 'error', '讀取分支候選');
-  } else if (response.type === 'branchReviewReady' && response.notice) {
-    state(`branch-review:${response.revision}`, response.notice, 'info', '準備分支審查');
   } else if (response.type === 'draftBundle') {
     publish(`已匯入 ${response.bundle.drafts.length} 張 Issue 草稿。`);
   } else if (response.type === 'draftResults') {

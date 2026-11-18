@@ -39,11 +39,7 @@ async function fixture(t) {
     if(process.env.FAKE_PYTHON_FAILURE==='1' && process.argv[3]==='WorkflowKit134IntegrationTests')process.exit(7);`);
   await put('scripts/run-extension-tests.mjs', `${header}
     if(process.argv[2]==='--preflight')put(process.argv[3],'{}');
-    else {
-      console.log('host-process:'+process.pid);
-      if(process.env.FAKE_HOST_FAILURE==='1')process.exit(9);
-      if(process.env.FAKE_ZOOM_FAILURE==='1' && !process.argv.includes('--invert') && process.argv.includes('^Native Codex Electron zoom and built-in themes '))process.exit(10);
-    }`);
+    else if(process.env.FAKE_HOST_FAILURE==='1')process.exit(9);`);
   await put('scripts/test-workspace-trust.mjs', '');
   await put('scripts/package-extension.mjs', `${header}
     import {assertPrepared} from './validation-runtime.mjs';
@@ -52,47 +48,33 @@ async function fixture(t) {
   await put('scripts/tooling.test.mjs', "import test from 'node:test';test('tooling',()=>{});");
   await put('node_modules/@cucumber/cucumber/bin/cucumber.js', '');
   for (const name of ['dashboard.test.mjs', 'skills-guide.test.mjs']) {
-    await put(`test/behavior/${name}`, "import test from 'node:test';test('behavior',()=>{});");
+    await put(`test/behavior/${name}`, "import test from 'node:test';test('behavior',()=>{if(process.env.FAKE_BEHAVIOR_FAILURE==='1')throw new Error('Behavior fixture failed');});");
   }
-  await put('test/behavior/codex-renderer-benchmark.mjs', "if(process.env.FAKE_CODEX_RENDERER_FAILURE==='1')process.exit(6);");
   await put('test/legacy/behavior/quick-actions.test.mjs', "import test from 'node:test';test('legacy behavior',()=>{});");
   await put('test/release/one_test.py', '# discovered Python suite');
   await put('test/release/workflowkit_131_integration_test.py', '# split into three isolated unittest classes');
   const evidenceDir = path.join(root, 'evidence');
   function run(environment = {}, mode = 'all', args = []) {
+    const env = { ...process.env, GITLAB_WORKSPACE_VALIDATION_DIR: evidenceDir, ...environment };
+    delete env.NODE_TEST_CONTEXT;
     return spawnSync(process.execPath, ['scripts/run-validation.mjs', mode, ...args], { cwd: root, encoding: 'utf8',
-      env: { ...process.env, GITLAB_WORKSPACE_VALIDATION_DIR: evidenceDir, ...environment } });
+      env });
   }
   return { root, evidenceDir, run };
 }
 
-async function assertIsolatedCodexZoom(result, evidenceDir) {
+function assertExtensionHost(result, evidenceDir) {
   const ids = result.stages.map(stage => stage.id);
-  for (const id of ['host-preflight', 'compile', 'build-dashboard', 'extension', 'extension-codex-zoom']) {
+  for (const id of ['host-preflight', 'compile', 'build-dashboard', 'extension']) {
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
-  const main = result.stages.find(stage => stage.id === 'extension');
-  const zoom = result.stages.find(stage => stage.id === 'extension-codex-zoom');
-  const zoomSuite = '^Native Codex Electron zoom and built-in themes ';
-  for (const stage of [main, zoom]) {
-    assert.equal(stage.command[stage.command.indexOf('--preflight-file') + 1], path.join(evidenceDir, 'extension-host.json'));
-    assert.equal(path.dirname(stage.log), evidenceDir);
-    assert.ok(stage.command.includes('--forbid-only')); assert.ok(stage.command.includes('--fail-zero'));
-  }
-  assert.equal(zoom.command[zoom.command.indexOf('--grep') + 1], zoomSuite);
-  assert.equal(zoom.command.includes('--invert'), false);
-  const excluded = new RegExp(main.command[main.command.indexOf('--grep') + 1]);
-  assert.equal(main.command.includes('--invert'), true);
-  assert.equal(excluded.test('Native Codex Electron zoom and built-in themes preserves the draft'), true);
-  assert.equal(excluded.test('Another suite Native Codex Electron zoom and built-in themes preserves the draft'), false);
-  assert.equal(excluded.test('WorkflowKit compatibility installation installs WorkflowKit 1.5.0'), result.mode === 'ui');
-  const mainPid = /host-process:(\d+)/.exec(await readFile(main.log, 'utf8'))?.[1];
-  const zoomPid = /host-process:(\d+)/.exec(await readFile(zoom.log, 'utf8'))?.[1];
-  assert.ok(mainPid); assert.ok(zoomPid); assert.notEqual(mainPid, zoomPid, 'native zoom launches a fresh Host runner process');
+  const stage = result.stages.find(stage => stage.id === 'extension');
+  assert.equal(stage.command[stage.command.indexOf('--preflight-file') + 1], path.join(evidenceDir, 'extension-host.json'));
+  assert.equal(path.dirname(stage.log), evidenceDir);
+  assert.ok(stage.command.includes('--forbid-only')); assert.ok(stage.command.includes('--fail-zero'));
   assert.ok(ids.indexOf('build-dashboard') < ids.indexOf('extension'));
-  assert.ok(ids.indexOf('extension') < ids.indexOf('extension-codex-zoom'));
-  if (ids.includes('unit')) assert.ok(ids.indexOf('extension-codex-zoom') < ids.indexOf('unit'));
-  if (ids.includes('package')) assert.ok(ids.indexOf('extension-codex-zoom') < ids.indexOf('package'));
+  if (ids.includes('unit')) assert.ok(ids.indexOf('extension') < ids.indexOf('unit'));
+  if (ids.includes('package')) assert.ok(ids.indexOf('extension') < ids.indexOf('package'));
 }
 
 test('full validation builds once, discovers suites, and packages only after every gate', async t => {
@@ -103,7 +85,7 @@ test('full validation builds once, discovers suites, and packages only after eve
   assert.equal(result.status, 'success');
   assert.equal(result.success, true);
   const ids = result.stages.map(stage => stage.id);
-  for (const id of ['lint', 'compile', 'build-dashboard', 'build-issue-tests', 'codex-renderer', 'package', 'verify-package']) {
+  for (const id of ['lint', 'compile', 'build-dashboard', 'build-issue-tests', 'behavior-node', 'package', 'verify-package']) {
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
   assert.ok(ids.includes('release-one'));
@@ -113,7 +95,7 @@ test('full validation builds once, discovers suites, and packages only after eve
   assert.equal(ids.filter(id => id.startsWith('release-workflowkit-')).length, 3);
   assert.equal(ids.includes('build-kit'), false, 'Extension validation never builds a local installation package');
   assert.ok(ids.indexOf('extension') < ids.indexOf('unit'));
-  await assertIsolatedCodexZoom(result, evidenceDir);
+  assertExtensionHost(result, evidenceDir);
   assert.equal(ids.at(-2), 'package');
   assert.equal(ids.at(-1), 'verify-package');
   assert.ok(await readFile(path.join(root, 'dist/gitlab-workspace-1.2.3.vsix')));
@@ -142,46 +124,35 @@ test('UI validates current behavior and real host core once before packaging', a
   assert.equal(child.status, 0, child.stderr || child.stdout);
   const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
   const ids = result.stages.map(stage => stage.id);
-  for (const id of ['compile', 'build-dashboard', 'build-issue-tests', 'extension', 'extension-codex-zoom', 'workspace-trust', 'unit', 'behavior-node', 'codex-renderer', 'release-tooling', 'package', 'verify-package']) {
+  for (const id of ['compile', 'build-dashboard', 'build-issue-tests', 'extension', 'workspace-trust', 'unit', 'behavior-node', 'release-tooling', 'package', 'verify-package']) {
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
   const host = result.stages.find(stage => stage.id === 'extension');
-  assert.equal(host.command[host.command.indexOf('--grep') + 1], '^WorkflowKit compatibility installation |^Native Codex Electron zoom and built-in themes ');
+  assert.equal(host.command[host.command.indexOf('--grep') + 1], '^WorkflowKit compatibility installation ');
   assert.ok(host.command.includes('--invert'));
-  await assertIsolatedCodexZoom(result, evidenceDir);
+  assertExtensionHost(result, evidenceDir);
   assert.ok(!ids.includes('build-sidebar'));
   assert.ok(!ids.some(id => id.startsWith('release-workflowkit-')));
 });
 
-test('extension validation runs strict native zoom in a fresh Host using the same build and preflight', async t => {
+test('extension validation discovers the Host suites without a dedicated Codex workbench pass', async t => {
   const { evidenceDir, run } = await fixture(t);
   const child = run({}, 'extension');
   assert.equal(child.status, 0, child.stderr || child.stdout);
   const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
-  await assertIsolatedCodexZoom(result, evidenceDir);
-  assert.equal(result.stages.find(stage => stage.id === 'extension').command.at(-2), '^Native Codex Electron zoom and built-in themes ');
-  assert.equal(result.stages.at(-1).id, 'extension-codex-zoom');
+  assertExtensionHost(result, evidenceDir);
+  const host = result.stages.at(-1);
+  assert.equal(host.id, 'extension');
+  assert.equal(host.command.includes('--grep'), false);
 });
 
-for (const mode of ['all', 'ui']) test(`native zoom failure stops ${mode} before unit suites and packaging`, async t => {
+test('UI behavior regressions fail before a package can be produced', async t => {
   const { root, evidenceDir, run } = await fixture(t);
-  const child = run({ FAKE_ZOOM_FAILURE: '1' }, mode);
-  assert.equal(child.status, 1, child.stdout);
-  const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
-  assert.equal(result.status, 'failed'); assert.equal(result.success, false);
-  assert.equal(result.stages.find(stage => stage.id === 'extension').exitCode, 0);
-  assert.equal(result.stages.at(-1).id, 'extension-codex-zoom');
-  assert.equal(result.stages.at(-1).exitCode, 10);
-  assert.equal(result.stages.some(stage => ['unit', 'behavior-node', 'package', 'verify-package'].includes(stage.id)), false);
-  await assert.rejects(readFile(path.join(root, 'dist/gitlab-workspace-1.2.3.vsix')), { code: 'ENOENT' });
-});
-
-test('Codex renderer regressions fail the UI gate before a package can be produced', async t => {
-  const { root, evidenceDir, run } = await fixture(t);
-  const child = run({ FAKE_CODEX_RENDERER_FAILURE: '1' }, 'ui');
+  const child = run({ FAKE_BEHAVIOR_FAILURE: '1' }, 'ui');
   assert.equal(child.status, 1);
   const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
-  assert.equal(result.stages.find(stage => stage.id === 'codex-renderer').exitCode, 6);
+  assert.equal(result.stages.at(-1).id, 'behavior-node');
+  assert.equal(result.stages.at(-1).exitCode, 1);
   assert.equal(result.stages.some(stage => stage.id === 'package'), false);
   await assert.rejects(readFile(path.join(root, 'dist/gitlab-workspace-1.2.3.vsix')), { code: 'ENOENT' });
 });
@@ -201,7 +172,7 @@ for (const workers of ['1', '2']) test(`compatibility retains all installer clas
   const host = result.stages.find(stage => stage.id === 'extension');
   assert.equal(host.command[host.command.indexOf('--grep') + 1], '^WorkflowKit compatibility installation ');
   assert.ok(!host.command.includes('--invert'));
-  assert.equal(result.stages.some(stage => stage.id === 'extension-codex-zoom'), false);
+  assertExtensionHost(result, evidenceDir);
 });
 
 test('legacy sidebar is available only through the explicit legacy profile', async t => {

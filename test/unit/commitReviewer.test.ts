@@ -50,13 +50,15 @@ test('draft references, alias lists and MR branch input reject incomplete or ret
   assert.equal(canCopySkillPrompt(mr, state.inputs), true);
 });
 
-test('shortcut protocol requires one current Repo or one Issue context', () => {
-  const base = { type: 'prepareCommitReview', mode: 'commit', revision: 'current' };
-  assert.equal(isWorkspaceRequest({ ...base, repo }), true);
-  assert.equal(isWorkspaceRequest({ ...base, projectId: 1, issueIid: 123 }), true);
-  for (const value of [base, { ...base, projectId: 1 }, { ...base, repo, projectId: 1, issueIid: 2 }, { ...base, repo, mode: 'stage' }]) {
-    assert.equal(isWorkspaceRequest(value), false);
+test('CommitReviewer uses the Workflow Skill CLI request and rejects retired Git and Issue shortcuts', () => {
+  for (const featureId of ['commit-draft', 'mr-precheck']) {
+    assert.equal(isWorkspaceRequest({ type: 'runCodexCli', source: {
+      kind: 'skill', featureId, revision: 'current', inputs: { [featureId + '.repo']: repo }
+    } }), true);
   }
+  const retired = { type: 'prepareCommitReview', mode: 'commit', revision: 'current' };
+  assert.equal(isWorkspaceRequest({ ...retired, repo }), false);
+  assert.equal(isWorkspaceRequest({ ...retired, projectId: 1, issueIid: 123 }), false);
 });
 
 test('each new task gets new evidence while resumed tasks retain their workspace-bound directory', () => {

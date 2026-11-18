@@ -1,31 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { actionUsesGitLab, gitActionRemote, sourceUsesGitLab, taskUsesGitLab } from '../../src/workspace/gitLabDependency';
-import { isLocalWorkspaceAction } from '../../src/workspace/actionPolicy';
+import { actionUsesGitLab, gitActionRemote } from '../../src/workspace/gitLabDependency';
 import { connectionLabel, observeConnection } from '../../src/connection/connectionState';
 
-test('GitLab authority is independent of local storage scope and write classification', () => {
-  for (const type of ['publishProjectWiki', 'publishCodexReview']) {
-    assert.equal(isLocalWorkspaceAction({ type }), true);
-    assert.equal(actionUsesGitLab({ type }), true);
+test('GitLab authority is required only for the MR Codex CLI workflow', () => {
+  const local = ['scanRepositories', 'installWorkflowKit', 'refreshBmad', 'gitAction', 'codexCliSettings'];
+  for (const type of local) assert.equal(actionUsesGitLab({ type }), false);
+  for (const kind of ['skill', 'bmad', 'review']) assert.equal(actionUsesGitLab({ type: 'runCodexCli', source: { kind } }), false);
+  for (const reviewerTool of ['merge-reviewer', 'release-reviewer']) {
+    assert.equal(actionUsesGitLab({ type: 'runCodexCli', source: { kind: 'merge-request', reviewerTool } }), true);
   }
-  for (const type of ['scanRepositories', 'installWorkflowKit', 'refreshBmad', 'gitAction']) assert.equal(actionUsesGitLab({ type }), false);
   assert.equal(actionUsesGitLab({ type: 'refresh', mode: 'git' }), false);
   assert.equal(actionUsesGitLab({ type: 'refresh', mode: 'developer' }), true);
   assert.equal(actionUsesGitLab({ type: 'refresh', mode: 'clone', projectSource: 'local' }), false);
-  assert.equal(actionUsesGitLab({ type: 'prepareCommitReview', repo: 'local' }), false);
-  assert.equal(actionUsesGitLab({ type: 'prepareCommitReview', projectId: 1 }), true);
-  assert.equal(actionUsesGitLab({ type: 'codexCommand', command: { action: 'publish-group-issues' } }), true);
-});
-test('stored task provenance and expected account bindings retain remote authority', () => {
-  const source = { kind: 'free' as const, repository: 'repo', prompt: 'work' };
-  assert.equal(sourceUsesGitLab(source), false);
-  assert.equal(sourceUsesGitLab({ ...source, expectedScope: 'original-account' }), true);
-  assert.equal(taskUsesGitLab({ source }), false);
-  assert.equal(actionUsesGitLab({ type: 'sendCodexMessage' }, { source: { kind: 'issue', projectId: 1, issueIid: 2 } }), true);
-  assert.equal(actionUsesGitLab({ type: 'sendCodexMessage' }, { source }), false);
-  assert.equal(actionUsesGitLab({ type: 'codexCommand', command: { action: 'reconcile' } }, { source }), false);
-  assert.equal(actionUsesGitLab({ type: 'codexCommand', command: { action: 'reconcile' } }, { source: { kind: 'issue', projectId: 1, issueIid: 2 } }), true);
 });
 test('Git dependency resolution includes implicit Fetch and keeps ordinary Rebase local', () => {
   assert.equal(gitActionRemote({ type: 'rebasePreview', ref: 'main' }), undefined);

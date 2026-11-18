@@ -379,53 +379,6 @@ test('a hidden webview retains the sanitized login result for its next ready eve
   assert.ok(!JSON.stringify(host.pendingViewNotices).includes('one-secret'));
 });
 
-for (const panelState of ['cold', 'hidden'] as const) {
-  test(`a ${panelState} native task window receives its task selection once after ready`, async () => {
-    const { host } = fixture(), sent: any[] = [];
-    host.post = WorkspacePanel!.prototype['post']; host.webviewReady = false; host.viewReadAbort = new AbortController();
-    const panel = { visible: panelState !== 'hidden', webview: { postMessage: (message: unknown) => { sent.push(message); return Promise.resolve(true); } } };
-    host.panel = panelState === 'cold' ? undefined : panel; host.refresh = async () => undefined;
-    const selection = { type: 'codexTaskStarted', taskId: 'new-native-owner-task' };
-    host.post(selection);
-    assert.deepEqual(host.pendingViewNotices, [selection]); assert.equal(sent.length, 0);
-    panel.visible = true; host.panel = panel;
-    await host.dispatchMessage({ type: 'ready' });
-    assert.deepEqual(sent.filter(message => message.type === 'codexTaskStarted'), [selection]);
-    assert.deepEqual(host.pendingViewNotices, []);
-    await host.dispatchMessage({ type: 'ready' });
-    assert.deepEqual(sent.filter(message => message.type === 'codexTaskStarted'), [selection], 'duplicate ready cannot replay task selection');
-    assert.equal(sent.some(message => ['startCodexTask', 'submitCodexLaunch', 'resumeCodexTask'].includes(message.type)), false);
-  });
-}
-
-test('a disposed Host neither retains nor sends a new native task selection', () => {
-  const { host } = fixture(), sent: unknown[] = [];
-  host.post = WorkspacePanel!.prototype['post']; host.disposed = true; host.webviewReady = false;
-  host.panel = { visible: false, webview: { postMessage: (message: unknown) => sent.push(message) } };
-  host.post({ type: 'codexTaskStarted', taskId: 'closed-owner-task' });
-  assert.deepEqual(host.pendingViewNotices, []); assert.deepEqual(sent, []);
-});
-
-test('managed task focus binding is absent before verification and rejects a different root, account or Group', () => {
-  const { host } = fixture();
-  host.session = { baseUrl: 'https://gitlab.test', activeAccountId: 'account-a' };
-  host.currentUser = { id: 2 }; let scope: string | undefined = 'account-a-group-17'; host.connectedScopeKey = () => scope;
-  const root = path.resolve('owner-group'), manifest = { binding: { taskId: 'claimed-owner', originRoot: root, accountId: 'account-a' } };
-  host.managedTaskWorkspaceId = manifest.binding.taskId;
-  assert.equal(host.managedTaskFocusSnapshot(root), undefined, 'an early activation id alone is not a verified owner focus');
-  host.bindManagedTaskFocus(manifest);
-  assert.deepEqual(host.managedTaskFocusSnapshot(root), { taskId: 'claimed-owner', originRoot: root, accountId: 'account-a' });
-  assert.equal(host.managedTaskFocusSnapshot(path.resolve('another-group')), undefined);
-  host.session.activeAccountId = 'account-b'; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
-  host.session.activeAccountId = 'account-a'; scope = 'account-a-group-18'; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
-  scope = 'account-a-group-17'; host.accountTransitionBusy = true; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
-  host.accountTransitionBusy = false; host.currentUser = undefined; assert.equal(host.managedTaskFocusSnapshot(root), undefined);
-  host.bindManagedTaskFocus({ ...manifest, retired: { resultId: 'verified-retired-result' } }, 'verified-retired-result');
-  assert.equal(host.managedTaskFocusSnapshot(root).taskId, 'verified-retired-result', 'retired workspaces focus the verified saved result id');
-  assert.equal(host.currentUser, undefined, 'reading a verified local saved result does not require a new remote login');
-});
-
-
 test('native Settings opens an allowlisted ID without a Dashboard or network read', async () => {
   const { host, probes } = fixture(), calls: unknown[][] = [];
   vscode.commands.executeCommand = async (...args: unknown[]) => { calls.push(args); };

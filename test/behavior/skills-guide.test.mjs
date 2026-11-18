@@ -7,30 +7,26 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const { version } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 
-for (const profile of ['group', 'repository']) test(`CommitReviewer ${profile} handoff fills a native form without starting a task`, async t => {
+for (const profile of ['group', 'repository']) test(`CommitReviewer ${profile} Skills copy and CLI launch use the selected Repo and Issue references`, async t => {
   const view = await mount(t, profile, undefined, ['commit-draft', 'mr-precheck']);
   const revision = `${profile}-revision`, repo = 'C:/工作區 with spaces/service';
-  await view.send({ type: 'commitReviewReady', revision: 'stale', mode: 'commit', inputs: { 'commit-draft.issues': '#999' } });
-  assert.equal(view.document.querySelector('[id="wiki-input-commit-draft.issues"]'), null);
-  await view.send({ type: 'commitReviewReady', revision, mode: 'commit', inputs: { 'commit-draft.repo': repo, 'commit-draft.issues': 'team/service#123' } });
-  assert.equal(view.document.querySelector('[id="wiki-input-commit-draft.issues"]').value, 'team/service#123');
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
+  view.document.getElementById('skill-tool-commit-reviewer').click(); await view.tick();
+  await view.change('[id="wiki-input-commit-draft.repo"]', repo);
+  await view.change('[id="wiki-input-commit-draft.issues"]', 'team/service#123', 'input');
+  assert.equal(view.requests.some(request => request.type === 'runCodexCli'), false);
   assert.equal(view.requests.some(request => request.type === 'loadReviewerCapabilities' || request.type === 'loadReviewSessions'), false);
   view.document.querySelector('.wiki-copy-button').click(); await view.tick();
   const copied = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
   assert.equal(copied.featureId, 'commit-draft');
   assert.equal(copied.inputs['commit-draft.repo'], repo);
   assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /--mode.*commit/);
-  await view.send({ type: 'commitReviewReady', revision, mode: 'commit', inputs: { 'commit-draft.repo': repo, 'commit-draft.issues': 'team/service#456' } });
-  assert.equal(view.document.querySelector('[id="wiki-input-commit-draft.issues"]').value, 'team/service#456');
-  await view.send({ type: 'commitReviewReady', revision, mode: 'mr', inputs: { 'mr-precheck.repo': '', 'mr-precheck.target': 'main' } });
-  await view.tick();
-  assert.equal(view.document.querySelector('[id="wiki-input-mr-precheck.repo"]').value, '');
-  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
-  assert.equal(view.document.querySelector('[id="wiki-input-mr-precheck.target"]').value, 'main');
-  await view.change('[id="wiki-input-mr-precheck.repo"]', repo);
-  assert.equal(view.document.querySelector('[id="wiki-input-mr-precheck.target"]').value, '');
-  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /--mode.*mr/);
+  assert.equal(view.requests.some(request => request.type === 'runCodexCli'), false);
+  view.document.querySelector('.skills-action-bar .primary').click(); await view.tick();
+  const launched = view.requests.findLast(request => request.type === 'runCodexCli');
+  assert.equal(launched.source.featureId, 'commit-draft');
+  assert.equal(launched.source.revision, revision);
+  assert.equal(launched.source.inputs['commit-draft.repo'], repo);
+  assert.equal(launched.source.inputs['commit-draft.issues'], 'team/service#123');
 });
 
 test('CommitReviewer on an older kit shows an update action and cannot dispatch', async t => {
@@ -39,7 +35,7 @@ test('CommitReviewer on an older kit shows an update action and cannot dispatch'
   await view.change('[id="wiki-input-commit-draft.issues"]', '#123', 'input');
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
   assert.match(view.document.querySelector('.skills-environment').textContent, /更新 Skills/);
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
+  assert.equal(view.requests.some(request => request.type === 'runCodexCli'), false);
 });
 
 function snapshot(profile, features) {
@@ -272,10 +268,10 @@ for (const profile of ['group', 'repository']) test(`${profile} branch review pr
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');
   assert.equal(document.querySelector('.skills-codex-button'),null);
   assert.match(document.querySelector('.skills-action-bar .workflow-alternatives').textContent,/複製提示詞.*在相同專案根目錄/);
-  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false, 'copying does not start a task');
+  assert.equal(view.requests.some(request => request.type === 'runCodexCli'), false, 'copying does not start the CLI');
   const run = [...document.querySelectorAll('.skills-action-bar button')].find(button => button.textContent === '使用 Codex 執行');
   assert.ok(run); assert.equal(run.disabled, false); run.click(); await view.tick();
-  const execute = view.requests.findLast(request => request.type === 'startCodexTask');
+  const execute = view.requests.findLast(request => request.type === 'runCodexCli');
   assert.equal(execute.source.kind, 'skill'); assert.equal(execute.source.featureId, copy.featureId);
   assert.equal(execute.source.revision, copy.revision); assert.deepEqual({ ...execute.source.inputs }, { ...copy.inputs });
   assert.equal(view.requests.some(request => request.type==='openCodexTerminal'),false);
@@ -283,7 +279,7 @@ for (const profile of ['group', 'repository']) test(`${profile} branch review pr
   assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.head"]').value,'feature/review');
   assert.equal(reopened.document.querySelector('.skills-codex-button'),null);
   assert.equal(reopened.requests.some(request => request.type==='openCodexTerminal'),false);
-  assert.equal(reopened.requests.some(request => request.type === 'startCodexTask'), false, 'reopening does not start a task');
+  assert.equal(reopened.requests.some(request => request.type === 'runCodexCli'), false, 'reopening does not start the CLI');
 });
 
 test('local review cards isolate request IDs, ignore stale snapshots and only request local controls', async t => {
@@ -588,21 +584,19 @@ test('native branch browsing remains available without the installed review capa
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
 });
 
-test('MR branch inputs arrive together without the Repo change handler clearing them', async t => {
+test('retired MR branch handoff events cannot replace a user-entered branch review', async t => {
   const view = await mount(t, 'group');
+  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  await view.change('[id="wiki-input-merge-repo.base"]', 'origin/main', 'input');
+  await view.change('[id="wiki-input-merge-repo.head"]', 'feature/user-selection', 'input');
   await view.send({ type: 'branchReviewReady', revision: 'group-revision', inputs: {
     'merge-repo.repo': 'C:/工作區 with spaces/service',
-    'merge-repo.base': 'origin/main', 'merge-repo.head': 'origin/feature/from-mr'
+    'merge-repo.base': 'origin/obsolete', 'merge-repo.head': 'origin/feature/from-mr'
   } });
-  assert.equal(view.document.getElementById('wiki-input-merge-repo.repo').value, 'C:/工作區 with spaces/service');
   assert.equal(view.document.getElementById('wiki-input-merge-repo.base').value, 'origin/main');
-  assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, 'origin/feature/from-mr');
+  assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, 'feature/user-selection');
   assert.equal(view.requests.some(request => request.type === 'loadSkillBranches'), false);
-  assert.equal(view.document.getElementById('wiki-input-merge-repo.head').value, 'origin/feature/from-mr',
-    'refreshing candidates does not discard a branch missing from the local list');
-  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true, 'existing MR confirmation still applies');
-  [...view.document.querySelectorAll('button')].find(button => button.textContent === '確認使用分支審查').click(); await view.tick();
-  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
+  assert.equal(view.requests.some(request => request.type === 'runCodexCli'), false);
 });
 
 test('Alt+Down opens a native branch picker while normal arrow keys preserve text editing', async t => {

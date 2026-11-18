@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewSync, withReviewSyncInvalidation, sharedReviewCacheRoot, sharedReviewCacheV2Root, resolveReviewRuntime, defaultReviewRuntime, invalidateReviewAuth } from '../../src/workspace/reviewSessions';
+import { readReviewSessions, readReviewJob, readVerifiedReviewPublication, cancelReviewSession, reviewSessionScript, invalidateReviewSync, withReviewSyncInvalidation, sharedReviewCacheRoot, sharedReviewCacheV2Root, resolveReviewRuntime, defaultReviewRuntime, invalidateReviewAuth } from '../../src/workspace/reviewSessions';
 import { workspaceActionKinds, describeAction } from '../../src/workspace/actionPolicy';
 import { reviewSessionActions } from '../../src/workspace/reviewSessionProtocol';
 import { reviewRunnerRuntime, reviewRunnerWritableRoots } from '../../src/workspace/reviewLaunch';
@@ -122,6 +122,34 @@ test('fixed metadata supports older verified renderers while editable notes cann
   delete f.job.fixed_identity; await f.save(f.job); assert.equal((await f.read()).baseSha, undefined, 'No table plus no metadata stays unknown');
   const sha256 = await legacyMergeFixture(t, 'a'.repeat(64), 'b'.repeat(64));
   assert.equal((await sha256.read()).baseSha, 'a'.repeat(64)); assert.equal((await sha256.read()).headSha, 'b'.repeat(64));
+});
+
+test('Release publication preserves its fixed SHAs after Checklist edits and rejects changes to the checked report body', async t => {
+  const f = await fixture(t);
+  const runtime = path.join(f.base, '.release-review-runtime');
+  const report = path.join(f.repo, 'review-reports', 'release.md');
+  await mkdir(path.dirname(report));
+  const baseSha = '1'.repeat(40), headSha = '2'.repeat(40);
+  const before = '# Release findings\n', after = '\nFixed conclusion\n';
+  const start = '<!-- release-checklist:start -->', end = '<!-- release-checklist:end -->';
+  const body = (checklist: string) => before + start + '\n' + checklist + '\n' + end + after;
+  const job: Parameters<typeof readVerifiedReviewPublication>[0] = {
+    ...f.job, schema: 'ReleaseReviewSession/v1', runtime_root: runtime, state: 'published', phase: 'complete',
+    report_path: report, fixed_identity: { base_sha: baseSha, head_sha: headSha },
+    report_static_sha256: createHash('sha256').update(before + after).digest('hex')
+  };
+  await writeFile(report, body('[ ] Human confirmation').replaceAll('\n', '\r\n'));
+  const read = () => readVerifiedReviewPublication(job, runtime, 'release-reviewer');
+  const fixed = await read();
+  assert.equal(fixed?.baseSha, baseSha);
+  assert.equal(fixed?.headSha, headSha);
+  await writeFile(report, body('[x] Confirmed by operator'));
+  assert.deepEqual(await read(), fixed);
+  for (const invalid of [body('[x] Confirmed').replace('Fixed conclusion', 'Altered conclusion'),
+    body('[x] Confirmed').replace(start, ''), body(start)]) {
+    await writeFile(report, invalid);
+    assert.equal(await read(), undefined);
+  }
 });
 
 test('persisted operation progress and checked semantic counts stay separate, and unknown counts are not zero', async t => {

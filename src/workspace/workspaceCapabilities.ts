@@ -17,27 +17,21 @@ export function getWorkspaceCapabilities(folders: readonly { uri: { scheme: stri
 // This is a filesystem capability, independent of read/write classification and
 // operation scopes. Clipboard, logs, navigation and remote writes remain usable.
 const localProjectActions = new Set([
-  'pickSkillBranch',
-  'loadCodexUiDrafts', 'saveCodexUiDrafts',
-  'codexCommand',
+  'pickSkillBranch', 'runCodexCli', 'codexCliSettings',
   'scanRepositories', 'repositoryDetails', 'refreshRepositories', 'clone', 'syncRepos',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'openLocalWorkspace',
   'gitReady', 'gitOpenRepository', 'gitOpenFile', 'gitOpenDiff', 'gitOpenMergeEditor', 'gitAction',
   'gitPickRepository', 'gitPickBranch', 'gitPickRemote',
   'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'installWorkflowKit',
-  'prepareCommitReview', 'loadSkillBranches', 'copySkillGuidePrompt', 'openBranchReview', 'loadReviewerCapabilities',
+  'loadSkillBranches', 'copySkillGuidePrompt', 'loadReviewerCapabilities',
   'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
-  'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask',
-  'createCodexLaunch', 'updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch', 'cancelCodexLaunch', 'showCodexLaunch', 'repairCodexLaunch', 'pickCodexLaunch', 'openProjectWikiDocument',
-  'showCodexTask', 'readCodexResult', 'openCodexOrigin', 'openCodexChanges', 'previewProjectWiki', 'cancelProjectWikiPreview', 'publishProjectWiki', 'publishCodexReview',
-  'resumeCodexTask', 'pauseCodexTask', 'deleteCodexTask', 'deleteCodexTasks', 'setCodexAutoAccept', 'answerCodex', 'checkCodex', 'configureCodex'
 ]);
 
 export function requiresLocalProject(request: { type: string; [key: string]: unknown }): boolean {
   if (request.type === 'perform') return request.action === 'openRepository';
-  if (request.type === 'refresh') return ['sa', 'bmad', 'git', 'codex'].includes(String(request.mode)) ||
+  if (request.type === 'refresh') return ['sa', 'bmad', 'git'].includes(String(request.mode)) ||
     request.mode === 'clone' && request.projectSource === 'local';
   return localProjectActions.has(request.type);
 }

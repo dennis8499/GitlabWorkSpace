@@ -36,21 +36,20 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.openDeveloperMode',
       'gitlabWorkspace.openReviewerMode',
       'gitlabWorkspace.openGitMode',
-      'gitlabWorkspace.openCodexMode', 'gitlabWorkspace.createCodexTask', 'gitlabWorkspace.createCodexTaskFromSelection',
       'gitlabWorkspace.openRepository',
       'gitlabWorkspace.addAccount', 'gitlabWorkspace.switchAccount', 'gitlabWorkspace.removeAccount',
       'gitlabWorkspace.openAdmin', 'gitlabWorkspace.showLogs', 'gitlabWorkspace.repairApiControl', 'gitlabWorkspace.scanRepositories'
     ]) {
       assert.ok(commands.includes(command), `${command} is registered`);
     }
-    const concurrency = vscode.workspace.getConfiguration('gitlabWorkspace').inspect<number>('codex.maxConcurrentTasks');
-    assert.equal(concurrency?.defaultValue, 1);
-    assert.equal(extension.packageJSON.contributes.configuration.properties['gitlabWorkspace.codex.maxConcurrentTasks'].maximum, 2);
-    const layout = vscode.workspace.getConfiguration('gitlabWorkspace').inspect<string>('codex.workspaceLayout');
-    assert.equal(layout?.defaultValue, 'workspace', 'the packaged extension registers the workspace layout as its default');
-    const layoutSetting = extension.packageJSON.contributes.configuration.properties['gitlabWorkspace.codex.workspaceLayout'];
-    assert.deepEqual(layoutSetting.enum, ['workspace', 'classic']);
-    assert.equal(layoutSetting.scope, 'window', 'layout can change per window without changing execution settings');
+    const settings = extension.packageJSON.contributes.configuration.properties;
+    assert.equal(settings['gitlabWorkspace.codex.executablePath'].scope, 'machine');
+    for (const setting of ['maxConcurrentTasks', 'workspaceLayout', 'autoApproveLocalOperations']) {
+      assert.equal(Object.hasOwn(settings, 'gitlabWorkspace.codex.' + setting), false);
+    }
+    for (const command of ['openCodexMode', 'createCodexTask', 'createCodexTaskFromSelection', 'openLocalWiki']) {
+      assert.equal(commands.includes('gitlabWorkspace.' + command), false);
+    }
     const wikiGuideCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSaMode');
     assert.equal(wikiGuideCommand?.title, 'Skills 功能指引');
     const scanCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.scanRepositories');

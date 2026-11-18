@@ -4,11 +4,6 @@ import { isWorkspaceRequest, parseWorkspaceRequest } from '../../src/workspace/w
 import type { WorkspaceRequest } from '../../src/workspace/workspaceProtocol';
 
 const repo = 'a'.repeat(32), sha = 'b'.repeat(40);
-test('follow-up source scopes accept exact digests and reject malformed identities', () => {
-  const request = { type: 'startCodexTask', source: { kind: 'issue', projectId: 1, issueIid: 2, expectedScope: 'a'.repeat(64) } };
-  assert.equal(isWorkspaceRequest(request), true);
-  for (const expectedScope of ['a'.repeat(63), 'not-a-scope', 'a'.repeat(64) + '\n', 7]) assert.equal(isWorkspaceRequest({ ...request, source: { ...request.source, expectedScope } }), false);
-});
 const issue = { projectId: 1, issueIid: 2 }, mr = { projectId: 1, iid: 2 };
 const review = { revision: 'root:1', requestId: 'review-1', tool: 'merge-reviewer' as const };
 /** Public UI contract examples, independent of validator implementation. */
@@ -17,32 +12,8 @@ const requests = {
   gitPickBranch: { type: 'gitPickBranch', repositoryId: repo, requestId: 'branch-pick-1' },
   gitPickRemote: { type: 'gitPickRemote', repositoryId: repo, requestId: 'remote-pick-1' },
   openMergeRequestDiff: { type: 'openMergeRequestDiff', ...mr, diffVersionId: 3, oldPath: 'before.ts', newPath: 'after.ts' },
-  loadCodexUiDrafts: { type: 'loadCodexUiDrafts', requestId: 'draft-load-1' },
-  saveCodexUiDrafts: { type: 'saveCodexUiDrafts', requestId: 'draft-save-1', scope: 'a'.repeat(64), updates: [{ key: JSON.stringify(['draft', 'task-1']), revision: 0, value: { text: 'Keep this', revision: 1 } }], resolveConflictIds: [] },
-  createCodexLaunch: { type: 'createCodexLaunch', source: { kind: 'issue', projectId: 1, issueIid: 2 } },
-  updateCodexLaunch: { type: 'updateCodexLaunch', draftId: 'draft-1', revision: 1, patch: { requirement: 'Acceptance', repositoryId: 'repo-1', model: '', isolated: true, acknowledgedSource: 'change-1' } },
-  checkCodexLaunch: { type: 'checkCodexLaunch', draftId: 'draft-1', revision: 1, patch: { discussionIds: ['discussion-1'] } },
-  submitCodexLaunch: { type: 'submitCodexLaunch', draftId: 'draft-1', revision: 1, patch: { model: 'model-1', effort: 'high' } },
-  cancelCodexLaunch: { type: 'cancelCodexLaunch', draftId: 'draft-1' },
-  showCodexLaunch: { type: 'showCodexLaunch', draftId: 'draft-1' },
-  pickCodexLaunch: { type: 'pickCodexLaunch' },
-  repairCodexLaunch: { type: 'repairCodexLaunch', draftId: 'draft-1', action: 'scan' },
-  codexCommand: { type: 'codexCommand', command: { action: 'reconcile', taskId: 'task-1' } },
-  showCodexTask: { type: 'showCodexTask', taskId: 'task-1' }, readCodexResult: { type: 'readCodexResult', taskId: 'task-1' },
-  openCodexOrigin: { type: 'openCodexOrigin', taskId: 'task-1' }, openCodexChanges: { type: 'openCodexChanges', taskId: 'task-1' },
-  previewProjectWiki: { type: 'previewProjectWiki', taskId: 'task-1' }, publishProjectWiki: { type: 'publishProjectWiki', taskId: 'task-1', revision: 'revision-1' },
-  openProjectWikiDocument: { type: 'openProjectWikiDocument', taskId: 'task-1', revision: 'revision-1', slug: 'codebase/index', mode: 'diff' },
-  cancelProjectWikiPreview: { type: 'cancelProjectWikiPreview', taskId: 'task-1' },
-  publishCodexReview: { type: 'publishCodexReview', taskId: 'task-1', body: 'Review summary' },
-  startCodexTask: { type: 'startCodexTask', source: { kind: 'skill', featureId: 'query', inputs: { question: 'Explain' }, revision: 'root:1' } },
-  openLocalWiki: { type: 'openLocalWiki', repository: 'C:/workspace/service' },
-  listCodexTasks: { type: 'listCodexTasks' }, codexHistory: { type: 'codexHistory', taskId: 'task-1' },
-  sendCodexMessage: { type: 'sendCodexMessage', taskId: 'task-1', text: 'Continue' }, cancelCodexTask: { type: 'cancelCodexTask', taskId: 'task-1' },
-  pauseCodexTask: { type: 'pauseCodexTask', taskId: 'task-1' }, deleteCodexTask: { type: 'deleteCodexTask', taskId: 'task-1' },
-  deleteCodexTasks: { type: 'deleteCodexTasks', taskIds: ['task-1', 'task-2'] },
-  setCodexAutoAccept: { type: 'setCodexAutoAccept', taskId: 'task-1', enabled: true },
-  resumeCodexTask: { type: 'resumeCodexTask', taskId: 'task-1' }, answerCodex: { type: 'answerCodex', taskId: 'task-1', interactionId: 'approval-1', answer: { decision: 'accept', content: { files: ['a.ts'], limit: 2 } } },
-  checkCodex: { type: 'checkCodex' }, configureCodex: { type: 'configureCodex', action: 'executable' },
+  runCodexCli: { type: 'runCodexCli', source: { kind: 'skill', featureId: 'query', inputs: { 'query.question': 'Explain' }, revision: 'root:1' } },
+  codexCliSettings: { type: 'codexCliSettings', action: 'check' },
   ready: { type: 'ready', developerView: 'list', projectSource: 'local' }, reconcileOperations: { type: 'reconcileOperations', pendingIds: ['operation-1'] },
   confirmOperationResult: { type: 'confirmOperationResult', targetOperationId: 'operation-1' }, refresh: { type: 'refresh', mode: 'developer' },
   retryInstanceCheck: { type: 'retryInstanceCheck' }, setMode: { type: 'setMode', mode: 'clone' },
@@ -67,14 +38,13 @@ const requests = {
   openBmadTerminal: { type: 'openBmadTerminal', revision: 'root:1' }, openBmadArtifact: { type: 'openBmadArtifact', revision: 'root:1', stepId: 'build', path: 'C:/workspace/story.md' },
   clone: { type: 'clone', projectIds: [1, 2] }, cloneSelection: { type: 'cloneSelection', requestId: 'clone-1', projectIds: [1] }, syncRepos: { type: 'syncRepos', projectIds: [1] },
   selectProject: { type: 'selectProject', projectId: 1 }, selectIssue: { type: 'selectIssue', ...issue }, openIssue: { type: 'openIssue', ...issue, tab: 'time' }, createIssue: { type: 'createIssue' },
-  copy: { type: 'copy', text: 'Text' }, importIssueDrafts: { type: 'importIssueDrafts', json: '{}' }, createIssueDrafts: { type: 'createIssueDrafts', analysisId: 'analysis-1', drafts: [], options: {} },
+  copy: { type: 'copy', text: 'Text' }, importIssueDrafts: { type: 'importIssueDrafts', json: '{}' }, createIssueDrafts: { type: 'createIssueDrafts', analysisId: 'manual-drafts-1', drafts: [], options: {} },
   loadDraftOptions: { type: 'loadDraftOptions', projectId: 1 }, checkSimilarIssues: { type: 'checkSimilarIssues', drafts: [] }, openExternal: { type: 'openExternal', url: 'https://gitlab.example.test' },
   startTimer: { type: 'startTimer', ...issue }, pauseTimer: { type: 'pauseTimer', id: 'timer-1' }, resumeTimer: { type: 'resumeTimer', id: 'timer-1' }, stopTimer: { type: 'stopTimer', id: 'timer-1' },
   addManualTime: { type: 'addManualTime', ...issue, duration: '10m', summary: 'Review' }, updateTimeEntry: { type: 'updateTimeEntry', id: 'timer-1', duration: '20m', summary: 'Review', spentAt: '2026-11-05' },
   submitTimeEntry: { type: 'submitTimeEntry', id: 'timer-1' }, acknowledgeTimeEntry: { type: 'acknowledgeTimeEntry', id: 'timer-1' },
   selectMergeRequest: { type: 'selectMergeRequest', ...mr }, refreshMergeRequest: { type: 'refreshMergeRequest', ...mr }, reconcileMergeRequestWrite: { type: 'reconcileMergeRequestWrite', ...mr },
-  loadMergeRequestSection: { type: 'loadMergeRequestSection', ...mr, section: 'diffs' }, postMergeRequestNote: { type: 'postMergeRequestNote', ...mr, body: 'Review' }, openBranchReview: { type: 'openBranchReview', ...mr },
-  prepareCommitReview: { type: 'prepareCommitReview', mode: 'commit', revision: 'root:1', repo: 'C:/workspace' },
+  loadMergeRequestSection: { type: 'loadMergeRequestSection', ...mr, section: 'diffs' }, postMergeRequestNote: { type: 'postMergeRequestNote', ...mr, body: 'Review' },
   loadSkillBranches: { type: 'loadSkillBranches', repo: 'C:/workspace', revision: 'root:1', requestId: 'branches-1' },
   pickSkillBranch: { type: 'pickSkillBranch', repo: 'C:/workspace', revision: 'root:1', requestId: 'branch-1', field: 'merge-repo.base' },
   loadReviewerCapabilities: { type: 'loadReviewerCapabilities', ...review },
@@ -102,39 +72,55 @@ for (const request of Object.values(requests)) test(`workspace message ${request
 test('malformed identities, bodies, nested actions and prototype keys fail closed', () => {
   const invalid = [null, [], 'copy', {}, { type: 'arbitrary' }, { type: 'submitAccountLogin', token: 'forbidden-webview-secret' }, { type: 'openConfiguration', setting: 'arbitrary.setting' }, { type: 'copy', text: {} }, { type: 'selectProject', projectId: {} },
     { type: 'selectProject', projectId: Number.MAX_SAFE_INTEGER + 1 }, { type: 'selectProject', projectId: -1 },
-    { type: 'sendCodexMessage', taskId: 'task-1', text: 'a'.repeat(32001) }, { type: 'clone', projectIds: new Array(10001).fill(1) },
-    { type: 'codexHistory', taskId: 'task-1', force: 'true' }, { type: 'previewProjectWiki', taskId: 'task-1', cursor: 'x'.repeat(161) },
+    { type: 'clone', projectIds: new Array(10001).fill(1) },
     { type: 'issueRequest', request: { type: 'invoke', issueId: 1, action: 'delete', payload: { shell: 'rm' } } },
     { type: 'issueRequest', request: { type: 'create', projectId: 1, input: { title: 'Title', admin: true } } },
     { type: 'gitAction', requestId: 'g', repoId: repo, action: { type: 'discard', path: '../outside' } },
     { type: 'gitAction', requestId: 'g', repoId: repo, action: { type: 'open', repoId: repo, shell: 'anything' } },
-    { type: 'answerCodex', taskId: 't', interactionId: 'i', answer: { decision: 'always' } },
     { type: 'copySkillGuidePrompt', featureId: 'query', revision: 'r', inputs: JSON.parse('{"__proto__":"bad"}') }];
   for (const request of invalid) { assert.equal(isWorkspaceRequest(request), false); assert.throws(() => parseWorkspaceRequest(request), /訊息格式無效/); }
 });
 
-test('launch forms without a single Repo can save, check and submit their full field snapshot', () => {
-  // Group analysis selects several Repos; fixed-source forms can also have no single selection yet.
-  const patch = { requirement: 'Analyze the committed sources', repositoryId: '', repositoryIds: ['repo-a', 'repo-b'],
-    additionalSkillIds: [], testCommands: [], automaticDelivery: false, model: '', effort: '', isolated: true, discussionIds: [] };
-  for (const type of ['updateCodexLaunch', 'checkCodexLaunch', 'submitCodexLaunch']) {
-    const request = { type, draftId: 'draft-group', revision: 6, patch };
-    assert.equal(isWorkspaceRequest(request), true, type);
-    for (const repositoryId of [null, {}, 'x'.repeat(161), '\0']) {
-      assert.equal(isWorkspaceRequest({ ...request, patch: { ...patch, repositoryId } }), false);
-    }
-    assert.equal(isWorkspaceRequest({ ...request, patch: { ...patch, repositoryIds: [''] } }), false);
+test('Codex CLI accepts only the retained workflows and keeps Merge and Release Reviewer identities', () => {
+  const request = { type: 'runCodexCli' };
+  const sources = [
+    { kind: 'skill', featureId: 'query', revision: 'r', inputs: { 'query.question': 'Explain' } },
+    { kind: 'bmad', request: { revision: 'r', command: 'skill', skill: 'bmad-build' } },
+    { kind: 'review', action: 'resume', ...review },
+    { kind: 'review', action: 'refresh', ...review, tool: 'release-reviewer' },
+    ...['merge-reviewer', 'release-reviewer'].map(reviewerTool => ({ kind: 'merge-request', ...mr, reviewerTool, expectedScope: 'a'.repeat(24) }))
+  ];
+  for (const source of sources) {
+    assert.equal(isWorkspaceRequest({ ...request, source }), true, JSON.stringify(source));
+    assert.equal(isWorkspaceRequest({ ...request, source: { ...source, cwd: 'C:/outside' } }), false);
+    assert.equal(isWorkspaceRequest({ ...request, source: { ...source, model: 'untrusted-webview-model' } }), false);
   }
-  assert.equal(isWorkspaceRequest({ type: 'gitOpenFile', repositoryId: '', path: 'file.ts' }), false);
+  for (const expectedScope of ['', 'x'.repeat(10001), 'a\0b', 7]) {
+    assert.equal(isWorkspaceRequest({ ...request, source: { kind: 'merge-request', ...mr, reviewerTool: 'merge-reviewer', expectedScope } }), false);
+  }
+  for (const source of [
+    { kind: 'merge-request', ...mr },
+    { kind: 'merge-request', ...mr, reviewerTool: 'commit-reviewer' },
+    { kind: 'bmad', request: { command: 'task', revision: 'r', requirement: 'build', executable: 'arbitrary' } },
+    { kind: 'review', action: 'publish', ...review },
+    { kind: 'issue', ...issue }, { kind: 'project-wiki', projectId: 1 },
+    { kind: 'free', prompt: 'Work' }, { kind: 'group-analysis' }
+  ]) assert.equal(isWorkspaceRequest({ ...request, source }), false, JSON.stringify(source));
 });
 
-test('nested legitimate Issue actions, Git rebase and MCP forms retain their contract', () => {
+test('retired Codex task, history, delivery and Wiki publication messages fail validation', () => {
+  for (const type of ['startCodexTask', 'createCodexLaunch', 'codexCommand', 'resumeCodexTask', 'answerCodex',
+    'codexHistory', 'listCodexTasks', 'publishProjectWiki', 'publishCodexReview', 'prepareCommitReview', 'setCodexAutoAccept']) {
+    assert.equal(isWorkspaceRequest({ type }), false, type);
+  }
+  assert.equal(isWorkspaceRequest({ type: 'setMode', mode: 'codex' }), false);
+});
+
+test('nested legitimate Issue actions and Git rebase retain their contract', () => {
   for (const request of [
-    { type: 'codexHistory', taskId: 'task-1', force: true }, { type: 'previewProjectWiki', taskId: 'task-1', cursor: 'batch-1' },
     { type: 'issueRequest', request: { type: 'invoke', issueId: 1, action: 'note', payload: { body: 'Hello', internal: false } } },
     { type: 'issueRequest', request: { type: 'update', issueId: 1, input: { assigneeId: null, milestoneId: null, dueDate: null } } },
-    { type: 'gitAction', requestId: 'g', repoId: repo, action: { type: 'rebase', ref: 'main', interactive: true, expectedTargetHash: sha, todo: [{ hash: sha, action: 'pick' }] } },
-    { type: 'startCodexTask', source: { kind: 'bmad', request: { revision: 'r', command: 'skill', skill: 'bmad-build' } } },
-    { type: 'startCodexTask', source: { kind: 'review', action: 'resume', ...review } }
+    { type: 'gitAction', requestId: 'g', repoId: repo, action: { type: 'rebase', ref: 'main', interactive: true, expectedTargetHash: sha, todo: [{ hash: sha, action: 'pick' }] } }
   ]) assert.equal(isWorkspaceRequest(request), true, JSON.stringify(request));
+  assert.equal(isWorkspaceRequest({ type: 'gitOpenFile', repositoryId: '', path: 'file.ts' }), false);
 });

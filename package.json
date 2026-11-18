@@ -1,6 +1,5 @@
 {
   "activationEvents": [
-    "workspaceContains:.gitlab-workspace-task.json",
     "onCommand:gitlabWorkspace.openWorkspace",
     "onCommand:gitlabWorkspace.openNotifications",
     "onCommand:gitlabWorkspace.openSettings",
@@ -10,11 +9,7 @@
     "onCommand:gitlabWorkspace.openDeveloperMode",
     "onCommand:gitlabWorkspace.openReviewerMode",
     "onCommand:gitlabWorkspace.openGitMode",
-    "onCommand:gitlabWorkspace.openCodexMode",
-    "onCommand:gitlabWorkspace.createCodexTask",
-    "onCommand:gitlabWorkspace.createCodexTaskFromSelection",
     "onCommand:gitlabWorkspace.openRepository",
-    "onCommand:gitlabWorkspace.openLocalWiki",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
     "onCommand:gitlabWorkspace.syncLocalDefaultBranches",
@@ -44,17 +39,6 @@
   ],
   "contributes": {
     "commands": [
-      {
-        "category": "GitLab Workspace",
-        "command": "gitlabWorkspace.createCodexTask",
-        "icon": "$(add)",
-        "title": "建立 Codex 任務"
-      },
-      {
-        "category": "GitLab Workspace",
-        "command": "gitlabWorkspace.createCodexTaskFromSelection",
-        "title": "將選取文字帶入 Codex 任務"
-      },
       {
         "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openNotifications",
@@ -105,11 +89,6 @@
       },
       {
         "category": "GitLab Workspace",
-        "command": "gitlabWorkspace.openCodexMode",
-        "title": "開啟 Codex"
-      },
-      {
-        "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openGitMode",
         "title": "開啟版控"
       },
@@ -117,11 +96,6 @@
         "category": "GitLab Workspace",
         "command": "gitlabWorkspace.openRepository",
         "title": "開啟 Repo 版控"
-      },
-      {
-        "category": "GitLab Workspace",
-        "command": "gitlabWorkspace.openLocalWiki",
-        "title": "本地 Wiki"
       },
       {
         "category": "GitLab Workspace",
@@ -276,38 +250,10 @@
     ],
     "configuration": {
       "properties": {
-        "gitlabWorkspace.codex.autoApproveLocalOperations": {
-          "default": false,
-          "description": "新 Codex 任務預設自動核准任務範圍內的單次本機命令與檔案修改。既有任務保留各自設定；額外權限、網路、問題、登入及成果發布仍需個別確認。",
-          "scope": "machine",
-          "type": "boolean"
-        },
         "gitlabWorkspace.codex.executablePath": {
           "default": "",
-          "description": "Codex CLI 執行檔的完整路徑；留白從 PATH 偵測。只讀取使用者設定，支援官方 npm 安裝入口。需要 Codex CLI 0.165.0 或更新版本。",
+          "description": "Codex CLI 執行檔的完整路徑；留白從 PATH 偵測。只讀取使用者設定，支援官方 npm 安裝入口。",
           "scope": "machine",
-          "type": "string"
-        },
-        "gitlabWorkspace.codex.maxConcurrentTasks": {
-          "default": 1,
-          "description": "本機所有視窗共用的 Codex 任務上限。預設 1；設為 2 時，只有沒有共用寫入資源的任務才會同時執行。",
-          "maximum": 2,
-          "minimum": 1,
-          "scope": "machine",
-          "type": "integer"
-        },
-        "gitlabWorkspace.codex.workspaceLayout": {
-          "default": "workspace",
-          "description": "Codex 版面回退開關。切換立即生效並保留草稿；只改變排列，沿用相同任務準備、執行、收據與安全限制，不恢復舊版後端或自動重送任務。",
-          "enum": [
-            "workspace",
-            "classic"
-          ],
-          "enumDescriptions": [
-            "任務工作台：執行與成果分頁。",
-            "傳統版面：執行與成果同頁，詳情於頁內展開。"
-          ],
-          "scope": "window",
           "type": "string"
         },
         "gitlabWorkspace.projectRoot": {
@@ -360,11 +306,6 @@
         {
           "command": "gitlabWorkspace.openRepository",
           "group": "inline",
-          "when": "view == gitlabWorkspace.repositories && viewItem == gitlabWorkspace.repository"
-        },
-        {
-          "command": "gitlabWorkspace.openLocalWiki",
-          "group": "knowledge@1",
           "when": "view == gitlabWorkspace.repositories && viewItem == gitlabWorkspace.repository"
         },
         {
@@ -527,7 +468,6 @@
     "@iarna/toml": "^2.2.5",
     "d3-force": "^3.0.0",
     "dompurify": "^3.4.16",
-    "marked": "^18.0.14",
     "preact": "^10.29.8",
     "yaml": "^2.9.1"
   },
@@ -586,7 +526,6 @@
     "test": "node scripts/run-validation.mjs all",
     "test:behavior": "node scripts/run-validation.mjs behavior",
     "test:behavior:prepared": "node scripts/run-validation.mjs behavior --prepared",
-    "test:codex:live": "node scripts/run-codex-live-tests.mjs",
     "test:compatibility": "node scripts/run-validation.mjs compatibility",
     "test:extension": "node scripts/run-validation.mjs extension",
     "test:extension:prepared": "node scripts/run-validation.mjs extension --prepared",
@@ -606,5 +545,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.55.1"
+  "version": "0.56.0"
 }

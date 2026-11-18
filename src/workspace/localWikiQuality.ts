@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import type { CodexTaskResult, CodexTaskSpec } from '../codex/protocol';
 import { captureGitProcess } from '../git/gitProcess';
 import type { PythonRuntime } from './pythonRuntime';
 import type { WikiPageDigest, LocalWikiBaseline, WikiFinding, LocalWikiQualityReceipt } from './localWikiQualityProtocol';
@@ -9,6 +8,18 @@ import { parseDocument } from 'yaml';
 import { localWikiCoverageLedger } from './localWiki';
 export type { LocalWikiBaseline, LocalWikiQualityReceipt } from './localWikiQualityProtocol';
 export type LocalWikiHelperRunner = (script: string, args: string[], root: string, python: PythonRuntime) => Promise<{ code: number; stdout: string }>;
+type WikiWorkflow = {
+  root: string;
+  source: { kind: string; featureId?: string; inputs?: Record<string, string> };
+  skill?: { name: string; path: string };
+};
+interface LocalWikiQualityResult {
+  state: 'ready' | 'needs-work';
+  summary: string;
+  files: string[];
+  tests?: LocalWikiQualityReceipt['checks'];
+  wikiQuality: LocalWikiQualityReceipt;
+}
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const maxPages = 2000, maxPageBytes = 8 * 1024 * 1024, maxTotalBytes = 64 * 1024 * 1024, maxBaselineBytes = 512 * 1024;
 const safePage = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 1024 &&
@@ -51,12 +62,12 @@ export function isLocalWikiBaseline(value: unknown): value is LocalWikiBaseline 
     seen.add(page.path); total += Number(page.size); return total <= maxTotalBytes;
   });
 }
-function operation(spec: CodexTaskSpec): 'update' | 'inspection' | undefined {
+function operation(spec: WikiWorkflow): 'update' | 'inspection' | undefined {
   if (spec.source.kind !== 'skill' || spec.skill?.name !== 'codebase-wiki') return;
-  if (spec.source.featureId === 'ingest' || spec.source.featureId === 'lint' && spec.source.inputs['lint.operation'] === '重建索引') return 'update';
+  if (spec.source.featureId === 'ingest' || spec.source.featureId === 'lint' && spec.source.inputs?.['lint.operation'] === '重建索引') return 'update';
   if (spec.source.featureId === 'lint') return 'inspection';
 }
-const binding = (spec: CodexTaskSpec) => hash(JSON.stringify([path.resolve(spec.root), spec.source.kind === 'skill' ?
+const binding = (spec: WikiWorkflow) => hash(JSON.stringify([path.resolve(spec.root), spec.source.kind === 'skill' && spec.source.inputs ?
   [spec.source.featureId, spec.source.inputs] : spec.source.kind]));
 function noteDigests(bytes: Buffer): string[] {
   const notes = [...bytes.toString('utf8').matchAll(/<!-- codebase-wiki:(user-notes|visualization-notes):start -->[\s\S]*?<!-- codebase-wiki:\1:end -->/g)].map(match => hash(match[0]));
@@ -78,8 +89,8 @@ function pageSources(bytes: Buffer): string[] | undefined {
       ? [...new Set(metadata.sources)].sort() : undefined;
   } catch { return; }
 }
-export function localWikiCoveragePlan(spec: CodexTaskSpec): { full: boolean; ledger: string; scopeArgs: string[]; sourcePrefix?: string } {
-  const inputs = spec.source.kind === 'skill' ? spec.source.inputs : {};
+export function localWikiCoveragePlan(spec: WikiWorkflow): { full: boolean; ledger: string; scopeArgs: string[]; sourcePrefix?: string } {
+  const inputs = spec.source.kind === 'skill' ? spec.source.inputs ?? {} : {};
   const selectedFull = inputs['wiki.scope'] === 'repository';
   const full = spec.source.kind === 'skill' && spec.source.featureId === 'ingest' && (selectedFull || inputs['ingest.scope'] === '全部專案');
   let ledger = path.join(spec.root, 'wiki', 'ingest-coverage.json'), sourcePrefix: string | undefined;
@@ -131,7 +142,7 @@ async function pageDigests(root: string): Promise<WikiPageDigest[]> {
 }
 
 /** No Wiki scan occurs for Query or ordinary development/review tasks. */
-export async function captureLocalWikiBaseline(spec: CodexTaskSpec): Promise<LocalWikiBaseline | undefined> {
+export async function captureLocalWikiBaseline(spec: WikiWorkflow): Promise<LocalWikiBaseline | undefined> {
   if (operation(spec) !== 'update') return;
   const baseline: LocalWikiBaseline = { schema: 'GitLabWorkspaceLocalWikiBaseline/v1', binding: binding(spec), pages: await pageDigests(spec.root) };
   if (!isLocalWikiBaseline(baseline)) throw new Error('Wiki 檢查基線超過保存限制。');
@@ -142,8 +153,8 @@ const defaultRunner: LocalWikiHelperRunner = async (script, args, root, python) 
   [...python.args, '-X', 'utf8', '-B', script, ...args], { cwd: root, env: { ...python.env, PYTHONDONTWRITEBYTECODE: '1' }, network: false, timeoutMs: 30_000, maxStdoutBytes: 4 * 1024 * 1024 });
 
 /** Reuse the installed Wiki helper; the injected runner keeps subprocess boundaries testable. */
-export async function inspectLocalWikiQuality(spec: CodexTaskSpec, python: PythonRuntime, baseline?: LocalWikiBaseline,
-  run: LocalWikiHelperRunner = defaultRunner): Promise<{ result: CodexTaskResult; receipt: LocalWikiQualityReceipt } | undefined> {
+export async function inspectLocalWikiQuality(spec: WikiWorkflow, python: PythonRuntime, baseline?: LocalWikiBaseline,
+  run: LocalWikiHelperRunner = defaultRunner): Promise<{ result: LocalWikiQualityResult; receipt: LocalWikiQualityReceipt } | undefined> {
   const kind = operation(spec);
   if (!kind) return;
   const plan = localWikiCoveragePlan(spec), full = plan.full;
@@ -216,7 +227,7 @@ export async function inspectLocalWikiQuality(spec: CodexTaskSpec, python: Pytho
   return { result: { state: failed ? 'needs-work' : 'ready', summary, files: receipt.changedPages.map(file => 'wiki/' + file), tests: receipt.checks, wikiQuality: receipt }, receipt };
 }
 
-export async function collectLocalWikiQuality(spec: CodexTaskSpec, python: PythonRuntime, baseline?: LocalWikiBaseline,
-  run?: LocalWikiHelperRunner): Promise<CodexTaskResult | undefined> {
+export async function collectLocalWikiQuality(spec: WikiWorkflow, python: PythonRuntime, baseline?: LocalWikiBaseline,
+  run?: LocalWikiHelperRunner): Promise<LocalWikiQualityResult | undefined> {
   return (await inspectLocalWikiQuality(spec, python, baseline, run))?.result;
 }

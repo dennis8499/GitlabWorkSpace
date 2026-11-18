@@ -17,15 +17,15 @@ test('an unchanged login error upgrades its log target to recovery without dupli
   center.dispose();
 });
 
-test('recovery target upgrades preserve existing task destinations and dismissed notices', () => {
+test('recovery target upgrades preserve existing MR destinations and dismissed notices', () => {
   const center = new NotificationCenter(), recovery = { kind: 'networkRecovery' as const, recoveryId: 'host-owned-id' };
-  center.publish({ operationId: 'task', message: 'failure', target: { kind: 'task', taskId: 'task-a' } });
-  center.publish({ operationId: 'task', message: 'different failure', target: recovery });
-  assert.deepEqual(center.snapshot().items[0].target, { kind: 'task', taskId: 'task-a' });
+  center.publish({ operationId: 'review', message: 'failure', target: { kind: 'mergeRequest', projectId: 2, iid: 3 } });
+  center.publish({ operationId: 'review', message: 'different failure', target: recovery });
+  assert.deepEqual(center.snapshot().items[0].target, { kind: 'mergeRequest', projectId: 2, iid: 3 });
   center.publish({ operationId: 'dismissed', message: 'failure', target: { kind: 'logs' } });
   center.remove('operation:dismissed');
   center.publish({ operationId: 'dismissed', message: 'failure', target: recovery });
-  assert.deepEqual(center.snapshot().items.map(item => item.id), ['operation:task']);
+  assert.deepEqual(center.snapshot().items.map(item => item.id), ['operation:review']);
   center.dispose();
 });
 

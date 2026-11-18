@@ -26,7 +26,6 @@ function hostFixture() {
     navigateTo: async (mode: string) => { calls.push(['navigate', mode]); },
     openIssue: async (project: number, iid: number) => { calls.push(['issue', project, iid]); },
     loadMergeRequest: async (project: number, iid: number) => { calls.push(['mr', project, iid]); },
-    linkedCodexSpec: async (taskId: string) => { calls.push(['task', taskId]); },
     post: (message: unknown) => { messages.push(message); }
   });
   Object.defineProperty(host, 'notifications', { value: undefined, writable: true });
@@ -124,9 +123,8 @@ test('notification targets route by Host-owned identity and logs remain availabl
   f.host.notifications = { snapshot: () => ({ items: [{ id: 'notice', origin: { ...f.origin }, target }] }) };
   await f.host.openNotificationTarget('notice');
   target = { kind: 'mergeRequest', projectId: 20, iid: 4 }; await f.host.openNotificationTarget('notice');
-  target = { kind: 'task', taskId: 'task-a' }; await f.host.openNotificationTarget('notice');
-  assert.deepEqual(f.calls, [['issue', 10, 2], ['navigate', 'reviewer'], ['mr', 20, 4], ['task', 'task-a'], ['navigate', 'codex']]);
-  assert.deepEqual(f.messages, [{ type: 'codexTaskStarted', taskId: 'task-a' }]);
+  assert.deepEqual(f.calls, [['issue', 10, 2], ['navigate', 'reviewer'], ['mr', 20, 4]]);
+  assert.deepEqual(f.messages, []);
   f.host.getNotificationOrigin = () => ({ ...f.origin, accountId: 'account-b' });
   await assert.rejects(f.host.openNotificationTarget('notice'), /帳號或工作區已變更/);
   const before = commands.length; await f.host.openNotificationTarget('notice', 'logs');

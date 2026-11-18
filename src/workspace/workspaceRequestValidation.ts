@@ -3,8 +3,6 @@ import { workspaceSettingIds } from './workspaceProtocol';
 import type { IssueAction, IssuePanelRequest } from '../issues/protocol';
 import type { GitAction } from '../git/gitProtocol';
 import { isGitPanelRequest } from '../git/gitProtocol';
-import { isCodexCommand } from '../codex/commands';
-import { sanitizeCodexUiDraftValue } from '../codex/uiDraftProtocol';
 
 type Check = (value: unknown) => boolean;
 type Shape = Record<string, Check>;
@@ -24,7 +22,7 @@ const object = (shape: Shape): Check => value => record(value) && Object.keys(va
 const dictionary = (check: Check, max = 1000): Check => value => record(value) && Object.keys(value).length <= max
   && Object.entries(value).every(([name, item]) => identity(name) && !['__proto__', 'constructor', 'prototype'].includes(name) && check(item));
 const strings = array(key), ids = array(id, 10000), tool = one('merge-reviewer', 'release-reviewer');
-const source = one('gitea', 'github'), mode = one('dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'codex');
+const source = one('gitea', 'github'), mode = one('dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git');
 const metadata: Shape = { operationId: optional(value => identity(value) && /^[a-z0-9-]{1,100}$/i.test(String(value))),
   operationScope: optional(string(500)), hostSessionId: optional(identity), scopeEpoch: optional(integer), projectRevision: optional(key),
   uiIntentId: optional(object({ viewId: identity, sequence: integer })), hostNavigationGeneration: optional(integer) };
@@ -100,67 +98,18 @@ const projectIssue: Shape = { projectId: id, issueIid: id }, projectMr: Shape = 
 const time: Shape = { duration: string(100, 1), summary: text, spentAt: optional(string(64)) };
 const recovery = object({ requestId: identity, resourceKey: key, action: identity, label: string(200, 1),
   correlationId: optional(identity), lockKey: optional(key), kind: optional(one('local', 'control', 'read', 'write')) });
-// MCP form answers can contain bounded JSON primitives/arrays. Authorization and
-// the tool's actual schema remain validated against the pending Host interaction.
-const json: Check = value => {
-  let nodes = 0, chars = 0;
-  const visit = (item: unknown, depth: number): boolean => {
-    if (++nodes > 10000 || depth > 8) return false;
-    if (typeof item === 'string') { chars += item.length; return item.length <= 32000 && chars <= 256000; }
-    if (item === null || typeof item === 'boolean') return true;
-    if (typeof item === 'number') return Number.isFinite(item);
-    if (Array.isArray(item)) return item.length <= 1000 && item.every(child => visit(child, depth + 1));
-    return record(item) && Object.keys(item).length <= 1000 && Object.entries(item).every(([name, child]) => identity(name)
-      && !['__proto__', 'constructor', 'prototype'].includes(name) && visit(child, depth + 1));
-  };
-  return record(value) && visit(value, 0);
+const codexSourceSchemas: Record<string, Shape> = {
+  skill: { featureId: identity, inputs: dictionary(text, 100), revision: key },
+  bmad: { request: object({ ...bmad, command: one('task', 'skill', 'entry') }) },
+  review: { ...review, action: one('resume', 'refresh') },
+  'merge-request': { ...projectMr, reviewerTool: tool, expectedScope: optional(key) }
 };
-const testCommands: Check = value => array(item => string(4096, 1)(item) && !/[\r\n]/.test(String(item)), 20)(value);
-const taskSourceCommon: Shape = { requirement: optional(text), additionalSkillIds: optional(array(identity, 100)), testCommands: optional(testCommands),
-  automaticDelivery: optional(boolean), oneClick: optional(boolean), expectedScope: optional(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)) };
-const sourceObject = (shape: Shape): Check => object({ ...taskSourceCommon, ...shape });
-const taskSource: Check = value => record(value) && (
-  value.kind === 'skill' ? sourceObject({ kind: one('skill'), featureId: identity, inputs: dictionary(text, 100), revision: key })(value)
-    : value.kind === 'bmad' ? sourceObject({ kind: one('bmad'), request: object(bmad) })(value)
-      : value.kind === 'group-analysis' ? sourceObject({ kind: one('group-analysis'), repositoryIds: optional(array(identity, 1000)) })(value)
-        : value.kind === 'issue' ? sourceObject({ kind: one('issue'), projectId: id, issueIid: id, isolated: optional(boolean), buildMode: optional(one('interactive', 'auto')) })(value)
-        : value.kind === 'project-wiki' ? sourceObject({ kind: one('project-wiki'), projectId: id })(value)
-          : value.kind === 'merge-request' ? sourceObject({ kind: one('merge-request'), projectId: id, iid: id,
-            intent: optional(one('review', 'fix-comments')), discussionIds: optional(array(identity, 30)), reviewerTool: optional(tool) })(value)
-            : value.kind === 'review' && sourceObject({ kind: one('review'), action: one('resume', 'refresh'), tool, requestId: identity, revision: key })(value));
-
-// Launch forms use an empty selection for Group analysis and before choosing a single Repo.
-const launchPatch = object({ requirement: optional(text), repositoryId: optional(string(160)), model: optional(string(200)),
-  effort: optional(string(40)), isolated: optional(boolean), discussionIds: optional(array(identity, 30)), acknowledgedSource: optional(identity),
-  repositoryIds: optional(array(identity, 1000)), additionalSkillIds: optional(array(identity, 100)), testCommands: optional(testCommands), automaticDelivery: optional(boolean) });
-const uiDraftUpdate: Check = value => {
-  if (!object({ key: string(9000, 1), revision: integer, value: () => true })(value)) return false;
-  try { const item = value as { key: string; value: unknown }; sanitizeCodexUiDraftValue(item.key, item.value); return JSON.stringify(value).length <= 200_000; } catch { return false; }
-};
+const codexCliSource: Check = value => record(value) && typeof value.kind === 'string'
+  && Object.hasOwn(codexSourceSchemas, value.kind)
+  && object({ ...codexSourceSchemas[value.kind], kind: one(value.kind) })(value);
 export const workspaceRequestSchemas = {
-  loadCodexUiDrafts: { requestId: identity },
-  saveCodexUiDrafts: { requestId: identity, scope: value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value), remoteScope: optional(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)), updates: array(uiDraftUpdate, 100), resolveConflictIds: optional(array(identity, 100)) },
-  codexCommand: { command: isCodexCommand },
-  startCodexTask: { source: taskSource }, openLocalWiki: { repository: path }, listCodexTasks: {}, codexHistory: { taskId: identity, cursor: optional(key), force: optional(boolean) },
-  createCodexLaunch: { source: optional(taskSource) },
-  pickCodexLaunch: {},
-  updateCodexLaunch: { draftId: identity, revision: integer, patch: launchPatch },
-  checkCodexLaunch: { draftId: identity, revision: optional(integer), patch: optional(launchPatch) },
-  submitCodexLaunch: { draftId: identity, revision: optional(integer), patch: optional(launchPatch) },
-  cancelCodexLaunch: { draftId: identity, revision: optional(integer) }, showCodexLaunch: { draftId: identity, revision: optional(integer) },
-  repairCodexLaunch: { draftId: identity, action: one('login', 'clone', 'scan', 'tools', 'codex-login', 'sandbox', 'executable') },
-  showCodexTask: { taskId: identity }, readCodexResult: { taskId: identity }, openCodexOrigin: { taskId: identity }, openCodexChanges: { taskId: identity },
-  previewProjectWiki: { taskId: identity, refresh: optional(boolean), confirmRetry: optional(boolean), cursor: optional(identity) },
-  openProjectWikiDocument: { taskId: identity, revision: identity, slug: string(1000, 1), mode: one('source', 'diff') },
-  cancelProjectWikiPreview: { taskId: identity },
-  publishProjectWiki: { taskId: identity, revision: identity }, publishCodexReview: { taskId: identity, body: string(50000, 1) },
-  sendCodexMessage: { taskId: identity, text }, cancelCodexTask: { taskId: identity }, resumeCodexTask: { taskId: identity },
-  pauseCodexTask: { taskId: identity }, deleteCodexTask: { taskId: identity },
-  deleteCodexTasks: { taskIds: value => array(identity)(value) && (value as unknown[]).length > 0 }, setCodexAutoAccept: { taskId: identity, enabled: boolean },
-  answerCodex: { taskId: identity, interactionId: identity, answer: object({ decision: one('accept', 'acceptForSession', 'decline', 'cancel'), scope: optional(one('turn', 'session')),
-    execpolicyAmendment: optional(array(string(4096, 1), 100)), networkPolicyAmendment: optional(object({ action: one('allow', 'deny'), host: string(4096, 1) })),
-    answers: optional(dictionary(string(8000), 100)), content: optional(json) }) },
-  checkCodex: {}, configureCodex: { action: one('login', 'sandbox', 'executable') },
+  runCodexCli: { source: codexCliSource },
+  codexCliSettings: { action: one('check', 'login', 'executable') },
   ready: { projectSource: optional(one('gitlab', 'local')), developerView: optional(one('list', 'graph')), mergeRequestFilter: optional(one('all', 'reviewer', 'assigned')) },
   reconcileOperations: { pendingIds: optional(array(identity, 200)) }, confirmOperationResult: { targetOperationId: identity, recovery: optional(recovery) },
   refresh: { mode: optional(mode), projectSource: optional(one('gitlab', 'local')) }, retryInstanceCheck: {},
@@ -189,8 +138,7 @@ export const workspaceRequestSchemas = {
   startTimer: projectIssue, pauseTimer: { id: identity }, resumeTimer: { id: identity }, stopTimer: { id: identity },
   addManualTime: { ...projectIssue, ...time }, updateTimeEntry: { id: identity, ...time, spentAt: string(64) }, submitTimeEntry: { id: identity }, acknowledgeTimeEntry: { id: identity },
   selectMergeRequest: projectMr, refreshMergeRequest: projectMr, reconcileMergeRequestWrite: projectMr,
-  loadMergeRequestSection: { ...projectMr, section: one('diffs', 'discussions') }, postMergeRequestNote: { ...projectMr, body: string(1_100_000, 1) }, openBranchReview: projectMr,
-  prepareCommitReview: { mode: one('commit', 'mr'), revision: key, repo: optional(path), projectId: optional(id), issueIid: optional(id) },
+  loadMergeRequestSection: { ...projectMr, section: one('diffs', 'discussions') }, postMergeRequestNote: { ...projectMr, body: string(1_100_000, 1) },
   loadSkillBranches: { repo: path, revision: key, requestId: identity },
   pickSkillBranch: { repo: path, revision: key, requestId: identity, field: one('merge-repo.base', 'merge-repo.head', 'release-review.base', 'release-review.head') },
   loadReviewerCapabilities: review, loadReviewSessions: { revision: key, tool },
@@ -212,9 +160,6 @@ export class WorkspaceProtocolError extends Error {
 export function isWorkspaceRequest(value: unknown): value is WorkspaceRequest {
   if (!variant(workspaceRequestSchemas, metadata)(value)) return false;
   const request = value as WorkspaceRequest;
-  if (request.type === 'prepareCommitReview') return request.repo !== undefined
-    ? request.projectId === undefined && request.issueIid === undefined
-    : request.projectId !== undefined && request.issueIid !== undefined;
   if (!request.type.startsWith('git')) return true;
   const payload = Object.fromEntries(Object.entries(request).filter(([name]) => !Object.hasOwn(metadata, name)));
   return isGitPanelRequest(payload);

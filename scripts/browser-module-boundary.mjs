@@ -5,9 +5,7 @@ import { builtinModules } from 'node:module';
 // checked by the same rule, so a later Host dependency cannot enter transitively.
 export const browserSharedModules = [
   'src/connection/connectionState.ts',
-  'src/codex/documentationVerification.ts',
-  'src/codex/forms.ts', 'src/codex/historyBudget.ts', 'src/codex/launchProtocol.ts', 'src/codex/protocol.ts',
-  'src/codex/transcript.ts', 'src/codex/uiDraftProtocol.ts', 'src/connection/accountProtocol.ts',
+  'src/connection/accountProtocol.ts',
   'src/notifications/notificationProtocol.ts',
   'src/git/gitDiffSelection.ts', 'src/git/gitGraphLayout.ts', 'src/git/gitProtocol.ts', 'src/issues/builtInIssueTemplates.ts',
   'src/workspace/actionController.ts', 'src/workspace/actionPolicy.ts', 'src/workspace/bmadEntrypoints.ts',

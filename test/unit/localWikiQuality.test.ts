@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import test from 'node:test';
-import type { CodexTaskSpec } from '../../src/codex/protocol';
 import type { PythonRuntime } from '../../src/workspace/pythonRuntime';
 import { captureLocalWikiBaseline, collectLocalWikiQuality, inspectLocalWikiQuality, isLocalWikiBaseline, isLocalWikiQualityReceipt,
   type LocalWikiHelperRunner } from '../../src/workspace/localWikiQuality';
@@ -16,14 +15,14 @@ async function fixture(t: test.TestContext, featureId = 'ingest') {
   await mkdir(path.join(root, 'wiki', 'modules'), { recursive: true });
   const write = (file: string, text: string) => writeFile(path.join(root, 'wiki', file), text);
   await Promise.all([write('index.md', 'index\n'), write('log.md', 'old operation\n'), write('modules/a.md', 'old content\n'), write('modules/b.md', 'old B\n')]);
-  const spec: CodexTaskSpec = { root, title: 'Wiki', prompt: '', workspaceKey: 'wiki', environmentKey: 'env', writableRoots: [path.join(root, 'wiki')],
-    source: { kind: 'skill', featureId, inputs: { 'ingest.scope': '單一路徑', 'ingest.path': 'service', 'wiki.profile': 'group' }, revision: 'one' },
+  const spec = { root,
+    source: { kind: 'skill' as const, featureId, inputs: { 'ingest.scope': '單一路徑', 'ingest.path': 'service', 'wiki.profile': 'group' } as Record<string, string> },
     skill: { name: 'codebase-wiki', path: path.join(root, '.agents', 'skills', 'codebase-wiki', 'SKILL.md') } };
   return { root, write, spec };
 }
 
 test('Query skips source inventories and helpers even when its Wiki and root do not exist', async () => {
-  const spec = { root: path.join(os.tmpdir(), 'missing-wiki-root-8361'), source: { kind: 'skill', featureId: 'query', inputs: {}, revision: 'one' }, skill: { name: 'codebase-wiki', path: 'missing' } } as CodexTaskSpec;
+  const spec = { root: path.join(os.tmpdir(), 'missing-wiki-root-8361'), source: { kind: 'skill' as const, featureId: 'query', inputs: {} }, skill: { name: 'codebase-wiki', path: 'missing' } };
   const run: LocalWikiHelperRunner = async () => { assert.fail('Query cannot execute helpers'); };
   assert.equal(await captureLocalWikiBaseline(spec), undefined);
   assert.equal(await collectLocalWikiQuality(spec, python, undefined, run), undefined);
@@ -63,7 +62,6 @@ test('Wiki update cannot report success after rewriting history or dropping mark
 
 test('explicit full Group ingest runs coverage with original scope and retains partial results', async t => {
   const f = await fixture(t);
-  if (f.spec.source.kind !== 'skill') assert.fail('fixture');
   f.spec.source.inputs['ingest.scope'] = '全部專案';
   const baseline = await captureLocalWikiBaseline(f.spec), calls: Array<{ script: string; args: string[] }> = [];
   const checked = await inspectLocalWikiQuality(f.spec, python, baseline, async (script, args) => {
@@ -116,7 +114,6 @@ test('quality receipt validation rejects foreign fields, unsafe paths and incomp
 
 test('full selected Repo ingest validates only its coverage ledger and preserves other Repo findings', async t => {
   const f = await fixture(t);
-  if (f.spec.source.kind !== 'skill') assert.fail('fixture');
   Object.assign(f.spec.source.inputs, { 'wiki.scope': 'repository', 'wiki.sourceRepo': path.join(f.root, 'service') });
   await f.write('modules/a.md', '---\nsources: [service/a.ts]\n---\nA\n');
   await f.write('modules/b.md', '---\nsources: [other/b.ts]\n---\nB\n');
@@ -137,7 +134,6 @@ test('full selected Repo ingest validates only its coverage ledger and preserves
 
 test('selected Repo Wiki cannot report success after changing another Repo page or inventing an unmapped page', async t => {
   const f = await fixture(t);
-  if (f.spec.source.kind !== 'skill') assert.fail('fixture');
   Object.assign(f.spec.source.inputs, { 'wiki.scope': 'path', 'wiki.sourceRepo': path.join(f.root, 'service'), 'ingest.path': 'service/src' });
   await f.write('modules/b.md', '---\nsources: [other/b.ts]\n---\nB\n');
   const baseline = await captureLocalWikiBaseline(f.spec);
@@ -150,7 +146,6 @@ test('selected Repo Wiki cannot report success after changing another Repo page 
 
 test('direct Repo partial path updates preserve pages outside the selected source directory', async t => {
   const f = await fixture(t);
-  if (f.spec.source.kind !== 'skill') assert.fail('fixture');
   Object.assign(f.spec.source.inputs, { 'wiki.profile': 'repository', 'ingest.path': 'src/payments' });
   await f.write('modules/a.md', '---\nsources: [src/payments/a.ts]\n---\nPayments\n');
   await f.write('modules/b.md', '---\nsources: [src/orders/b.ts]\n---\nOrders\n');

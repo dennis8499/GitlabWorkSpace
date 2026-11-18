@@ -1,9 +1,8 @@
-import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { access, readFile, realpath, stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { CodexProcessReceipt } from './workspaceLease';
 import { GitLabReadCache } from '../api/gitLabReadCache';
 
 const run = promisify(execFile);
@@ -69,17 +68,12 @@ export async function resolveCodexExecutable(configured = '', projectRoot?: stri
     }
     await access(file);
     const { version, identity } = await codexExecutableVersion(file, signal);
-    const [major, minor] = version.split('.').map(Number);
-    if (major === 0 && (minor < 165 || minor === 165 && version.includes('-'))) {
-      if (configured) throw new Error('一鍵執行需要 Codex CLI 0.165.0 或更新版本，請更新 Codex。');
+    const [major, minor, patch] = version.split(/[-+]/, 1)[0].split('.').map(Number);
+    if (major === 0 && (minor < 169 || minor === 169 && patch === 0 && version.split('+', 1)[0].includes('-'))) {
+      if (configured) throw new Error('終端執行需要 Codex CLI 0.169.0 或更新版本，請更新 Codex。');
       incompatible = true; continue;
     }
     return { file, version, identity };
   }
-  throw new Error(incompatible ? '一鍵執行需要 Codex CLI 0.165.0 或更新版本，請更新 Codex。' : '找不到 Codex CLI；請安裝 Codex，或在使用者設定指定 gitlabWorkspace.codex.executablePath。');
-}
-export function spawnCodex(executable: string, cwd: string, receipt?: CodexProcessReceipt): ChildProcessWithoutNullStreams {
-  return spawn(process.execPath, [path.join(__dirname, 'processHost.js'), executable, cwd, receipt?.path ?? '', receipt?.nonce ?? ''], {
-    cwd, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
-  });
+  throw new Error(incompatible ? '終端執行需要 Codex CLI 0.169.0 或更新版本，請更新 Codex。' : '找不到 Codex CLI。請安裝 Codex，或在使用者設定指定 gitlabWorkspace.codex.executablePath。');
 }

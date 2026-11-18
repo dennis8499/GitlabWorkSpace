@@ -36,7 +36,7 @@ async function fixture(t: test.TestContext) {
     reviewerRepositories: [{ name: 'service', path: project }], repositories: [{ name: 'service', path: project }] };
   const panel = Object.assign(Object.create(WorkspacePanel.prototype), { getSkillsContext: () => context,
     refreshWorkflowKit: async () => {}, refreshInventory: async () => {}, operationPhase: () => {},
-    codexSpec: async (_source: unknown, _title: string, _root: string, _tool: string, prompt: string, writableRoots: string[], review: unknown) => ({ prompt, writableRoots, review }) });
+    workflowCliSpec: async (_title: string, _root: string, _tool: string, prompt: string, writableRoots: string[]) => ({ prompt, writableRoots }) });
   const job = { schema: 'MergeReviewSession/v1', request_id: requestId, runtime_root: runtime, state: 'reviewing', phase: 'review', updated_at: '2026-11-10T00:00:00Z',
     inputs: { workspace: root, project, base: 'origin/main', head: 'feature/change' } };
   const save = async (value: unknown) => {
@@ -53,7 +53,7 @@ test('Host prepares a structured launch with the displayed Repo and branches wit
   const request = JSON.parse(await readFile(filename, 'utf8')) as ReviewLaunchRequest;
   assert.equal(request.workspace, f.root); assert.equal(request.project, f.project);
   assert.equal(request.base, inputs['merge-repo.base']); assert.equal(request.head, inputs['merge-repo.head']);
-  assert.equal(request.auth_scope, 'f'.repeat(64)); assert.equal(task.review.requestId, request.request_id);
+  assert.equal(request.auth_scope, 'f'.repeat(64)); assert.equal(request.request_id, f.requestId);
   assert.ok(task.prompt.includes(`Repo：${request.project}`)); assert.ok(task.prompt.includes(`分支：${request.head} → ${request.base}`));
   assert.ok(task.writableRoots.includes(reviewRunnerRuntime(f.runtime)));
   await assert.rejects(readdir(f.runtime), { code: 'ENOENT' });
@@ -71,7 +71,7 @@ test('Host rejects terminal resume before any helper dispatch, and published cle
   await f.save({ ...f.job, state: 'published', phase: 'complete', cleanup_pending: true });
   const result = await f.panel.controlReviewSession(control, 'resume', true);
   assert.equal(result.reviewRequestId, f.requestId); assert.equal(result.runtimeRoot, f.runtime);
-  assert.ok(result.prompt.includes('--action finish')); assert.equal(result.published, true);
+  assert.ok(result.prompt.includes('--action finish'));
   const bytes = JSON.parse(await readFile(path.join(reviewRunnerRuntime(f.runtime), 'launch', f.requestId + '.json'), 'utf8'));
   assert.equal(bytes.request_id, f.requestId); assert.equal(bytes.refresh, undefined);
 });

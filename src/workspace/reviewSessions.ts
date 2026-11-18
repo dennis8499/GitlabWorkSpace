@@ -39,6 +39,7 @@ interface ReviewJob {
   evidence_receipt?: { schema?: string; manifest_sha256?: string };
   report_path?: string;
   report_sha256?: string;
+  report_static_sha256?: string;
   error?: string;
   network_activity?: { fetch_attempt_count?: number };
   pack_cache_hits?: number;
@@ -237,6 +238,27 @@ export async function readReviewFixedIdentity(job: ReviewJob, root: string, tool
         repo.sources?.base?.ref !== identity.baseSha || repo.sources?.head?.ref !== identity.headSha || report?.identity && !samePair(identity, report.identity)) return;
     return { ...identity, ...(typeof manifest.capture_completed_at === 'string' ? { capturedAt: manifest.capture_completed_at } : {}) };
   } catch { return; } // Missing or conflicting evidence is unknown, never an authorization to bypass the MR SHA gate.
+}
+
+/** Verify the native report receipt before acting on a published request. */
+export async function readVerifiedReviewPublication(job: ReviewJob, runtime: string, tool: ReviewerToolId): Promise<FixedReviewIdentity | undefined> {
+  if (job.state !== 'published' || !job.report_path) return;
+  if (tool === 'release-reviewer') {
+    const report = await realpath(job.report_path);
+    const reports = path.join(job.inputs.project, 'review-reports');
+    await plain(job.report_path);
+    if (!samePath(path.dirname(report), await realpath(reports))) return;
+    const bytes = await plainBytes(report, 8 * 1024 * 1024), utf8 = bytes.toString('utf8');
+    if (!Buffer.from(utf8, 'utf8').equals(bytes)) return;
+    // Native Python read_text normalizes line endings before hashing. Only the
+    // editable human checklist is excluded from the fixed report body.
+    const body = utf8.replace(/\r\n?/g, '\n');
+    const start = '<!-- release-checklist:start -->', end = '<!-- release-checklist:end -->';
+    const first = body.indexOf(start), last = body.indexOf(end);
+    if (first < 0 || last <= first || body.indexOf(start, first + 1) >= 0 || body.indexOf(end, last + 1) >= 0 ||
+      digest(body.slice(0, first) + body.slice(last + end.length)) !== job.report_static_sha256) return;
+  }
+  return readReviewFixedIdentity(job, runtime, tool);
 }
 async function ownedRuntime(root: string, tool: ReviewerToolId = 'merge-reviewer'): Promise<boolean> {
   if (!isReviewerTool(tool)) throw new Error('無效的審查工具。');

@@ -22,8 +22,8 @@ test('only a nonempty workspace containing exclusively virtual folders limits lo
 });
 
 test('virtual capabilities block local dispatch while preserving remote writes, clipboard and logs', () => {
-  const local = ['scanRepositories', 'clone', 'syncRepos', 'installWorkflowKit', 'refreshBmad', 'startCodexTask',
-    'loadReviewSessions', 'openBranchReview', 'gitAction', 'gitOpenDiff'];
+  const local = ['scanRepositories', 'clone', 'syncRepos', 'installWorkflowKit', 'refreshBmad', 'runCodexCli',
+    'loadReviewSessions', 'gitAction', 'gitOpenDiff'];
   for (const type of local) {
     const sent: unknown[] = [], controller = new ActionController(request => sent.push(request));
     controller.setContext({ scopeRevision: 'remote', localOperationScope: 'local', workspaceCapabilities: virtual });

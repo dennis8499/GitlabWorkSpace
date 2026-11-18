@@ -74,31 +74,6 @@ test('local writes keep their receipt during account transitions while GitLab pu
   assert.equal(calls, 1); assert.equal(f.operations.get('remote-clone')?.effect, 'none');
 });
 
-test('live account-bound results hide execution details and foreign roots even without a remote origin', () => {
-  const f = fixture();
-  f.host.codex = { peekSpecification: () => ({ source: { kind: 'free', expectedScope: 'b'.repeat(64) } }) };
-  const task = { id: 'retained-task', title: 'Retained result', root: 'C:/workspace', status: 'paused', createdAt: '2026-11-17', updatedAt: '2026-11-17',
-    threadId: 'PRIVATE-THREAD', messageQueue: [{ id: 'private', text: 'PRIVATE-MESSAGE', state: 'uncertain' }], result: { state: 'ready', summary: 'Frozen summary', reportPath: 'PRIVATE-PATH' } };
-  const result = f.host.projectCodexTasks([task, { ...task, id: 'foreign-task', root: 'C:/foreign' }]);
-  assert.equal(result.length, 1); assert.equal(result[0].accessMode, 'local-result');
-  assert.deepEqual(result[0].result, { state: 'ready', summary: 'Frozen summary' });
-  assert.doesNotMatch(JSON.stringify(result), /PRIVATE-THREAD|PRIVATE-MESSAGE|PRIVATE-PATH|foreign-task/);
-});
-
-test('Host rejects forged continuation and approval requests for another account local result', async () => {
-  const f = fixture(); let calls = 0;
-  const spec = { source: { kind: 'issue', projectId: 1, issueIid: 2 }, origin: { kind: 'issue', accountKey: 'other-account', baseUrl: 'https://other.test' } };
-  f.host.codex = { peekSpecification: () => spec };
-  f.host.localResultsReadOnly = new Set();
-  f.host.dispatchMessage = async () => { calls++; };
-  for (const request of [{ type: 'resumeCodexTask', taskId: 'retained' }, { type: 'setCodexAutoAccept', taskId: 'retained', enabled: true },
-    { type: 'codexHistory', taskId: 'retained' }, { type: 'codexCommand', command: { action: 'confirm-delivery', taskId: 'retained' } }]) {
-    await assert.rejects(f.host.handleMessage(request), /僅提供本機成果/);
-  }
-  assert.equal(calls, 0);
-  await f.host.handleMessage({ type: 'readCodexResult', taskId: 'retained' }); assert.equal(calls, 1);
-});
-
 test('stale scope and retired host requests fail inside the lifecycle; reconciliation never replays a task', async () => {
   const f = fixture(); let calls = 0;
   f.host.dispatchMessage = async () => { calls++; };

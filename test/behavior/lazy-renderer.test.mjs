@@ -19,7 +19,7 @@ async function assetsForTest() {
   return files;
 }
 
-test('lazy feature chunks preserve navigation, background state, retry and native modal behavior', { timeout: 60000 }, async t => {
+test('lazy feature chunks preserve navigation, retry and native modal behavior', { timeout: 60000 }, async t => {
   const assets = await assetsForTest();
   const manifest = JSON.parse(assets.get('asset-manifest.json').toString());
   const featureFile = name => {
@@ -60,7 +60,7 @@ test('lazy feature chunks preserve navigation, background state, retry and nativ
   }, initial);
   await page.goto('http://127.0.0.1:7878/dashboard.html');
   await page.locator('.home-dashboard').waitFor();
-  const featureNames = ['IssueGraph', 'GitControlPanel', 'SkillsGuide', 'BmadPanel', 'CodexWorkspace'];
+  const featureNames = ['IssueGraph', 'GitControlPanel', 'SkillsGuide', 'BmadPanel'];
   for (const name of featureNames) assert.equal(requested.includes(featureFile(name)), false, `Home must not load ${name}`);
   let generation = 0;
   const send = data => page.evaluate(data => window.dispatchEvent(new MessageEvent('message', { data })), data);
@@ -79,14 +79,6 @@ test('lazy feature chunks preserve navigation, background state, retry and nativ
     await page.getByRole('button', { name: '重試載入BMAD' }).click();
     await page.locator('.bmad-panel').waitFor({ timeout: 5000 });
     assert.equal(await page.evaluate(() => window.lazyRequests.length), before);
-  });
-  await t.test('background Codex state survives until the renderer is first opened', async () => {
-    assert.equal(requested.includes(featureFile('CodexWorkspace')), false);
-    await send({ type: 'codexEvent', event: { kind: 'tasks', tasks: [{ id: 'background', title: 'Background task preserved', root: 'C:/fixture', status: 'completed', createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' }] } });
-    await navigate('codex'); await page.getByText('Background task preserved', { exact: true }).first().waitFor();
-    assert.equal(requested.filter(name => name === featureFile('CodexWorkspace')).length, 1);
-    await navigate('dashboard'); await navigate('codex');
-    assert.equal(requested.filter(name => name === featureFile('CodexWorkspace')).length, 1);
   });
   await t.test('HTML dialog uses the top layer and follows the VS Code reduce-motion class', async () => {
     await navigate('dashboard');

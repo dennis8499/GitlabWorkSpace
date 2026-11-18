@@ -115,8 +115,7 @@ def main():
                      'resources/workflow-kit-status.py', 'out/src/workspace/workspacePanel.js',
                      'resources/bmad/entrypoints.json', 'out/src/workspace/bmadEntrypoints.js',
                      'out/src/workspace/bmadArtifactStore.js', 'out/src/workspace/bmadContinuation.js',
-                     'out/src/codex/buildAutoProbe.js', 'out/src/codex/managedRepository.js',
-                     'out/src/codex/taskWorkspace.js', 'out/src/codex/groupIssues.js', 'out/src/codex/sourceMetadata.js',
+                     'out/src/codex/terminal.js', 'out/src/codex/buildAutoCli.js',
                      'out/src/workspace/workflowKitReleases.js', 'resources/git-askpass.js',
                      'resources/git-askpass.sh', 'resources/git-ssh-askpass.sh',
                      'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1',
@@ -130,6 +129,11 @@ def main():
         if any(name.startswith(forbidden) or name.endswith('.log') or name in (
             'extension/resources/workflow-kit-installer.py', 'extension/resources/tool-installer.py') for name in members):
             raise ValueError('VSIX contains a local installation package, installer, test or development resource')
+        retired_codex = ('appServer', 'adapter', 'bridge', 'buildAutoProbe', 'processHost', 'rpcError', 'taskWorkspace')
+        codex_prefix = 'extension/out/src/codex/'
+        if any(name.startswith(codex_prefix + 'generated/') or name in (
+            codex_prefix + module + '.js' for module in retired_codex) for name in members):
+            raise ValueError('VSIX contains a retired Codex runtime module')
         for entry in archive.infolist():
             if entry.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED) or entry.compress_type == zipfile.ZIP_DEFLATED and entry.compress_size >= entry.file_size:
                 raise ValueError('VSIX compression contract differs')

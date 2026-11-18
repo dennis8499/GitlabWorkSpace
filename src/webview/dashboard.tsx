@@ -22,11 +22,7 @@ import { UiSelectionIntents } from './uiSelectionIntent';
 import type { UiIntentField, UiIntentValues } from '../workspace/uiIntentProtocol';
 import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { CodexSettings } from './CodexSettings';
-import { useCodexWorkspace, codexStatusLabels } from './useCodexWorkspace';
 import { connectionLabel } from '../connection/connectionState';
-import type { CodexTaskState } from '../codex/protocol';
-import { CodexWorkflowLaunch, taskForSource } from './CodexWorkflowLaunch';
-import type { CodexUiState } from './codexUiState';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
 import { RepositoryOperationStatus } from './RepositoryOperationStatus';
@@ -58,11 +54,9 @@ const IssueGraphView = lazyFeature('Issue 圖譜', () => import('./IssueGraph').
 const SkillsGuide = lazyFeature('Skills', () => import('./SkillsGuide').then(module => module.SkillsGuide));
 const BmadPanel = lazyFeature('BMAD', () => import('./BmadPanel').then(module => module.BmadPanel));
 const GitControlPanel = lazyFeature('版控', () => import('./GitControlPanel').then(module => module.GitControlPanel));
-const CodexWorkspace = lazyFeature('Codex', () => import('./CodexWorkspace').then(module => module.CodexWorkspace));
 
 interface DraftChoice { assigneeId?: number; labels: string[]; milestoneId?: number; }
 interface SavedState {
-  codexUi?: CodexUiState;
   bmadUiByRoot?: Record<string, BmadPanelState>;
   gitUi?: GitPanelUiState;
   issueNavigation?: IssueNavigation | null;
@@ -98,7 +92,7 @@ interface SavedState {
   draftMilestones: Record<string, string>;
   draftLabels: Record<string, string>;
   draftChoices: Record<string, DraftChoice>;
-  reports: Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean; taskId?: string }>;
+  reports: Record<string, { text: string; taskId?: string }>;
   workflowKitSource: ToolSource;
   /** Read older saved webview state without discarding it. */
   toolSource?: ToolSource;
@@ -141,7 +135,7 @@ interface ScopedSavedState {
   importedBundle?: IssueDraftBundle;
   draftChecked: Record<string, boolean>;
   draftChoices: Record<string, DraftChoice>;
-  reports: Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean; taskId?: string }>;
+  reports: Record<string, { text: string; taskId?: string }>;
   /** Legacy v1/v2 field: its Issue could not be identified. */
   manualTime?: ManualTimeDraft;
   manualTimes?: Record<string, ManualTimeDraft>;
@@ -304,8 +298,8 @@ function snapshotSectionActions(section: WorkspaceSection, status: WorkspaceSect
 }
 let latestConnectedScope: string | undefined;
 
-function DashboardOverview({ snapshot, tasks, notifications, onTask, disabled, onNavigate, onLocalRepositories, onGitLabProjects, onOpenSettings, post }: {
-  snapshot: WorkspaceSnapshot; tasks: CodexTaskState[]; notifications?: NotificationSnapshot; onTask(id: string): void; disabled: boolean; onNavigate: (mode: WorkspaceMode) => void;
+function DashboardOverview({ snapshot, notifications, disabled, onNavigate, onLocalRepositories, onGitLabProjects, onOpenSettings, post }: {
+  snapshot: WorkspaceSnapshot; notifications?: NotificationSnapshot; disabled: boolean; onNavigate: (mode: WorkspaceMode) => void;
   onLocalRepositories: () => void; onGitLabProjects: () => void; onOpenSettings: () => void;
   post: (request: WorkspaceRequest) => DispatchResult;
 }) {
@@ -330,12 +324,9 @@ function DashboardOverview({ snapshot, tasks, notifications, onTask, disabled, o
       ...(status?.status === 'ready' && status.complete === false ? { mode: 'next' as const } : {}) });
   };
 
-  const priority = (task: CodexTaskState) => task.status === 'waiting' ? 0 : ['failed', 'uncertain', 'interrupted'].includes(task.status) ? 1 : 2;
-  const recent = [...tasks].sort((a, b) => priority(a) - priority(b) || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
   const errors = notifications?.items.filter(item => item.level !== 'info' && item.origin?.accountId === snapshot.activeAccountId && item.origin?.groupId === snapshot.group?.id).slice(0, 3) ?? [];
   return <div class="home-dashboard" aria-label="共用 Dashboard">
-    {(recent.length > 0 || errors.length > 0) && <section class="home-card home-attention" aria-label="待處理與最近工作"><h2>待處理與最近工作</h2>
-      {recent.map(task => <button class="home-feature" type="button" key={task.id} onClick={() => onTask(task.id)}><Codicon name={task.status === 'waiting' ? 'comment-discussion' : 'history'} /><span><strong>{task.title}</strong><small>{codexStatusLabels[task.status]}</small></span></button>)}
+    {errors.length > 0 && <section class="home-card home-attention" aria-label="待處理與最近工作"><h2>待處理與最近工作</h2>
       {errors.map(item => <div key={item.id} class="home-feedback"><strong>{item.title}</strong><span>{item.messages.at(-1)}</span><button class="quiet" type="button" onClick={() => post({ type: 'openNotificationTarget', id: item.id, destination: 'origin' })}>前往處理</button></div>)}
     </section>}
     <section class="home-card local-projects-card" aria-label="本機專案">
@@ -408,13 +399,6 @@ function App() {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   requestMode = mode;
-  const codex = useCodexWorkspace({ post, actions, initialState: initial?.codexUi,
-    managedTaskFocus: snapshot?.managedTaskFocus, accountId: snapshot?.activeAccountId,
-    root: snapshot?.projectContext?.root ?? snapshot?.groupRoot,
-    scope: snapshot?.codexDraftScope ?? `${snapshot?.instanceUserScope ?? ''}:${snapshot?.activeAccountId ?? ''}:${snapshot?.projectContext?.root ?? snapshot?.groupRoot ?? ''}`,
-    remoteScope: snapshot?.codexRemoteDraftScope,
-    enabled: !!snapshot && !localProjectBlocker(snapshot.workspaceCapabilities), visible: mode === 'codex', onOpen: () => modeChange('codex'),
-    onStateChange: codexUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), codexUi }) });
   const [gitPanelVisited, setGitPanelVisited] = useState(initial?.mode === 'git');
   useEffect(() => { if (mode === 'git') setGitPanelVisited(true); }, [mode]);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
@@ -458,7 +442,7 @@ function App() {
   const [draftChecked, setDraftChecked] = useState<Record<string, boolean>>(initial?.draftChecked ?? {});
   const [draftChoices, setDraftChoices] = useState<Record<string, DraftChoice>>(initial?.draftChoices ?? {});
   const [_draftOptions, setDraftOptions] = useState<Record<number, { options: IssueFormOptions; canCreateIssue: boolean }>>({});
-  const [reports, setReports] = useState<Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean; taskId?: string }>>(initial?.reports ?? {});
+  const [reports, setReports] = useState<Record<string, { text: string; taskId?: string }>>(initial?.reports ?? {});
   const [_similarIssues, setSimilarIssues] = useState<Record<string, Array<{ iid: number; title: string; webUrl: string }>>>({});
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initialScopedState?.reviewFilter ?? initial?.reviewFilter ?? 'all');
   const unresolvedReviewFilter = useRef<UiIntentValues['mergeRequestFilter']>();
@@ -468,7 +452,6 @@ function App() {
   const [toolDrawer, setToolDrawer] = useState(false);
   const [settingsSection, setSettingsSection] = useState<'tools' | 'accounts'>('tools');
   const [settingsFocus, setSettingsFocus] = useState<'workflowkit' | 'codex'>();
-  const [settingsReturnDraft, setSettingsReturnDraft] = useState<string>();
   const [accountIntent, setAccountIntent] = useState<AccountPanelIntent>();
   const drawerReturnFocus = useRef<HTMLElement>();
   const skipDrawerReturnFocus = useRef(false);
@@ -638,9 +621,9 @@ function App() {
   const updateMrReplyDraft = (key: string, value: string): void => {
     setMrReplyDrafts(current => { const next = { ...current, [key]: value }; saveStatePatch({ mrReplyDrafts: next }); return next; });
   };
-  const updateReportDraft = (key: string, text: string, binding?: { sha: string; targetSha?: string; taskId: string }): void => {
+  const updateMrNoteDraft = (key: string, text: string): void => {
     setReports(current => {
-      const next = { ...current, [key]: { ...current[key], text, sha: current[key]?.sha ?? '', ...binding, validated: false } };
+      const next = { ...current, [key]: { text } };
       const saved = vscode.getState();
       const scope = scopeRef.current;
       saveStatePatch({ reports: next, ...(scope ? { scopedData: { ...savedScopesRef.current, ...saved?.scopedData, [scope]: { ...currentScopeStateRef.current, reports: next } } } : {}) });
@@ -695,7 +678,7 @@ function App() {
       }
       if (message.type === 'notificationsChanged') { receiveNotifications(message.snapshot); return; }
       if (message.type === 'openNotifications') { setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); return; }
-      if (message.type === 'openSettings') { openSettings(undefined, message.focusSection, message.draftId); return; }
+      if (message.type === 'openSettings') { openSettings(undefined, message.focusSection); return; }
       if (message.type === 'uiIntentResult') {
         const values = uiIntents.current.result(message);
         if (values) {
@@ -742,22 +725,6 @@ function App() {
       if (message.type === 'reviewSessions') {
         if (message.revision === snapshotRef.current?.skillsContext?.revision && message.tool === skillsGuideRef.current.tool) setReviewSessions(message);
         return;
-      }
-      if (message.type === 'commitReviewReady') {
-        if (message.revision !== snapshotRef.current?.skillsContext?.revision) return;
-        const feature = message.mode === 'commit' ? 'commit-draft' : 'mr-precheck';
-        updateSkillsGuide(current => ({ ...current, tool: 'commit-reviewer',
-          selections: { ...current.selections, 'commit-reviewer': feature },
-          commitRepositoryRequired: { ...current.commitRepositoryRequired, [feature]: !message.inputs[`${feature}.repo`] },
-          inputs: { ...Object.fromEntries(Object.entries(current.inputs).filter(([key]) => !key.startsWith(feature + '.'))), ...message.inputs } }));
-        setMode('sa'); return;
-      }
-      if (message.type === 'branchReviewReady') {
-        if (message.revision !== snapshotRef.current?.skillsContext?.revision) return;
-        updateSkillsGuide(current => ({ ...current, tool: 'merge-reviewer', selections: { ...current.selections, 'merge-reviewer': 'merge-repo' },
-          inputs: { ...current.inputs, ...message.inputs, 'merge-repo.confirmationRequired': 'true' },
-          migrationNotice: message.notice ?? '已帶入此 MR 的分支候選。請確認 Repo 與兩個分支後再複製。' }));
-        setMode('sa'); return;
       }
       if (message.type === 'openAccountManager') {
         drawerReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
@@ -1150,16 +1117,9 @@ function App() {
     selectedMr?.sections?.diffs?.status, selectedMr?.sections?.discussions?.status, selectedMr?.sections?.diffs?.refreshing, selectedMr?.sections?.discussions?.refreshing]);
   const currentSha = selectedMr?.sourceSha ?? mr?.diff_refs?.head_sha ?? mr?.sha ?? '';
   const currentMrKey = mr ? mrKey(mr.project_id, mr.iid) : '';
-  const currentReport = reports[currentMrKey] ?? { text: '', sha: '' };
-  const linkedMrTask = mr ? taskForSource(codex.tasks, { kind: 'merge-request', projectId: mr.project_id, iid: mr.iid }) : undefined;
-  const linkedMrReport = linkedMrTask && codex.results[linkedMrTask.id]?.report;
-  useEffect(() => {
-    if (linkedMrTask?.result?.reportPath && !linkedMrReport) post({ type: 'readCodexResult', taskId: linkedMrTask.id });
-  }, [linkedMrTask?.id, linkedMrTask?.result?.reportPath]);
-  useEffect(() => {
-    if (linkedMrTask?.origin && linkedMrReport && !currentReport.text && !currentReport.taskId) updateReportDraft(currentMrKey, linkedMrReport,
-      { taskId: linkedMrTask.id, sha: linkedMrTask.origin.sourceSha, targetSha: linkedMrTask.origin.targetSha });
-  }, [linkedMrTask?.id, linkedMrReport, currentMrKey]);
+  const mrNoteKey = 'note:' + currentMrKey;
+  const savedMrDraft = reports[mrNoteKey] ?? reports[currentMrKey];
+  const currentMrNote = savedMrDraft?.taskId ? '' : savedMrDraft?.text ?? '';
   const issueLabels = useMemo(() => [...new Set(issues.flatMap((issue) => issue.labels ?? []))].sort((a, b) => a.localeCompare(b)), [issues]);
   const issueBoards = snapshot?.groupIssueBoards ?? [];
   const issueBoardNameCounts = useMemo(() => {
@@ -1259,7 +1219,7 @@ function App() {
     return matchesFilter && filterText('reviewer', `${item.title} ${item.author?.name ?? ''} ${projectById.get(item.project_id)?.path_with_namespace ?? ''} !${item.iid} ${item.source_branch} ${item.target_branch}`);
   }), [snapshot?.mergeRequests, snapshot?.currentUser?.id, reviewFilter, filters.reviewer, projectById]);
 
-  function openSettings(returnFocus?: HTMLElement, focusSection?: 'workflowkit' | 'codex', draftId?: string): void {
+  function openSettings(returnFocus?: HTMLElement, focusSection?: 'workflowkit' | 'codex'): void {
     const target = returnFocus ?? (toolOpenRef.current ? drawerReturnFocus.current
       : document.activeElement instanceof HTMLElement ? document.activeElement : undefined);
     drawerReturnFocus.current = target && target !== document.body && !target.closest('[role="dialog"]') ? target : undefined;
@@ -1267,7 +1227,7 @@ function App() {
     setNotificationTarget(undefined);
     setAccountIntent(undefined);
     setSettingsSection('tools');
-    setSettingsFocus(focusSection); setSettingsReturnDraft(draftId);
+    setSettingsFocus(focusSection);
     setToolDrawer(true);
     if (toolOpenRef.current && !focusSection) requestAnimationFrame(() => {
       if (toolOpenRef.current) document.querySelector<HTMLButtonElement>('#settings-tab-tools[aria-selected="true"]')?.focus();
@@ -1339,13 +1299,6 @@ function App() {
     if (!connectedScope) return;
     post({ type: 'loadIssueGraph', connectedScope, forceNetwork: true });
   }
-  function openReviewerTask(): void {
-    if (!selectedIssueProject && !mr) return;
-    const project = mr ? projectById.get(mr.project_id) : selectedIssueProject;
-    if (!project || !mr || !selectedMr) return;
-    if (!snapshot?.groupRoot) { notify(snapshot?.workspaceRootError ?? '請先在 VSCode 開啟此 GitLab Group 的本機資料夾。', 'warn'); return; }
-    post({ type: 'openBranchReview', projectId: mr.project_id, iid: mr.iid });
-  }
   if (!snapshot) return <main class="loading"><span class="spinner" />正在載入 GitLab Workspace…</main>;
   const reviewerRepositories = snapshot.skillsContext?.reviewerRepositories ?? snapshot.skillsContext?.repositories
     ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : []);
@@ -1364,13 +1317,12 @@ function App() {
   const mrWaiting = blockedWhen(mrBusy, 'MR 操作正在處理，請稍候。');
   const mrVersionBlocked = blockedWhen(!currentSha || currentSha !== mr?.diff_refs?.head_sha, '審查版本尚未確認或已變更，請重新檢查 MR。', 'warning');
   const approvalDiagnostic = snapshot.instance?.capabilities?.find(item => item.id === 'mergeRequestApprovals');
-  const mrBlockers = { '發布留言': firstBlocker(mrWaiting, blockedWhen(!currentReport.text.trim(), '請先填寫要發布的留言內容。'),
-    blockedWhen(currentReport.text.length > 50000, '請將留言草稿整理為 50,000 字以內。'),
-    blockedWhen(!!currentReport.taskId && currentReport.sha !== currentSha, '這份 Codex 報告的來源版本已變更，請重新審查。')),
+  const mrBlockers = { '發布留言': firstBlocker(mrWaiting, blockedWhen(!currentMrNote.trim(), '請先填寫要發布的留言內容。'),
+    blockedWhen(currentMrNote.length > 50000, '請將留言草稿整理為 50,000 字以內。')),
     '核准': firstBlocker(mrWaiting, mrVersionBlocked, blockedWhen(snapshot.instance?.enterprise !== true,
       approvalDiagnostic?.reason ?? (snapshot.instance?.enterprise === false ? 'GitLab Community Edition 不支援 MR 核准 API。' : '尚未確認此 GitLab 執行個體是否支援 MR 核准。'), 'warning')),
     '合併 MR': firstBlocker(mrWaiting, mrVersionBlocked, blockedWhen(mr?.merge_commit_sha, '此 MR 已合併，請更新狀態。', 'warning'), availabilityBlocker(selectedMr?.mergeAvailability)),
-    '分支審查': firstBlocker(localBlocked, blockedWhen(!snapshot.groupRoot, snapshot.workspaceRootError ?? snapshot.skillsContext?.reason ?? '請先選擇可執行分支審查的本機專案目錄。', 'warning')) };
+    '分支審查': firstBlocker(localBlocked, mrWaiting, blockedWhen(mrPending, '正在載入所選 MR。'), blockedWhen(!snapshot.connectedScope, '請先登入 GitLab 並選擇 Group。'), blockedWhen(!snapshot.groupRoot, snapshot.workspaceRootError ?? snapshot.skillsContext?.reason ?? '請先選擇可執行分支審查的本機專案目錄。', 'warning')) };
   const remotePage = mode === 'dashboard' && snapshot.connected || mode === 'developer' || mode === 'reviewer' || mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && !!snapshot.group;
   const projectRoot = snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot;
   const projectRootKey = projectRoot ? projectDraftScope(projectRoot) : 'none';
@@ -1399,25 +1351,15 @@ function App() {
       <button class="quiet native-mode-picker" type="button" onClick={() => post({ type: 'pickWorkbenchControl', kind: 'workflow' })}>{modes.find(item => item.id === mode)?.name}<Codicon name="chevron-down" /></button>
       <nav class="mode-navigation" aria-label="主要功能">{modes.filter(item => item.id !== 'bmad').map(item => <button key={item.id} type="button"
         data-mode={item.id} aria-current={mode === item.id || item.id === 'sa' && mode === 'bmad' ? 'page' : undefined} title={item.name}
-        onClick={() => modeChange(item.id)}>{item.short}{item.id === 'codex' && !!(codex.activeCount || codex.waitingCount) && <span class="codex-nav-count" aria-label={`${codex.activeCount} 項執行或排隊，${codex.waitingCount} 項待回覆`}>{codex.waitingCount ? `${codex.waitingCount} 待回覆` : codex.activeCount}</span>}</button>)}</nav>
+        onClick={() => modeChange(item.id)}>{item.short}</button>)}</nav>
       {mode === 'clone' && <div class="repository-scan-action"><button class="quiet repository-scan-trigger" type="button"
         {...availabilityProps('workspace-scan', scanBlocked)} disabled={scanBusy || !!scanBlocked} aria-busy={scanBusy}
         title={projectRoot ? `掃描目前專案根目錄：${projectRoot}` : '掃描目前專案根目錄'}
-        onClick={() => post({ type: 'scanRepositories' })}><Codicon name="search" />{scanBusy ? '掃描中…' : '一鍵掃描 Repo'}</button>
-        <button class="quiet" type="button" disabled={!!localBlocked || !projectRoot || !!snapshot.projectOperationBusy || !!snapshot.workflowKitOperationBusy}
-          title={projectRoot ? `分析目前本機 Group 的需求影響：${projectRoot}` : '請先開啟或選擇本機 Group 資料夾'}
-          onClick={() => post({ type: 'createCodexLaunch', source: { kind: 'group-analysis' } })}><Codicon name="references" />需求影響分析</button></div>}
+        onClick={() => post({ type: 'scanRepositories' })}><Codicon name="search" />{scanBusy ? '掃描中…' : '一鍵掃描 Repo'}</button></div>}
       <FeatureNotices id="workspace-scan" items={{ '一鍵掃描 Repo': scanBlocked }}>{!projectRoot && !localBlocked && !snapshot.projectContext?.folders.length && <button type="button" onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟資料夾</button>}</FeatureNotices>
     </div>
 
     {(mode === 'sa' || mode === 'bmad') && <Tabs prefix="workflow" className="workflow-tabs" label="工作流程" items={[[ 'sa', 'Skills' ], [ 'bmad', 'BMAD' ]]} selected={mode} onChange={modeChange} />}
-    <div class="codex-announcement" role="status" aria-live="polite" aria-atomic="true">{codex.announcement}
-      {mode !== 'codex' && !!codex.waitingCount && <button type="button" onClick={() => {
-        const id = Object.keys(codex.interactions).find(key => codex.interactions[key].length);
-        if (id) codex.select(id); modeChange('codex');
-      }}>前往待回覆要求（{codex.waitingCount}）</button>}</div>
-    {mode !== 'codex' && codex.launch && <div class="codex-launch-return" role="status"><span>已保留任務準備：{codex.launch.title}</span>
-      <button type="button" onClick={() => { codex.showLaunch(); modeChange('codex'); }}>返回任務準備</button></div>}
     {mode === 'reviewer' && relatedIssueReturn && <button class="quiet return-to-issue" type="button" onClick={() => { post({ type: 'openIssue', projectId: relatedIssueReturn.projectId, issueIid: relatedIssueReturn.issueIid, tab: relatedIssueReturn.tab }); setRelatedIssueReturn(undefined); }}>返回 Issue #{relatedIssueReturn.issueIid}</button>}
     <div class="workbench" data-mobile-panel={mobilePanel}>
       <section class="page" data-mode={mode} aria-label={modes.find(item => item.id === mode)?.name}
@@ -1430,25 +1372,24 @@ function App() {
           {developerView === 'graph' && <WorkspaceSectionNotice section="graph" label="Issue 圖譜" status={snapshot.sections?.graph} onRetry={retryIssueGraph} />}
         </>}
         {snapshot.connectedScope && mode === 'reviewer' && <WorkspaceSectionNotice section="mergeRequests" label="待審查 MR" status={snapshot.sections?.mergeRequests} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'mergeRequests', connectedScope: snapshot.connectedScope! })} />}        <div ref={issueVisual} class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
-          <IssueView codexTasks={codex.tasks} active={!!issueNavigation && mode === 'developer'} actions={actions} snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} draftState={snapshot.instanceUserScope ? issueEditorDrafts.current[snapshot.instanceUserScope] : undefined} onDraftStateChange={state => {
+          <IssueView active={!!issueNavigation && mode === 'developer'} actions={actions} snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} draftState={snapshot.instanceUserScope ? issueEditorDrafts.current[snapshot.instanceUserScope] : undefined} onDraftStateChange={state => {
             const scope = snapshot.instanceUserScope;
             if (scope) updateIssueDrafts(scope, state);
           }} onBack={closeIssue} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={request => { if (request.type === 'openRelatedMergeRequest' && issueNavigation?.mode === 'detail') setRelatedIssueReturn(issueNavigation); return post(request); }}
             onOpenSettings={() => setToolDrawer(true)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div ref={workspaceVisual} class="workspace-tasks" hidden={!!issueNavigation}>
-        {!localBlocked && <CodexWorkspace controller={codex} layout={snapshot.codexWorkspaceLayout} active={mode === 'codex' && !issueNavigation} onNavigate={modeChange} />}
         <div class="git-mode-host" hidden={mode !== 'git'}>
-          {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel skills={snapshot.skillsContext} active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} navigationState={{ hostSessionId: snapshot.operationSnapshot?.sessionId, generation: uiIntents.current.hostGeneration }} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
+          {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} navigationState={{ hostSessionId: snapshot.operationSnapshot?.sessionId, generation: uiIntents.current.hostGeneration }} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
-        {mode !== 'git' && mode !== 'bmad' && mode !== 'codex' && <div class="page-heading"><div><div class="eyebrow">{mode === 'dashboard' ? '共用工作台' : remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
+        {mode !== 'git' && mode !== 'bmad' && <div class="page-heading"><div><div class="eyebrow">{mode === 'dashboard' ? '共用工作台' : remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'clone' && mode !== 'dashboard' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}<button class="quiet" type="button" disabled={busy || !!localBlocked && mode !== 'dashboard' && !remotePage} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button></div></div>}
         {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('gitlab')} {...availabilityProps('project-source', remoteBlocked)}>GitLab 專案</button><FeatureNotices id="project-source" items={{ 'GitLab 專案': remoteBlocked }}>{!snapshot.connected ? <button type="button" onClick={() => post({ type: 'connect' })}>登入 GitLab</button> : !snapshot.group && <button type="button" onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}</FeatureNotices><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('local')}>本機 Repo</button></div>}
-        {mode !== 'git' && mode !== 'codex' && (
-        mode === 'dashboard' ? <DashboardOverview snapshot={snapshot} tasks={codex.tasks} notifications={notifications} onTask={id => { codex.select(id); modeChange('codex'); }} disabled={blockingWork} onNavigate={modeChange}
+        {mode !== 'git' && (
+        mode === 'dashboard' ? <DashboardOverview snapshot={snapshot} notifications={notifications} disabled={blockingWork} onNavigate={modeChange}
           onLocalRepositories={showLocalRepositories} onGitLabProjects={showGitLabProjects} onOpenSettings={() => openSettings()} post={post} />
           : localBlocked && (mode === 'sa' || mode === 'bmad' || mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local')) ? <FeatureNotice reason={localBlocked.reason} />
-          : mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local') ? <LocalRepositoriesPanel codexTasks={codex.tasks} connected={snapshot.connected} workspaceRoot={projectRoot} repositories={snapshot.localWorkspaceRepositories ?? []} scan={snapshot.repositoryScan} projects={snapshot.projects} post={post} />
+          : mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local') ? <LocalRepositoriesPanel repositories={snapshot.localWorkspaceRepositories ?? []} scan={snapshot.repositoryScan} projects={snapshot.projects} post={post} />
           : !snapshot.connected && mode !== 'sa' && mode !== 'bmad' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
           : !snapshot.group && mode !== 'sa' && mode !== 'bmad' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
@@ -1464,8 +1405,6 @@ function App() {
                   return <div class="repo-row"><input id={`repo-project-${project.id}`} type="checkbox" checked={selectedProjectIdSet.has(project.id)} disabled={blockingWork} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
                     <span class="repo-details"><strong><label htmlFor={`repo-project-${project.id}`}>{project.path_with_namespace}</label></strong><small>預設分支：{project.default_branch ?? '未設定'}　·　本機：{local?.path || '尚未 Clone'}</small></span>
                     <button class="quiet small" type="button" onClick={() => post({ type: 'createIssue', projectId: project.id })}>新增 Issue</button>
-                    {local?.state === 'ready' && <button class="quiet small local-wiki-launch" type="button" disabled={!!localBlocked} title={`來源：${local.path}；保存於目前工作區的共用 Wiki`} onClick={() => post({ type: 'openLocalWiki', repository: local.path })}>本地 Codebase Wiki</button>}
-                    <CodexWorkflowLaunch compact tasks={codex.tasks} source={{ kind: 'project-wiki', projectId: project.id }} post={post} disabled={!!localBlocked} />
                     <span class={`pill ${local?.state === 'ready' || matches.length ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{matches.length ? `${matches.length} 個本機副本` : local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span>{matches.length ? <div class="project-local-copies">{matches.map(repository => <FeatureButton class="quiet small" type="button" title={repository.path} blocker={localProjectBlocker(snapshot.workspaceCapabilities) ?? blockedWhen(!repository.repositoryId, repository.registrationError ?? '此 Repo 尚未由 VS Code Git 登錄，請啟用內建 Git 或重新掃描。', 'warning')} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>開啟版控 · {repository.name}</FeatureButton>)}</div> : local?.state === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'gitOpenRepository', path: local.path })}>開啟版控</button>}</div>;
                 }} />
                 <div class="list-actions clone-actions">
@@ -1506,7 +1445,7 @@ function App() {
               onRefresh={() => post({ type: 'refreshBmad' })}
               onCheckBuildAuto={() => post({ type: 'refreshBmad', probeBuildAuto: true })}
               onCopyCommand={request => post({ type: 'copyBmadCommand', ...request })}
-              onRunCommand={request => post({ type: 'startCodexTask', source: { kind: 'bmad', request } })}
+              onRunCommand={request => post({ type: 'runCodexCli', source: { kind: 'bmad', request } })}
               onOpenTerminal={() => snapshot.bmad && post({ type: 'openBmadTerminal', revision: snapshot.bmad.revision })}
               onOpenDocumentation={url => post({ type: 'openExternal', url })}
               onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
@@ -1522,7 +1461,7 @@ function App() {
                 ? reviewerCapabilityRead.status : undefined}
               onLoadReviewSessions={tool => snapshot.skillsContext && post({ type: 'loadReviewSessions', revision: snapshot.skillsContext.revision, tool })}
               onLoadReviewerCapabilities={loadReviewerCapabilities}
-              onRunReview={(tool, requestId, action) => snapshot.skillsContext && post({ type: 'startCodexTask', source: { kind: 'review', revision: snapshot.skillsContext.revision, tool, requestId, action } })}
+              onRunReview={(tool, requestId, action) => snapshot.skillsContext && post({ type: 'runCodexCli', source: { kind: 'review', revision: snapshot.skillsContext.revision, tool, requestId, action } })}
               onCancelReview={(tool, requestId) => snapshot.skillsContext && post({ type: 'cancelReviewSession', revision: snapshot.skillsContext.revision, tool, requestId })}
               onCopyReviewRefresh={(tool, requestId) => snapshot.skillsContext && post({ type: 'copyReviewRefresh', revision: snapshot.skillsContext.revision, tool, requestId })}
               onCopyReviewResume={(tool, requestId) => snapshot.skillsContext && post({ type: 'copyReviewResume', revision: snapshot.skillsContext.revision, tool, requestId })}
@@ -1555,7 +1494,7 @@ function App() {
               repositoryScanStatus={snapshot.skillsContext ? snapshot.skillsContext.groupMatch.status === 'checking' ? 'scanning' : 'ready' : snapshot.groupRepositoryScanStatus}
               repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.skillsContext ? snapshot.skillsContext.installed.version : snapshot.workflowKit.version}
               kitInstalled={snapshot.workflowKit.status === 'installed'} state={skillsGuide} onChange={updateSkillsGuideFromUser} onEnvironmentChange={updateSkillsGuide}
-              onRun={featureId => snapshot.skillsContext && post({ type: 'startCodexTask', source: { kind: 'skill', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision } })}
+              onRun={featureId => snapshot.skillsContext && post({ type: 'runCodexCli', source: { kind: 'skill', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision } })}
               onCopy={(text, featureId) => snapshot.skillsContext ? post({ type: 'copySkillGuidePrompt', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision }) : post({ type: 'copy', text })}
               onOpenSettings={() => openSettings(undefined, 'workflowkit')} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
@@ -1634,7 +1573,6 @@ function App() {
                   <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
                   <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>
                   <div class="label-list">{(selectedIssue.labels ?? []).map(label => <span class="label-chip">{label}</span>)}</div><p class="subtle">指派給：{selectedIssue.assignees?.map(user => user.name || user.username).join('、') || '未指派'}</p>
-                  <CodexWorkflowLaunch skillsContext={snapshot.skillsContext} tasks={codex.tasks} source={{ kind: 'issue', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid }} post={post} disabled={!!localBlocked} />
                   <div class="next-step"><strong>下一步</strong><p>開啟詳情後，可在同一工作台繼續閱讀與討論、準備開發交付，並管理關聯工作與工時。</p></div>
                   <button class="primary" type="button" disabled={snapshot.issuePreview?.status === 'loading'} onClick={() => post({ type: 'openIssue', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid })}>開啟 Issue 詳情</button>
                 </> : !snapshot.issuePreview && <Empty title="選取一張指派給你的 Issue" detail="先在此預覽內容，再按「開啟 Issue 詳情」繼續閱讀、討論與開發。" />}</article>
@@ -1649,11 +1587,19 @@ function App() {
                 <div class="panel-title"><div><span class="eyebrow">{projectById.get(mr.project_id)?.path_with_namespace} !{mr.iid}</span><h2>{mr.title}</h2><span class="branch-pair">{mr.source_branch} → {mr.target_branch}</span></div><button class="quiet" type="button" onClick={() => openGitLab(mr.web_url)}>在 GitLab 開啟</button></div>
                 <div class="freshness"><BranchStatus state={selectedMr.freshness.state} behindBy={selectedMr.freshness.state === 'behind' ? selectedMr.freshness.behindBy : undefined} />{selectedMr.freshness.state === 'unknown' && <span class="subtle">{selectedMr.freshness.reason}</span>}{'checkedAt' in selectedMr.freshness && <span class="subtle">檢查於 {new Date(selectedMr.freshness.checkedAt).toLocaleString()}</span>}<button class="quiet small" type="button" disabled={selectedMr.freshness.state === 'checking'} onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>{selectedMr.freshness.state === 'checking' ? '正在檢查分支…' : selectedMr.freshness.state === 'not_checked' ? '檢查分支' : '重新檢查分支'}</button></div>
                 <div class="next-step" role="status">{selectedMr.freshness.state === 'current' ? '分支資料已確認，可前往分支審查。' : selectedMr.freshness.state === 'behind' ? '來源分支落後目標分支；分支審查會檢查合併預覽與相關影響。' : '目前分支狀態未確認；請檢查候選分支，Codex 執行時會取得明確指定的遠端版本。'}</div>
-                <CodexWorkflowLaunch tasks={codex.tasks} source={{ kind: 'merge-request', projectId: mr.project_id, iid: mr.iid }} post={post} disabled={!!localBlocked || mrPending} />
-                <div class="button-row"><button class="quiet" type="button" {...availabilityProps('mr-actions', mrBlockers['分支審查'])} onClick={openReviewerTask}>手動選擇分支審查</button></div>
+                <div class="button-row mr-cli-review-actions">
+                  <button type="button" {...availabilityProps('mr-actions', mrBlockers['分支審查'])} onClick={() => post({
+                    type: 'runCodexCli', source: { kind: 'merge-request', projectId: mr.project_id, iid: mr.iid,
+                      reviewerTool: 'merge-reviewer', expectedScope: snapshot.connectedScope }
+                  })}>一鍵 MergeReviewer</button>
+                  <button type="button" {...availabilityProps('mr-actions', mrBlockers['分支審查'])} onClick={() => post({
+                    type: 'runCodexCli', source: { kind: 'merge-request', projectId: mr.project_id, iid: mr.iid,
+                      reviewerTool: 'release-reviewer', expectedScope: snapshot.connectedScope }
+                  })}>一鍵 ReleaseReviewer</button>
+                </div>
                 <details class="technical-info"><summary>技術詳情（完整 SHA）</summary><div class="sha-pair"><span>差異來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>差異目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div></details>
                 <FeatureNotices id="mr-actions" items={reviewerTab === 'report' ? mrBlockers : { '分支審查': mrBlockers['分支審查'], '核准': mrBlockers['核准'], '合併 MR': mrBlockers['合併 MR'] }}><button type="button" disabled={mrBusy} onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>{selectedMr.mergeAvailability?.status !== 'allowed' ? '重新檢查合併條件' : '重新檢查 MR'}</button></FeatureNotices><OperationFeedback resourceKey={`mr:${mr.project_id}:${mr.iid}`} scopeRevision={snapshot.operationScope ?? operationScope} />
-                <Tabs prefix="mr-detail" label="Merge Request 詳情分頁" className="issue-tabs review-tabs" items={[[ 'changes', '變更' ], [ 'discussion', '討論' ], [ 'report', '審查報告' ]]} selected={reviewerTab} onChange={updateReviewerTab} />
+                <Tabs prefix="mr-detail" label="Merge Request 詳情分頁" className="issue-tabs review-tabs" items={[[ 'changes', '變更' ], [ 'discussion', '討論' ], [ 'report', '留言與核准' ]]} selected={reviewerTab} onChange={updateReviewerTab} />
                 <section class="section-card" {...tabPanelProps('mr-detail', 'changes')} hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />
                   {selectedMr.sections.diffs.status === 'ready' && <>
                     {!!selectedMr.warnings?.length && <div class="mr-diff-warnings" role="status">{selectedMr.warnings.map(warning => <p key={warning}>{warning}</p>)}<a href={mr.web_url} target="_blank" rel="noopener noreferrer">在 GitLab 查看完整變更</a></div>}
@@ -1661,15 +1607,14 @@ function App() {
                     {!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異檔案。</p>}
                   </>}
                 </section>
-                <section class="section-card" {...tabPanelProps('mr-detail', 'report')} hidden={reviewerTab !== 'report'}><h3>審查報告</h3><p class="subtle">新版 Merge Report 是本機分支審查結果。此處以一般留言發布；核准與合併由你決定。</p>
-                  {linkedMrReport && <details class="codex-linked-report"><summary>Codex 完整審查報告</summary><pre tabIndex={0}>{linkedMrReport}</pre><button type="button" class="quiet" onClick={() => linkedMrTask?.origin && updateReportDraft(currentMrKey, linkedMrReport, { taskId: linkedMrTask.id, sha: linkedMrTask.origin.sourceSha, targetSha: linkedMrTask.origin.targetSha })}>載入這份報告至留言草稿</button></details>}
-                  {currentReport.text.length > 50000 && <p class="warning" role="status">完整報告超過留言限制，請將下方草稿整理為摘要後再發布。</p>}
-                  <label class="field">MR 留言草稿<textarea rows={8} value={currentReport.text} onInput={(event) => {
+                <section class="section-card" {...tabPanelProps('mr-detail', 'report')} hidden={reviewerTab !== 'report'}><h3>MR 留言</h3>
+                  {currentMrNote.length > 50000 && <p class="warning" role="status">留言草稿超過 50,000 字。</p>}
+                  <label class="field">MR 留言草稿<textarea rows={8} value={currentMrNote} onInput={(event) => {
                     const text = event.currentTarget.value;
-                    updateReportDraft(currentMrKey, text);
-                  }} placeholder="貼上完整報告後，先核對版本。" /></label>
+                    updateMrNoteDraft(mrNoteKey, text);
+                  }} placeholder="輸入留言內容" /></label>
                   <div class="button-row">
-                    {<button class="quiet" {...availabilityProps('mr-actions', mrBlockers['發布留言'])} type="button" onClick={() => post(currentReport.taskId ? { type: 'publishCodexReview', taskId: currentReport.taskId, body: currentReport.text } : { type: 'postMergeRequestNote', projectId: mr.project_id, iid: mr.iid, body: currentReport.text })}>作一般留言發布</button>}
+                    <button class="quiet" {...availabilityProps('mr-actions', mrBlockers['發布留言'])} type="button" onClick={() => post({ type: 'postMergeRequestNote', projectId: mr.project_id, iid: mr.iid, body: currentMrNote })}>發布留言</button>
                     <button class="secondary" {...availabilityProps('mr-actions', mrBlockers['核准'])} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button>
                     <button class="primary" {...availabilityProps('mr-actions', mrBlockers['合併 MR'])} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button>
                   </div>
@@ -1690,9 +1635,7 @@ function App() {
     }} />
     {notificationPresence.present && <NotificationDrawer open={notificationsOpen} presence={notificationPresence} snapshot={notifications} post={post} targetId={notificationTarget?.id} targetRequest={notificationTarget?.request} onClose={() => setNotificationsOpen(false)} />}
     {toolPresence.present && <ToolDrawer open={toolDrawer} presence={toolPresence} actions={actions} snapshot={snapshot} operationBusy={!!(snapshot.projectOperationBusy ?? blockingWork)} source={workflowKitSource}
-      focusSection={settingsFocus} returnDraftId={settingsReturnDraft ?? (codex.launchVisible ? codex.launch?.id : undefined)}
-      onReturnDraft={draftId => { skipDrawerReturnFocus.current = true; setToolDrawer(false); post({ type: 'showCodexLaunch', draftId }); }}
-      section={settingsSection} onSection={section => { setAccountIntent(undefined); setSettingsSection(section); }} accountIntent={accountIntent} post={post}
+      focusSection={settingsFocus} section={settingsSection} onSection={section => { setAccountIntent(undefined); setSettingsSection(section); }} accountIntent={accountIntent} post={post}
       onRetryInstance={() => post({ type: 'retryInstanceCheck' })}
       onSource={(source) => requestUiChoice('workflowKitSource', source, { type: 'setWorkflowKitSource', source })}
       onInstall={(releaseId) => post({ type: 'installWorkflowKit', releaseId })}
@@ -1737,8 +1680,8 @@ function Discussion({ disabled, discussion, reply, onReplyChange, onReply }: { d
   }}>回覆</button><FeatureNotices id={'mr-reply-' + discussion.id} items={{ '回覆': firstBlocker(blockedWhen(disabled, 'MR 操作正在處理，請稍候。'), blockedWhen(!reply.trim(), '請先填寫回覆內容。')) }} /></div></div>;
 }
 
-function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInstall, onOpenDownload, onSelectProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenLogs, onClose, section, onSection, accountIntent, post, open, presence, focusSection, returnDraftId, onReturnDraft }: {
-  focusSection?: 'workflowkit' | 'codex'; returnDraftId?: string; onReturnDraft(id: string): void;
+function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInstall, onOpenDownload, onSelectProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenLogs, onClose, section, onSection, accountIntent, post, open, presence, focusSection }: {
+  focusSection?: 'workflowkit' | 'codex';
   open: boolean; presence: ReturnType<typeof usePresence>;
   actions: ActionController; section: 'tools' | 'accounts'; onSection: (section: 'tools' | 'accounts') => void; accountIntent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void;
   snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource;
@@ -1763,6 +1706,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
   const capabilityStatus: Record<string, string> = { supported: '支援', unsupported: '不支援', unknown: '未確認' };
   const policy = snapshot.workflowKitPolicy ?? { allowed: true, reason: undefined };
   const checkingKit = useActionSelector(actions, states => states.some(item => item.action === 'checkWorkflowKitReleases' && isActiveOperation(item)));
+  const checkingCodex = useActionSelector(actions, states => states.some(item => item.resourceKey === 'codex-cli:settings' && isActiveOperation(item)));
   const kitBusy = checkingKit || !!snapshot.workflowKitOperationBusy || snapshot.workflowKitInstallTarget?.state.status === 'installing';
   const localBlocked = localProjectBlocker(snapshot.workspaceCapabilities);
   const settingsWaiting = firstBlocker(localBlocked, blockedWhen(operationBusy || kitBusy, '工作區或 Skills 作業正在處理，請稍候。'));
@@ -1770,7 +1714,6 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
 
   return <NativeDialog open={open} presence={presence} onClose={onClose} labelledBy="tool-title" surfaceRef={drawerRef} initialFocus={closeRef}>
     <div class="drawer-heading"><div><span class="eyebrow">GitLab Workspace</span><h2 id="tool-title">{section === 'accounts' ? '帳號與連線' : '工具與環境'}</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
-    {returnDraftId && <div class="button-row"><button type="button" onClick={() => onReturnDraft(returnDraftId)}>返回任務準備</button><span class="subtle">保留原需求與設定，返回後可重新檢查。</span></div>}
     <div class="settings-tabs" role="tablist" aria-label="設定類別" onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault(); const next = event.key === 'Home' ? 'tools' : event.key === 'End' ? 'accounts' : section === 'tools' ? 'accounts' : 'tools';
@@ -1786,7 +1729,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
       </div>
     </section>
     <section class="workspace-settings"><h3>GitLab 專案來源</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>遠端群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 GitLab 群組</button></div></> : <><p>連線後可瀏覽 GitLab 專案、Issue 與 MR。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
-    {localBlocked ? <FeatureNotice reason={localBlocked.reason} /> : <CodexSettings post={post} expanded={focusSection === 'codex'} />}
+    {localBlocked ? <FeatureNotice reason={localBlocked.reason} /> : <CodexSettings post={post} expanded={focusSection === 'codex'} pending={checkingCodex} scopeRevision={snapshot.localOperationScope} />}
     <section class="workspace-settings"><h3>持久設定</h3><p>使用 VS Code Settings 管理工具路徑與掃描選項。</p><div class="button-row">
       <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.pythonPath' })}>Python 路徑</button>
       <button type="button" onClick={() => post({ type: 'openConfiguration', setting: 'gitlabWorkspace.repositoryScan.excludeDirectories' })}>掃描排除目錄</button>

@@ -114,16 +114,9 @@ try {
   } else {
     if (includes('all', 'ui', 'compatibility', 'extension')) {
       const compatibilitySuite = '^WorkflowKit compatibility installation ';
-      const codexZoomSuite = '^Native Codex Electron zoom and built-in themes ';
       const selection = mode === 'compatibility' ? ['--grep', compatibilitySuite]
-        : ['--grep', mode === 'ui' ? `${compatibilitySuite}|${codexZoomSuite}` : codexZoomSuite, '--invert'];
+        : mode === 'ui' ? ['--grep', compatibilitySuite, '--invert'] : [];
       await required(node('extension', 'scripts/run-extension-tests.mjs', '--preflight-file', hostProof, '--forbid-only', '--fail-zero', ...selection));
-      if (mode !== 'compatibility') {
-        // Native focus depends on Workbench state. A fresh isolated Host keeps
-        // preceding installer/workspace suites from leaving focus in chrome.
-        await required(node('extension-codex-zoom', 'scripts/run-extension-tests.mjs', '--preflight-file', hostProof,
-          '--forbid-only', '--fail-zero', '--grep', codexZoomSuite));
-      }
     }
     if (includes('all', 'ui', 'trust')) await required(node('workspace-trust', 'scripts/test-workspace-trust.mjs', '--preflight-file', hostProof));
     if (includes('all', 'quick', 'ui', 'unit')) {
@@ -131,7 +124,6 @@ try {
     }
     if (includes('all', 'ui', 'behavior')) {
       await required(node('behavior-node', '--require', './test/network-test-environment.cjs', '--test', ...await testFiles('test/behavior', '.test.mjs')));
-      await required(node('codex-renderer', 'test/behavior/codex-renderer-benchmark.mjs', '--out', path.join(evidenceDir, 'codex-renderer.json')));
       for (const [id, steps, feature] of [['issues', 'steps.cjs', 'issues.feature'], ['connect', 'connect.steps.cjs', 'connect.feature']]) {
         await required(node('behavior-' + id, '--require', './test/network-test-environment.cjs', 'node_modules/@cucumber/cucumber/bin/cucumber.js', '--require', 'test/behavior/' + steps, '--tags', '@automated', 'test/behavior/' + feature));
       }

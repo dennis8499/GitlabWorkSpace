@@ -16,13 +16,13 @@ test('native recovery feedback opens the Host-owned repair action once', async (
 
 test('a native failure opens the Host-owned destination once, without reopening messages', async () => {
   const center = new NotificationCenter(), opened: string[] = [];
-  await withNativeCommandFeedback(() => center.runCommand({ operationId: 'task-error', title: 'Task', target: { kind: 'task', taskId: 'task-1' } }, async () => { throw new Error('Task failed'); }), {
-    operationId: 'task-error', snapshot: () => center.snapshot(), workbenchVisible: () => false,
-    show: async (_level, _message, action) => { assert.equal(action, '開啟任務'); return action; },
+  await withNativeCommandFeedback(() => center.runCommand({ operationId: 'mr-error', title: 'MR', target: { kind: 'mergeRequest', projectId: 1, iid: 2 } }, async () => { throw new Error('MR failed'); }), {
+    operationId: 'mr-error', snapshot: () => center.snapshot(), workbenchVisible: () => false,
+    show: async (_level, _message, action) => { assert.equal(action, '開啟 MR'); return action; },
     openTarget: async id => { opened.push(id); }, openMessages: async () => assert.fail('Destination action is direct')
   });
   await Promise.resolve();
-  assert.deepEqual(opened, ['operation:task-error']);
+  assert.deepEqual(opened, ['operation:mr-error']);
 });
 
 test('a failed native command remains visible without a Webview and only the explicit action opens messages', async () => {

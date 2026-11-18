@@ -7,7 +7,6 @@ export const workflowNavigation = [
   { id: 'developer', name: '我的工作', command: 'openDeveloperMode', aliases: 'Issue' },
   { id: 'reviewer', name: '待審查', command: 'openReviewerMode', aliases: 'MR Review' },
   { id: 'git', name: '版控', command: 'openGitMode', aliases: 'Git Commit 分支' },
-  { id: 'codex', name: 'Codex', command: 'openCodexMode', aliases: '任務 對話' },
   { id: 'sa', name: '工作流程', command: 'openSaMode', aliases: 'Skills Wiki 分析' }
 ] satisfies Array<{ id: WorkspaceMode; name: string; command: string; aliases: string }>;
 
