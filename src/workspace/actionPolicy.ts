@@ -1,7 +1,6 @@
 import type { WorkspaceRequest } from './workspaceProtocol';
 import type { GitAction } from '../git/gitProtocol';
 import type { IssueAction, IssuePanelRequest } from '../issues/protocol';
-import type { QuickAction } from './quickActionsProtocol';
 import type { WorkspaceCapabilities } from './workspaceCapabilities';
 
 export type ActionKind = 'local' | 'read' | 'write' | 'control';
@@ -210,7 +209,7 @@ export const issueInvokeKinds = {
   setChildState: 'write',
   updateChild: 'write',
 } satisfies Record<IssueAction, ActionKind>;
-export const quickActionKinds = {
+const quickActionKinds = {
   openWorkspace: 'read',
   openMyWork: 'read',
   openProjects: 'read',
@@ -227,7 +226,7 @@ export const quickActionKinds = {
   switchAccount: 'write',
   logoutAccount: 'write',
   removeAccount: 'write',
-} satisfies Record<QuickAction, ActionKind>;
+} satisfies Record<string, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
   runCodexCli: '啟動 Codex CLI', codexCliSettings: 'Codex CLI 環境',
@@ -298,7 +297,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   }
   const request = value as Record<string, any>;
   const action = request.type === 'perform' ? String(request.action) : request.type;
-  let kind: ActionKind = request.type === 'perform' ? quickActionKinds[action as QuickAction] ?? 'control'
+  let kind: ActionKind = request.type === 'perform' ? quickActionKinds[action as keyof typeof quickActionKinds] ?? 'control'
     : (workspaceActionKinds as Record<string, ActionKind>)[action] ?? 'control';
   if (['refreshRepositories', 'refreshMyWork', 'loadMoreMyWork', 'retryMyWorkSection', 'findRepositories', 'findMyWork', 'openIssue', 'openMergeRequest', 'openTools'].includes(action)) kind = 'read';
   let resourceKey = action;

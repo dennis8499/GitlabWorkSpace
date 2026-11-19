@@ -24,10 +24,9 @@ async function classicBundle(entry, sources) {
 
 /** Source mode isolates UI regression runs from generated extension assets. */
 export async function webviewBundle(kind) {
-  const directory = kind === 'sidebar' ? 'sidebar-webview' : 'issue-webview';
-  const html = await readFile(new URL(`../../resources/${directory}/${kind}.html`, import.meta.url), 'utf8');
+  const html = await readFile(new URL(`../../resources/issue-webview/${kind}.html`, import.meta.url), 'utf8');
   if (process.env.GITLAB_WORKSPACE_UI_SOURCE !== '1') {
-    const entry = fileURLToPath(new URL(`../../resources/${directory}/${kind}.js`, import.meta.url));
+    const entry = fileURLToPath(new URL(`../../resources/issue-webview/${kind}.js`, import.meta.url));
     return { html, script: await classicBundle(entry) };
   }
   const { build } = await import('vite');
@@ -35,7 +34,7 @@ export async function webviewBundle(kind) {
     logLevel: 'silent', build: { write: false, emptyOutDir: false } });
   // Rebundle emitted bytes in memory for JSDOM. Real chunk loading and CSP are
   // verified separately in the Chromium renderer probes and Extension Host.
-  const base = fileURLToPath(new URL(`../../resources/${directory}/`, import.meta.url));
+  const base = fileURLToPath(new URL('../../resources/issue-webview/', import.meta.url));
   const sources = new Map(result.output.filter(item => item.type === 'chunk').map(item => [path.resolve(base, item.fileName), item.code]));
   const entry = result.output.find(item => item.type === 'chunk' && item.isEntry);
   return { html, script: await classicBundle(path.resolve(base, entry.fileName), sources) };

@@ -30,11 +30,10 @@ async function fixture(t) {
   await put('node_modules/typescript/bin/tsc', `${header}
     if(process.argv.at(-1)==='.'){
       put('out/src/extension.js');put('out/test/unit/unit.test.js',"require('node:test')('unit',()=>{});");
-      put('out/test/legacy/unit/legacy.test.js',"require('node:test')('legacy',()=>{});");
     }`);
   await put('node_modules/vite/bin/vite.js', `${header}
     const name=process.argv.at(-1);if(name.includes('dashboard'))put('resources/issue-webview/dashboard.js');
-    else if(name.includes('sidebar'))put('resources/sidebar-webview/sidebar.js');else put('resources/issue-webview/issue-test.js');`);
+    else put('resources/issue-webview/issue-test.js');`);
   await put('scripts/run-python.mjs', `${header}
     if(process.env.FAKE_PYTHON_FAILURE==='1' && process.argv[3]==='WorkflowKit134IntegrationTests')process.exit(7);`);
   await put('scripts/run-extension-tests.mjs', `${header}
@@ -50,7 +49,6 @@ async function fixture(t) {
   for (const name of ['dashboard.test.mjs', 'skills-guide.test.mjs']) {
     await put(`test/behavior/${name}`, "import test from 'node:test';test('behavior',()=>{if(process.env.FAKE_BEHAVIOR_FAILURE==='1')throw new Error('Behavior fixture failed');});");
   }
-  await put('test/legacy/behavior/quick-actions.test.mjs', "import test from 'node:test';test('legacy behavior',()=>{});");
   await put('test/release/one_test.py', '# discovered Python suite');
   await put('test/release/workflowkit_131_integration_test.py', '# split into three isolated unittest classes');
   const evidenceDir = path.join(root, 'evidence');
@@ -175,16 +173,13 @@ for (const workers of ['1', '2']) test(`compatibility retains all installer clas
   assertExtensionHost(result, evidenceDir);
 });
 
-test('legacy sidebar is available only through the explicit legacy profile', async t => {
-  const { evidenceDir, run } = await fixture(t);
+test('retired legacy profile is rejected before starting validation', async t => {
+  const { root, evidenceDir, run } = await fixture(t);
   const child = run({}, 'legacy');
-  assert.equal(child.status, 0, child.stderr || child.stdout);
-  const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
-  const ids = result.stages.map(stage => stage.id);
-  assert.ok(ids.includes('build-sidebar'));
-  assert.ok(ids.includes('legacy-unit'));
-  assert.ok(ids.includes('legacy-behavior'));
-  assert.ok(!ids.some(id => ['build-dashboard', 'unit', 'extension', 'package'].includes(id)));
+  assert.equal(child.status, 1, child.stderr || child.stdout);
+  assert.match(child.stderr, /Usage: run-validation\.mjs/);
+  await assert.rejects(readFile(path.join(evidenceDir, 'timings.json')), { code: 'ENOENT' });
+  await assert.rejects(readFile(path.join(root, 'out', 'src', 'extension.js')), { code: 'ENOENT' });
 });
 
 test('prepared execution acquires the lock before checking or changing evidence', async t => {

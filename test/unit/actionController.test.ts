@@ -103,8 +103,8 @@ test('dispatch sets pending synchronously, joins identical reads and separates M
 test('opening Output is a local action without pending operations or notifications', () => {
   const { actions, sent } = setup();
   assert.equal(describeAction({ type: 'openLogs' }).kind, 'local');
-  const legacyAction = { type: 'perform', action: 'openAdmin' };
-  assert.equal(describeAction(legacyAction).kind, 'local');
+  const nativeNavigation = { type: 'perform', action: 'openAdmin' };
+  assert.equal(describeAction(nativeNavigation).kind, 'local');
   assert.equal(actions.dispatch({ type: 'openLogs' }).status, 'started');
   assert.deepEqual(sent, [{ type: 'openLogs' }]);
   assert.deepEqual(actions.getSnapshot(), []);

@@ -531,7 +531,6 @@
     "test:extension:prepared": "node scripts/run-validation.mjs extension --prepared",
     "test:git-gui": "npm run package && node scripts/run-live-extension-tests.mjs --git-gui",
     "test:git-gui:local": "npm run package && node scripts/run-live-extension-tests.mjs --local-git-gui",
-    "test:legacy": "node scripts/run-validation.mjs legacy",
     "test:live": "npm run package && node scripts/run-live-extension-tests.mjs",
     "test:quick": "node scripts/run-validation.mjs quick",
     "test:release": "node scripts/run-validation.mjs release",

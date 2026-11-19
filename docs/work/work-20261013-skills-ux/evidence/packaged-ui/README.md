@@ -23,7 +23,7 @@ Revision 同一組 smoke 為 8 PASS／0 FAIL；普通及高對比窄版從預覽
 
 截圖包含 1440 × 900 Skills、800 × 900 專案／Skills，以及高對比版本。已目視查看 Baseline Skills 桌面／高對比與 Revision 窄版專案／高對比 Skills 截圖，主要控制項未裁切，Revision 專案清單及下載區均呈現；截圖檢視與自動 smoke 不代表完整人工使用者驗收。高對比使用 VS Code body class 與 theme tokens，沒有模擬螢幕閱讀器或作業系統輔助技術。
 
-此目錄保留歷史量測；原始封裝與設定截圖已移除。驗證目前版本時，使用新的輸出目錄，不覆寫此處的歷史樣本：
+此目錄保留歷史量測。重跑下列命令時，請使用該次驗證的原始碼與 0.23.0 VSIX，並將結果寫入新的輸出目錄。現行原生側欄由 Extension Host 測試驗收。
 
 ```text
 node scripts/validate-packaged-ui.mjs --artifact dist/gitlab-workspace-0.23.0.vsix --label revision --output .gitlab-workspace-validation/packaged-ui-current

@@ -163,7 +163,7 @@ test('cancelled MR reads cannot publish after an account or Group switch', async
 
 test('a restored view keeps notification history and delivers protocol receipts without replaying notices', async () => {
   const { host, messages } = fixture();
-  host.restoredOnce = true; host.loadedScopeKey = 'https://gitlab.test|7|42';
+  host.loadedScopeKey = 'https://gitlab.test|7|42';
   host.workspaceSections = { projects: { status: 'ready' }, issues: { status: 'ready' } };
   host.post({ type: 'message', message: 'Completed while hidden' });
   host.pendingViewNotices.push({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: 'copy-one', result: true } });

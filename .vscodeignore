@@ -24,9 +24,7 @@ index.html
 tsconfig.json
 eslint.config.mjs
 tsconfig.webview.json
-vite.config.mjs
 vite.dashboard.config.mjs
-vite.sidebar.config.mjs
 vite.issue-test.config.mjs
 .vscode-test.mjs
 package-lock.json

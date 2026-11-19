@@ -2,6 +2,8 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
+0.56.2 整理退役的側欄程式與驗證入口，並依實際安裝步驟調整歷史 WorkflowKit 相容性測試時間。詳見 [0.56.2 版本說明](docs/releases/v0.56.2.md)。
+
 0.56.0 在 VS Code 整合終端執行 Codex CLI。從「工作流程」的 Skills／BMAD，或 MR 詳情的「一鍵 MergeReviewer」「一鍵 ReleaseReviewer」啟動，並在每次執行前選擇模型與思考強度。舊版任務資料由 v0.55.1 讀取。詳見 [0.56.0 版本說明](docs/releases/v0.56.0.md)。
 
 本版也保留 0.54.3 的本機連線復原入口。登入遇到 `metadata-missing / ENOENT` 時，可從通知選擇「修復本機連線」，或執行「修復本機 GitLab 連線」命令，再依獨立 PowerShell 視窗完成一次離線復原。既有鎖不會因更新而直接移除。詳見[復原步驟](docs/network-policy.md#api-控制鎖離線復原)與[版本說明](docs/releases/v0.54.3.md)。
@@ -55,22 +57,9 @@
 
 WorkflowKit 安裝與專案設定見 [Group 工作流程](docs/group-workflow.md)。
 
-## 0.41.0 更新
+## 舊 Codex 工作台
 
-- 從 Issue 直接啟動 BMAD 開發與測試，建立獨立分支，從原 Issue 查看成果及差異。
-- 從專案建立固定 SHA 的 Wiki 草稿，預覽後發布至 GitLab Wiki，支援逐頁收據、衝突檢查及逾時對帳。
-- MR 提供一鍵 Code Review，回填原生審查報告及留言草稿，發布前重新核對來源與目標版本。
-- 保留原有 Skills、BMAD 進階入口，以及手動提交、推送與發布操作。
-
-完整變更、使用需求與實機驗收限制見 [0.41.0 發布說明](docs/releases/v0.41.0.md)。
-
-## 0.39.0 更新
-
-- Wiki、MergeReviewer、ReleaseReviewer 與 BMAD 可從工作台一鍵交由本機 Codex 執行；同一專案的任務會排隊，跨視窗共用執行鎖。
-- 任務面板呈現執行進度、對話、核准及檔案變更，支援停止與手動續作；重開 VS Code 後可讀取歷史並核對中斷結果，不會自動重送。
-- 審查報告完整性仍依本機審查紀錄判定；不以 Codex 單輪完成取代既有審查驗證。
-
-完整變更及驗證紀錄見 [0.39.0 發布說明](docs/releases/v0.39.0.md)與[Codex Bridge 驗證紀錄](docs/work/work-20261104-codex-bridge/verification.md)。
+舊版橋接器與 GitLab 交付流程記錄於 [0.39.0 發布說明](docs/releases/v0.39.0.md)、[0.41.0 發布說明](docs/releases/v0.41.0.md)和 [Codex Bridge 驗證紀錄](docs/work/work-20261104-codex-bridge/verification.md)。目前流程見 [Codex CLI 操作說明](docs/codex-cli.md)。
 
 ## 0.38.1 更新
 
@@ -298,7 +287,7 @@ Wiki 新增 **專案功能探索**：從目前原始碼盤點功能、來源、�
 npm ci
 ```
 
-接著在 VS Code 按 `F5`。啟動前會執行 `build:dev`，依序編譯 TypeScript 與建置主畫面、側欄 Webview；建置失敗時會停止啟動。修改前端來源後，重新啟動偵錯即可載入新介面。常用指令：
+接著在 VS Code 按 `F5`。`build:dev` 會編譯 TypeScript 並建置主畫面 Webview，成功後開啟 Extension Development Host。側欄使用原生 TreeView。修改前端來源後，重新啟動偵錯即可載入新介面。
 
 ```sh
 npm run build:dev
@@ -328,7 +317,7 @@ Extension 建置只產生 VSIX，並驗證其線上安裝橋接及狀態檢查�
 - Each page loads its own data once on entry or re-entry and on manual refresh; Issue relations, time data, discussions, and the graph load when their page or tab is opened. GitLab projects, assigned Issues, Boards, and Merge Requests share the selected Group; local Git, Skills, BMAD, and logs work without one.
 - Each connection runs at most six concurrent reads with a 30-second timeout. Dynamic data is cached for 60 seconds; project lists, field options and verified fixed-version Diffs use five minutes. All share the existing 256-entry / 32 MiB limit, and identical in-flight reads are shared. Page entry reuses valid data, expired data reloads on demand, and manual refresh requests fresh data; cache expiry and native Git events do not start background reads. The sidebar Repo list refreshes on entry or its Update button.
 - Repo, Issue, Merge Request, and diff lists virtualize rows above 200 items. Local Repo status work is limited to four concurrent operations; graph changes are coalesced and sent as deltas every 100 ms.
-- Validation commands: `npm run test:quick` for daily type/unit/tooling checks, `npm run test:ui` for current UI/native-core checks and a verified VSIX, `npm run test:compatibility` for installer integration, and `npm test` for the full release gate. `npm run test:legacy` is reserved for the retired Webview sidebar. See CONTRIBUTING.md for conservative PR routing and prepared-build reuse. `npm run benchmark:performance` uses production helpers and synthetic data; it does not represent live GitLab or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
+- Use `npm run test:quick` for daily type/unit/tooling checks, `npm run test:ui` for current UI/native-core checks and a verified VSIX, `npm run test:compatibility` for installer integration, and `npm test` for the full release gate. See CONTRIBUTING.md for PR routing and prepared-build reuse. `npm run benchmark:performance` measures production helpers with synthetic data. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
 
 查詢後續的一次確認、全量 Ingest 使用方式見[Wiki 工作流程](docs/wiki-workflows.md)。
 

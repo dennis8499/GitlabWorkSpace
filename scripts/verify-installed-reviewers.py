@@ -31,11 +31,6 @@ def write_json(path, value):
     path.write_bytes((json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode('utf-8'))
 
 
-def append_event(path, value):
-    with path.open('a', encoding='utf-8', newline='') as stream:
-        stream.write(json.dumps(value, ensure_ascii=False) + '\n')
-
-
 def run_cli(cli, run_root, vsix, action, environment):
     scripts = {
         'version': '& $env:GLW_VERIFY_CODE_CLI --version; exit $LASTEXITCODE',

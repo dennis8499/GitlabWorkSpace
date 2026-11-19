@@ -35,8 +35,12 @@ suite('Online workflow kit installation', () => {
 });
 
 suite('WorkflowKit compatibility installation', () => {
+  const externalProfiles = ['group', 'repository'] as const;
+  const perProfileTimeout = 4 * 60_000;
+
   for (const kitVersion of ['1.0.0', '1.3.1', '1.3.4', '1.3.5', '1.5.0']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
-    this.timeout(kitVersion === '1.5.0' ? 480_000 : 240_000);
+    // Each case runs one install in the opened Repo and one in each external profile.
+    this.timeout((1 + externalProfiles.length) * perProfileTimeout);
     const temporaryParent = process.env.GITLAB_WORKSPACE_KIT_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
     // Wiki's native installer adds its own staging tree; avoid Windows MAX_PATH in the fixture.
@@ -209,7 +213,7 @@ suite('WorkflowKit compatibility installation', () => {
       await host.refreshWorkflowKit(false);
       const skills = host.getSkillsContext();
       assert.equal(skills.root, root); assert.equal(skills.installed.status, 'installed');
-      for (const profile of ['group', 'repository']) {
+      for (const profile of externalProfiles) {
         const external = path.join(temporary, `外部 ${profile}`); await mkdir(external);
         if (profile === 'repository') execFileSync('git', ['init', '--quiet', external]);
         const externalRoot = await realpath(external);

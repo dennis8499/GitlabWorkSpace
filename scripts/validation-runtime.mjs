@@ -40,7 +40,7 @@ export async function fingerprint(root, paths) {
 export function preparationInputs() {
   return ['package.json', 'package-lock.json', '.gitattributes', '.github', 'eslint.config.mjs', 'src', 'test', 'scripts', 'docs',
     'tsconfig.json', 'tsconfig.webview.json', 'vite.dashboard.config.mjs',
-    'vite.sidebar.config.mjs', 'vite.issue-test.config.mjs', '.vscode-test.mjs',
+    'vite.issue-test.config.mjs', '.vscode-test.mjs',
     '.vscodeignore', 'README.md', 'CONTRIBUTING.md', 'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1',
     'resources/git-askpass.js', 'resources/git-askpass.sh', 'resources/git-ssh-askpass.sh', 'resources/repair-api-control.ps1',
     'resources/gitlab-workspace.svg', 'resources/workflow-kit-status.py', 'resources/bmad', 'resources/codicons'];

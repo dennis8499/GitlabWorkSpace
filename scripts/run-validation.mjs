@@ -12,7 +12,6 @@ const profiles = {
   quick: ['compile', 'typecheck-webview'],
   ui: ['compile', 'typecheck-webview', 'webview', 'issue'],
   compatibility: ['compile', 'typecheck-webview', 'webview'],
-  legacy: ['compile', 'typecheck-webview', 'legacy'],
   unit: ['compile'],
   behavior: ['compile', 'typecheck-webview', 'webview', 'issue'],
   release: [],
@@ -81,7 +80,7 @@ try {
   else {
     await rm(path.join(root, receiptPath), { force: true });
     const cache = [];
-    if (includes('quick', 'ui', 'legacy')) {
+    if (includes('quick', 'ui')) {
       const identity = createHash('sha256').update(await readFile(path.join(root, 'package-lock.json'))).digest('hex').slice(0, 16);
       cache.push('--cache', '--cache-strategy', 'content', '--cache-location', '.gitlab-workspace-validation/eslint-' + identity + '.cache');
     }
@@ -102,10 +101,9 @@ try {
     if (stages.includes('webview')) await required(node('build-dashboard', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.dashboard.config.mjs'));
     // Dashboard empties its output directory, so its test entry is built last.
     if (stages.includes('issue')) await required(node('build-issue-tests', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.issue-test.config.mjs'));
-    if (stages.includes('legacy')) await required(node('build-sidebar', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.sidebar.config.mjs'));
     const outputs = stages.flatMap(stage => ({ lint: [], 'typecheck-webview': [], compile: ['out', 'out/src/extension.js'],
       webview: ['resources/issue-webview', 'resources/issue-webview/dashboard.js'],
-      issue: ['resources/issue-webview/issue-test.js'], legacy: ['resources/sidebar-webview', 'resources/sidebar-webview/sidebar.js']
+      issue: ['resources/issue-webview/issue-test.js']
     })[stage]);
     await savePreparation(root, stages, outputs);
   }
@@ -127,10 +125,6 @@ try {
       for (const [id, steps, feature] of [['issues', 'steps.cjs', 'issues.feature'], ['connect', 'connect.steps.cjs', 'connect.feature']]) {
         await required(node('behavior-' + id, '--require', './test/network-test-environment.cjs', 'node_modules/@cucumber/cucumber/bin/cucumber.js', '--require', 'test/behavior/' + steps, '--tags', '@automated', 'test/behavior/' + feature));
       }
-    }
-    if (mode === 'legacy') {
-      await required(node('legacy-unit', '--require', './test/network-test-environment.cjs', '--test', '--test-concurrency=' + workers, ...await testFiles('out/test/legacy/unit', '.test.js')));
-      await required(node('legacy-behavior', '--require', './test/network-test-environment.cjs', '--test', ...await testFiles('test/legacy/behavior', '.test.mjs')));
     }
     if (includes('all', 'quick', 'ui', 'release')) {
       await required(node('release-tooling', '--test', ...await testFiles('scripts', '.test.mjs')));

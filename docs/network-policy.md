@@ -118,7 +118,7 @@ Windows compiler cache 的新目錄及新編譯檔案明確由目前使用者持
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-api-control.ps1 -RuntimeRoot $runtimePath -LeasePath $leasePath -Apply -ClientsStopped
    ```
 
-5. 確認 `Removed` 或 `Missing` 後，安裝 `gitlab-workspace-0.54.3.vsix`，再重新開啟 VS Code 並連線 GitLab。若已安裝修正版，直接重新開啟即可。
+5. 確認 `Removed` 或 `Missing` 後，若仍使用 0.54.3 以前的版本，先安裝目前發行的 VSIX。重新開啟 VS Code 並連線 GitLab。
 
 工具預設只檢查；套用前兩次檢查宿主程序，核對實際路徑與所有祖先目錄，拒絕網路路徑、重新導向及其他鎖種類。實際移除使用非遞迴的空目錄刪除。`NotEmpty`、權限不足、程序檢查失敗或目錄改變時停止，保留全部檔案；請保存 `Entries` 與相關 Log 供後續診斷。`state.json`、`network-policy.json`、Git 鎖與非空目錄均不在清理範圍內。
 

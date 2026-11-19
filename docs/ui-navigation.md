@@ -60,4 +60,4 @@ MR Diff 使用固定版本的 base/head SHA。完整內容無法讀取或超過�
 
 維持 VS Code `^1.90.0`、Preact／Vite 與公開 Extension API。進階 Git、Workspace Trust、確認流程、快取及網路預算沿用既有政策。本輪不擴大 Remote／WSL 支援。
 
-測試與前後畫面見 [本輪驗收紀錄](work/work-20261105-vscode-ux-review/implementation-results.md)。瀏覽器合成 Host／主題探測、原生 Extension Host 測試與人工 NVDA／F5 分別記錄，不互相替代。舊的 `validate-packaged-ui.mjs` 僅供包含 Webview 側欄的歷史 VSIX 效能比較；目前原生側欄由 Extension Host 測試驗收。
+原生側欄由 Extension Host 測試驗收。瀏覽器合成 Host 與主題探測、原生測試及人工 NVDA／F5 的結果見 [介面驗收紀錄](work/work-20261105-vscode-ux-review/implementation-results.md)。

@@ -33,7 +33,7 @@ npm test
 
 以上命令是按需要選用的入口，不必全部依序執行。`test:quick` 執行零警告 lint、Host 編譯、Webview 型別、現行單元與 Node 發行工具測試，不建置 Webview、不啟動 VS Code 或安裝器。`test:ui` 再加入正式 Dashboard、行為／Cucumber、原生 Host 核心及 Trust，全部成功後才打包與驗證。`test:compatibility` 執行五個固定版本的真實 Host 安裝與全部 Python 整合案例，適合 WorkflowKit、Python 或 reviewer 橋接變更。
 
-`npm test` 保留完整驗證：先檢查 Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Dashboard 與 Issue 測試入口各一次；先執行真實 Extension Host，再執行 Trust、單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔，CI 直接上傳這份 `dist` 附件。舊側欄已退出產品，僅 `npm run test:legacy` 另行建置及測試，完整驗證不包含這些歷史案例。
+`npm test` 先檢查 Host 的安裝與版本，再編譯 TypeScript、檢查前端型別，各建置一次 Dashboard 與 Issue 測試入口。接著執行真實 Extension Host、Trust、單元、行為及發行流程測試。原生側欄由 Extension Host 測試驗收。全部成功後，產生並驗證一份 VSIX 與校驗檔，供 CI 上傳。
 
 各獨立測試與 `npm run package` 仍會自動準備必要建置；單獨 `test:unit` 只準備 lint 與 Host 編譯。要在同一份來源重複檢查，可先執行 `npm run prepare:validation`，再使用 `test:unit:prepared`、`test:behavior:prepared`、`test:release:prepared`、`test:extension:prepared` 或 `package:prepared`。這些命令先取得工作目錄鎖，再核對成功的階段、來源與產物 SHA-256；舊版收據、來源、設定、測試、腳本或產物改變後，都須重新準備。快檢查的 ESLint 使用內容快取並按 lockfile 隔離；完整驗證仍跑不使用快取的 lint。多個命令不可共用目錄同時建置。
 

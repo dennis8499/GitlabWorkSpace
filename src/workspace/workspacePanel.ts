@@ -185,8 +185,6 @@ export class WorkspacePanel implements vscode.Disposable {
   private projectContext?: ProjectRootContext;
   private cloneRoot?: string;
   private cloneRootError?: string;
-  private cloneRootManual = false;
-  private cloneRootScope?: string;
   private cloneRootGeneration = 0;
   private cloneRootSelecting = false;
   private actualRepositories: LocalGroupRepository[] = [];
@@ -224,7 +222,6 @@ export class WorkspacePanel implements vscode.Disposable {
   private pendingNotificationsOpen = false;
   private pendingSettingsOpen = false;
   private pendingSettingsOptions?: { focusSection?: 'workflowkit' | 'codex'; draftId?: string };
-  private restoredOnce = false;
   private readonly gitWriteReceipts = new Map<string, Extract<GitPanelMessage, { type: 'gitActionResult' }>>();
   private groupMilestones: GitLabMilestone[] = [];
   private groupMilestonesError?: string;
@@ -1541,7 +1538,6 @@ export class WorkspacePanel implements vscode.Disposable {
         if (request.mergeRequestFilter && ['all', 'reviewer', 'assigned'].includes(request.mergeRequestFilter)) this.mergeRequestFilter = request.mergeRequestFilter;
         await this.refresh({ reason: 'entry' });
         if (generation !== this.viewGeneration || this.disposed) break;
-        this.restoredOnce = true;
         if (this.activeMode === 'reviewer' && this.pendingMergeRequestRead) {
           const { projectId, iid } = this.pendingMergeRequestRead;
           void this.loadMergeRequest(projectId, iid).catch(error => this.post({ type: 'error', message: readableError(error) }));
@@ -2356,7 +2352,6 @@ export class WorkspacePanel implements vscode.Disposable {
       this.cloneRoot = context.root;
       this.workspaceRootError = context.error;
       this.cloneRootError = context.error;
-      this.cloneRootManual = context.manual;
       // Repo inventory is the dashboard's core content. A missing Python runtime or a
       // slow WorkflowKit status helper must never hold this section in a loading state.
       if (context.root) void this.refreshWorkflowKitInstallState(false, signal).catch(error => {
@@ -2431,8 +2426,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private invalidateProjectRoot(reason?: string): void {
     this.cloneRootGeneration = (this.cloneRootGeneration ?? 0) + 1;
     this.projectRepositoryScanGeneration = (this.projectRepositoryScanGeneration ?? 0) + 1;
-    this.cloneRoot = undefined; this.cloneRootScope = undefined; this.cloneRootError = reason;
-    this.cloneRootManual = false; this.projectLocalRepositoryStates = {}; this.projectRepositoriesKey = undefined;
+    this.cloneRoot = undefined; this.cloneRootError = reason;
+    this.projectLocalRepositoryStates = {}; this.projectRepositoriesKey = undefined;
   }
 
   private async resolveProjectRoot(): Promise<WorkspaceRootResolution & { manual: boolean; revision: string }> {
@@ -2450,7 +2445,6 @@ export class WorkspacePanel implements vscode.Disposable {
     this.projectContext = context;
     this.syncBmadVisibility();
     this.cloneRoot = context.root; this.cloneRootError = context.error;
-    this.cloneRootManual = context.manual; this.cloneRootScope = scope;
     const repositoryKey = scope && this.repositoryStateKey(scope, context.root, projects);
     if (scope && context.root && repositoryKey && (forceRepositories || this.projectRepositoriesKey !== repositoryKey)) {
       await this.refreshLocalRepositoryStates(context.root, projects, scope, repositoryKey, true, signal);
@@ -5595,11 +5589,6 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
 
-  private requireGroupRoot(): string {
-    if (this.projectContext?.root) return this.projectContext.root;
-    if (this.groupRoot) return this.groupRoot;
-    throw new Error(this.projectContext?.error ?? this.workspaceRootError ?? '請在 VS Code 開啟或選擇專案資料夾。');
-  }
 
 
 
@@ -5721,8 +5710,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!current()) return;
     this.projectContext = context; this.workspaceMatch = match;
     this.groupRoot = context.root; this.workspaceRootError = context.error ?? match.reason;
-    this.cloneRoot = context.root; this.cloneRootError = context.error; this.cloneRootManual = context.manual;
-    this.cloneRootScope = this.connectedScopeKey();
+    this.cloneRoot = context.root; this.cloneRootError = context.error;
     void this.watchRepositoryRemotes(signal);
     await this.refreshWorkflowKitInstallState(publish, signal, { context, checked: context.root ? {
       root: context.root, profile: match.profile, error: context.error ?? (match.status === 'error' ? match.reason : undefined),
@@ -5767,8 +5755,7 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     this.projectContext = context;
     this.groupRoot = context.root; this.workspaceRootError = context.error ?? checked?.error;
-    this.cloneRoot = context.root; this.cloneRootError = context.error; this.cloneRootManual = context.manual;
-    this.cloneRootScope = this.connectedScopeKey();
+    this.cloneRoot = context.root; this.cloneRootError = context.error;
     this.workflowKit.setContext({ revision: context.revision, root: context.root, manual: context.manual,
       profile: checked?.profile, error: context.error ?? checked?.error, remoteFingerprint: checked?.remoteFingerprint });
     this.skillsContextCache = undefined;

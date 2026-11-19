@@ -128,7 +128,8 @@ def main():
                      'extension/resources/sidebar-webview/', 'extension/resources/offline-tools/', 'extension/resources/workflow-kit/',
                      'extension/.github/', 'extension/scripts/', 'extension/test/', 'extension/.npm-cache/')
         if any(name.startswith(forbidden) or name.endswith('.log') or name in (
-            'extension/resources/workflow-kit-installer.py', 'extension/resources/tool-installer.py') for name in members):
+            'extension/resources/workflow-kit-installer.py', 'extension/resources/tool-installer.py',
+            'extension/out/src/quickActionsView.js') for name in members):
             raise ValueError('VSIX contains a local installation package, installer, test or development resource')
         retired_codex = ('appServer', 'adapter', 'bridge', 'buildAutoProbe', 'processHost', 'rpcError', 'taskWorkspace')
         codex_prefix = 'extension/out/src/codex/'
