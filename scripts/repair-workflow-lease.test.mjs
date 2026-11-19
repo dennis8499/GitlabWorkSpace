@@ -14,7 +14,13 @@ const script = fileURLToPath(new URL('../resources/repair-workflow-lease.ps1', i
 const native = fileURLToPath(new URL('../resources/repair-workflow-lease-native.cs', import.meta.url));
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
 function powershell(source) {
-  const command = `$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; try { ${source} } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }`;
+  const command = `
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+    [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+    try { ${source} }
+    catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }
+  `;
   const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')];
   return exec('powershell.exe', args, { timeout: 15_000 }).catch(error => { throw new Error(error.stderr?.trim() || error.message); });
 }
@@ -89,8 +95,21 @@ test('workflow lock retirement preserves an already occupied destination and the
   await writeFile(path.join(sibling, 'marker'), 'keep-sibling');
   const owner = f.owner();
   await writeFile(f.ownerPath, owner);
-  const source = `Add-Type -Path ${quote(native)}; $directory = [WorkflowLeaseDirectory]::Open(${quote(f.lease)}, $true); try { $directory.Retire(${quote(siblingName)}) } finally { $directory.Dispose() }`;
-  await assert.rejects(powershell(source), /Exception calling "Retire"/);
+  const source = `
+    Add-Type -Path ${quote(native)}
+    $directory = [WorkflowLeaseDirectory]::Open(${quote(f.lease)}, $true)
+    try {
+      $null = $directory.Retire(${quote(siblingName)})
+    } catch {
+      $cause = $_.Exception.GetBaseException()
+      if ($cause -isnot [ComponentModel.Win32Exception]) { throw }
+      $cause.NativeErrorCode
+    } finally {
+      $directory.Dispose()
+    }
+  `;
+  const { stdout } = await powershell(source);
+  assert.equal(stdout.trim(), '183', 'Expected ERROR_ALREADY_EXISTS');
   assert.equal(await readFile(f.ownerPath, 'utf8'), owner);
   assert.equal(await readFile(path.join(sibling, 'marker'), 'utf8'), 'keep-sibling');
 });
