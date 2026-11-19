@@ -238,14 +238,14 @@
       {
         "category": "GitLab Workspace",
         "command": "gitlabWorkspace.loadMoreMyWork",
-        "title": "載入更多工作項目",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "title": "載入更多工作項目"
       },
       {
         "category": "GitLab Workspace",
         "command": "gitlabWorkspace.retryMyWorkSection",
-        "title": "重試工作項目",
-        "icon": "$(refresh)"
+        "icon": "$(refresh)",
+        "title": "重試工作項目"
       }
     ],
     "configuration": {
@@ -544,5 +544,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.56.1"
+  "version": "0.56.2"
 }
