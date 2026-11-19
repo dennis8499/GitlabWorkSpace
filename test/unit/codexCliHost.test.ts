@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { CodexCliSource } from '../../src/codex/cliProtocol';
+import type { ManualCodexResult, ManualCodexTerminal } from '../../src/codex/manualTerminal';
 import type { CodexTerminalLaunch, CodexTerminalSelection } from '../../src/codex/terminal';
 import { NetworkLeaseError, networkRuntimeRoot } from '../../src/api/localNetworkLease';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
@@ -58,11 +59,11 @@ async function fixture(t: test.TestContext) {
   };
   const terminal = {
     choose: async (_configured: string, cwd: string) => { calls.push({ action: 'choose', data: cwd }); return choices.value; },
-    launch: async (selection: CodexTerminalSelection, options: CodexTerminalLaunch) => {
+    launch: async (selection: CodexTerminalSelection, options: CodexTerminalLaunch, settings?: { manual?: ManualCodexTerminal }) => {
       calls.push({ action: 'launch' });
       if (changes.launchError) throw changes.launchError;
       launched.push({ selection, options });
-      return nativeTerminal;
+      return settings?.manual?.terminal ?? nativeTerminal;
     }
   };
   const prepare = (action: string, data: unknown) => {
@@ -78,6 +79,8 @@ async function fixture(t: test.TestContext) {
     resolveProjectContext: async () => ({ root }),
     captureProjectAccess: () => () => { if (!changes.canAccess) throw new Error('工作區已變更'); },
     codexExecutableSetting: () => '',
+    codexManualStartSetting: () => undefined,
+    operationPhase: () => undefined,
     getCodexTerminal: () => terminal,
     post: () => undefined,
     cliTerminals: new Map(),
@@ -100,6 +103,25 @@ async function fixture(t: test.TestContext) {
   const leasePaths = [root, cwd].map(directory => path.join(networkRuntimeRoot(), 'codex-workspaces',
     createHash('sha256').update(process.platform === 'win32' ? directory.toLowerCase() : directory).digest('hex') + '.lock'));
   return { host, root, cwd, skillPath, heads, calls, selected, choices, changes, launched, terminal, leasePaths, logs };
+}
+
+function manualTerminal(f: Awaited<ReturnType<typeof fixture>>) {
+  const controller = new AbortController();
+  let request!: (accepted: boolean) => void;
+  let exit!: (result: ManualCodexResult) => void;
+  let show!: () => void;
+  const shown = new Promise<void>(resolve => { show = resolve; });
+  const cancel = () => { controller.abort(); request(false); exit({ state: 'not-started' }); };
+  const manual: ManualCodexTerminal = {
+    terminal: { show } as unknown as ManualCodexTerminal['terminal'],
+    signal: controller.signal,
+    requested: new Promise(resolve => { request = resolve; }),
+    completion: new Promise(resolve => { exit = resolve; }),
+    start() {}, reject: cancel, close: cancel
+  };
+  f.host.codexManualStartSetting = () => ({ powerShell: '' });
+  f.host.openManualCodexTerminal = async () => manual;
+  return { manual, shown, enter: () => request(true), exit };
 }
 
 test('retained workflow sources launch the chosen CLI settings with prepared input and writable scope', async t => {
@@ -152,6 +174,74 @@ test('a failed terminal launch rolls back its preparation and permits a fresh re
   await f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
   assert.deepEqual(f.calls.map(call => call.action), ['choose', 'bmad', 'launch', 'finish', 'outcome']);
 });
+
+test('a waiting manual terminal leaves the workflow untouched when closed before Enter', async t => {
+  const f = await fixture(t);
+  const m = manualTerminal(f);
+  const running = f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
+  await m.shown;
+  assert.deepEqual(f.calls.map(call => call.action), ['choose']);
+  for (const leasePath of f.leasePaths) await assert.rejects(lstat(leasePath), { code: 'ENOENT' });
+  m.manual.close();
+  await running;
+  assert.deepEqual(f.launched, []);
+  assert.deepEqual(f.calls.at(-1), { action: 'outcome', data: { status: 'cancelled', effect: 'none' } });
+  assert.equal(f.host.cliTerminals.size, 0);
+});
+
+test('a failed manual terminal setup never prepares a workflow or falls back to direct launch', async t => {
+  const f = await fixture(t);
+  manualTerminal(f);
+  const error = new Error('PowerShell terminal setup failed');
+  f.host.openManualCodexTerminal = async () => { throw error; };
+  await assert.rejects(f.host.dispatchMessage({ type: 'runCodexCli', source: skill }), error);
+  assert.deepEqual(f.calls.map(call => call.action), ['choose']);
+  for (const leasePath of f.leasePaths) await assert.rejects(lstat(leasePath), { code: 'ENOENT' });
+});
+
+test('manual Enter checks the pinned MR revision again before workflow preparation', async t => {
+  const f = await fixture(t);
+  const m = manualTerminal(f);
+  const running = f.host.dispatchMessage({ type: 'runCodexCli', source: mergeRequest('release-reviewer') });
+  await m.shown;
+  f.heads.current = 'c'.repeat(40);
+  m.enter();
+  await assert.rejects(running, /固定來源或目標版本已變更/);
+  assert.equal(m.manual.signal.aborted, true);
+  assert.deepEqual(f.calls.map(call => call.action), ['choose']);
+  for (const leasePath of f.leasePaths) await assert.rejects(lstat(leasePath), { code: 'ENOENT' });
+});
+
+for (const scenario of [
+  { name: 'a successful manual Codex exit finishes the workflow and releases its leases', result: { state: 'exited', code: 0 }, finish: true },
+  { name: 'a nonzero manual Codex exit releases leases without finishing the workflow', result: { state: 'exited', code: 23 }, finish: false },
+  { name: 'a refused manual Codex launch rolls back preparation and releases its leases', result: { state: 'not-started' }, finish: false },
+  { name: 'an unconfirmed manual Codex exit preserves its leases and records the uncertainty', result: { state: 'unknown' }, finish: false }
+] as const) {
+  test(scenario.name, async t => {
+    const f = await fixture(t);
+    const m = manualTerminal(f);
+    const running = f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
+    await m.shown;
+    m.enter();
+    await running;
+    assert.deepEqual(f.calls.map(call => call.action), ['choose', 'bmad', 'launch', 'outcome']);
+    for (const leasePath of f.leasePaths) assert.ok((await lstat(path.join(leasePath, 'owner.json'))).isFile());
+    m.exit(scenario.result);
+    await Promise.resolve();
+    await Promise.all(f.host.cliSettlements);
+    assert.equal(f.host.cliTerminals.size, 0);
+    assert.equal(f.calls.some(call => call.action === 'finish'), scenario.finish);
+    assert.equal(f.calls.some(call => call.action === 'rollback'), scenario.result.state === 'not-started');
+    for (const leasePath of f.leasePaths) {
+      if (scenario.result.state === 'unknown') assert.ok((await lstat(path.join(leasePath, 'owner.json'))).isFile());
+      else await assert.rejects(lstat(leasePath), { code: 'ENOENT' });
+    }
+    if (scenario.result.state === 'unknown') {
+      assert.equal(f.logs.filter(entry => entry.includes('terminal-exit-unconfirmed')).length, f.leasePaths.length);
+    }
+  });
+}
 
 test('CLI shutdown retains both leases until the direct terminal process is confirmed stopped', async t => {
   const f = await fixture(t);

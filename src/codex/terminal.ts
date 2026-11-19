@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { stringify } from '@iarna/toml';
 import type * as VSCode from 'vscode';
 import { insideStorage, missingFile, ownedStoragePath, removeOwnedStorage } from '../storage/ownedStorage';
+import type { ManualCodexTerminal } from './manualTerminal';
 import { codexExecutableVersion, resolveCodexExecutable, type CodexExecutable } from './process';
 
 interface CatalogModel {
@@ -32,6 +33,7 @@ export interface CodexTerminalLaunch {
 interface CodexTerminalLaunchOptions {
   beforeCreate?: () => void;
   show?: boolean;
+  manual?: ManualCodexTerminal;
 }
 
 export async function confirmCodexTerminalExit(terminal: VSCode.Terminal, processExit: VSCode.TerminalExitReason): Promise<boolean> {
@@ -212,6 +214,13 @@ export class CodexTerminal {
       await writeFile(promptFile, launch.prompt, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
       args.push('--', `請讀取此 UTF-8 檔案並依內容執行本次工作。檔案路徑 ${JSON.stringify(promptFile)}`);
       options.beforeCreate?.();
+      if (options.manual) {
+        options.manual.start({ file: executable.file, args, cwd });
+        void options.manual.completion.then(result => {
+          if (result.state !== 'unknown') return removeOwnedStorage(this.storage, directory);
+        }).catch(() => undefined);
+        return options.manual.terminal;
+      }
       const terminal = this.vscode.window.createTerminal({ name: launch.title, shellPath: executable.file, shellArgs: args, cwd, isTransient: true });
       const closed = this.vscode.window.onDidCloseTerminal(ended => {
         if (ended !== terminal) return;

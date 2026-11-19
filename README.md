@@ -2,6 +2,8 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
+0.57.0 可在 PowerShell 7 終端預填 `codex` 並等待你按 Enter，方便先開啟既有的 Auto-Accept。詳見 [0.57.0 版本說明](docs/releases/v0.57.0.md)。
+
 0.56.2 整理退役的側欄程式與驗證入口，並依實際安裝步驟調整歷史 WorkflowKit 相容性測試時間。詳見 [0.56.2 版本說明](docs/releases/v0.56.2.md)。
 
 0.56.0 在 VS Code 整合終端執行 Codex CLI。從「工作流程」的 Skills／BMAD，或 MR 詳情的「一鍵 MergeReviewer」「一鍵 ReleaseReviewer」啟動，並在每次執行前選擇模型與思考強度。舊版任務資料由 v0.55.1 讀取。詳見 [0.56.0 版本說明](docs/releases/v0.56.0.md)。

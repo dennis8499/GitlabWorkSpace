@@ -256,6 +256,18 @@
           "scope": "machine",
           "type": "string"
         },
+        "gitlabWorkspace.codex.waitForEnter": {
+          "default": false,
+          "description": "在 Windows 專用 PowerShell 7 工作終端預填 codex 指令，等待你開啟 Auto-Accept 並按 Enter。只讀取使用者設定。",
+          "scope": "machine",
+          "type": "boolean"
+        },
+        "gitlabWorkspace.codex.pwshPath": {
+          "default": "",
+          "description": "等待 Enter 模式使用的 PowerShell 7.3 以上 pwsh.exe 完整路徑；留白時自動偵測。只讀取使用者設定。",
+          "scope": "machine",
+          "type": "string"
+        },
         "gitlabWorkspace.projectRoot": {
           "default": "",
           "description": "專案下載、Skills 安裝與執行共用的根目錄。留白使用所選 VS Code 專案資料夾；相對路徑以該資料夾為基準。",
@@ -544,5 +556,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.56.2"
+  "version": "0.57.0"
 }

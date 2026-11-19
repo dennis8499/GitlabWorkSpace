@@ -12,6 +12,14 @@ BMAD 預設一般 Build。Windows 上可從 Build 頁按「檢查 Build Auto」�
 
 從 v0.55.1 升級時，先前的工作台任務仍由舊版讀取。原生 WorkflowKit 產物、原生 Reviewer 紀錄及一般 GitLab 操作繼續使用原有位置。發行差異見 [0.56.0 版本說明](releases/v0.56.0.md)。
 
+## 先開啟 Auto-Accept 再啟動 Codex
+
+在本機 Windows 的 VS Code 1.93 以上啟用 Terminal Shell Integration，並安裝 PowerShell 7.3 以上。在 VS Code **使用者設定**將 `gitlabWorkspace.codex.waitForEnter` 設為 `true`。若使用可攜版 PowerShell，可將 `gitlabWorkspace.codex.pwshPath` 設為 `pwsh.exe` 的絕對路徑。留白時從 PATH 與 Windows 標準安裝位置偵測。
+
+1. 在 Skills、BMAD 或審查入口選好模型與思考強度。專用工作終端會預填 `codex`。
+2. 在該終端開啟你安裝的 Auto-Accept，再按 **Enter**。GitLab Workspace 會核對環境並以本次選定的參數啟動 Codex。
+3. 等待期間可直接關閉工作終端取消。若 MR 在等待期間已更新，請重新整理再啟動審查。將 `gitlabWorkspace.codex.waitForEnter` 設為 `false` 即使用直接啟動模式。
+
 ## 復原本機工作流程鎖
 
 安裝或更新 WorkflowKit、啟動 Codex 時若遇到工作流程鎖錯誤，先開啟 GitLab Workspace Log，查看 `workflow-coordination` 的 `leaseKind`、`coordinationCode` 和 `leasePath`。若另一項操作還在執行，等該操作結束再重試。若原擁有者已退出或擁有者資料持續缺失，Windows 可用隨擴充功能提供的 `resources/repair-workflow-lease.ps1` 檢查單一鎖。

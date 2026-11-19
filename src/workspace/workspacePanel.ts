@@ -40,6 +40,7 @@ import { ownedStoragePath } from '../storage/ownedStorage';
 import { actionUsesGitLab } from './gitLabDependency';
 import type { CodexCliSource } from '../codex/cliProtocol';
 import { probeCliBuildAuto } from '../codex/buildAutoCli';
+import { openManualCodexTerminal, type ManualCodexTerminal } from '../codex/manualTerminal';
 import { resolveCodexExecutable, type CodexExecutable } from '../codex/process';
 import { CodexTerminal, confirmCodexTerminalExit } from '../codex/terminal';
 import { ensureLocalCommit, withWorkflowExecution, workflowGit, workflowHash } from '../codex/projectWorkflows';
@@ -2642,6 +2643,19 @@ export class WorkspacePanel implements vscode.Disposable {
     return vscode.workspace.getConfiguration('gitlabWorkspace').inspect<string>('codex.executablePath')?.globalValue ?? '';
   }
 
+  private codexManualStartSetting(): { powerShell: string } | undefined {
+    const config = vscode.workspace.getConfiguration('gitlabWorkspace');
+    if (config.inspect<boolean>('codex.waitForEnter')?.globalValue === true) {
+      return { powerShell: config.inspect<string>('codex.pwshPath')?.globalValue ?? '' };
+    }
+    return undefined;
+  }
+
+  private openManualCodexTerminal(cwd: string, powerShell: string, check: () => void): Promise<ManualCodexTerminal> {
+    return openManualCodexTerminal(vscode, { cwd, powerShell, beforeCreate: check,
+      script: this.context.asAbsolutePath('resources/codex-manual-launch.ps1') });
+  }
+
   private async configureCodexCli(action: 'check' | 'login' | 'executable'): Promise<void> {
     if (action === 'executable') {
       await vscode.commands.executeCommand('workbench.action.openSettings', 'gitlabWorkspace.codex.executablePath');
@@ -2663,8 +2677,10 @@ export class WorkspacePanel implements vscode.Disposable {
     const root = await realpath(context.root);
     const gitLab = source.kind === 'merge-request';
     const checkAccess = this.captureProjectAccess(gitLab);
+    let manual: ManualCodexTerminal | undefined;
     const check = () => {
       checkAccess();
+      manual?.signal.throwIfAborted();
       if (this.disposed || this.cliShuttingDown || !vscode.workspace.isTrusted) throw new Error('工作區已關閉或信任狀態已變更。');
     };
     const mr = source.kind === 'merge-request' ? await this.readCliMergeRequest(source, check) : undefined;
@@ -2697,8 +2713,31 @@ export class WorkspacePanel implements vscode.Disposable {
     };
     const release = () => this.releaseCodexLeases(leases.values(), 'runCodexCli');
     let prepared: WorkflowCliPreparation | undefined;
+    const rollback = async () => {
+      try { await prepared?.rollback?.(); }
+      catch { this.post({ type: 'error', message: 'Codex CLI 啟動前的工作區準備清理尚未完成。' }); }
+    };
     let launched = false;
+    let preparationDone: (() => void) | undefined;
     try {
+      const setting = this.codexManualStartSetting();
+      if (setting) {
+        const pending = await this.openManualCodexTerminal(root, setting.powerShell, check);
+        manual = pending;
+        const preparation = new Promise<void>(resolve => { preparationDone = resolve; });
+        this.cliTerminals.set(pending.terminal, { gitLab, close: async () => {
+          try { pending.close(); } finally { await preparation; }
+        } });
+        check();
+        this.operationPhase('runCodexCli', '等待在工作終端按 Enter…');
+        pending.terminal.show();
+        if (!await pending.requested) {
+          this.noteOutcome({ status: 'cancelled', effect: 'none' });
+          return;
+        }
+        check();
+        this.operationPhase('runCodexCli', '正在準備 Codex 工作…');
+      }
       await hold(root);
       if (source.kind === 'merge-request' && mr) {
         const current = await this.readCliMergeRequest(source, check);
@@ -2753,15 +2792,16 @@ export class WorkspacePanel implements vscode.Disposable {
       if (source.kind === 'merge-request' && mr) this.assertCliMergeRequestUnchanged(mr, await this.readCliMergeRequest(source, check));
       check();
       const terminal = await terminalHost.launch(selection, { title: run.title, cwd, writableRoots: run.writableRoots,
-        prompt: `${rules}請從已安裝位置讀取 ${JSON.stringify(run.skill.path)}，按下列工作要求執行。\n\n${run.prompt}` }, { beforeCreate: check, show: false });
+        prompt: `${rules}請從已安裝位置讀取 ${JSON.stringify(run.skill.path)}，按下列工作要求執行。\n\n${run.prompt}` }, { beforeCreate: check, show: false, manual });
       launched = true;
       let closing = false;
       const settleNow = async () => {
-        listener.dispose();
+        listener?.dispose();
         try {
-          if (!await confirmCodexTerminalExit(terminal, vscode.TerminalExitReason.Process)) {
+          const result = manual && await manual.completion;
+          if (result ? result.state === 'unknown' : !await confirmCodexTerminalExit(terminal, vscode.TerminalExitReason.Process)) {
             for (const lease of leases.values()) {
-              const error = new NetworkLeaseError('Codex CLI 終端程序停止狀態待核對。', 'terminal-exit-unconfirmed',
+              const error = new NetworkLeaseError('Codex CLI 程序停止狀態待核對。', 'terminal-exit-unconfirmed',
                 { leaseKind: 'codex', leasePath: lease.directory });
               reportWorkflowLeaseError(error, 'runCodexCli', 'cleanup', this.session?.log);
             }
@@ -2769,7 +2809,13 @@ export class WorkspacePanel implements vscode.Disposable {
             return;
           }
           try {
-            if (!closing && terminal.exitStatus?.reason === vscode.TerminalExitReason.Process && terminal.exitStatus.code === 0) await run.finish?.();
+            if (result?.state === 'not-started') {
+              await rollback();
+              this.post({ type: 'error', message: 'Codex CLI 程序未啟動。請查看工作終端。' });
+            }
+            const succeeded = result ? result.state === 'exited' && result.code === 0 :
+              terminal.exitStatus?.reason === vscode.TerminalExitReason.Process && terminal.exitStatus.code === 0;
+            if (!closing && succeeded) await run.finish?.();
           } finally { await release(); }
         } finally { this.cliTerminals.delete(terminal); }
       };
@@ -2782,29 +2828,42 @@ export class WorkspacePanel implements vscode.Disposable {
         return stopped;
       };
       const close = async () => {
-        if (!terminal.exitStatus && !closing) {
+        if (!closing && (manual || !terminal.exitStatus)) {
           closing = true;
-          try { terminal.dispose(); } catch { /* The direct process still needs to be checked. */ }
+          try { if (manual) manual.close(); else terminal.dispose(); }
+          catch { /* Process termination still needs to be checked. */ }
         }
         await settle();
       };
-      const listener = vscode.window.onDidCloseTerminal(closed => {
-        if (closed === terminal) void settle().catch(error => this.post({ type: 'error', message: readableError(error) }));
+      const onSettled = () => void settle().catch(error => this.post({ type: 'error', message: readableError(error) }));
+      const listener = manual ? undefined : vscode.window.onDidCloseTerminal(closed => {
+        if (closed === terminal) onSettled();
       });
       this.cliTerminals.set(terminal, { gitLab, close });
+      if (manual) void manual.completion.then(onSettled);
       if (this.cliShuttingDown || this.disposed) await close();
-      else {
+      else if (!manual) {
         try { if (!terminal.exitStatus) terminal.show(); }
         catch (error) { await close().catch(() => undefined); throw error; }
         if (terminal.exitStatus) await settle();
       }
       this.noteOutcome({ effect: 'applied' });
-    } finally {
-      if (!launched) {
-        try { await prepared?.rollback?.(); }
-        catch { this.post({ type: 'error', message: 'Codex CLI 啟動前的工作區準備清理尚未完成。' }); }
-        finally { await release(); }
+    } catch (error) {
+      if (manual && !launched) {
+        if (manual.signal.aborted) {
+          this.noteOutcome({ status: 'cancelled', effect: 'none' });
+          return;
+        }
+        manual.reject();
       }
+      throw error;
+    } finally {
+      try {
+        if (!launched) {
+          if (manual) this.cliTerminals.delete(manual.terminal);
+          try { await rollback(); } finally { await release(); }
+        }
+      } finally { preparationDone?.(); }
     }
   }
 
