@@ -87,7 +87,10 @@ export async function openManualCodexTerminal(vscode: typeof VSCode, options: {
   if (process.platform !== 'win32' || vscode.env.remoteName) {
     throw new Error('等待 Enter 啟動 Codex CLI 需要本機 Windows 的 VS Code 視窗。');
   }
-  if (!window.onDidChangeTerminalShellIntegration || typeof window.onDidStartTerminalShellExecution !== 'function') {
+  const [major, minor] = vscode.version.split('.').map(Number);
+  // Older hosts expose these event names as proposed APIs and throw on subscription.
+  if (!(major > 1 || major === 1 && minor >= 93) || typeof window.onDidChangeTerminalShellIntegration !== 'function' ||
+    typeof window.onDidStartTerminalShellExecution !== 'function') {
     throw new Error('等待 Enter 啟動 Codex CLI 需要支援 Terminal Shell Integration API 的 VS Code 1.93 以上版本。');
   }
   const shellPath = await resolvePowerShell(options.powerShell, options.cwd);

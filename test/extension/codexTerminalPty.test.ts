@@ -55,10 +55,15 @@ async function nativeFixture() {
 
 async function manualFixture(cwd: string, test: Mocha.Context) {
   const powerShell = process.env.GITLAB_WORKSPACE_TEST_PWSH ?? '';
-  if (process.platform !== 'win32' || !('onDidChangeTerminalShellIntegration' in vscode.window)) { test.skip(); return; }
+  if (process.platform !== 'win32') { test.skip(); return; }
+  const options = { cwd, powerShell, script: path.resolve(__dirname, '../../../resources/codex-manual-launch.ps1') };
+  const [major, minor] = vscode.version.split('.').map(Number);
+  if (major === 1 && minor < 93) {
+    await assert.rejects(openManualCodexTerminal(vscode, options), /VS Code 1\.93/);
+    test.skip(); return;
+  }
   try {
-    return await openManualCodexTerminal(vscode, { cwd, powerShell,
-      script: path.resolve(__dirname, '../../../resources/codex-manual-launch.ps1') });
+    return await openManualCodexTerminal(vscode, options);
   } catch (error) {
     if (!powerShell && error instanceof Error && error.message.startsWith('找不到可執行的 PowerShell')) { test.skip(); return; }
     throw error;
