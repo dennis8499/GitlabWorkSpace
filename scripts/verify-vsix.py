@@ -119,7 +119,8 @@ def main():
                      'out/src/workspace/workflowKitReleases.js', 'resources/git-askpass.js',
                      'resources/git-askpass.sh', 'resources/git-ssh-askpass.sh',
                      'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1',
-                     'resources/repair-api-control.ps1'):
+                     'resources/repair-api-control.ps1', 'resources/repair-workflow-lease.ps1',
+                     'resources/repair-workflow-lease-native.cs'):
             if archive.read('extension/' + name) != (ROOT / name).read_bytes():
                 raise ValueError('Missing or stale packaged resource: ' + name)
         verify_webview_dependencies(archive)

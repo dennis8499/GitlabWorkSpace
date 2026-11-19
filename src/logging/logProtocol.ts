@@ -21,6 +21,7 @@ export interface LogContext {
   systemCode?: string;
   runtimePath?: string;
   leasePath?: string;
+  leaseKind?: string;
   requestStarted?: boolean;
 }
 

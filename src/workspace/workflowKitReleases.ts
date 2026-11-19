@@ -4,8 +4,8 @@ import path from 'node:path';
 import type { WorkflowKitReleaseSummary, RemoteToolSource } from './workspaceProtocol';
 import { compareVersions } from './workflowKitVersion';
 import { workflowKitInterfaceCompatible, workflowKitStatusApiCompatible } from './workflowKitCompatibility';
-import { LocalNetworkLease, atomicNetworkJson } from '../api/localNetworkLease';
-import { acquireStorageControl } from '../storage/controlLease';
+import { LocalNetworkLease, atomicNetworkJson, reportWorkflowLeaseError } from '../api/localNetworkLease';
+import type { OperationLog } from '../logging/operationLog';
 import { ownedStoragePath, removeOwnedStorage, removeOwnedAtomicTemps } from '../storage/ownedStorage';
 import { installedKitIdentity } from './workflowKitIntegration';
 export { compareVersions } from './workflowKitVersion';
@@ -46,7 +46,7 @@ export class PackageIntegrityError extends Error {
 export class WorkflowKitReleaseManager {
   private releases: WorkflowKitRelease[] = [];
   readonly cleanupWarnings: string[] = [];
-  constructor(private readonly storagePath: string, private readonly fetcher: typeof fetch = globalThis.fetch) {}
+  constructor(private readonly storagePath: string, private readonly fetcher: typeof fetch = globalThis.fetch, private readonly log?: OperationLog) {}
 
   async listReleases(): Promise<WorkflowKitRelease[]> { return [...this.releases]; }
 
@@ -146,12 +146,12 @@ export class WorkflowKitReleaseManager {
   }
 
   async prepareStatusVerifier(id: string, beforeWrite: () => void = () => undefined, signal?: AbortSignal, root?: string): Promise<string> {
-    const selected = this.selected(id, true), lease = await this.assetLease(selected.descriptor.assets.installer);
+    const selected = this.selected(id, true), lease = await this.assetLease(selected.descriptor.assets.installer, 'prepareStatusVerifier');
     try {
       const filename = await this.cacheInstaller(id, true, beforeWrite, signal);
       if (root) { await this.syncRoot(root); await this.markManaged(selected.source, selected.version); }
       return filename;
-    } finally { await lease.release(); }
+    } finally { await this.releaseLeases([lease], 'prepareStatusVerifier'); }
   }
 
   private async cacheInstaller(id: string, statusOnly: boolean, beforeWrite: () => void, signal?: AbortSignal): Promise<string> {
@@ -177,19 +177,50 @@ export class WorkflowKitReleaseManager {
     return filename;
   }
 
-  private async cacheControl<T>(operation: () => Promise<T>): Promise<T> {
+  private async cacheControl<T>(operation: () => Promise<T>, phase: 'admission' | 'cleanup' = 'admission'): Promise<T> {
     await mkdir(this.storagePath, { recursive: true });
     await ownedStoragePath(path.dirname(this.storagePath), this.storagePath);
-    const lease = await acquireStorageControl(path.join(this.storagePath, 'workflow-kit-cache.control'), 'workflow-kit-cache-control');
+    const directory = path.join(this.storagePath, 'workflow-kit-cache.control');
+    const lease = await LocalNetworkLease.acquire(directory, 'workflow-kit-cache-control', { log: this.log }).catch(error => {
+      throw reportWorkflowLeaseError(error, 'cacheControl', phase, this.log);
+    });
     try {
       for (const name of ['workflow-kit-release-cache.json', 'workflow-kit-roots.json']) await removeOwnedAtomicTemps(this.storagePath, path.join(this.storagePath, name));
       return await operation();
-    } finally { await lease.release(); }
+    } finally { await this.releaseLeases([lease], 'cacheControl'); }
   }
-  private async assetLease(asset: Asset, timeoutMs = 30_000): Promise<LocalNetworkLease> {
+  private async assetLease(asset: Asset, action: string, timeoutMs = 30_000): Promise<LocalNetworkLease> {
     const directory = path.join(this.storagePath, 'workflow-kit-asset-locks');
     await mkdir(directory, { recursive: true }); await ownedStoragePath(this.storagePath, directory);
-    return LocalNetworkLease.acquire(path.join(directory, asset.sha256 + '.lock'), 'workflow-kit-asset', { timeoutMs });
+    try { return await LocalNetworkLease.acquire(path.join(directory, asset.sha256 + '.lock'), 'workflow-kit-asset', { timeoutMs, log: this.log }); }
+    catch (error) {
+      if (timeoutMs === 1 && error instanceof Error && error.name === 'TimeoutError') throw error;
+      throw reportWorkflowLeaseError(error, action, action === 'prune' ? 'cleanup' : 'admission', this.log);
+    }
+  }
+
+  private async releaseLeases(leases: readonly LocalNetworkLease[], action: string): Promise<void> {
+    let failed = false;
+    for (const lease of [...leases].reverse()) {
+      try { await lease.release(); }
+      catch (error) {
+        failed = true;
+        reportWorkflowLeaseError(error, action, 'cleanup', this.log);
+      }
+    }
+    if (failed) this.cleanupWarnings.push('部分 WorkflowKit 本機鎖尚未釋放，請開啟 Log 核對鎖路徑。');
+  }
+
+  private async finishRelease(root: string, leases: readonly LocalNetworkLease[], archivePath?: string): Promise<void> {
+    try {
+      if (!archivePath) return;
+      await this.syncRoot(root, 'cleanup');
+      await removeOwnedStorage(this.storagePath, archivePath);
+    } catch {
+      this.cleanupWarnings.push('WorkflowKit 安裝引用或下載快取清理尚未完成，資料已保留。');
+      return;
+    } finally { await this.releaseLeases(leases, 'install'); }
+    await this.pruneCache();
   }
   private async markManaged(source: RemoteToolSource, version: string): Promise<void> {
     await this.cacheControl(async () => {
@@ -203,25 +234,16 @@ export class WorkflowKitReleaseManager {
   async acquireRelease(id: string, root: string, beforeWrite: () => void, phase: (message: string) => void): Promise<WorkflowKitRelease & { archivePath: string; installerPath: string; release(): Promise<void> }> {
     const selected = this.selected(id), leases: LocalNetworkLease[] = [];
     try {
-      for (const asset of Object.values(selected.descriptor.assets).sort((a, b) => a.sha256.localeCompare(b.sha256))) leases.push(await this.assetLease(asset));
+      for (const asset of Object.values(selected.descriptor.assets).sort((a, b) => a.sha256.localeCompare(b.sha256))) leases.push(await this.assetLease(asset, 'install'));
       phase('正在下載與驗證安裝工具…');
       const installerPath = await this.prepareInstaller(id, beforeWrite);
       await this.markManaged(selected.source, selected.version);
       phase('正在下載與驗證 WorkflowKit…');
       const archivePath = await this.cacheAsset(selected, selected.descriptor.assets.package, beforeWrite); beforeWrite();
-      const release = { ...selected, archivePath, installerPath };
       let releasing: Promise<void> | undefined;
-      return { ...release, release: async () => {
-        return releasing ??= (async () => {
-        try { await this.syncRoot(root); await removeOwnedStorage(this.storagePath, release.archivePath); }
-        finally { for (const lease of leases.reverse()) await lease.release(); }
-        await this.pruneCache();
-        })();
-      } };
+      return { ...selected, archivePath, installerPath, release: () => releasing ??= this.finishRelease(root, leases, archivePath) };
     } catch (error) {
-      try { if (leases.length === 2) { await this.syncRoot(root); await removeOwnedStorage(this.storagePath, this.assetPath(selected.descriptor.assets.package)); } }
-      finally { for (const lease of leases.reverse()) await lease.release(); }
-      await this.pruneCache();
+      await this.finishRelease(root, leases, leases.length === 2 ? this.assetPath(selected.descriptor.assets.package) : undefined);
       throw error;
     }
   }
@@ -229,15 +251,17 @@ export class WorkflowKitReleaseManager {
     await this.syncRoot(root);
     const record = (await this.readCache()).find(item => item.source === identity.source && item.descriptor.version === identity.version);
     if (!record) return undefined;
-    const lease = await this.assetLease(record.descriptor.assets.installer);
+    const lease = await this.assetLease(record.descriptor.assets.installer, 'status');
     try {
       const helper = await this.statusHelper(identity);
-      if (!helper) { await lease.release(); return undefined; }
-      await this.markManaged(identity.source, identity.version);
-      return { ...helper, release: () => lease.release() };
-    } catch (error) { await lease.release(); throw error; }
+      if (helper) {
+        await this.markManaged(identity.source, identity.version);
+        return { ...helper, release: () => this.releaseLeases([lease], 'status') };
+      }
+    } catch (error) { await this.releaseLeases([lease], 'status'); throw error; }
+    await this.releaseLeases([lease], 'status');
   }
-  private async syncRoot(root?: string): Promise<KitRoot[]> {
+  private async syncRoot(root?: string, phase: 'admission' | 'cleanup' = 'admission'): Promise<KitRoot[]> {
     return this.cacheControl(async () => {
       const file = path.join(this.storagePath, 'workflow-kit-roots.json');
       let roots: KitRoot[] = [];
@@ -257,27 +281,27 @@ export class WorkflowKitReleaseManager {
         catch { item.unverified = true; }
       }
       await atomicNetworkJson(file, { schema: 'workflowkit-roots/v1', roots }); return roots;
-    });
+    }, phase);
   }
   async pruneCache(): Promise<void> {
     try {
-      const roots = await this.syncRoot(), records = await this.readCache();
+      const roots = await this.syncRoot(undefined, 'cleanup'), records = await this.readCache();
       const pinned = (hash: string, current: KitRoot[]) => current.some(root => root.unverified) || records.some(item => item.descriptor.assets.installer.sha256 === hash &&
         (!item.managed || current.some(root => root.source === item.source && root.version === item.descriptor.version)));
       for (const item of records) {
         for (const [kind, asset] of Object.entries(item.descriptor.assets)) {
           if (kind === 'installer' && pinned(asset.sha256, roots)) continue;
           let lease: LocalNetworkLease;
-          try { lease = await this.assetLease(asset, 1); }
+          try { lease = await this.assetLease(asset, 'prune', 1); }
           catch (error) {
             if ((error as Error).name !== 'TimeoutError') this.cleanupWarnings.push('部分附件仍有未確認的使用權，已保留快取，請核對先前安裝程序。');
             continue;
           }
           try {
-            if (kind === 'installer' && pinned(asset.sha256, await this.syncRoot())) continue;
+            if (kind === 'installer' && pinned(asset.sha256, await this.syncRoot(undefined, 'cleanup'))) continue;
             await removeOwnedStorage(this.storagePath, this.assetPath(asset));
           }
-          finally { await lease.release(); }
+          finally { await this.releaseLeases([lease], 'prune'); }
         }
       }
       this.releases = this.releases.map(release => release.cached ? { ...release, cached: false, available: false, error: '安裝包已清理，請連線重新檢查 Release 後下載。' } : release);
@@ -286,7 +310,7 @@ export class WorkflowKitReleaseManager {
   async maintain(root?: string): Promise<void> {
     if (!root && !(await this.readCache()).length) return;
     try {
-      const roots = await this.syncRoot(root);
+      const roots = await this.syncRoot(root, 'cleanup');
       if (roots.some(item => item.unverified)) this.cleanupWarnings.push('部分安裝紀錄無法核對，已保留版本驗證工具。');
       await this.pruneCache();
     }

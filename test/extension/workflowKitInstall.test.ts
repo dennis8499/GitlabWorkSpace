@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES } from '../../src/workspace/workflowKitReleases';
@@ -12,6 +12,8 @@ import { readInstalledCommitReviewer } from '../../src/workspace/commitReviewer'
 import { readInstalledReviewerBinding } from '../../src/workspace/installedReviewer';
 import { readReviewerCapabilities } from '../../src/workspace/reviewerCapabilities';
 import { resolvePythonRuntime } from '../../src/workspace/pythonRuntime';
+import { LEASE_SCHEMA, networkRuntimeRoot } from '../../src/api/localNetworkLease';
+import { OperationLog } from '../../src/logging/operationLog';
 
 suite('Online workflow kit installation', () => {
   test('the shared root setting defaults to the opened folder and supports workspace overrides', async () => {
@@ -91,6 +93,8 @@ suite('WorkflowKit compatibility installation', () => {
       configurationTarget = (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace;
       await configuration.update(setting, '', configurationTarget);
       const values = new Map<string, unknown>([['gitlabWorkspace.projectFolder', vscode.Uri.file(root).toString()]]);
+      const coordinationLog: string[] = [];
+      const log = new OperationLog({ info: () => undefined, warn: () => undefined, error: line => coordinationLog.push(line) });
       host = Object.assign(Object.create(WorkspacePanel.prototype), {
         disposed: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
         workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0,
@@ -98,7 +102,7 @@ suite('WorkflowKit compatibility installation', () => {
         remoteWatchers: [], remoteWatchSignature: '',
         gitRepositories: { getInventory: async () => [{ path: nativeRepository!.rootUri.fsPath }] },
         projectRootSelecting: false,
-        session: { getClient: () => { throw new Error('Offline installation must not request a GitLab client'); } },
+        session: { log, getClient: () => { throw new Error('Offline installation must not request a GitLab client'); } },
         context: { extensionUri: vscode.Uri.file(extensionRoot), extension: { packageJSON }, globalState: {
           get: (key: string) => values.get(key),
           update: async (key: string, value: unknown) => { values.set(key, value); }
@@ -124,6 +128,27 @@ suite('WorkflowKit compatibility installation', () => {
       });
       await host.refreshWorkflowKitInstallState(false);
       assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'missing');
+      if (kitVersion === '1.0.0') {
+        const key = createHash('sha256').update(process.platform === 'win32' ? root.toLowerCase() : root).digest('hex');
+        const stale = path.join(networkRuntimeRoot(), 'codex-workspaces', key + '.lock');
+        await mkdir(stale, { recursive: true });
+        const owner = JSON.stringify({ schema: LEASE_SCHEMA, nonce: randomUUID(), kind: 'codex', pid: 2_147_483_647,
+          createdAt: new Date().toISOString(), state: 'reserved', childPid: null, processTreeConfirmed: false });
+        await writeFile(path.join(stale, 'owner.json'), owner);
+        await assert.rejects(host.handleMessage({ type: 'installWorkflowKit', releaseId: selected.id }), {
+          coordinationCode: 'owner-unconfirmed', leasePath: stale, effect: 'none'
+        });
+        const entry = coordinationLog.find(line => line.includes('[workflow-coordination] installWorkflowKit error'));
+        assert.ok(entry, 'the Host identifies a stopped Codex owner before invoking the installer');
+        const data = JSON.parse(entry.slice(entry.indexOf('{')));
+        assert.equal(data.leaseKind, 'codex');
+        assert.equal(data.leasePath, stale);
+        assert.equal(data.coordinationCode, 'owner-unconfirmed');
+        assert.equal(await readFile(path.join(stale, 'owner.json'), 'utf8'), owner);
+        assert.ok(!(await readdir(root)).includes('.agents'));
+        // The Windows repair command has its own tests. Move only this fixture to simulate completed repair.
+        await rename(stale, stale + '.fixture-retired');
+      }
       await host.handleMessage({ type: 'installWorkflowKit', releaseId: selected.id });
       assert.equal(host.workflowKit.snapshot.installTarget.root, root);
       assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');

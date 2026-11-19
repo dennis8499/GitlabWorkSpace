@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { stringify } from '@iarna/toml';
 import type * as VSCode from 'vscode';
@@ -26,6 +27,28 @@ export interface CodexTerminalLaunch {
   cwd: string;
   prompt: string;
   writableRoots: readonly string[];
+}
+
+interface CodexTerminalLaunchOptions {
+  beforeCreate?: () => void;
+  show?: boolean;
+}
+
+export async function confirmCodexTerminalExit(terminal: VSCode.Terminal, processExit: VSCode.TerminalExitReason): Promise<boolean> {
+  const deadline = performance.now() + 1_000;
+  let pid: number | undefined;
+  // A terminal close may be reported before VS Code's PTY host terminates the shell.
+  void Promise.resolve(terminal.processId).then(value => { pid = value; }, () => undefined);
+  for (;;) {
+    if (terminal.exitStatus?.reason === processExit) return true;
+    if (pid !== undefined && Number.isSafeInteger(pid) && pid > 0) {
+      try { process.kill(pid, 0); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true; }
+    }
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) return false;
+    await sleep(Math.min(remaining, 25));
+  }
 }
 
 const run = promisify(execFile);
@@ -159,7 +182,7 @@ export class CodexTerminal {
     this.vscode.window.createTerminal({ name: 'Codex CLI 登入', shellPath: executable.file, shellArgs: ['login'], cwd: root, isTransient: true }).show();
   }
 
-  async launch(selection: CodexTerminalSelection, launch: CodexTerminalLaunch): Promise<VSCode.Terminal> {
+  async launch(selection: CodexTerminalSelection, launch: CodexTerminalLaunch, options: CodexTerminalLaunchOptions = {}): Promise<VSCode.Terminal> {
     const { executable, model, effort } = selection;
     if (model !== undefined && !modelId.test(model) || effort !== undefined && (!model || !effortId.test(effort))) {
       throw new Error('Codex CLI 模型或思考強度無效。');
@@ -188,6 +211,7 @@ export class CodexTerminal {
       const promptFile = path.join(directory, 'input.md');
       await writeFile(promptFile, launch.prompt, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
       args.push('--', `請讀取此 UTF-8 檔案並依內容執行本次工作。檔案路徑 ${JSON.stringify(promptFile)}`);
+      options.beforeCreate?.();
       const terminal = this.vscode.window.createTerminal({ name: launch.title, shellPath: executable.file, shellArgs: args, cwd, isTransient: true });
       const closed = this.vscode.window.onDidCloseTerminal(ended => {
         if (ended !== terminal) return;
@@ -196,7 +220,7 @@ export class CodexTerminal {
           void removeOwnedStorage(this.storage, directory).catch(() => undefined);
         }
       });
-      terminal.show();
+      if (options.show !== false) terminal.show();
       return terminal;
     } catch (error) {
       await removeOwnedStorage(this.storage, directory).catch(() => undefined);

@@ -41,12 +41,12 @@ import { actionUsesGitLab } from './gitLabDependency';
 import type { CodexCliSource } from '../codex/cliProtocol';
 import { probeCliBuildAuto } from '../codex/buildAutoCli';
 import { resolveCodexExecutable, type CodexExecutable } from '../codex/process';
-import { CodexTerminal } from '../codex/terminal';
+import { CodexTerminal, confirmCodexTerminalExit } from '../codex/terminal';
 import { ensureLocalCommit, withWorkflowExecution, workflowGit, workflowHash } from '../codex/projectWorkflows';
 import { saveReviewLaunchRequest, reviewRunnerWritableRoots } from './reviewLaunch';
 import { supportsReviewLaunch } from './reviewLaunchProtocol';
 import { reviewSessionActions } from './reviewSessionProtocol';
-import { atomicNetworkJson, networkRuntimeRoot } from '../api/localNetworkLease';
+import { atomicNetworkJson, NetworkLeaseError, networkRuntimeRoot, reportWorkflowLeaseError } from '../api/localNetworkLease';
 import { ApiControlRecovery, type ApiControlInspection, type ApiControlLaunch } from '../connection/apiControlRecovery';
 import { GitLabNetworkError } from '../api/gitLabNetworkGate';
 import { CodexWorkspaceLease } from '../codex/workspaceLease';
@@ -145,7 +145,7 @@ function readFailureTransport(state: WorkspaceSectionState | undefined, error: u
 export class WorkspacePanel implements vscode.Disposable {
   private gitLabWritesInFlight = 0;
   private codexTerminal?: CodexTerminal;
-  private readonly cliTerminals = new Map<vscode.Terminal, { gitLab: boolean; settle: (normal: boolean) => Promise<void> }>();
+  private readonly cliTerminals = new Map<vscode.Terminal, { gitLab: boolean; close: () => Promise<void> }>();
   private readonly cliSettlements = new Set<Promise<void>>();
   private cliShuttingDown = false;
   private readonly bmadAutoBuildProofs = new Map<string, NonNullable<BmadWorkflowSnapshot['autoBuild']>>();
@@ -387,6 +387,7 @@ export class WorkspacePanel implements vscode.Disposable {
       storagePath: context.globalStorageUri.fsPath,
       extensionDirectory: context.extensionUri.fsPath,
       extensionVersion: context.extension.packageJSON.version,
+      log: this.session.log,
       readSource: () => context.globalState.get<unknown>(TOOL_SOURCE_KEY),
       writeSource: async source => { await context.globalState.update(TOOL_SOURCE_KEY, source); },
       pythonPath: () => vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python'),
@@ -2619,11 +2620,24 @@ export class WorkspacePanel implements vscode.Disposable {
 
   async shutdownCliTerminals(): Promise<void> {
     this.cliShuttingDown = true;
-    const closing = [...this.cliTerminals].map(([terminal, state]) => {
-      terminal.dispose();
-      return state.settle(false);
-    });
+    const closing = [...this.cliTerminals.values()].map(state => state.close());
     await Promise.allSettled([...closing, ...this.cliSettlements]);
+  }
+
+  private async acquireCodexLease(directory: string, action: string): Promise<CodexWorkspaceLease> {
+    try { return await CodexWorkspaceLease.acquire(directory, { timeoutMs: 100, log: this.session?.log }); }
+    catch (error) { throw reportWorkflowLeaseError(error, action, 'admission', this.session?.log); }
+  }
+
+  private async releaseCodexLeases(leases: Iterable<CodexWorkspaceLease>, action: string): Promise<void> {
+    const results = await Promise.allSettled([...leases].reverse().map(lease => lease.release()));
+    let failed = false;
+    for (const result of results) {
+      if (result.status === 'fulfilled') continue;
+      failed = true;
+      reportWorkflowLeaseError(result.reason, action, 'cleanup', this.session?.log);
+    }
+    if (failed) this.post({ type: 'message', message: '工作區執行鎖清理待重試，請查看 Log。' });
   }
 
   private getCodexTerminal(): CodexTerminal {
@@ -2684,13 +2698,10 @@ export class WorkspacePanel implements vscode.Disposable {
         return path.join(await realpath(path.dirname(directory)), path.basename(directory));
       });
       const key = codexLeaseKey(actual);
-      if (!leases.has(key)) leases.set(key, await CodexWorkspaceLease.acquire(
-        path.join(networkRuntimeRoot(), 'codex-workspaces', `${key}.lock`), { timeoutMs: 100 }));
+      if (!leases.has(key)) leases.set(key, await this.acquireCodexLease(
+        path.join(networkRuntimeRoot(), 'codex-workspaces', `${key}.lock`), 'runCodexCli'));
     };
-    const release = async () => {
-      const releases = await Promise.allSettled([...leases.values()].reverse().map(lease => lease.release()));
-      if (releases.some(result => result.status === 'rejected')) throw new Error('Codex CLI 的工作區鎖尚未釋放。');
-    };
+    const release = () => this.releaseCodexLeases(leases.values(), 'runCodexCli');
     let prepared: WorkflowCliPreparation | undefined;
     let launched = false;
     try {
@@ -2748,33 +2759,56 @@ export class WorkspacePanel implements vscode.Disposable {
       if (source.kind === 'merge-request' && mr) this.assertCliMergeRequestUnchanged(mr, await this.readCliMergeRequest(source, check));
       check();
       const terminal = await terminalHost.launch(selection, { title: run.title, cwd, writableRoots: run.writableRoots,
-        prompt: `${rules}請從已安裝位置讀取 ${JSON.stringify(run.skill.path)}，按下列工作要求執行。\n\n${run.prompt}` });
+        prompt: `${rules}請從已安裝位置讀取 ${JSON.stringify(run.skill.path)}，按下列工作要求執行。\n\n${run.prompt}` }, { beforeCreate: check, show: false });
       launched = true;
-      const settleNow = async (normal: boolean) => {
-        this.cliTerminals.delete(terminal);
+      let closing = false;
+      const settleNow = async () => {
         listener.dispose();
-        try { if (normal) await run.finish?.(); }
-        finally { await release(); }
+        try {
+          if (!await confirmCodexTerminalExit(terminal, vscode.TerminalExitReason.Process)) {
+            for (const lease of leases.values()) {
+              const error = new NetworkLeaseError('Codex CLI 終端程序停止狀態待核對。', 'terminal-exit-unconfirmed',
+                { leaseKind: 'codex', leasePath: lease.directory });
+              reportWorkflowLeaseError(error, 'runCodexCli', 'cleanup', this.session?.log);
+            }
+            this.post({ type: 'error', message: '無法確認 Codex CLI 終端程序已停止，工作區執行鎖已保留。請查看 Log。' });
+            return;
+          }
+          try {
+            if (!closing && terminal.exitStatus?.reason === vscode.TerminalExitReason.Process && terminal.exitStatus.code === 0) await run.finish?.();
+          } finally { await release(); }
+        } finally { this.cliTerminals.delete(terminal); }
       };
       let settling: Promise<void> | undefined;
-      const settle = (normal: boolean) => {
+      const settle = () => {
         if (settling) return settling;
-        const stopped = settling = settleNow(normal);
+        const stopped = settling = settleNow();
         this.cliSettlements.add(stopped);
         void stopped.finally(() => this.cliSettlements.delete(stopped)).catch(() => undefined);
         return stopped;
       };
-      const processEndedNormally = () => terminal.exitStatus?.reason === vscode.TerminalExitReason.Process && terminal.exitStatus.code === 0;
+      const close = async () => {
+        if (!terminal.exitStatus && !closing) {
+          closing = true;
+          try { terminal.dispose(); } catch { /* The direct process still needs to be checked. */ }
+        }
+        await settle();
+      };
       const listener = vscode.window.onDidCloseTerminal(closed => {
-        if (closed === terminal) void settle(processEndedNormally()).catch(error => this.post({ type: 'error', message: readableError(error) }));
+        if (closed === terminal) void settle().catch(error => this.post({ type: 'error', message: readableError(error) }));
       });
-      this.cliTerminals.set(terminal, { gitLab, settle });
-      if (this.cliShuttingDown || this.disposed) { terminal.dispose(); await settle(false); }
-      else if (terminal.exitStatus) await settle(processEndedNormally());
+      this.cliTerminals.set(terminal, { gitLab, close });
+      if (this.cliShuttingDown || this.disposed) await close();
+      else {
+        try { if (!terminal.exitStatus) terminal.show(); }
+        catch (error) { await close().catch(() => undefined); throw error; }
+        if (terminal.exitStatus) await settle();
+      }
       this.noteOutcome({ effect: 'applied' });
     } finally {
       if (!launched) {
         try { await prepared?.rollback?.(); }
+        catch { this.post({ type: 'error', message: 'Codex CLI 啟動前的工作區準備清理尚未完成。' }); }
         finally { await release(); }
       }
     }
@@ -2799,10 +2833,12 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     const leases: CodexWorkspaceLease[] = [];
     try {
-      for (const key of [...targets.keys()].sort()) leases.push(await CodexWorkspaceLease.acquire(
-        path.join(networkRuntimeRoot(), 'codex-workspaces', codexLeaseKey(targets.get(key)!) + '.lock'), { timeoutMs: 100 }));
+      try {
+        for (const key of [...targets.keys()].sort()) leases.push(await this.acquireCodexLease(
+          path.join(networkRuntimeRoot(), 'codex-workspaces', codexLeaseKey(targets.get(key)!) + '.lock'), request.type));
+      } catch (error) { this.noteOutcome({ effect: 'none' }); throw error; }
       return await task();
-    } finally { for (const lease of leases.reverse()) await lease.release(); }
+    } finally { await this.releaseCodexLeases(leases, request.type); }
   }
 
   private async linkedRepositoryCandidates(project: GitLabProject): Promise<string[]> {
@@ -4357,10 +4393,10 @@ export class WorkspacePanel implements vscode.Disposable {
     const confirmation = await vscode.window.showWarningMessage(`確認套用 ${capture.projectChanges.length} 個專案規則修改？`,
       { modal: true, detail: capture.projectChanges.map(change => change.path).join('\n') }, '確認套用');
     if (confirmation !== '確認套用' || !current()) return;
-    const lease = await CodexWorkspaceLease.acquire(path.join(networkRuntimeRoot(), 'codex-workspaces', `${codexLeaseKey(root)}.lock`), { timeoutMs: 100 });
+    const lease = await this.acquireCodexLease(path.join(networkRuntimeRoot(), 'codex-workspaces', `${codexLeaseKey(root)}.lock`), 'bmadApplyProjectChanges');
     try {
       if (current()) await new BmadArtifactStore(this.context.globalStorageUri.fsPath).applyProjectChanges(root, capture.id, capture.digest);
-    } finally { await lease.release(); }
+    } finally { await this.releaseCodexLeases([lease], 'bmadApplyProjectChanges'); }
     if (current()) await this.refreshBmadWorkflow(true);
   }
 

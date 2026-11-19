@@ -1,14 +1,18 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { CodexCliSource } from '../../src/codex/cliProtocol';
 import type { CodexTerminalLaunch, CodexTerminalSelection } from '../../src/codex/terminal';
+import { NetworkLeaseError, networkRuntimeRoot } from '../../src/api/localNetworkLease';
+import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
+import { OperationLog } from '../../src/logging/operationLog';
 
 const vscode = {
   workspace: { isTrusted: true },
-  TerminalExitReason: { Process: 2 },
+  TerminalExitReason: { Process: 2, Extension: 4 },
   window: { onDidCloseTerminal: () => ({ dispose() {} }) }
 };
 const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
@@ -40,15 +44,25 @@ async function fixture(t: test.TestContext) {
   const calls: Array<{ action: string; data?: unknown }> = [];
   const selected: CodexTerminalSelection = { executable: { file: 'native-codex.exe', version: '0.169.0' }, model: 'fixture-model', effort: 'high' };
   const choices = { value: selected as CodexTerminalSelection | undefined };
-  const changes = { canAccess: true, launchError: undefined as Error | undefined };
+  const changes = { canAccess: true, launchError: undefined as Error | undefined,
+    exitStatus: { code: 0, reason: vscode.TerminalExitReason.Process } as { code?: number; reason: number } | undefined };
   const launched: Array<{ selection: CodexTerminalSelection; options: CodexTerminalLaunch }> = [];
+  const nativeTerminal = {
+    processId: Promise.resolve(process.pid),
+    get exitStatus() { return changes.exitStatus; },
+    show() { calls.push({ action: 'show' }); },
+    dispose() {
+      calls.push({ action: 'dispose' });
+      changes.exitStatus = { reason: vscode.TerminalExitReason.Extension };
+    }
+  };
   const terminal = {
     choose: async (_configured: string, cwd: string) => { calls.push({ action: 'choose', data: cwd }); return choices.value; },
     launch: async (selection: CodexTerminalSelection, options: CodexTerminalLaunch) => {
       calls.push({ action: 'launch' });
       if (changes.launchError) throw changes.launchError;
       launched.push({ selection, options });
-      return { exitStatus: { code: 0, reason: vscode.TerminalExitReason.Process } };
+      return nativeTerminal;
     }
   };
   const prepare = (action: string, data: unknown) => {
@@ -57,6 +71,8 @@ async function fixture(t: test.TestContext) {
       prompt: 'Verified task prompt', finish: async () => { calls.push({ action: 'finish' }); },
       rollback: async () => { calls.push({ action: 'rollback' }); } };
   };
+  const logs: string[] = [];
+  const log = new OperationLog({ info() {}, warn(line) { logs.push(line); }, error(line) { logs.push(line); } });
   const host = Object.assign(Object.create(WorkspacePanel!.prototype), {
     disposed: false,
     resolveProjectContext: async () => ({ root }),
@@ -68,7 +84,7 @@ async function fixture(t: test.TestContext) {
     cliSettlements: new Set(),
     connectedScopeKey: () => 'connected-scope',
     currentUser: { id: 1 },
-    session: { baseUrl: 'https://gitlab.test', getClient: async () => ({
+    session: { log, baseUrl: 'https://gitlab.test', getClient: async () => ({
       getProject: async () => project,
       getMergeRequest: async () => ({ project_id: 7, iid: 4, title: 'Fixed MR', target_branch: 'main', sha: heads.current }),
       getRepositoryBranch: async () => ({ name: 'main', commit: { id: 'b'.repeat(40) } })
@@ -81,7 +97,9 @@ async function fixture(t: test.TestContext) {
     prepareCliMergeRequest: async (source: unknown, binding: unknown, repository: string) => prepare('merge-request', { source, binding, repository }),
     noteOutcome: (value: unknown) => calls.push({ action: 'outcome', data: value })
   });
-  return { host, root, cwd, skillPath, heads, calls, selected, choices, changes, launched, terminal };
+  const leasePaths = [root, cwd].map(directory => path.join(networkRuntimeRoot(), 'codex-workspaces',
+    createHash('sha256').update(process.platform === 'win32' ? directory.toLowerCase() : directory).digest('hex') + '.lock'));
+  return { host, root, cwd, skillPath, heads, calls, selected, choices, changes, launched, terminal, leasePaths, logs };
 }
 
 test('retained workflow sources launch the chosen CLI settings with prepared input and writable scope', async t => {
@@ -133,4 +151,61 @@ test('a failed terminal launch rolls back its preparation and permits a fresh re
   f.changes.launchError = undefined;
   await f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
   assert.deepEqual(f.calls.map(call => call.action), ['choose', 'bmad', 'launch', 'finish', 'outcome']);
+});
+
+test('CLI shutdown retains both leases until the direct terminal process is confirmed stopped', async t => {
+  const f = await fixture(t);
+  f.changes.exitStatus = undefined;
+  const kill = process.kill;
+  let stopped = false;
+  t.mock.method(process, 'kill', (pid: number, signal?: string | number) => {
+    if (pid !== process.pid || signal !== 0) return kill(pid, signal);
+    if (stopped) throw Object.assign(new Error('Fixture process stopped'), { code: 'ESRCH' });
+    return true;
+  });
+  await f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
+  const closing = f.host.shutdownCliTerminals();
+  assert.equal(f.calls.at(-1)?.action, 'dispose');
+  for (const leasePath of f.leasePaths) assert.ok((await lstat(path.join(leasePath, 'owner.json'))).isFile());
+  stopped = true;
+  await closing;
+  for (const leasePath of f.leasePaths) await assert.rejects(lstat(leasePath), { code: 'ENOENT' });
+  assert.equal(f.calls.some(call => call.action === 'finish'), false);
+});
+
+test('CLI shutdown preserves unconfirmed leases with per-path cleanup diagnostics', async t => {
+  const f = await fixture(t);
+  f.changes.exitStatus = undefined;
+  await f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
+  await f.host.shutdownCliTerminals();
+  for (const leasePath of f.leasePaths) assert.ok((await lstat(path.join(leasePath, 'owner.json'))).isFile());
+  assert.equal(f.calls.some(call => call.action === 'finish'), false);
+  const diagnostics = f.logs.map(line => JSON.parse(line.slice(line.indexOf('{'))));
+  assert.deepEqual(diagnostics.map(value => [value.coordinationCode, value.coordinationPhase, value.leaseKind]),
+    f.leasePaths.map(() => ['terminal-exit-unconfirmed', 'cleanup', 'codex']));
+  assert.deepEqual(new Set(diagnostics.map(value => value.leasePath)), new Set(f.leasePaths));
+});
+
+test('installer preflight attempts all releases and keeps the confirmed result when one release fails', async t => {
+  const f = await fixture(t);
+  f.host.projectContext = { root: f.root };
+  f.host.localWorkspaceRepositories = [{ path: f.cwd }];
+  const release = CodexWorkspaceLease.prototype.release;
+  const attempted: string[] = [];
+  const failed: CodexWorkspaceLease[] = [];
+  t.mock.method(CodexWorkspaceLease.prototype, 'release', async function (this: CodexWorkspaceLease) {
+    attempted.push(this.directory);
+    if (!failed.length) {
+      failed.push(this);
+      throw new NetworkLeaseError('Fixture release blocked', 'release-pending', { leaseKind: 'codex', leasePath: this.directory });
+    }
+    await release.call(this);
+  });
+  const confirmed = { effect: 'applied' };
+  assert.equal(await f.host.withCodexWriteGuard({ type: 'installWorkflowKit' }, async () => confirmed), confirmed);
+  assert.deepEqual(new Set(attempted), new Set(f.leasePaths));
+  assert.equal(attempted.length, 2);
+  assert.equal(f.logs.length, 1);
+  assert.match(f.logs[0], /release-pending/);
+  await release.call(failed[0]);
 });

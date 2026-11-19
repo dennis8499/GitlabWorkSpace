@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { LEASE_SCHEMA, LocalNetworkLease, NetworkLeaseError } from '../../src/api/localNetworkLease';
+import { OperationLog } from '../../src/logging/operationLog';
 import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES, PackageIntegrityError, parseDescriptor, type ReleaseDescriptor } from '../../src/workspace/workflowKitReleases';
+import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 
 const installerLimit = 16 * 1024 * 1024;
 const sha = (data: Uint8Array) => createHash('sha256').update(data).digest('hex');
@@ -23,7 +26,7 @@ function release(version = '1.0.0', source: 'github' | 'gitea' = 'github', contr
     size: data.length, digest: `sha256:${sha(data)}`, browser_download_url: base + name })) };
   return { api, descriptor, files, base };
 }
-async function context(t: { after: (callback: () => Promise<unknown>) => void }, releases = [release()]) {
+async function context(t: { after: (callback: () => Promise<unknown>) => void }, releases = [release()], log?: OperationLog) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'online-kit-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const calls: string[] = [];
@@ -36,7 +39,7 @@ async function context(t: { after: (callback: () => Promise<unknown>) => void },
     }
     return new Response('', { status: 404 });
   };
-  const manager = new WorkflowKitReleaseManager(root, respond as typeof fetch);
+  const manager = new WorkflowKitReleaseManager(root, respond as typeof fetch, log);
   return { root, calls, respond, manager };
 }
 
@@ -235,6 +238,106 @@ test('a failed installation releases its assets and leaves no unreferenced manag
   const { manager, root } = await context(t); const [item] = await manager.refresh('github'), project = path.join(root, 'project'); await mkdir(project);
   const selected = await manager.acquireRelease(item.id, project, () => {}, () => {}); await selected.release();
   await assert.rejects(readFile(selected.archivePath), { code: 'ENOENT' }); await assert.rejects(readFile(selected.installerPath), { code: 'ENOENT' });
+});
+test('installation preserves a stopped asset owner and the original error when its first asset cannot be released', async t => {
+  const { manager, root, calls } = await context(t);
+  const [item] = await manager.refresh('github');
+  const project = path.join(root, 'project'); await mkdir(project);
+  const lockRoot = path.join(root, 'workflow-kit-asset-locks');
+  const [first, blocked] = Object.values(item.descriptor.assets).map(asset => path.join(lockRoot, asset.sha256 + '.lock')).sort();
+  await mkdir(blocked, { recursive: true });
+  const ownerFile = path.join(blocked, 'owner.json');
+  const owner = JSON.stringify({ schema: LEASE_SCHEMA, kind: 'workflow-kit-asset', nonce: randomUUID(), pid: 2147483647,
+    createdAt: new Date().toISOString(), state: 'reserved', childPid: null });
+  await writeFile(ownerFile, owner);
+  const release = LocalNetworkLease.prototype.release;
+  t.mock.method(LocalNetworkLease.prototype, 'release', async function (this: LocalNetworkLease, ...args: Parameters<typeof release>) {
+    if (this.directory === first) throw new Error('Test release failure');
+    return release.apply(this, args);
+  });
+  calls.length = 0;
+  await assert.rejects(manager.acquireRelease(item.id, project, () => {}, () => {}), (error: unknown) => {
+    assert.ok(error instanceof NetworkLeaseError);
+    assert.equal(error.coordinationCode, 'owner-unconfirmed');
+    assert.equal(error.leasePath, blocked);
+    assert.match(error.message, /WorkflowKit/);
+    return true;
+  });
+  assert.deepEqual(calls, [], 'the blocked install must not download release assets');
+  assert.equal(await readFile(ownerFile, 'utf8'), owner);
+  assert.match(manager.cleanupWarnings.join('\n'), /本機鎖尚未釋放/);
+});
+test('releasing an installed WorkflowKit attempts both asset locks after one release failure', async t => {
+  const { manager, root } = await context(t);
+  const [item] = await manager.refresh('github');
+  const project = path.join(root, 'project');
+  const manifests = path.join(project, '.gitlab-workspace', 'tool-manifests'); await mkdir(manifests, { recursive: true });
+  const selected = await manager.acquireRelease(item.id, project, () => {}, () => {});
+  await writeFile(path.join(manifests, 'workflow-kit.json'), JSON.stringify({ source: 'github', version: item.version }));
+  const lockRoot = path.join(root, 'workflow-kit-asset-locks');
+  const [first, last] = Object.values(item.descriptor.assets).map(asset => path.join(lockRoot, asset.sha256 + '.lock')).sort().reverse();
+  const releases: string[] = [], release = LocalNetworkLease.prototype.release;
+  t.mock.method(LocalNetworkLease.prototype, 'release', async function (this: LocalNetworkLease, ...args: Parameters<typeof release>) {
+    if (path.dirname(this.directory) === lockRoot) releases.push(this.directory);
+    if (this.directory === first) throw new NetworkLeaseError('Test release failure', 'release-pending',
+      { leasePath: this.directory, leaseKind: 'workflow-kit-asset' });
+    return release.apply(this, args);
+  });
+  const warnings: string[] = [], log = new OperationLog({ info() {}, error() {}, warn: line => warnings.push(line) });
+  t.after(() => log.dispose());
+  await log.withContext({}, () => selected.release());
+  assert.deepEqual(releases.slice(0, 2), [first, last]);
+  await assert.rejects(readFile(path.join(last, 'owner.json')), { code: 'ENOENT' });
+  assert.ok((await readFile(path.join(first, 'owner.json'))).length);
+  assert.ok(await manager.statusHelper({ source: 'github', version: item.version }), 'the installed verifier remains usable');
+  assert.match(manager.cleanupWarnings.join('\n'), /本機鎖尚未釋放/);
+  const line = warnings.find(value => value.includes('release-pending'));
+  assert.ok(line);
+  const details = JSON.parse(line.slice(line.indexOf('{')));
+  assert.equal(details.leasePath, first);
+  assert.equal(details.coordinationPhase, 'cleanup');
+});
+test('WorkflowKit background status preserves a missing-owner lock and logs its path before returning status', async t => {
+  const output: string[] = [], log = new OperationLog({ info: line => output.push(line), warn: line => output.push(line), error: line => output.push(line) });
+  t.after(() => log.dispose());
+  const { manager, root, calls } = await context(t, undefined, log);
+  const [item] = await manager.refresh('github');
+  await manager.prepareInstaller(item.id);
+  const project = path.join(root, 'project');
+  const manifests = path.join(project, '.gitlab-workspace', 'tool-manifests'); await mkdir(manifests, { recursive: true });
+  await writeFile(path.join(manifests, 'workflow-kit.json'), JSON.stringify({ source: 'github', version: item.version }));
+  const lock = path.join(root, 'workflow-kit-asset-locks', item.descriptor.assets.installer.sha256 + '.lock');
+  await mkdir(lock, { recursive: true });
+  let runs = 0;
+  const service = new WorkflowKitService({ storagePath: root, extensionDirectory: root, extensionVersion: '0.56.0',
+    readSource: () => 'github', writeSource: async () => undefined, pythonPath: () => 'python', reportPhase: () => undefined,
+    runWithInstallProgress: (_version, task) => task(), releaseManager: manager,
+    runHelper: async () => {
+      const helper = await service.statusHelper(project);
+      runs++;
+      await helper.release?.();
+      return { ok: true, status: 'installed', source: 'github', version: item.version };
+    } });
+  t.after(() => service.dispose());
+  service.setContext({ root: project, revision: 'project', manual: false });
+  calls.length = 0;
+  await service.refreshStatus();
+  assert.equal(service.snapshot.state.status, 'error');
+  assert.match(service.snapshot.state.message ?? '', /WorkflowKit.*缺少/);
+  assert.equal(runs, 0);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(await readdir(lock), []);
+  const line = output.find(value => value.includes('metadata-missing'));
+  assert.ok(line);
+  const details = JSON.parse(line.slice(line.indexOf('{')));
+  assert.equal(details.leasePath, lock);
+  assert.equal(details.coordinationPhase, 'admission');
+
+  await rmdir(lock);
+  await service.refreshStatus();
+  assert.equal(service.snapshot.state.status, 'installed');
+  assert.equal(runs, 1);
+  assert.deepEqual(calls, []);
 });
 test('different installed versions sharing an installer hash keep the artifact until the final root releases it', async t => {
   const { manager, root } = await context(t, [release('2.0.0'), release('1.0.0')]);

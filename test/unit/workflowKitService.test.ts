@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { NetworkLeaseError } from '../../src/api/localNetworkLease';
 import { WorkflowKitService, type WorkflowKitContext } from '../../src/workspace/workflowKitService';
 
 function packageManager(releases: unknown[] = []) {
@@ -33,6 +34,26 @@ function options(root: string, releases: unknown[], runHelper: (args: readonly s
 function context(root: string, revision: string): WorkflowKitContext {
   return { root, revision, profile: 'group', manual: false };
 }
+
+test('a local verification lock failure does not fall back to the cached release catalog', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'workflow-kit-service-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const manifests = path.join(root, '.gitlab-workspace', 'tool-manifests'); await mkdir(manifests, { recursive: true });
+  await writeFile(path.join(manifests, 'workflow-kit.json'), JSON.stringify({ source: 'github', version: '1.1.0' }));
+  const release = { version: '1.1.0', descriptor: { statusApi: 1, installerApi: 1, workspaceContract: 2 } };
+  const setup = options(root, [release], async () => ({ ok: true, status: 'installed' }));
+  const lockError = new NetworkLeaseError('WorkflowKit 本機鎖缺少擁有者資料。', 'metadata-missing');
+  let cachedReads = 0;
+  setup.releaseManager.prepareStatusVerifier = async () => { throw lockError; };
+  setup.releaseManager.useCached = async () => { cachedReads++; return [release]; };
+  const service = new WorkflowKitService(setup);
+  t.after(() => service.dispose());
+  service.setContext(context(root, 'revision'));
+
+  await assert.rejects(service.checkReleases('github', () => {}), (error: unknown) => error === lockError);
+  assert.equal(cachedReads, 0);
+  assert.equal(service.snapshot.checkingRelease, false);
+});
 
 test('status replies from a previous project cannot replace the selected project snapshot', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'workflow-kit-service-'));

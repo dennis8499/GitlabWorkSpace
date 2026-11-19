@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { NetworkLeaseError } from '../api/localNetworkLease';
+import type { OperationLog } from '../logging/operationLog';
 import { resolvePythonRuntime } from './pythonRuntime';
 import { installedKitIdentity } from './workflowKitIntegration';
 import { workflowKitFailure, workflowKitWarnings } from './workflowKitResult';
@@ -42,6 +44,7 @@ export interface WorkflowKitServiceOptions {
   reportPhase: (action: string, phase: string) => void;
   onMessage?: (message: string) => void;
   runWithInstallProgress: (version: string, task: () => Promise<Record<string, unknown>>) => Promise<Record<string, unknown>>;
+  log?: OperationLog;
   releaseManager?: WorkflowKitReleaseManager;
   runHelper?: (args: readonly string[], timeout: number, installerPath?: string, beforeLaunch?: () => void | Promise<void>) => Promise<Record<string, unknown>>;
   onDidChange?: () => void;
@@ -70,7 +73,7 @@ export class WorkflowKitService {
   private sourceBeforeWrite?: ToolSource;
 
   constructor(private readonly options: WorkflowKitServiceOptions) {
-    this.packages = options.releaseManager ?? new WorkflowKitReleaseManager(options.storagePath);
+    this.packages = options.releaseManager ?? new WorkflowKitReleaseManager(options.storagePath, undefined, options.log);
   }
 
   get snapshot(): WorkflowKitServiceSnapshot {
@@ -173,7 +176,7 @@ export class WorkflowKitService {
           ? releases.find(item => item.version === identity.version && workflowKitStatusApiCompatible(item.descriptor)) : undefined;
         if (installedRelease) await this.packages.prepareStatusVerifier(installedRelease.id, checkAccess, undefined, this.target.root);
       } catch (error) {
-        if (error instanceof PackageIntegrityError) throw error;
+        if (error instanceof PackageIntegrityError || error instanceof NetworkLeaseError) throw error;
         releases = await this.packages.useCached(source);
         if (!releases.length) throw error;
         this.options.onMessage?.(`無法查詢線上 Release（${readableError(error)}），顯示同一來源已驗證的完整快取。`);
@@ -186,6 +189,7 @@ export class WorkflowKitService {
       return releases;
     } finally {
       this.checkingRelease = false;
+      this.reportCleanupWarnings();
       this.emit();
     }
   }
@@ -290,7 +294,7 @@ export class WorkflowKitService {
     const task: Promise<InstalledWorkflowKitState> = (async (): Promise<InstalledWorkflowKitState> => {
       try {
         const response = await this.runHelper(['status', root], 60_000);
-        await this.packages.maintain?.(root); this.reportCleanupWarnings();
+        await this.packages.maintain?.(root);
         const identity = await installedKitIdentity(root);
         if (identity && ['installed', 'update-available'].includes(String(response.status)) &&
             (response.version !== identity.version || response.source !== identity.source)) throw new Error('安裝紀錄在檢查期間已變更，請重新檢查。');
@@ -319,6 +323,7 @@ export class WorkflowKitService {
           legacyPaths: Array.isArray(response.legacyPaths) ? response.legacyPaths.filter((item): item is string => typeof item === 'string') : undefined
         } : { status: 'error', message: 'Workflow kit status response is invalid.' };
       } catch (error) { return { status: 'error', message: readableError(error) }; }
+      finally { this.reportCleanupWarnings(); }
     })();
     this.statusReads.set(key, task);
     void task.finally(() => { if (this.statusReads.get(key) === task) this.statusReads.delete(key); }).catch(() => undefined);

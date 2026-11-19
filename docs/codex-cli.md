@@ -11,3 +11,23 @@ MR 審查會在啟動前核對來源與目標版本，缺少固定提交時從�
 BMAD 預設一般 Build。Windows 上可從 Build 頁按「檢查 Build Auto」，CLI 會在暫存 Repo 驗證 sandbox 本機提交。選擇 Build Auto 後，本次 CLI 會話還須驗證同步子代理，並使用乾淨的單一 Repo。條件不足時使用一般 Build。
 
 從 v0.55.1 升級時，先前的工作台任務仍由舊版讀取。原生 WorkflowKit 產物、原生 Reviewer 紀錄及一般 GitLab 操作繼續使用原有位置。發行差異見 [0.56.0 版本說明](releases/v0.56.0.md)。
+
+## 復原本機工作流程鎖
+
+安裝或更新 WorkflowKit、啟動 Codex 時若遇到工作流程鎖錯誤，先開啟 GitLab Workspace Log，查看 `workflow-coordination` 的 `leaseKind`、`coordinationCode` 和 `leasePath`。若另一項操作還在執行，等該操作結束再重試。若原擁有者已退出或擁有者資料持續缺失，Windows 可用隨擴充功能提供的 `resources/repair-workflow-lease.ps1` 檢查單一鎖。
+
+在獨立 PowerShell 中執行下列命令。`$rootPath` 填入同一則 Log 的 `runtimePath`，`$leasePath` 填入 `leasePath`。Codex 工作區鎖使用 `RuntimeRoot`，WorkflowKit 附件鎖與快取控制鎖使用 `StorageRoot`。將 `$scriptPath` 設為擴充功能目錄內腳本的完整路徑，並選擇 `$rootPath` 外一個尚未存在的本機 JSON 路徑作為 `$snapshotPath`。
+
+```powershell
+$repair = @('-RuntimeRoot', $rootPath, '-LeasePath', $leasePath, '-SnapshotPath', $snapshotPath)
+# WorkflowKit 鎖請將 -RuntimeRoot 改為 -StorageRoot。
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $scriptPath @repair
+```
+
+看到 `Captured` 後儲存工作，從 Windows 選單執行**重新啟動**。重啟後，先確認使用同一 runtime 的 VS Code、Codex 和相關客戶端都已關閉，再開啟獨立 PowerShell 並以相同參數套用。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $scriptPath @repair -Apply -ClientsStopped
+```
+
+看到 `Retired` 或 `Missing` 後，重新開啟 VS Code，先核對先前安裝或工作的結果，再手動重試。`RetiredPath` 指向完整保留的舊鎖目錄。若工具指出擁有者仍在執行、目錄已變更、無法取得開機證據或含未知內容，請保留現況及該筆 Log 供診斷。

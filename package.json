@@ -545,5 +545,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.56.0"
+  "version": "0.56.1"
 }
