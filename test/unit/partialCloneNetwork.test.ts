@@ -44,7 +44,7 @@ test('a selected download from the first 100 of 1000 projects performs one clone
     captureProjectAccess: () => () => {}, resolveProjectRoot: async () => ({ root, revision: 'root' }),
     sendSnapshot: () => {}, post: () => {}, operationPhase: () => {}, noteOutcome: () => {}, repositoryOutcome: () => ({ status: 'succeeded', effect: 'applied' }),
     cloneProgressPublisher: () => ({ publish: () => {}, dispose: () => {} }), reconcileAfterWrite: async (action: (...args: any[]) => any) => action(),
-    refreshProjectRoot: async () => {}, refreshInventory: async () => {}, schedulePendingWorkspaceRefresh: () => {} });
+    refreshProjectRoot: async () => {}, refreshInventory: async () => {} });
   try {
     await log.run('workspace', 'clone', {}, () => host.clone([1], false));
     assert.equal(calls.length, 1, 'only the initial page was downloaded, with no per-project supplement for complete metadata');

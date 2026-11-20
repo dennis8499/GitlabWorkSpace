@@ -492,49 +492,22 @@ test('copying rechecks compatibility and rejects stale context and retired featu
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'retired-feature', inputs: { 'retired-feature.id': 'work-20261011-unknown' } }), /整合介面尚未受此工作台支援|未知|功能/);
 });
 
-test('concurrent checks coalesce and each Skills page entry rechecks locally without a full Repo scan', async t => {
+test('concurrent checks coalesce and each Skills page entry rechecks its local environment', async t => {
   const [group] = await directories(t); const { host } = fixture([group], true);
-  let reads = 0, packages = 0, resolutions = 0, scans = 0;
+  let reads = 0, packages = 0, resolutions = 0;
   const original = host.runWorkflowKitHelper, listReleases = host.packages.listReleases, resolve = host.resolveProjectContext;
   host.packages.listReleases = async () => { packages++; return listReleases(); };
   host.resolveProjectContext = async () => { resolutions++; return resolve.call(host); };
   host.runWorkflowKitHelper = async (...args: any[]) => { reads++; await new Promise(resolve => setTimeout(resolve, 20)); return original(...args); };
   await Promise.all(Array.from({ length: 5 }, () => host.refreshWorkflowKit()));
   assert.equal(reads, 1); assert.equal(packages, 1); assert.equal(resolutions, 1);
-  host.refreshActualRepositoriesNow = async () => { scans++; await new Promise(resolve => setTimeout(resolve, 20)); };
-  await Promise.all(Array.from({ length: 5 }, () => host.refreshActualRepositories(group, host.connectedScopeKey())));
-  assert.equal(scans, 1);
-  host.actualRepositoriesRoot = group; host.actualRepositoryScanStatus = 'ready';
   host.context.globalState = memory(); host.hideIssueGraph = () => undefined;
   for (let count = 0; count < 3; count++) {
     await host.dispatchMessage({ type: 'setMode', mode: 'clone', projectSource: 'local' });
     await host.dispatchMessage({ type: 'setMode', mode: 'sa' });
   }
-  assert.equal(scans, 1); assert.equal(reads, 4); assert.equal(packages, 4);
+  assert.equal(reads, 4); assert.equal(packages, 4);
   assert.equal(resolutions, 7, 'each local Repo and Skills entry resolves its current project once');
-});
-
-test('Repo refresh retains the current list until replacement and preserves it on failure', async t => {
-  const [group, repo, other] = await directories(t); const { host } = fixture([group]);
-  await host.refreshWorkflowKit(); host.actualRepositoryScanGeneration = 0;
-  const old = [{ name: 'old', path: repo }], replacement = [{ name: 'new', path: other }];
-  host.actualRepositoriesRoot = group; host.actualRepositories = old;
-  const paths = require('../../src/workspace/workspacePaths') as typeof import('../../src/workspace/workspacePaths');
-  const scanner = paths.scanLocalGroupRepositories;
-  t.after(() => { paths.scanLocalGroupRepositories = scanner; });
-  let release!: (value: any[]) => void;
-  paths.scanLocalGroupRepositories = () => new Promise(resolve => { release = resolve; });
-  const pending = host.refreshActualRepositories(group, 'offline');
-  assert.equal(host.actualRepositoryScanStatus, 'scanning'); assert.equal(host.actualRepositories, old);
-  release(replacement); await pending;
-  assert.equal(host.actualRepositoryScanStatus, 'ready'); assert.equal(host.actualRepositories, replacement);
-  paths.scanLocalGroupRepositories = async () => { throw new Error('temporarily unavailable'); };
-  await host.refreshActualRepositories(group, 'offline');
-  assert.equal(host.actualRepositoryScanStatus, 'error'); assert.match(host.actualRepositoryScanError, /unavailable/);
-  assert.equal(host.actualRepositories, replacement);
-  host.groupRoot = other;
-  await host.refreshActualRepositories(other, 'offline');
-  assert.deepEqual(host.actualRepositories, [], 'a different environment must not retain the previous Repo list');
 });
 
 

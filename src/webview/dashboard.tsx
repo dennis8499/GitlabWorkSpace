@@ -1300,8 +1300,7 @@ function App() {
     post({ type: 'loadIssueGraph', connectedScope, forceNetwork: true });
   }
   if (!snapshot) return <main class="loading"><span class="spinner" />正在載入 GitLab Workspace…</main>;
-  const reviewerRepositories = snapshot.skillsContext?.reviewerRepositories ?? snapshot.skillsContext?.repositories
-    ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : []);
+  const reviewerRepositories = snapshot.skillsContext?.reviewerRepositories ?? snapshot.skillsContext?.repositories ?? [];
   const reviewerCardId = skillsGuide.tool === 'release-reviewer' ? 'release-review' : 'merge-repo';
   const reviewerRepo = resolveReviewerRepository(skillsGuide.inputs[`${reviewerCardId}.repo`] ?? '', reviewerRepositories);
   const currentSkillBranches = reviewerRepo?.path === skillBranches?.repo && snapshot.skillsContext?.revision === skillBranches?.revision ? skillBranches : undefined;
@@ -1490,9 +1489,9 @@ function App() {
               skillsContext={snapshot.skillsContext}
               profile={snapshot.skillsContext?.mode === 'group' ? 'group' : snapshot.skillsContext ? 'repository' : undefined}
               root={snapshot.skillsContext?.root} groupRoot={snapshot.skillsContext?.mode === 'group' ? snapshot.skillsContext.root : snapshot.skillsContext ? undefined : snapshot.groupRoot}
-              repositories={snapshot.skillsContext?.repositories ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : [])}
-              repositoryScanStatus={snapshot.skillsContext ? snapshot.skillsContext.groupMatch.status === 'checking' ? 'scanning' : 'ready' : snapshot.groupRepositoryScanStatus}
-              repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.skillsContext ? snapshot.skillsContext.installed.version : snapshot.workflowKit.version}
+              repositories={snapshot.skillsContext?.repositories ?? []}
+              repositoryScanStatus={snapshot.skillsContext?.groupMatch?.status === 'checking' ? 'scanning' : snapshot.skillsContext ? 'ready' : 'idle'}
+              workflowKitVersion={snapshot.skillsContext ? snapshot.skillsContext.installed.version : snapshot.workflowKit.version}
               kitInstalled={snapshot.workflowKit.status === 'installed'} state={skillsGuide} onChange={updateSkillsGuideFromUser} onEnvironmentChange={updateSkillsGuide}
               onRun={featureId => snapshot.skillsContext && post({ type: 'runCodexCli', source: { kind: 'skill', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision } })}
               onCopy={(text, featureId) => snapshot.skillsContext ? post({ type: 'copySkillGuidePrompt', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision }) : post({ type: 'copy', text })}

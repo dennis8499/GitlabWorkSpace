@@ -243,6 +243,7 @@ export class GitRepositoryService implements vscode.Disposable {
   private readonly pullStrategyCache = new Map<string, { epoch: number; value: GitPullStrategy | 'interactive' }>();
   private readonly historyCache = new Map<string, { epoch: number; pages: Map<string, { history: GitCommitSummary[]; hasMore: boolean }> }>();
   private readonly snapshotTasks = new Map<string, Promise<GitRepositorySnapshot>>();
+  private readonly nativeDiffTasks = new Map<string, Promise<void>>();
   private readonly readTasks = new Map<string, Promise<GitRepositorySnapshot | undefined>>();
   private readonly readGenerations = new Map<string, number>();
   private nextSelectionGeneration = 0;
@@ -486,6 +487,17 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   async openNativeDiff(repositoryId: string, candidate: string, staged: boolean, ref?: string, parent?: string): Promise<void> {
+    const mode = ref ? 'commit' : staged ? 'staged' : 'worktree';
+    const key = JSON.stringify([repositoryId, candidate, mode, ref, parent, this.dataEpochs.get(repositoryId) ?? 0]);
+    const pending = this.nativeDiffTasks.get(key);
+    if (pending) return pending;
+    const task = this.openNativeDiffNow(repositoryId, candidate, staged, ref, parent);
+    this.nativeDiffTasks.set(key, task);
+    try { await task; }
+    finally { if (this.nativeDiffTasks.get(key) === task) this.nativeDiffTasks.delete(key); }
+  }
+
+  private async openNativeDiffNow(repositoryId: string, candidate: string, staged: boolean, ref?: string, parent?: string): Promise<void> {
     const repository = await this.requireRepository(repositoryId);
     return withGitDirectoryLock(repository.rootUri.fsPath, async () => {
     const relative = await this.safeRelativePath(repository, candidate);
@@ -746,6 +758,7 @@ export class GitRepositoryService implements vscode.Disposable {
     this.activePanelGeneration++;
     this.detailsCache.clear();
     this.detailsTasks.clear();
+    this.nativeDiffTasks.clear();
     this.canonicalPaths.clear();
     this.repositoryLifetimes.clear();
     this.referenceEpochs.clear(); this.worktreeMutations.clear(); this.successfulFetches.clear();

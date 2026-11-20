@@ -55,7 +55,7 @@ export function bmadWorkspaceSnapshot(root = 'C:/專案/服務 A', bmad = bmadUi
   const installed = { status: 'missing', capabilities: [] };
   const repositories = root ? [{ name: '目前專案', path: root, matched: true }] : [];
   return { connected: false, groups: [], projects: [], issues: [], mergeRequests: [], groupMilestones: [], groupIssueBoards: [],
-    groupRoot: root, cloneRoot: root, groupRepositories: repositories, groupRepositoryScanStatus: 'ready', localRepositories: {},
+    groupRoot: root, cloneRoot: root, localRepositories: {},
     projectLocalRepositories: {}, projectMembers: [], timers: [], activeMode: 'bmad', accounts: [],
     scopeEpoch: 1, operationScope: `offline:${root ?? 'none'}`,
     operationSnapshot: { sessionId: 'bmad-test-host', revision: 0, operations: [] },

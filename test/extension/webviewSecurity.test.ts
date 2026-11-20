@@ -106,7 +106,7 @@ suite('Production Webview CSP without GitLab credentials', function () {
       connected: true, baseUrl: 'https://probe.invalid', currentUser: user,
       group: { id: 1, name: 'Probe', full_path: 'probe', web_url: 'https://probe.invalid/probe' }, groups: [], projects: [project],
       connectedScope: scope, instanceUserScope: scope, operationScope: scope, localOperationScope: scope, activeMode: 'developer',
-      groupRepositories: [], groupRepositoryScanStatus: 'idle', groupMilestones: [],
+      groupMilestones: [],
       groupIssueBoards: [{ id: 31, name: 'Probe board', hide_backlog_list: false, hide_closed_list: false }],
       localRepositories: {}, projectLocalRepositories: {}, issues, mergeRequests: [], projectMembers: [], timers: [],
       workflowKit: { status: 'missing' }, workflowKitSource: 'github', workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },

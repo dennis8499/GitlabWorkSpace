@@ -89,7 +89,7 @@ suite('Production Webview UI intent IPC without GitLab credentials', function ()
       groups: [], projects: [project], issues: [], mergeRequests: [], groupMilestones: [], groupIssueBoards: [],
       connectedScope: scope, instanceUserScope: scope, operationScope: scope, localOperationScope: scope,
       activeMode: 'developer', projectSource: 'gitlab', mergeRequestFilter: 'all', hostNavigationGeneration: 0,
-      groupRepositories: [], groupRepositoryScanStatus: 'idle', localRepositories: {}, projectLocalRepositories: {}, projectMembers: [], timers: [],
+      localRepositories: {}, projectLocalRepositories: {}, projectMembers: [], timers: [],
       workflowKit: { status: 'missing' }, workflowKitSource: 'github', workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
       sections: { projects: { status: 'ready', complete: true }, issues: { status: 'ready', complete: true },
         mergeRequests: { status: 'ready', complete: true }, boards: { status: 'ready', complete: true }, milestones: { status: 'ready', complete: true } },

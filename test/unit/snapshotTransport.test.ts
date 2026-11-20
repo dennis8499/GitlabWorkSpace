@@ -4,7 +4,7 @@ import { SnapshotTransport } from '../../src/workspace/snapshotTransport';
 import type { WorkspaceSnapshot } from '../../src/workspace/workspaceProtocol';
 
 const snapshot = (changes: Partial<WorkspaceSnapshot> = {}): WorkspaceSnapshot => ({
-  connected: false, groups: [], projects: [], groupRepositories: [], groupRepositoryScanStatus: 'idle',
+  connected: false, groups: [], projects: [],
   groupMilestones: [], groupIssueBoards: [], localRepositories: {}, projectLocalRepositories: {},
   issues: [], mergeRequests: [], activeMode: 'developer', projectMembers: [], timers: [],
   workflowKit: { status: 'missing' }, workflowKitInstallTarget: { manual: false, state: { status: 'missing' } }, workflowKitSource: 'github', ...changes

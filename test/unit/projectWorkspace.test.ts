@@ -116,7 +116,7 @@ test('a single opened Repo uses its own root regardless of origin and multiple r
 
 test('workspace-folder selection persists and remote account changes leave its root intact', async t => {
   const f = await fixture(t); const { host, workspaceState } = controller([f.root, f.second]);
-  await host.refreshProjectRoot(); assert.equal(host.cloneRoot, undefined); assert.match(host.cloneRootError, /選擇/);
+  await host.refreshProjectRoot(); assert.equal(host.cloneRoot, undefined); assert.match(host.projectContext.error, /選擇/);
   await host.selectProjectFolder(uri(f.second).toString()); await host.refreshProjectRoot(); assert.equal(host.cloneRoot, f.second);
   const reopened = controller([f.root, f.second], workspaceState).host; await reopened.refreshProjectRoot();
   assert.equal(reopened.cloneRoot, f.second);

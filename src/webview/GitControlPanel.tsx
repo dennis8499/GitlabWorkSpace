@@ -588,7 +588,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
     if (!snapshot) return;
     if (ui.selection === 'worktree' && ui.selectedPath && !selectedChange) {
       const moved = snapshot.changes.find((change) => change.path === ui.selectedPath);
-      if (moved && ui.view === 'diff') selectChange(moved);
+      if (moved && ui.view === 'diff') selectChange(moved, true);
       else if (moved) setUi({ selectedSection: moved.section });
       else setUi({ view: 'graph', selectedPath: undefined, selectedSection: undefined });
       restoreSelections.current.delete(selectedId);
@@ -724,7 +724,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   return <section class="git-workbench" ref={hostRef} tabIndex={-1} aria-label="Git 版控工作台" data-theme={layout.theme} style={{ '--git-left-width': layout.left + 'px', '--git-right-width': layout.right + 'px' }}>
     <header class="git-toolbar">
       <button class="git-repo-picker" type="button" aria-label="選擇版控 Repo" title={snapshot?.path} onClick={() => pickNative('repository')}><GitIcon name="repo" /><span>{snapshot?.name ?? '選擇 Repo'} ▾</span></button>
-      <button class="git-branch-picker" type="button" aria-label="切換本機分支" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} onClick={() => pickNative('branch')}><GitIcon name="branch" /><span>{snapshot?.branch ?? 'Detached HEAD'} ▾</span></button>
+      <button class="git-branch-picker" type="button" aria-label="切換本機分支" {...availabilityProps(gitNoticeScope + '-toolbar', gitBaseBlocked)} onClick={() => pickNative('branch')}><GitIcon name="branch" /><span class="git-picker-label">{snapshot?.branch ?? 'Detached HEAD'} ▾</span></button>
       {snapshot && <span class="git-toolbar-sync" title={snapshot.tracking ?? '尚未設定追蹤分支'} aria-label={'同步狀態：領先 ' + (snapshot.ahead ?? 0) + '，落後 ' + (snapshot.behind ?? 0)}>↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span>}
       <div class="git-toolbar-spacer" />
       <button class="git-tool git-fetch" {...availabilityProps(gitNoticeScope + '-toolbar', remoteBlocked)} onClick={() => remotes.length === 1 ? send({ type: 'fetch', remote: remotes[0] }) : pickNative('remote')}><GitIcon name="fetch" />Fetch</button>

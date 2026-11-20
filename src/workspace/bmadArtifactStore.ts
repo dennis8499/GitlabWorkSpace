@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, readdir, realpath, rename, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, open, readFile, readdir, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { atomicNetworkJson } from '../api/localNetworkLease';
 import { acquireStorageControl } from '../storage/controlLease';
@@ -14,6 +14,14 @@ export interface BmadProjectChange { path: string; beforeHash: string | null; af
 export interface BmadArtifactCapture {
   schema: 'GitLabWorkspaceBmadArtifacts/v1'; id: string; taskId: string; sourceRoot: string;
   capturedAt: string; root: string; digest: string; files: ArtifactFile[]; projectChanges: BmadProjectChange[];
+}
+
+class ProjectRuleConflict extends Error {
+  constructor() { super('原專案規則已變更，請重新產生並確認差異。'); }
+}
+
+export class BmadProjectApplyError extends Error {
+  constructor(message: string, readonly detail: string, cause: unknown) { super(message, { cause }); }
 }
 
 /** Immutable task output plus a Group/Repo index. Source trees remain untouched until applyProjectChanges. */
@@ -54,22 +62,32 @@ export class BmadArtifactStore {
     const gate = await acquireStorageControl(path.join(directory, options.taskId + '.control'), 'bmad-artifacts');
     try {
       const manifestFile = path.join(root, 'manifest.json');
-      try { return await this.readCapture(manifestFile, sourceRoot); } catch (error) { if (!missingFile(error)) throw error; }
-      await mkdir(root, { recursive: true }); await ownedStoragePath(this.storage, root);
-      for (const file of inventory) {
-        const target = path.join(root, file.path); await mkdir(path.dirname(target), { recursive: true });
-        await ownedStoragePath(this.storage, path.dirname(target));
-        try { await writeFile(target, files.get(file.path)!, { flag: 'wx', mode: 0o600 }); }
-        catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-          await ownedStoragePath(this.storage, target);
-          if (digest(await readFile(target)) !== file.sha256) throw new Error('未完成保存的成果與本次內容不同，原始成果已保留。', { cause: error });
+      let capture: BmadArtifactCapture;
+      try { capture = await this.readCapture(manifestFile, sourceRoot); }
+      catch (error) {
+        if (!missingFile(error)) throw error;
+        await mkdir(root, { recursive: true }); await ownedStoragePath(this.storage, root);
+        for (const file of inventory) {
+          const target = path.join(root, file.path); await mkdir(path.dirname(target), { recursive: true });
+          await ownedStoragePath(this.storage, path.dirname(target));
+          try { await writeFile(target, files.get(file.path)!, { flag: 'wx', mode: 0o600 }); }
+          catch (writeError) {
+            if ((writeError as NodeJS.ErrnoException).code !== 'EEXIST') throw writeError;
+            await ownedStoragePath(this.storage, target);
+            if (digest(await readFile(target)) !== file.sha256) throw new Error('未完成保存的成果與本次內容不同，原始成果已保留。', { cause: writeError });
+          }
         }
+        capture = { schema: 'GitLabWorkspaceBmadArtifacts/v1', id, taskId: options.taskId, sourceRoot, root,
+          capturedAt: new Date().toISOString(), digest: captureDigest, files: inventory, projectChanges: changes };
+        await atomicNetworkJson(manifestFile, capture);
       }
-      const capture: BmadArtifactCapture = { schema: 'GitLabWorkspaceBmadArtifacts/v1', id, taskId: options.taskId, sourceRoot, root,
-        capturedAt: new Date().toISOString(), digest: captureDigest, files: inventory, projectChanges: changes };
-      await atomicNetworkJson(manifestFile, capture);
-      await atomicNetworkJson(path.join(directory, options.taskId + '.json'), { id });
+      const indexFile = path.join(directory, options.taskId + '.json');
+      const index = { id: capture.id };
+      if (await ownedStoragePath(this.storage, indexFile)) {
+        const info = await lstat(indexFile);
+        if (info.isFile() && info.size <= 4096 && await readFile(indexFile, 'utf8') === JSON.stringify(index)) return capture;
+      }
+      await atomicNetworkJson(indexFile, index);
       return capture;
     } finally { await gate.release(); }
   }
@@ -97,27 +115,57 @@ export class BmadArtifactStore {
     const directory = this.directory(sourceRoot), capture = await this.readCapture(path.join(directory, id, 'manifest.json'), sourceRoot);
     if (capture.digest !== confirmedDigest || !capture.projectChanges.length) throw new Error('專案規則尚未取得此版本的人工確認。');
     const gate = await acquireStorageControl(path.join(directory, 'project-apply.control'), 'bmad-project-apply');
+    const journal = path.join(directory, id + '.apply.json');
+    const applied = new Set<string>();
+    const remaining = () => capture.projectChanges.filter(change => !applied.has(change.path)).map(change => change.path);
+    let currentPath: string | undefined;
+    const record = (state: 'applying' | 'confirmed' | 'conflict' | 'failed', error?: string) => atomicNetworkJson(journal, {
+      schema: 'GitLabWorkspaceBmadProjectApply/v1', digest: confirmedDigest, state, applied: [...applied], pending: remaining(),
+      ...(error ? { path: currentPath, error } : {})
+    });
     try {
-      const pending: Array<{ file: string; relative: string; content: Buffer }> = [];
+      const pending: Array<{ change: BmadProjectChange; content: Buffer }> = [];
       for (const change of capture.projectChanges) {
+        currentPath = change.path;
         if (!projectPath(change.path)) throw new Error('專案規則路徑無效。');
-        const before = await readProjectFile(sourceRoot, change.path), currentHash = before ? digest(before) : null;
-        if (currentHash === change.afterHash) continue;
-        if (currentHash !== change.beforeHash) throw new Error('原專案規則已變更，請重新產生並確認差異。');
+        if (!await projectRuleNeedsApply(sourceRoot, change)) { applied.add(change.path); continue; }
         const content = await readFile(path.join(capture.root, change.path));
         if (digest(content) !== change.afterHash) throw new Error('保存的專案規則已變更。');
-        pending.push({ file: path.join(sourceRoot, change.path), relative: change.path, content });
+        pending.push({ change, content });
       }
-      const journal = path.join(directory, id + '.apply.json');
-      await atomicNetworkJson(journal, { schema: 'GitLabWorkspaceBmadProjectApply/v1', digest: confirmedDigest, state: 'applying', pending: pending.map(file => file.relative) });
-      for (const proposal of pending) {
-        await safeProjectTarget(sourceRoot, proposal.file);
-        await mkdir(path.dirname(proposal.file), { recursive: true }); await safeProjectTarget(sourceRoot, proposal.file);
-        const temporary = proposal.file + '.' + randomUUID() + '.tmp';
-        await writeFile(temporary, proposal.content, { flag: 'wx' });
-        await rename(temporary, proposal.file);
+      currentPath = undefined;
+      await record('applying');
+      for (const { change, content } of pending) {
+        currentPath = change.path;
+        const file = path.join(sourceRoot, change.path);
+        await safeProjectTarget(sourceRoot, file);
+        await mkdir(path.dirname(file), { recursive: true }); await safeProjectTarget(sourceRoot, file);
+        const temporary = file + '.' + randomUUID() + '.tmp';
+        const handle = await open(temporary, 'wx');
+        try {
+          try { await handle.writeFile(content); } finally { await handle.close(); }
+          if (await projectRuleNeedsApply(sourceRoot, change)) {
+            if (change.beforeHash === null) {
+              try { await link(temporary, file); }
+              catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ProjectRuleConflict();
+                throw error;
+              }
+            } else await rename(temporary, file);
+          }
+          applied.add(change.path);
+        } finally {
+          await unlink(temporary).catch(error => { if (!missingFile(error)) throw error; });
+        }
       }
-      await atomicNetworkJson(journal, { schema: 'GitLabWorkspaceBmadProjectApply/v1', digest: confirmedDigest, state: 'confirmed' });
+      currentPath = undefined;
+      await record('confirmed');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const detail = [currentPath ? '檔案：' + currentPath : '', '已套用：' + ([...applied].join('、') || '無'), '待套用：' + (remaining().join('、') || '無')];
+      try { await record(error instanceof ProjectRuleConflict ? 'conflict' : 'failed', message); }
+      catch (journalError) { detail.push('無法保存套用日誌：' + (journalError instanceof Error ? journalError.message : String(journalError))); }
+      throw new BmadProjectApplyError(message, detail.filter(Boolean).join('\n'), error);
     } finally { await gate.release(); }
   }
 
@@ -137,6 +185,14 @@ export class BmadArtifactStore {
     }
     return capture;
   }
+}
+
+async function projectRuleNeedsApply(root: string, change: BmadProjectChange): Promise<boolean> {
+  const before = await readProjectFile(root, change.path);
+  const currentHash = before ? digest(before) : null;
+  if (currentHash === change.afterHash) return false;
+  if (currentHash !== change.beforeHash) throw new ProjectRuleConflict();
+  return true;
 }
 
 function projectPath(relative: string): boolean {

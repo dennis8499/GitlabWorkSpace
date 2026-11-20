@@ -49,7 +49,7 @@ function snapshot(profile, features) {
     currentUser: profile === 'group' ? { id: 1, name: 'Tester' } : undefined,
     group: profile === 'group' ? { id: 2, name: 'Team', full_path: 'team' } : undefined,
     groups: [], projects: [], issues: [], mergeRequests: [], groupMilestones: [], groupIssueBoards: [],
-    groupRoot: profile === 'group' ? root : undefined, groupRepositories: [repo], groupRepositoryScanStatus: 'ready',
+    groupRoot: profile === 'group' ? root : undefined,
     localRepositories: {}, projectLocalRepositories: {}, projectMembers: [], timers: [], tools: [],
     activeMode: 'sa', connectedScope: profile === 'group' ? 'group-scope' : undefined, instanceUserScope: 'tester',
     workflowKit: installed, workflowKitInstallTarget: { root, manual: false, profile, state: installed },

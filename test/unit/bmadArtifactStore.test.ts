@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import { BmadArtifactStore } from '../../src/workspace/bmadArtifactStore';
+import { BmadArtifactStore, BmadProjectApplyError } from '../../src/workspace/bmadArtifactStore';
 
 const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
 const driveCase = (value: string, upper: boolean): string => (upper ? value[0].toUpperCase() : value[0].toLowerCase()) + value.slice(1);
@@ -91,4 +92,111 @@ test('source drift and stored artifact drift prevent applying a stale project pr
   assert.equal(await readFile(path.join(f.source, 'AGENTS.md'), 'utf8'), 'Human edit');
   await writeFile(path.join(capture.root, 'AGENTS.md'), 'Altered');
   await assert.rejects(f.store.list(f.source), /內容已變更/);
+});
+
+test('a save after BMAD preflight survives and the journal records partial application', async t => {
+  const f = await fixture(t);
+  const rule = '_bmad/custom/workflow.md', target = path.join(f.source, rule), proposed = path.join(f.task, rule);
+  await Promise.all([mkdir(path.dirname(target), { recursive: true }), mkdir(path.dirname(proposed), { recursive: true })]);
+  await Promise.all([
+    writeFile(path.join(f.source, 'AGENTS.md'), 'Original agents'), writeFile(path.join(f.task, 'AGENTS.md'), 'Proposed agents'),
+    writeFile(target, 'Original rule'), writeFile(proposed, 'Proposed rule')
+  ]);
+  const capture = (await f.store.capture({ sourceRoot: f.source, taskId: 'apply_race', projectChangesRoot: f.task }))!;
+  const journal = path.join(path.dirname(capture.root), capture.id + '.apply.json');
+  const realRename = fs.rename;
+  let saved = false;
+  t.mock.method(fs, 'rename', async (from: string, to: string) => {
+    await realRename(from, to);
+    if (to === journal && !saved) {
+      assert.equal(JSON.parse(await readFile(journal, 'utf8')).state, 'applying');
+      saved = true;
+      await writeFile(target, 'Editor save after preflight');
+    }
+  });
+
+  await assert.rejects(f.store.applyProjectChanges(f.source, capture.id, capture.digest), error => {
+    assert.ok(error instanceof BmadProjectApplyError);
+    assert.match(error.detail, /已套用：AGENTS\.md/);
+    assert.match(error.detail, /待套用：_bmad\/custom\/workflow\.md/);
+    return true;
+  });
+  assert.equal(await readFile(target, 'utf8'), 'Editor save after preflight');
+  assert.equal(await readFile(path.join(f.source, 'AGENTS.md'), 'utf8'), 'Proposed agents');
+  const outcome = JSON.parse(await readFile(journal, 'utf8'));
+  assert.deepEqual([outcome.state, outcome.path, outcome.applied, outcome.pending], ['conflict', rule, ['AGENTS.md'], [rule]]);
+  assert.deepEqual(await fs.readdir(path.dirname(target)), ['workflow.md']);
+});
+
+test('BMAD publishes new rules exclusively and removes its temporary file on a name collision', async t => {
+  const f = await fixture(t);
+  const target = path.join(f.source, 'AGENTS.md');
+  await writeFile(path.join(f.task, 'AGENTS.md'), 'New proposed rules');
+  const capture = (await f.store.capture({ sourceRoot: f.source, taskId: 'new_rule_race', projectChangesRoot: f.task }))!;
+  const journal = path.join(path.dirname(capture.root), capture.id + '.apply.json');
+  const realLink = fs.link;
+  const link = t.mock.method(fs, 'link', async (from: string, to: string) => {
+    assert.equal(to, target);
+    await writeFile(target, 'Editor created the file', { flag: 'wx' });
+    await realLink(from, to);
+  });
+
+  await assert.rejects(f.store.applyProjectChanges(f.source, capture.id, capture.digest), /原專案規則已變更/);
+  assert.equal(link.mock.callCount(), 1);
+  assert.equal(await readFile(target, 'utf8'), 'Editor created the file');
+  assert.deepEqual(await fs.readdir(f.source), ['AGENTS.md']);
+  assert.equal(JSON.parse(await readFile(journal, 'utf8')).state, 'conflict');
+
+  link.mock.restore();
+  await fs.unlink(target);
+  await f.store.applyProjectChanges(f.source, capture.id, capture.digest);
+  assert.equal(await readFile(target, 'utf8'), 'New proposed rules');
+  const outcome = JSON.parse(await readFile(journal, 'utf8'));
+  assert.deepEqual([outcome.state, outcome.applied, outcome.pending], ['confirmed', ['AGENTS.md'], []]);
+  assert.deepEqual(await fs.readdir(f.source), ['AGENTS.md']);
+});
+
+test('BMAD records an I/O failure with the original rules and no unfinished temporary file', async t => {
+  const f = await fixture(t), target = path.join(f.source, 'AGENTS.md');
+  await writeFile(target, 'Current rules');
+  await writeFile(path.join(f.task, 'AGENTS.md'), 'Proposed rules');
+  const capture = (await f.store.capture({ sourceRoot: f.source, taskId: 'publish_failure', projectChangesRoot: f.task }))!;
+  const journal = path.join(path.dirname(capture.root), capture.id + '.apply.json');
+  const realRename = fs.rename;
+  t.mock.method(fs, 'rename', async (from: string, to: string) => {
+    if (to === target) throw Object.assign(new Error('Write blocked'), { code: 'EIO' });
+    await realRename(from, to);
+  });
+
+  await assert.rejects(f.store.applyProjectChanges(f.source, capture.id, capture.digest), /Write blocked/);
+  assert.equal(await readFile(target, 'utf8'), 'Current rules');
+  assert.deepEqual(await fs.readdir(f.source), ['AGENTS.md']);
+  const outcome = JSON.parse(await readFile(journal, 'utf8'));
+  assert.deepEqual([outcome.state, outcome.path, outcome.applied, outcome.pending], ['failed', 'AGENTS.md', [], ['AGENTS.md']]);
+});
+
+test('retry after BMAD index ENOSPC lists the original capture exactly once', async t => {
+  const f = await fixture(t);
+  await writeFile(path.join(f.output, 'SPEC.md'), 'Captured output');
+  const options = { sourceRoot: f.source, taskId: 'index_retry', outputRoot: f.output };
+  const realRename = fs.rename;
+  let rejectedIndex: string | undefined;
+  t.mock.method(fs, 'rename', async (from: string, to: string) => {
+    if (path.basename(to) === 'index_retry.json' && !rejectedIndex) {
+      rejectedIndex = to;
+      throw Object.assign(new Error('Index disk full'), { code: 'ENOSPC' });
+    }
+    await realRename(from, to);
+  });
+  await assert.rejects(f.store.capture(options), { code: 'ENOSPC' });
+  assert.deepEqual(await f.store.list(f.source), []);
+  assert.ok(rejectedIndex);
+  const directory = path.dirname(rejectedIndex);
+  const [manifestRoot] = (await fs.readdir(directory, { withFileTypes: true })).filter(entry => entry.isDirectory());
+  const original = JSON.parse(await readFile(path.join(directory, manifestRoot.name, 'manifest.json'), 'utf8'));
+  const retried = await f.store.capture(options);
+  assert.deepEqual(retried, original);
+  assert.deepEqual(await f.store.list(f.source), [original]);
+  assert.deepEqual(await f.store.capture(options), original);
+  assert.deepEqual(await f.store.roots(f.source), [original.root]);
 });

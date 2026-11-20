@@ -22,6 +22,16 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await writeFile(path.join(root, 'resources/repair-api-control.ps1'), 'changed repair tool');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await writeFile(path.join(root, 'resources/repair-api-control.ps1'), 'input');
+  for (const file of ['codex-manual-launch.ps1', 'repair-workflow-lease.ps1', 'repair-workflow-lease-native.cs']) {
+    await t.test(file + ' forces a new preparation when its contents change', async () => {
+      const source = path.join(root, 'resources', file);
+      assert.equal(await readFile(source, 'utf8'), 'input');
+      await writeFile(source, 'changed runtime resource');
+      await assert.rejects(assertPrepared(root, ['compile']), /changed/);
+      await writeFile(source, 'input');
+      await assertPrepared(root, ['compile']);
+    });
+  }
   await writeFile(path.join(root, '.github/release.yml'), 'changed CI');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await rm(path.join(root, '.github/release.yml'));
@@ -36,10 +46,10 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await assert.rejects(assertPrepared(root, ['kit']), /incomplete/);
   await writeFile(path.join(root, 'resources/bmad/bmad-help.csv'), 'changed catalog');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
-  await rm(path.join(root, 'resources/bmad/bmad-help.csv'));
+  await writeFile(path.join(root, 'resources/bmad/bmad-help.csv'), 'input');
   await writeFile(path.join(root, 'resources/bmad/source.json'), 'changed teaching metadata');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
-  await rm(path.join(root, 'resources/bmad/source.json'));
+  await writeFile(path.join(root, 'resources/bmad/source.json'), 'input');
   await writeFile(path.join(root, 'docs/new-guide.md'), 'new packaged guide');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await rm(path.join(root, 'docs/new-guide.md'));

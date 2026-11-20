@@ -36,7 +36,7 @@ export type WorkspaceSettingId = typeof workspaceSettingIds[number];
 export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
 export type IssueDetailTab = 'content' | 'relations' | 'time';
-export type WorkspaceSection = 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards' | 'graph' | 'repositories';
+export type WorkspaceSection = 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards' | 'graph';
 export type MergeRequestFilter = 'all' | 'reviewer' | 'assigned';
 export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; updatedAt?: number; refreshing?: boolean;
   dataSource?: 'cache' | 'network' | 'mixed'; fetchedAt?: number; expiresAt?: number;
@@ -210,9 +210,6 @@ export interface WorkspaceSnapshot {
   cloneRootManual?: boolean;
   skillsContext?: SkillsContext;
   workspaceRootError?: string;
-  groupRepositories: Array<{ name: string; path: string }>;
-  groupRepositoryScanStatus: 'idle' | 'scanning' | 'ready' | 'error';
-  groupRepositoryScanError?: string;
   projects: GitLabProject[];
   mergeRequestFilter?: MergeRequestFilter;
   sections?: Partial<Record<WorkspaceSection, WorkspaceSectionState>>;

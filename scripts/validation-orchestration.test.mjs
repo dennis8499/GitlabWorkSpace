@@ -21,7 +21,7 @@ async function fixture(t) {
   await put('package.json', JSON.stringify({ version: '1.2.3' }));
   await put('node_modules/eslint/bin/eslint.js', "if(process.env.FAKE_LINT_FAILURE==='1')process.exit(8);");
   await put('test/network-test-environment.cjs', await readFile(new URL('../test/network-test-environment.cjs', import.meta.url), 'utf8'));
-  for (const name of ['run-validation.mjs', 'validation-runtime.mjs']) {
+  for (const name of ['run-validation.mjs', 'validation-runtime.mjs', 'vsix-runtime-resources.json']) {
     await put(`scripts/${name}`, await readFile(new URL(name, import.meta.url), 'utf8'));
   }
   const write = `const put=(name,data='built')=>{fs.mkdirSync(path.dirname(name),{recursive:true});fs.writeFileSync(name,data);};`;

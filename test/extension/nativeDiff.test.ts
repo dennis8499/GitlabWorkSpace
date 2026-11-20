@@ -8,11 +8,12 @@ import * as vscode from 'vscode';
 interface DiffTestApi {
   getGitRepositoryState(): Promise<{ repositories: Array<{ id: string; path: string }> }>;
   openNativeGitDiffForTesting?(id: string, filename: string, staged: boolean): Promise<void>;
+  getGitActivityForTesting(): { commands: number; auxiliaryCommands: number; nativeApiCalls: number };
 }
 
 suite('Native readonly Git Diff snapshots', function () {
   this.timeout(45_000);
-  test('preserves text and binary bytes and releases each snapshot after the last native tab closes', async function () {
+  test('coalesces concurrent worktree Diff opens, rereads later edits, and releases readonly snapshots', async function () {
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace');
     assert.ok(extension);
     const api = await extension.activate() as DiffTestApi;
@@ -37,6 +38,14 @@ suite('Native readonly Git Diff snapshots', function () {
     await writeFile(path.join(root, 'data.bin'), Buffer.from([0, 254, 128, 10]));
     const providerTabs = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab =>
       tab.input instanceof vscode.TabInputTextDiff && tab.input.original.scheme === 'gitlab-workspace-diff');
+    const waitForTextTab = async () => {
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const tab = providerTabs().find(tab => (tab.input as vscode.TabInputTextDiff).modified.path.endsWith('/service.ts'));
+        if (tab) return tab;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      return assert.fail('the native Diff tab uses the snapshot filesystem');
+    };
     const originalWorkspace = (vscode.workspace.workspaceFolders ?? []).map(folder => ({ uri: folder.uri, name: folder.name }));
     const added = new Promise<void>(resolve => {
       const listener = vscode.workspace.onDidChangeWorkspaceFolders(() => { listener.dispose(); resolve(); });
@@ -55,12 +64,14 @@ suite('Native readonly Git Diff snapshots', function () {
         if (!id) await new Promise(resolve => setTimeout(resolve, 50));
       }
       assert.ok(id, 'VS Code registers the isolated Repo');
-      await api.openNativeGitDiffForTesting!(id, 'service.ts', false);
-      let tab = providerTabs().find(tab => (tab.input as vscode.TabInputTextDiff).modified.path.endsWith('/service.ts'));
-      for (let attempt = 0; attempt < 50 && !tab; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 20)); tab = providerTabs().find(tab => (tab.input as vscode.TabInputTextDiff).modified.path.endsWith('/service.ts'));
-      }
-      assert.ok(tab, 'the native Diff tab uses the snapshot filesystem');
+      const initialActivity = api.getGitActivityForTesting();
+      await Promise.all(Array.from({ length: 20 }, () => api.openNativeGitDiffForTesting!(id, 'service.ts', false)));
+      const tab = await waitForTextTab();
+      const afterBurst = api.getGitActivityForTesting();
+      assert.equal(afterBurst.auxiliaryCommands - initialActivity.auxiliaryCommands, 2, 'one Repo check and one blob read serve all twenty opens');
+      assert.equal(afterBurst.commands - initialActivity.commands, 0);
+      assert.equal(afterBurst.nativeApiCalls - initialActivity.nativeApiCalls, 0);
+      assert.deepEqual(providerTabs(), [tab], 'the overlapping requests open one native tab');
       const input = tab.input as vscode.TabInputTextDiff;
       assert.deepEqual(Buffer.from(await vscode.workspace.fs.readFile(input.original)), beforeText);
       assert.deepEqual(Buffer.from(await vscode.workspace.fs.readFile(input.modified)), afterText);
@@ -75,6 +86,15 @@ suite('Native readonly Git Diff snapshots', function () {
       assert.equal(released, true, 'closing the final native tab releases both snapshots');
       await assert.rejects(async () => vscode.workspace.fs.readFile(input.modified));
       assert.deepEqual(await readFile(path.join(root, 'service.ts')), afterText, 'the original working file is unchanged');
+      const laterEdit = Buffer.from('export const label = "再次更新";\r\n');
+      await writeFile(path.join(root, 'service.ts'), laterEdit);
+      await api.openNativeGitDiffForTesting!(id, 'service.ts', false);
+      const later = await waitForTextTab();
+      const laterInput = later.input as vscode.TabInputTextDiff;
+      assert.notEqual(laterInput.modified.toString(), input.modified.toString());
+      assert.deepEqual(Buffer.from(await vscode.workspace.fs.readFile(laterInput.original)), beforeText);
+      assert.deepEqual(Buffer.from(await vscode.workspace.fs.readFile(laterInput.modified)), laterEdit);
+      await vscode.window.tabGroups.close(later);
       // Staged binary snapshots retain raw bytes even when the editor cannot render them as text.
       await api.openNativeGitDiffForTesting!(id, 'data.bin', true);
       const binaryTab = providerTabs().find(tab => (tab.input as vscode.TabInputTextDiff).original.path.endsWith('/data.bin'));

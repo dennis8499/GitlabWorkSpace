@@ -22,3 +22,11 @@ test('stable scroll anchors survive append, prepend, removal and height changes'
   assert.equal(restoreScrollAnchor(['a', 'b'], [0, 40, 80], ['a', 'b'], [0, 70, 110], 53), 83);
   assert.equal(restoreScrollAnchor(['a'], [0, 40], ['b'], [0, 40], 20), 0);
 });
+
+test('inserting at a row boundary preserves the visible row and the adjacent pixels', () => {
+  const keys = Array.from({ length: 210 }, (_, index) => index);
+  const next = [keys[0], -1, ...keys.slice(1)];
+  const offsets = (count: number) => Array.from({ length: count + 1 }, (_, index) => index * 40);
+  assert.deepEqual([39, 40, 41].map(top => restoreScrollAnchor(keys, offsets(keys.length), next, offsets(next.length), top)), [39, 80, 81]);
+  assert.deepEqual(virtualWindow(210, offsets(210), 40, 240), { start: 0, end: 17 });
+});

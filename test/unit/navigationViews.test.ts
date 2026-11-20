@@ -18,7 +18,7 @@ const vscode = {
   Uri: { file: (value: string) => ({ fsPath: value }) },
   workspace: { workspaceFolders: folders, getWorkspaceFolder: (uri: { fsPath: string }) => folders.find(folder => uri.fsPath.startsWith(folder.uri.fsPath)), onDidChangeWorkspaceFolders: new Emitter().event },
   commands: { executeCommand: async () => undefined },
-  window: { createTreeView: (id: string, options: unknown) => {
+  window: { showQuickPick: async (items: readonly unknown[]) => items[0], createTreeView: (id: string, options: unknown) => {
     const emitter = new Emitter(); const view = { id, options, visible: false, onDidChangeVisibility: emitter.event,
       setVisible(value: boolean) { this.visible = value; emitter.fire({ visible: value }); }, dispose() { emitter.dispose(); } };
     views.push(view); return view;
@@ -88,4 +88,45 @@ test('native entry failures expose recovery without polling and old-scope failur
   pending[2].reject(new Error('obsolete failure')); await Promise.resolve();
   assert.equal(errors.length, 1); assert.doesNotMatch(controller.workView.message ?? '', /無法載入目前帳號/);
   controller.dispose();
+});
+
+test('My Work Quick Pick indexes projects once per snapshot and validates the selection scope', async t => {
+  for (const count of [100, 1000]) await t.test('work items ' + count, async child => {
+    let idReads = 0, snapshots = 0, changedScope = false;
+    const projects = Array.from({ length: count }, (_, index) => ({
+      get id() { idReads++; return index + 1; }, path_with_namespace: 'team/project-' + (index + 1),
+      name: 'Project ' + (index + 1), path: 'project-' + (index + 1), web_url: '', http_url_to_repo: ''
+    }));
+    const initial: NavigationSnapshot = { ...state(), projects,
+      issues: projects.map((_, index) => ({ id: index + 1, project_id: index + 1, iid: 1, title: 'Issue ' + (index + 1), state: 'opened', web_url: '' })),
+      mergeRequests: [{ id: count + 1, project_id: count + 1, iid: 7, title: 'Outside loaded inventory',
+        state: 'opened', web_url: '', source_branch: 'feature', target_branch: 'main' }]
+    };
+    const events = new Emitter();
+    const host = { loadNavigationData: async () => undefined, onDidChangeNavigation: events.event,
+      getNavigationSnapshot: () => { snapshots++; return changedScope ? { ...initial, scope: 'epoch:other' } : initial; } };
+    const git = { onDidChangeRepositories: new Emitter().event, getCachedSummaryState: () => ({ repositories: [] }) } as any;
+    const controller = new providers.NavigationViews(git, host, error => assert.fail(String(error)));
+    child.after(() => controller.dispose());
+    snapshots = 0;
+    let moveWhilePicking = false;
+    child.mock.method(vscode.window, 'showQuickPick', async (items: readonly any[]) => {
+      assert.equal(items.length, count + 3);
+      assert.equal(items[0].label, '#1 Issue 1');
+      assert.equal(items[0].description, 'team/project-1');
+      assert.equal(items[count - 1].description, 'team/project-' + count);
+      assert.equal(items[count].label, '!7 Outside loaded inventory');
+      assert.equal(items[count].description, '專案 ' + (count + 1));
+      changedScope = moveWhilePicking;
+      return items[count - 1];
+    });
+
+    const selected = await controller.findWork();
+    assert.equal(selected?.kind, 'issue');
+    assert.equal(selected?.issue.project_id, count);
+    assert.deepEqual([idReads, snapshots], [count, 3]);
+    moveWhilePicking = true;
+    assert.equal(await controller.findWork(), undefined);
+    assert.deepEqual([idReads, snapshots], [count * 2, 6]);
+  });
 });

@@ -34,7 +34,6 @@ function fixture(Panel, repos, issues) {
     session: { baseUrl: 'https://gitlab.invalid', activeAccountId: 'fixture', connectionEpoch: 1,
       selectedGroup: { id: 1, full_path: 'team' }, accounts: [], instanceWarnings: [], capabilityDiagnostics: [] },
     currentUser: { id: 7 }, localWorkspaceRepositories: inventory, projects,
-    actualRepositories: inventory.map(({ name, path }) => ({ name, path })), actualRepositoryScanStatus: 'ready', actualRepositoriesRoot: root,
     workspaceSections: { projects: { status: 'ready' }, issues: { status: 'ready' } }, groupMilestones: [], groupIssueBoards: [],
     issues: Array.from({ length: issues }, (_, i) => ({ id: i + 1, iid: i + 1, project_id: i % repos + 1, title: `Issue ${i}`, description: 'Fixture text. '.repeat(20), state: 'opened', labels: [] })),
     mergeRequests: [], projectMembers: [], workflowKitReleases: [], activeMode: 'clone',

@@ -15,6 +15,7 @@ import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 const executedCommands: string[] = [];
 const vscode = {
   workspace: { workspaceFolders: [] as unknown[], isTrusted: false },
+  window: { showQuickPick: async (items: readonly unknown[]) => items[0] },
   commands: { executeCommand: async (command: string) => { executedCommands.push(command); } }
 };
 const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
@@ -52,7 +53,7 @@ function fixture(mode: string, connected = true) {
     skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0, cloneRootGeneration: 0,
     projectRepositoryScanGeneration: 0, inventoryGeneration: 0, previewGeneration: 0,
     issueOpenGeneration: 0, issueBoardGeneration: 0, issueGraphGeneration: 0, mergeRequestGeneration: 0,
-    localRepositoryScanGeneration: 0, actualRepositoryScanGeneration: 0,
+    localRepositoryScanGeneration: 0,
     workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(), workspaceSections: {},
     mergeRequestSectionAborts: {}, mergeRequestSectionGenerations: { diffs: 0, discussions: 0 },
     groups: connected ? groups : [], currentUser: connected ? { id: 7, name: 'Me', username: 'me' } : undefined,
@@ -249,6 +250,155 @@ test('a cold signed-in project entry makes four API reads and never initializes 
   await host.refresh({ reason: 'entry' });
   await session.ensureMetadataChecked();
   assert.equal(requests.length, 4, 're-entering the same fresh project page reuses its data');
+});
+
+test('the cold Issue command joins the first project page and reads Issue without MR', async t => {
+  const { host, client, remote } = fixture('dashboard');
+  const readProjects = client.listGroupProjects;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  client.listGroupProjects = async (id: number) => { await gate; return readProjects(id); };
+  const opened: unknown[] = [];
+  host.openIssue = async (...args: unknown[]) => { opened.push(args); };
+  const picker = t.mock.method(vscode.window, 'showQuickPick', async (items: readonly any[]) => {
+    assert.equal(items[0].description, 'team-42/project');
+    return items[0];
+  });
+
+  const dashboard = host.loadWorkspaceSection('projects');
+  const command = host.openIssueFromCommand();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(host.workspaceSections.projects.status, 'loading');
+  assert.equal(picker.mock.callCount(), 0);
+  release();
+  await Promise.all([dashboard, command]);
+  assert.deepEqual(remote, [{ resource: 'projects', groupId: 42 }, { resource: 'issues', groupId: 42 }]);
+  assert.deepEqual(opened, [[101, 1]]);
+  await host.openIssueFromCommand();
+  assert.equal(remote.length, 2);
+  assert.deepEqual(opened, [[101, 1], [101, 1]]);
+});
+
+test('the Issue picker opens while My Work still waits for its MR read', async t => {
+  const { host, client, remote } = fixture('dashboard');
+  const readMergeRequests = client.listGroupMergeRequests;
+  let reached!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { reached = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  t.after(() => release());
+  client.listGroupMergeRequests = async (id: number) => { reached(); await gate; return readMergeRequests(id); };
+  const opened: unknown[] = [];
+  host.openIssue = async (...args: unknown[]) => { opened.push(args); };
+  const myWork = host.loadNavigationData();
+  await entered;
+  const command = host.openIssueFromCommand();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, [[101, 1]]);
+  assert.equal(host.workspaceSections.mergeRequests.status, 'loading');
+  release();
+  await Promise.all([myWork, command]);
+  assert.deepEqual(remote.map(read => read.resource), ['projects', 'issues', 'mergeRequests']);
+});
+
+test('the Issue picker can use the loaded first project page while a continuation is pending', async t => {
+  const { host, client, remote } = fixture('dashboard');
+  let release!: () => void;
+  const continuation = new Promise<void>(resolve => { release = resolve; });
+  t.after(() => release());
+  const requests: Array<string | undefined> = [];
+  client.listGroupProjectsPage = async (_group: number, cursor?: string) => {
+    requests.push(cursor);
+    if (cursor) await continuation;
+    return { items: [{ id: cursor ? 102 : 101, path_with_namespace: 'team-42/project' }],
+      nextCursor: cursor ? undefined : 'next', complete: !!cursor, updatedAt: new Date().toISOString() };
+  };
+  const opened: unknown[] = [];
+  host.openIssue = async (...args: unknown[]) => { opened.push(args); };
+  t.mock.method(vscode.window, 'showQuickPick', async (items: readonly any[]) => items[0]);
+  await host.loadWorkspaceSection('projects');
+  const next = host.loadWorkspaceSection('projects', false, 'next');
+  const command = host.openIssueFromCommand();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, [[101, 1]]);
+  assert.equal(host.workspaceSections.projects.refreshing, true);
+  assert.deepEqual(requests, [undefined, 'next']);
+  assert.deepEqual(remote.map(read => read.resource), ['issues']);
+  release();
+  await Promise.all([command, next]);
+});
+
+test('an Issue picker follows the replacement project page after a forced refresh', async t => {
+  const { host, client, remote } = fixture('dashboard');
+  const pending: Array<(items: unknown[]) => void> = [];
+  client.listGroupProjects = async () => new Promise(resolve => pending.push(resolve));
+  const opened: unknown[] = [];
+  host.openIssue = async (...args: unknown[]) => { opened.push(args); };
+  t.after(() => pending.forEach(finish => finish([])));
+
+  const command = host.openIssueFromCommand();
+  await new Promise(resolve => setImmediate(resolve));
+  const replacement = host.loadWorkspaceSection('projects', true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(pending.length, 2);
+  pending[0]([{ id: 999 }]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, []);
+  assert.deepEqual(remote, []);
+  pending[1]([{ id: 101, path_with_namespace: 'team-42/project' }]);
+  await Promise.all([command, replacement]);
+  assert.deepEqual(opened, [[101, 1]]);
+  assert.deepEqual(remote, [{ resource: 'issues', groupId: 42 }]);
+});
+
+test('an old Issue command cannot publish a project page after switching Group and back', async () => {
+  const { host, client, remote } = fixture('git');
+  const readProjects = client.listGroupProjects;
+  let release!: () => void;
+  client.listGroupProjects = async () => new Promise(resolve => { release = () => resolve([{ id: 999 }]); });
+  const opened: unknown[] = [];
+  host.openIssue = async (...args: unknown[]) => { opened.push(args); };
+  host.assertCodexEnvironmentTransitionAllowed = () => undefined;
+  const old = host.openIssueFromCommand();
+  await new Promise(resolve => setImmediate(resolve));
+  const scope = host.getNavigationSnapshot().scope;
+  await host.selectGroup(43);
+  await host.selectGroup(42);
+  assert.notEqual(host.getNavigationSnapshot().scope, scope);
+  release();
+  await old;
+  assert.deepEqual(host.projects, []);
+  assert.deepEqual(opened, []);
+  assert.deepEqual(remote.map(read => read.resource), ['groups', 'groups']);
+
+  client.listGroupProjects = readProjects;
+  await host.openIssueFromCommand();
+  assert.deepEqual(opened, [[101, 1]]);
+});
+
+test('an Issue command recovers after cancelling and failing its project read', async () => {
+  const { host, client, remote } = fixture('git');
+  const readProjects = client.listGroupProjects;
+  let release!: () => void;
+  client.listGroupProjects = async () => new Promise(resolve => { release = () => resolve([{ id: 101 }]); });
+  const opened: unknown[] = [];
+  host.openIssue = async (...args: unknown[]) => { opened.push(args); };
+  const command = host.openIssueFromCommand();
+  const cancelled = assert.rejects(command, /Issue 清單尚未完成載入/);
+  await new Promise(resolve => setImmediate(resolve));
+  await host.dispatchMessage({ type: 'retryWorkspaceSection', connectedScope: host.connectedScopeKey(), section: 'projects', mode: 'cancel' });
+  release();
+  await cancelled;
+  assert.equal(host.workspaceSections.projects.status, 'idle');
+  assert.deepEqual(opened, []);
+  assert.equal(remote.length, 0);
+
+  client.listGroupProjects = async () => { throw new Error('Project read failed'); };
+  await assert.rejects(host.openIssueFromCommand(), /Project read failed/);
+  assert.equal(remote.length, 0);
+  client.listGroupProjects = readProjects;
+  await host.openIssueFromCommand();
+  assert.deepEqual(opened, [[101, 1]]);
+  assert.deepEqual(remote.map(read => read.resource), ['projects', 'issues']);
 });
 
 test('workspace pages retain completed pages, bound full-load batches and continue from their next cursor', async () => {
@@ -1084,11 +1234,13 @@ test('workspace and remote-config events mark data dirty without scheduling Git 
   const { host, local, remote, cacheReads } = fixture('sa');
   host.refresh = () => { throw new Error('A workspace event must not refresh pages'); };
   host.refreshInventory = () => { throw new Error('A workspace event must not inspect Git'); };
+  host.skillBranchReads.set('cached', Promise.resolve([]));
   host.onWorkspaceFoldersChanged();
   host.scheduleSkillsEnvironmentRefresh();
   t.mock.timers.tick(10_000);
-  assert.equal(host.workspaceRefreshPending, true);
-  assert.equal(host.pendingWorkspaceRefresh, true);
+  assert.equal(host.skillBranchReads.size, 0);
+  assert.equal(host.getWorkflowKitPolicy().allowed, false);
+  assert.equal(host.getWorkflowKitPolicy().action, 'openWorkspace');
   assert.deepEqual(local, []); assert.deepEqual(remote, []); assert.deepEqual(cacheReads, []);
 });
 

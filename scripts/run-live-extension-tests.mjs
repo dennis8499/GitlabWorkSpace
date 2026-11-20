@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync, existsSync, copyFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
@@ -95,23 +95,26 @@ async function waitForCdpClosed(port, timeoutMs = 10_000) {
 function preparePackagedExtension(overridePath) {
   const vsix = overridePath ? path.resolve(overridePath) : path.join(ROOT, 'dist', `${PACKAGE.name}-${PACKAGE.version}.vsix`);
   if (!existsSync(vsix)) throw new Error(`Build ${path.relative(ROOT, vsix)} before running live Extension Host tests.`);
-  const digest = createHash('sha256').update(readFileSync(vsix)).digest('hex');
-  const unpackRoot = path.join(TEST_PROFILE_ROOT, `live-vsix-${PACKAGE.version}-${digest.slice(0, 12)}-${process.pid}`);
-  const extensionPath = path.join(unpackRoot, 'extension');
-  const zipCopy = path.join(unpackRoot, 'package.zip');
-  mkdirSync(unpackRoot, { recursive: true });
-  copyFileSync(vsix, zipCopy);
-  execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
-    'Expand-Archive -LiteralPath $env:GLW_PACKAGE_ZIP -DestinationPath $env:GLW_PACKAGE_DEST -Force'], {
-    encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true,
-    env: { ...process.env, GLW_PACKAGE_ZIP: zipCopy, GLW_PACKAGE_DEST: unpackRoot }
-  });
-  rmSync(zipCopy, { force: true });
-  const extracted = JSON.parse(readFileSync(path.join(extensionPath, 'package.json'), 'utf8'));
-  if (extracted.publisher !== PACKAGE.publisher || extracted.name !== PACKAGE.name || extracted.version !== PACKAGE.version) {
-    throw new Error('The packaged VSIX identity or version does not match the workspace release metadata.');
+  const bytes = readFileSync(vsix);
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  mkdirSync(TEST_PROFILE_ROOT, { recursive: true });
+  const unpackRoot = mkdtempSync(path.join(TEST_PROFILE_ROOT, 'live-vsix-' + PACKAGE.version + '-' + digest.slice(0, 12) + '-'));
+  const extractedRoot = path.join(unpackRoot, 'extracted');
+  const extensionPath = path.join(extractedRoot, 'extension');
+  const isolatedVsix = path.join(unpackRoot, 'package.vsix');
+  try {
+    writeFileSync(isolatedVsix, bytes, { flag: 'wx' });
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'run-python.mjs'), path.join(ROOT, 'scripts', 'verify-vsix.py'),
+      '--extract', isolatedVsix, extractedRoot, digest], { encoding: 'utf8', windowsHide: true });
+    const extracted = JSON.parse(readFileSync(path.join(extensionPath, 'package.json'), 'utf8'));
+    if (extracted.publisher !== PACKAGE.publisher || extracted.name !== PACKAGE.name || extracted.version !== PACKAGE.version) {
+      throw new Error('The packaged VSIX identity or version does not match the workspace release metadata.');
+    }
+    return { extensionPath, unpackRoot, isolatedVsix, vsix: path.relative(ROOT, vsix).replaceAll(path.sep, '/'), sha256: digest };
+  } catch (error) {
+    removeOwnedTestDirectory(unpackRoot);
+    throw error;
   }
-  return { extensionPath, unpackRoot, vsix: path.relative(ROOT, vsix).replaceAll(path.sep, '/'), sha256: digest };
 }
 
 function readTestReport(reportFile) {
@@ -257,8 +260,7 @@ async function runOne(key, round, args, executable, packageInfo) {
 }
 
 function createLocalGitGuiFixture() {
-  const fixtureParent = path.join(STATE, 'workspaces', 'local-git-gui');
-  const fixtureRoot = path.join(fixtureParent, `run-${Date.now()}-${process.pid}`);
+  const fixtureRoot = mkdtempSync(path.join(TEST_PROFILE_ROOT, 'live-git-fixture-'));
   const source = path.join(fixtureRoot, 'seed', 'service');
   const workspaceRoot = path.join(fixtureRoot, 'demo');
   const repository = path.join(workspaceRoot, 'service');
@@ -287,20 +289,11 @@ function createLocalGitGuiFixture() {
   return { fixtureRoot, workspaceRoot, workspaceFile, repository, source };
 }
 
-function removeOwnedLocalGitGuiFixture(target) {
-  const fixtureParent = path.resolve(STATE, 'workspaces', 'local-git-gui');
-  const resolved = path.resolve(target);
-  const relative = path.relative(fixtureParent, resolved);
-  if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || !path.basename(resolved).startsWith('run-')) {
-    throw new Error('Refusing to remove a local Git GUI fixture outside its dedicated run directory.');
-  }
-  rmSync(resolved, { recursive: true, force: true });
-}
-
 async function runLocalGitGui(executable, packageInfo, nativeConfirmation = false) {
   const fixture = createLocalGitGuiFixture();
   const profileId = `local-git-gui-${process.pid}-${Date.now()}`;
   const profile = createLiveTestProfile(TEST_PROFILE_ROOT, profileId, !!process.env.VSCODE_PORTABLE);
+  const networkRuntime = mkdtempSync(path.join(TEST_PROFILE_ROOT, 'live-git-runtime-'));
   const { userData, extensions } = profile;
   const logs = path.join(userData, 'logs');
   const port = await freePort(9343);
@@ -324,6 +317,7 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
   const env = {
     ...profile.environment,
     ELECTRON_RUN_AS_NODE: undefined,
+    GITLAB_WORKSPACE_RUNTIME_DIR: networkRuntime,
     GLW_LOCAL_GIT_GUI: '1',
     GLW_LOCAL_GIT_GUI_NATIVE_CONFIRM: nativeConfirmation ? '1' : undefined,
     GLW_LOCAL_GIT_GUI_REPORT: reportFile,
@@ -362,10 +356,9 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
   } finally {
     await waitForCdpClosed(port, 15_000);
     const cleanupErrors = [];
-    for (const target of profile.cleanupPaths) {
+    for (const target of [...profile.cleanupPaths, networkRuntime, fixture.fixtureRoot]) {
       try { removeOwnedTestDirectory(target); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
     }
-    try { removeOwnedLocalGitGuiFixture(fixture.fixtureRoot); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
     if (cleanupErrors.length) {
       result = { ...result, cleanup: { status: 'BLOCKED', errors: cleanupErrors } };
       writeFileSync(reportFile, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
@@ -383,6 +376,8 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
   const appData = path.join(systemProfile, 'AppData', 'Roaming');
   const localAppData = path.join(systemProfile, 'AppData', 'Local');
   const tempData = path.join(systemProfile, 'Temp');
+  // Keep the Windows PowerShell supervisor's compiler-cache paths short.
+  const networkRuntime = mkdtempSync(path.join(TEST_PROFILE_ROOT, 'live-git-runtime-'));
   const port = await freePort(9393);
   const reportFile = path.join(EVIDENCE, 'git-gui-local-native.json');
   const screenshotDir = path.join(EVIDENCE, 'screenshots');
@@ -414,6 +409,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
   const nativeEnvironment = {
     ...process.env,
     ...profile.environment,
+    GITLAB_WORKSPACE_RUNTIME_DIR: networkRuntime,
     USERPROFILE: systemProfile,
     HOME: systemProfile,
     HOMEDRIVE: systemDrive.slice(0, 2),
@@ -431,7 +427,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     ], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
       env: { ...nativeEnvironment, GLW_VSCODE_CLI: cli, GLW_NATIVE_USER_DATA: userData, GLW_NATIVE_EXTENSIONS: extensions,
-        GLW_NATIVE_VSIX: path.resolve(ROOT, packageInfo.vsix) }
+        GLW_NATIVE_VSIX: packageInfo.isolatedVsix }
     });
     const extensionIdentifier = `${PACKAGE.publisher}.${PACKAGE.name}@${PACKAGE.version}`;
     if (!extensionInstallOutput.includes(extensionIdentifier)) {
@@ -463,17 +459,19 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     await page.locator('.command-center-quick-pick').waitFor({ state: 'visible', timeout: 20_000 });
     await page.locator('.command-center-quick-pick').click();
     await page.locator('.quick-input-widget').waitFor({ state: 'visible', timeout: 5_000 });
-    const gitCommandTitle = PACKAGE.contributes.commands.find((command) => command.command === 'gitlabWorkspace.openGitMode')?.title;
-    if (!gitCommandTitle) throw new Error('The packaged extension does not contribute its Git GUI command.');
-    await page.keyboard.type(`>${gitCommandTitle}`, { delay: 12 });
-    try { await page.waitForFunction(({ title }) => [...document.querySelectorAll('.quick-input-list-entry')].some((entry) => entry.innerText?.includes(title)), { title: gitCommandTitle }, { timeout: 10_000 }); }
+    const gitCommand = PACKAGE.contributes.commands.find((command) => command.command === 'gitlabWorkspace.openGitMode');
+    if (!gitCommand) throw new Error('The packaged extension does not contribute its Git GUI command.');
+    const gitCommandLabel = `${gitCommand.category}: ${gitCommand.title}`;
+    const gitCommandChoice = page.locator('.quick-input-list-entry .monaco-highlighted-label').filter({ hasText: gitCommandLabel, exact: true });
+    await page.keyboard.type(`>${gitCommandLabel}`);
+    try { await gitCommandChoice.waitFor({ state: 'visible', timeout: 10_000 }); }
     catch {
       const workbench = await page.evaluate(`(() => ({ title: document.title, url: location.href, bodyText: document.body?.innerText?.slice(0, 1800), activeElement: document.activeElement?.outerHTML?.slice(0, 600), quickInputs: [...document.querySelectorAll('.quick-input-widget')].map((element) => ({ text: element.textContent, visible: element.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) ?? element.getClientRects().length > 0, inputs: [...element.querySelectorAll('input')].map((input) => ({ value: input.value, placeholder: input.placeholder, aria: input.getAttribute('aria-label') })) })) }))()`);
       await page.screenshot({ path: path.join(screenshotDir, 'native-workbench-command-palette.png') }).catch(() => undefined);
       throw new Error(`The standalone extension command was not available in the command picker (${JSON.stringify(workbench)}).`);
     }
     await page.screenshot({ path: path.join(screenshotDir, 'native-workbench-command-palette.png') });
-    await page.keyboard.press('Enter');
+    await gitCommandChoice.click();
     const frame = await waitForStandaloneGitWebview(cdpConnection, page, screenshotDir);
     await frame.locator('.git-workbench').waitFor({ state: 'visible', timeout: 20_000 });
     const gitGui = await exerciseNativeGitGui(frame, page, fixture.repository, `native-${Date.now()}`, screenshotDir, gitTraceFile);
@@ -515,10 +513,9 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
       catch { child.kill(); }
     }
     const cleanupErrors = [];
-    for (const target of profile.cleanupPaths) {
+    for (const target of [...profile.cleanupPaths, networkRuntime, fixture.fixtureRoot]) {
       try { removeOwnedTestDirectory(target); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
     }
-    try { removeOwnedLocalGitGuiFixture(fixture.fixtureRoot); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
     if (cleanupErrors.length) result = { ...result, cleanup: { status: 'BLOCKED', errors: cleanupErrors } };
     if (result) writeFileSync(reportFile, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   }
@@ -605,11 +602,17 @@ class StandaloneCdpConnection {
     return new StandaloneCdpConnection(socket);
   }
 
-  send(method, params = {}, sessionId) {
+  async send(method, params = {}, sessionId) {
     const id = ++this.sequence;
     const response = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
-    this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-    return response;
+    const deadline = setTimeout(() => this.pending.get(id)?.reject(new Error(`Standalone VS Code did not respond to ${method}.`)), 12_000);
+    try {
+      this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+      return await response;
+    } finally {
+      clearTimeout(deadline);
+      this.pending.delete(id);
+    }
   }
 
   close() { this.socket.close(); }
@@ -727,6 +730,11 @@ class StandaloneCdpLocator {
   async count() { return this._query(`return matches.length;`); }
 
   async click() {
+    if (this.target.searchNestedFrames) {
+      const clicked = await this._query(`const item = matches[${this.index ?? 0}]; if (!item?.getClientRects().length || item.matches(':disabled') || item.closest('[inert]')) return false; item.click(); return true;`);
+      if (!clicked) throw new Error(`Could not click standalone Webview selector ${this.selector}.`);
+      return;
+    }
     const point = await this._query(`const item = matches[${this.index ?? 0}]; if (!item) return null; item.scrollIntoView({ block: 'center', inline: 'nearest' }); const rect = item.getBoundingClientRect(); return rect.width && rect.height ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;`);
     if (!point) {
       const candidates = await this._query(`return matches.slice(0, 8).map((item) => ({ tag: item.tagName, text: (item.innerText ?? item.textContent ?? '').trim().slice(0, 120), className: String(item.className ?? ''), rect: (() => { const rect = item.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }; })() }));`).catch(() => []);
@@ -820,7 +828,9 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
         bodyTextEnd: document.body?.innerText?.slice(-1800) ?? ''
       }))()`);
       await page.screenshot({ path: path.join(screenshotDir, `native-${screenshotName}-confirmation.png`) }).catch(() => undefined);
-      writeFileSync(path.join(path.dirname(screenshotDir), `native-${screenshotName}-confirmation-debug.json`), `${JSON.stringify({ diagnostic, observed }, null, 2)}\n`, 'utf8');
+      const gitError = await frame.evaluate(`document.querySelector('.git-error')?.innerText?.trim() ?? ''`).catch(() => '');
+      writeFileSync(path.join(path.dirname(screenshotDir), `native-${screenshotName}-confirmation-debug.json`), `${JSON.stringify({ diagnostic, observed, gitError }, null, 2)}\n`, 'utf8');
+      if (gitError) throw new Error(`${label} failed before confirmation. ${gitError}`);
       throw new Error(`${label} confirmation was not exposed as a visible Workbench dialog with its action button. Diagnostics=${JSON.stringify(diagnostic)}`);
     }
     const text = await matched.innerText();
@@ -853,7 +863,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   await page.keyboard.press('Enter');
   await page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
   await frame.waitForFunction(({ branch }) => {
-    return document.querySelector('button.git-branch-picker span')?.textContent?.trim() === `${branch} ▾`;
+    return document.querySelector('button.git-branch-picker > .git-picker-label')?.textContent?.trim() === `${branch} ▾`;
   }, { branch }, { timeout: 20_000 });
   await waitGit(['branch', '--show-current'], (value) => value === branch, 'The Git GUI did not check out the created branch.');
 

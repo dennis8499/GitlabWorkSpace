@@ -7,7 +7,8 @@ export function restoreScrollAnchor(
 ): number {
   if (!nextKeys.length) return 0;
   if (!previousKeys.length || scrollTop <= 0) return Math.max(0, scrollTop);
-  const index = Math.min(previousKeys.length - 1, lowerBound(previousOffsets, scrollTop));
+  const preceding = lowerBound(previousOffsets, scrollTop);
+  const index = Math.min(previousKeys.length - 1, previousOffsets[preceding + 1] === scrollTop ? preceding + 1 : preceding);
   const nextIndices = new Map(nextKeys.map((key, offset) => [key, offset]));
   for (let distance = 0; distance < previousKeys.length; distance++) {
     for (const candidate of distance ? [index + distance, index - distance] : [index]) {

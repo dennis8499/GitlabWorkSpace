@@ -274,21 +274,28 @@ export class GitLabSession {
     // The opened/all suffix belongs to Issue filtering; Project inventory is the
     // same collection for both consumers and therefore has one page namespace.
     key = key.replace(/^(group\/\d+\/projects\/pages\/)all\//, '$1opened/');
-    const cacheKey = `${this.connectionEpochValue}\0${baseUrl}\0${key}`;
+    const epoch = this.connectionEpochValue;
+    const cacheKey = `${epoch}\0${baseUrl}\0${key}`;
     const collection = /^group\/(\d+)\/projects$/.exec(key);
     const pageGroup = /^group\/(\d+)\/projects\/pages\//.exec(key);
+    const pageGroupId = pageGroup ? Number(pageGroup[1]) : undefined;
+    let pageRevision: number | undefined;
     let cacheResult: GitLabCacheResult = options.force ? 'refresh' : 'miss';
     return this.readCache.get(cacheKey, async (signal) => {
-      const client = await this.getClient();
       const request = () => collection
         ? this.loadGroupProjects(Number(collection[1]), load as (client: GitLabClient, signal: AbortSignal) => Promise<GitLabProject[]>, signal, options)
-        : load(client.withReadSignal(signal), signal);
+        : this.getClient().then(client => load(client.withReadSignal(signal), signal));
       const value = await (this.log?.withContext({ requestReason: options.reason ?? (options.force ? 'manual-refresh' : 'read'), cacheResult }, request) ?? request());
-      const match = /^group\/(\d+)\/projects(?:\/pages\/.*)?$/.exec(key);
-      const items = Array.isArray(value) ? value : value && typeof value === 'object' && 'items' in value && Array.isArray(value.items) ? value.items : undefined;
-      if (match && items) {
-        const ids = new Set([...(this.groupProjectIds.get(Number(match[1])) ?? []), ...items.flatMap((item) => item && typeof item === 'object' && 'id' in item && Number.isSafeInteger(item.id) ? [item.id as number] : [])]);
-        this.groupProjectIds.set(Number(match[1]), ids);
+      if (pageGroupId !== undefined && epoch === this.connectionEpochValue && !signal.aborted &&
+          pageRevision === this.getGroupProjectsRevision(pageGroupId)) {
+        const items = Array.isArray(value) ? value : value && typeof value === 'object' && 'items' in value && Array.isArray(value.items) ? value.items : undefined;
+        if (items) {
+          let ids = this.groupProjectIds.get(pageGroupId);
+          if (!ids) this.groupProjectIds.set(pageGroupId, ids = new Set());
+          for (const item of items) {
+            if (item && typeof item === 'object' && 'id' in item && Number.isSafeInteger(item.id)) ids.add(item.id as number);
+          }
+        }
       }
       return value as T;
     }, { ...options, lifetimeMs: gitLabReadLifetimeMs(key), storeValue: !collection, handoff: !collection,
@@ -299,19 +306,21 @@ export class GitLabSession {
         this.log?.record({ feature: 'api-cache', action: 'read', result: 'success', network: false,
           requestReason: options.reason ?? (options.force ? 'manual-refresh' : 'read'), cacheResult: result,
           pageIdentity: 'cursor:' + createHash('sha256').update(key).digest('hex').slice(0, 16) });
-        if (pageGroup && key.endsWith('/first') && (result === 'miss' || result === 'refresh')) {
-          const groupId = Number(pageGroup[1]);
-          this.projectCollectionRevisions.set(groupId, (this.projectCollectionRevisions.get(groupId) ?? 0) + 1);
+        if (pageGroupId !== undefined && key.endsWith('/first') && (result === 'miss' || result === 'refresh')) {
+          this.projectCollectionRevisions.set(pageGroupId, this.getGroupProjectsRevision(pageGroupId) + 1);
           // A new generation cannot serve the previous first page while its
           // replacement is loading: new readers must join the replacement.
           this.readCache.invalidate(cacheKey);
-          const pagePrefix = `${this.connectionEpochValue}\0${baseUrl}\0group/${pageGroup[1]}/projects/pages/`;
+          const pagePrefix = `${epoch}\0${baseUrl}\0group/${pageGroupId}/projects/pages/`;
           this.readCache.invalidateWhere(other => other.startsWith(pagePrefix) && other !== cacheKey);
         }
         // An external fresh page starts a new collection snapshot. Existing full
         // subscribers can finish, but subsequent callers must join the new pages.
-        if (pageGroup && !collectionPage && result !== 'hit' && result !== 'joined') {
-          this.readCache.invalidate(`${this.connectionEpochValue}\0${baseUrl}\0group/${pageGroup[1]}/projects`);
+        if (pageGroupId !== undefined) {
+          pageRevision = this.getGroupProjectsRevision(pageGroupId);
+          if (!collectionPage && result !== 'hit' && result !== 'joined') {
+            this.readCache.invalidate(`${epoch}\0${baseUrl}\0group/${pageGroupId}/projects`);
+          }
         }
       }
     });

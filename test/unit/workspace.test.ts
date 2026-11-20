@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { GitLabProject } from '../../src/api/types';
 import { parseIssueDraftBundle } from '../../src/workspace/issueDrafts';
-import { groupRepositoryPath, inspectWorkspaceFolder, localRepositoryState, localRepositoryStateAsync, projectFolderNames, resolveGroupWorkspaceRoot, sameLocalPath, scanLocalGroupRepositories } from '../../src/workspace/workspacePaths';
+import { groupRepositoryPath, inspectWorkspaceFolder, localRepositoryState, localRepositoryStateAsync, projectFolderNames, resolveGroupWorkspaceRoot, sameLocalPath } from '../../src/workspace/workspacePaths';
 import { IssueTimeTracker, parseTimeEntryDuration } from '../../src/workspace/timeTracker';
 
 function project(id: number, localPath: string, fullPath = `group/${localPath}`): GitLabProject {
@@ -137,24 +137,6 @@ test('inspects VS Code folders using their actual Git remotes and selects the ma
     assert.equal(directFolder.kind, 'directory');
     assert.equal(resolveGroupWorkspaceRoot([directFolder]).root, undefined, 'a directory needs verified child Repos');
   } finally { rmSync(parent, { recursive: true, force: true }); }
-});
-
-test('scans real direct-child repositories and includes Git worktrees without inferring missing GitLab folders', async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'workspace-local-repositories-'));
-  try {
-    const normal = path.join(root, 'actual-repo');
-    const worktree = path.join(root, 'linked-worktree');
-    mkdirSync(normal);
-    mkdirSync(path.join(root, 'ordinary-folder'));
-    execFileSync('git', ['init', '--quiet', normal]);
-    execFileSync('git', ['-C', normal, '-c', 'user.name=Workspace Test', '-c', 'user.email=workspace@example.invalid', 'commit', '--allow-empty', '-m', 'baseline']);
-    execFileSync('git', ['-C', normal, 'worktree', 'add', '--quiet', '--detach', worktree, 'HEAD']);
-
-    assert.deepEqual(await scanLocalGroupRepositories(root), [
-      { name: 'actual-repo', path: realpathSync.native(normal) },
-      { name: 'linked-worktree', path: realpathSync.native(worktree) }
-    ]);
-  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test('compares Windows repository paths case-insensitively after normalization', () => {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Memento, SecretStorage } from 'vscode';
 import type { GitLabClient } from '../../src/api/gitLabClient';
+import type { GitLabWriteContext } from '../../src/api/gitLabClient';
 import type { GitLabPage, GitLabProject } from '../../src/api/types';
 import { gitLabReadLifetimeMs, groupProjectsPageReadKey } from '../../src/api/gitLabReadKeys';
 import { GitLabSession } from '../../src/connection/session';
@@ -99,6 +100,44 @@ test('full-collection reads prime dashboard pages and forced refresh discards ol
   assert.equal(requests.length, 4, 'a refreshed first page invalidates the earlier continuation snapshot');
 });
 
+test('ten project pages increment one membership index and warm inventory prepares no client', async t => {
+  const indices: Set<number>[] = [];
+  let requests = 0, clientReads = 0;
+  const { session } = fixture(async cursor => {
+    requests++;
+    const known = groupProjectIds.get(42);
+    if (known) indices.push(known);
+    const number = cursor ? Number(new URL(cursor).searchParams.get('page')) : 1;
+    return page(Array.from({ length: 100 }, (_, index) => (number - 1) * 100 + index + 1),
+      number === 10 ? undefined : 'https://gitlab.example.test/api/v4/groups/42/projects?page=' + (number + 1));
+  });
+  const { groupProjectIds } = session as unknown as { groupProjectIds: Map<number, Set<number>> };
+  const realClient = session.getClient.bind(session);
+  t.mock.method(session, 'getClient', async () => { clientReads++; return realClient(); });
+  const read = () => session.cachedRead('group/42/projects', unexpected);
+  const expectedIds = Array.from({ length: 1000 }, (_, index) => index + 1);
+  assert.deepEqual((await read()).map(item => item.id), expectedIds);
+  const ids = groupProjectIds.get(42);
+  assert.ok(ids);
+  assert.deepEqual([...ids], expectedIds);
+  assert.equal(indices.length, 9);
+  assert.ok(indices.every(previous => previous === ids));
+  assert.deepEqual([requests, clientReads], [10, 10]);
+  assert.deepEqual((await read()).map(item => item.id), expectedIds);
+  assert.deepEqual([requests, clientReads], [10, 10]);
+  assert.equal(groupProjectIds.get(42), ids);
+
+  let issueReads = 0;
+  const issues = (groupId: number) => session.cachedRead('group/' + groupId + '/assigned-issues', async () => ++issueReads);
+  assert.equal(await issues(42), 1);
+  assert.equal(await issues(43), 2);
+  (session as unknown as { invalidateAfterWrite(context: GitLabWriteContext): void }).invalidateAfterWrite({
+    url: 'https://gitlab.example.test/api/v4/projects/1000/issues/1', method: 'PUT'
+  });
+  assert.equal(await issues(42), 3, 'a write in the last page invalidates the Group Issue cache');
+  assert.equal(await issues(43), 2, 'the unrelated Group retains its cache');
+});
+
 test('failed continuation remains partial and the next collection read retries only the missing page', async () => {
   const requests: Array<string | undefined> = [];
   const cursor = 'https://gitlab.example.test/api/v4/groups/42/projects?page=2';
@@ -123,6 +162,8 @@ test('an external first-page refresh cannot return a collection assembled from d
   await session.cachedRead(groupProjectsPageReadKey(42), client => client.listGroupProjectsPage(42), { force: true });
   finishSecond(page([10]));
   await rejected;
+  const ids = (session as unknown as { groupProjectIds: Map<number, Set<number>> }).groupProjectIds.get(42);
+  assert.deepEqual([...ids!], [1, 2], 'the superseded continuation cannot add stale project membership');
 });
 
 test('readers during forced first-page refresh join its replacement instead of mixing a cached old prefix with new pages', async () => {
@@ -220,6 +261,8 @@ test('an account reset clears cached pages and handoffs and old completions cann
   finish(page([1]));
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.deepEqual((await session.cachedRead('group/42/projects', unexpected)).map(item => item.id), [2]);
+  const ids = (session as unknown as { groupProjectIds: Map<number, Set<number>> }).groupProjectIds.get(42);
+  assert.deepEqual([...ids!], [2]);
   assert.equal(requests, 2);
   handoff.dispose();
 });

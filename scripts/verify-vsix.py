@@ -1,13 +1,16 @@
 from pathlib import Path
 import hashlib
+import io
 import json
 import subprocess
+import sys
 import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = json.loads((ROOT / 'package.json').read_text(encoding='utf-8'))
 VSIX_PATH = ROOT / 'dist' / f"{MANIFEST['name']}-{MANIFEST['version']}.vsix"
+RUNTIME_RESOURCES = tuple(json.loads(Path(__file__).with_name('vsix-runtime-resources.json').read_text(encoding='utf-8')))
 
 
 def verify_webview_dependencies(archive: zipfile.ZipFile) -> None:
@@ -109,19 +112,13 @@ def main():
         manifest = json.loads(archive.read('extension/package.json'))
         if manifest['version'] != MANIFEST['version'] or manifest['name'] != MANIFEST['name']:
             raise ValueError('Packaged Extension identity differs')
-        for name in ('resources/issue-webview/dashboard.html', 'resources/issue-webview/dashboard.js',
+        for name in (*RUNTIME_RESOURCES, 'resources/issue-webview/dashboard.html', 'resources/issue-webview/dashboard.js',
                      'resources/issue-webview/dashboard.css', 'resources/issue-webview/codicon.ttf',
-                     'resources/codicons/NOTICE.md', 'out/src/navigationViews.js',
-                     'resources/workflow-kit-status.py', 'out/src/workspace/workspacePanel.js',
-                     'resources/bmad/entrypoints.json', 'out/src/workspace/bmadEntrypoints.js',
+                     'out/src/navigationViews.js', 'out/src/workspace/workspacePanel.js',
+                     'out/src/workspace/bmadEntrypoints.js',
                      'out/src/workspace/bmadArtifactStore.js', 'out/src/workspace/bmadContinuation.js',
                      'out/src/codex/terminal.js', 'out/src/codex/manualTerminal.js', 'out/src/codex/buildAutoCli.js',
-                     'resources/codex-manual-launch.ps1',
-                     'out/src/workspace/workflowKitReleases.js', 'resources/git-askpass.js',
-                     'resources/git-askpass.sh', 'resources/git-ssh-askpass.sh',
-                     'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1',
-                     'resources/repair-api-control.ps1', 'resources/repair-workflow-lease.ps1',
-                     'resources/repair-workflow-lease-native.cs'):
+                     'out/src/workspace/workflowKitReleases.js'):
             if archive.read('extension/' + name) != (ROOT / name).read_bytes():
                 raise ValueError('Missing or stale packaged resource: ' + name)
         verify_webview_dependencies(archive)
@@ -147,5 +144,16 @@ def main():
     print(f'Verified {VSIX_PATH.name}: online installation bridge, no bundled package')
     return 0
 
+def extract_verified(vsix: Path, destination: Path, sha256: str) -> None:
+    data = vsix.read_bytes()
+    if hashlib.sha256(data).hexdigest() != sha256:
+        raise ValueError('VSIX bytes differ from the requested SHA-256')
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        archive.extractall(destination)
+
+
 if __name__ == '__main__':
-    raise SystemExit(main())
+    if len(sys.argv) == 5 and sys.argv[1] == '--extract':
+        extract_verified(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4])
+    else:
+        raise SystemExit(main())

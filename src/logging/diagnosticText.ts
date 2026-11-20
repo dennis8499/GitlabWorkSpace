@@ -15,7 +15,7 @@ export function sanitizeFeedbackDiagnostics<T>(value: T, sanitize: (text: string
   const source = value as Record<string, unknown>;
   let result: Record<string, unknown> | undefined;
   const set = (key: string, next: unknown) => { if (next !== source[key]) { result ??= { ...source }; result[key] = next; } };
-  for (const key of ['error', 'refreshError', 'reason', 'details', 'permissionNotice', 'workspaceRootError', 'cloneRootError', 'groupRepositoryScanError']) {
+  for (const key of ['error', 'refreshError', 'reason', 'details', 'permissionNotice', 'workspaceRootError', 'cloneRootError']) {
     if (typeof source[key] === 'string') set(key, sanitize(source[key] as string));
   }
   if (['error', 'gitError', 'message', 'gitRepositories'].includes(String(source.type)) && typeof source.message === 'string') set('message', sanitize(source.message));

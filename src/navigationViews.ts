@@ -8,9 +8,22 @@ import type { WorkspacePanel } from './workspace/workspacePanel';
 
 export type RepositoryNode = { kind: 'folder'; folder: vscode.WorkspaceFolder; repositories: readonly GitRepositorySummary[] }
   | { kind: 'repository'; repository: GitRepositorySummary };
-export type WorkNode = { kind: 'section'; section: 'issues' | 'mergeRequests'; scope?: string }
-  | { kind: 'issue'; issue: GitLabIssue; scope: string }
+type WorkSection = 'issues' | 'mergeRequests';
+type WorkItem = { kind: 'issue'; issue: GitLabIssue; scope: string }
   | { kind: 'mergeRequest'; mergeRequest: GitLabMergeRequest; scope: string };
+export type WorkNode = { kind: 'section'; section: WorkSection; scope?: string } | WorkItem;
+
+function workItems(state: NavigationSnapshot, section: WorkSection): WorkItem[] {
+  if (!state.connected || !state.group || !state.connectedScope) return [];
+  return section === 'issues' ? state.issues.map(issue => ({ kind: 'issue', issue, scope: state.scope }))
+    : state.mergeRequests.map(mergeRequest => ({ kind: 'mergeRequest', mergeRequest, scope: state.scope }));
+}
+
+function describeWorkItem(node: WorkItem, projectName: (id: number) => string | undefined) {
+  const data = node.kind === 'issue' ? node.issue : node.mergeRequest;
+  return { data, label: `${node.kind === 'issue' ? '#' : '!'}${data.iid} ${data.title}`,
+    description: projectName(data.project_id) ?? `專案 ${data.project_id}` };
+}
 
 export class RepositoryViewProvider implements vscode.TreeDataProvider<RepositoryNode>, vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<RepositoryNode | undefined>();
@@ -63,9 +76,7 @@ export class MyWorkViewProvider implements vscode.TreeDataProvider<WorkNode>, vs
     const state = this.snapshot();
     if (!state.connected || !state.group) return [];
     if (!node) return [{ kind: 'section', section: 'issues', scope: state.scope }, { kind: 'section', section: 'mergeRequests', scope: state.scope }];
-    if (node.kind !== 'section' || !state.connectedScope) return [];
-    return node.section === 'issues' ? state.issues.map(issue => ({ kind: 'issue', issue, scope: state.scope }))
-      : state.mergeRequests.map(mergeRequest => ({ kind: 'mergeRequest', mergeRequest, scope: state.scope }));
+    return node.kind === 'section' ? workItems(state, node.section) : [];
   }
   getTreeItem(node: WorkNode): vscode.TreeItem {
     const state = this.snapshot();
@@ -79,9 +90,8 @@ export class MyWorkViewProvider implements vscode.TreeDataProvider<WorkNode>, vs
       item.iconPath = new vscode.ThemeIcon(node.section === 'issues' ? 'issues' : 'git-pull-request');
       item.accessibilityInformation = { label: `${item.label}，${item.description}` }; return item;
     }
-    const data = node.kind === 'issue' ? node.issue : node.mergeRequest;
-    const item = new vscode.TreeItem(`${node.kind === 'issue' ? '#' : '!'}${data.iid} ${data.title}`, vscode.TreeItemCollapsibleState.None);
-    const project = state.projects.find(project => project.id === data.project_id)?.path_with_namespace ?? `專案 ${data.project_id}`;
+    const { data, label, description: project } = describeWorkItem(node, id => state.projects.find(project => project.id === id)?.path_with_namespace);
+    const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
     item.id = `${node.scope}:${node.kind}:${data.project_id}:${data.iid}`;
     item.description = project; item.tooltip = `${data.title}\n${project}\n${data.state}`;
     item.contextValue = `gitlabWorkspace.${node.kind}`;
@@ -164,15 +174,17 @@ export class NavigationViews implements vscode.Disposable {
     return selected?.repository.id;
   }
   async findWork(): Promise<WorkNode | undefined> {
-    await this.host.loadNavigationData();
     const scope = this.host.getNavigationSnapshot().scope;
+    await this.host.loadNavigationData();
     for (;;) {
       const state = this.host.getNavigationSnapshot();
       if (scope !== state.scope) return;
-      const nodes = this.work.getChildren().flatMap(section => this.work.getChildren(section));
-      const choices = nodes.map(node => {
-        const item = this.work.getTreeItem(node);
-        return { label: String(item.label), description: String(item.description ?? ''), node, section: undefined as 'issues' | 'mergeRequests' | undefined };
+      const nodes = [...workItems(state, 'issues'), ...workItems(state, 'mergeRequests')];
+      const projectNames = new Map(state.projects.map(project => [project.id, project.path_with_namespace]));
+      const projectName = (id: number) => projectNames.get(id);
+      const choices: Array<vscode.QuickPickItem & { node: WorkNode; section?: WorkSection }> = nodes.map(node => {
+        const { label, description } = describeWorkItem(node, projectName);
+        return { label, description, node };
       });
       for (const section of ['issues', 'mergeRequests'] as const) {
         const status = state.sections[section];

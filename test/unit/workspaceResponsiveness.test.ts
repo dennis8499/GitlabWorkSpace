@@ -13,7 +13,7 @@ function hostFixture(): any {
   const host = Object.create(Panel.prototype);
   Object.assign(host, {
     disposed: false, activeMode: 'reviewer', requestGeneration: 1, workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0,
-    issueBoardGeneration: 0, actualRepositoryScanGeneration: 0, localRepositoryScanGeneration: 0,
+    issueBoardGeneration: 0, localRepositoryScanGeneration: 0,
     workspaceSections: {}, workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(),
     loadedScopeKey: 'https://gitlab.test|7|42', currentUser: user, projects: [project], issues: [], mergeRequests: [],
     groups: [group], projectSource: 'gitlab', developerView: 'list',
@@ -23,9 +23,9 @@ function hostFixture(): any {
       updateCurrentUser: async () => undefined, ensureMetadataChecked: async () => undefined,
       cachedRead: async (key: string) => key === 'groups' ? [group] : key === 'current-user' ? user : key.endsWith('/projects') ? [project] : [] },
     sendSnapshot: () => undefined, setBusyOwner: () => undefined, syncTimerPolling: () => undefined,
-    schedulePendingWorkspaceRefresh: () => undefined, refreshWorkflowKit: async () => undefined,
+    refreshWorkflowKit: async () => undefined,
     refreshProjectRoot: async () => undefined, resolveWorkspaceRoot: async () => ({ root: 'C:/fixture/team', match: { status: 'matched' } }),
-    loadActiveModeSections: () => undefined, refreshActualRepositories: async () => undefined
+    loadActiveModeSections: () => undefined
   });
   return host;
 }
@@ -52,9 +52,10 @@ test('expired ready sections remain available while exactly one background read 
   assert.equal(host.mergeRequests, previousRows);
   assert.equal(host.workspaceSections.mergeRequests.status, 'ready');
   assert.equal(host.workspaceSections.mergeRequests.refreshing, true);
-  await host.loadWorkspaceSection('mergeRequests');
+  const joined = host.loadWorkspaceSection('mergeRequests');
+  assert.equal(joined, task);
   assert.equal(reads, 1);
-  finish([{ iid: 2, title: 'Current' }]); await task;
+  finish([{ iid: 2, title: 'Current' }]); await Promise.all([task, joined]);
   assert.equal(host.mergeRequests[0].iid, 2);
   assert.equal(host.workspaceSections.mergeRequests.refreshing, false);
   assert.ok(host.workspaceSections.mergeRequests.updatedAt > Date.now() - 1000);

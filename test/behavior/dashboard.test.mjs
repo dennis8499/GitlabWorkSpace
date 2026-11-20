@@ -546,7 +546,7 @@ test('responsiveness: lazy activity patches render new Markdown once and reconci
 test('responsiveness: virtual MR files retain expansion and a stable scroll anchor after refresh', async t => {
   const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', web_url: 'https://gitlab.test/team/a/-/merge_requests/4' };
   data.mergeRequests = [request];
-  data.selectedMergeRequest = { request, diffs: Array.from({ length: 300 }, (_, index) => ({ old_path: 'file' + index, new_path: 'file' + index, diff: '+x' })), discussions: [],
+  data.selectedMergeRequest = { request, diffVersionId: 9, diffs: Array.from({ length: 300 }, (_, index) => ({ old_path: 'file' + index, new_path: 'file' + index, diff: '+x' })), discussions: [],
     sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, warnings: [], freshness: { state: 'not_checked' } };
   const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
   const list = view.dom.window.document.querySelector('.diff-list');
@@ -556,6 +556,19 @@ test('responsiveness: virtual MR files retain expansion and a stable scroll anch
   await scroll(6000);
   view.sendSnapshot({ ...data, selectedMergeRequest: { ...data.selectedMergeRequest, diffs: [...data.selectedMergeRequest.diffs, { old_path: 'new', new_path: 'new', diff: '+new' }] } }); await view.tick();
   assert.equal(list.scrollTop, 6000, 'appending data preserves the first visible item and its offset');
+  const document = view.dom.window.document;
+  const boundary = [...list.querySelectorAll('.mr-native-diff')].find(button => button.textContent === 'file125');
+  assert.ok(boundary);
+  boundary.focus();
+  assert.equal(document.activeElement, boundary);
+  const diffs = [...data.selectedMergeRequest.diffs];
+  diffs.splice(125, 0, { old_path: 'inserted', new_path: 'inserted', diff: '+new' });
+  view.sendSnapshot({ ...data, selectedMergeRequest: { ...data.selectedMergeRequest, diffs } }); await view.tick();
+  assert.equal(list.scrollTop, 6048, 'inserting at a row boundary preserves the visible file');
+  assert.equal(document.activeElement, boundary);
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(list.scrollTop, 6000, 'removing the inserted file also preserves the visible file');
+  assert.equal(document.activeElement, boundary);
 });
 
 test('responsiveness: versioned workspace patches reject gaps, request one resync and preserve independent deltas', async t => {
@@ -596,6 +609,36 @@ test('responsiveness: large Git refs, changed files and short-line diffs keep bo
   assert.match(document.querySelector('.git-large-diff').textContent, /20,000/);
   document.querySelector('.git-large-diff button').click();
   assert.equal(view.requests.at(-1).type, 'gitOpenDiff');
+});
+
+test('staging a preview keeps the file in the inline Diff', async t => {
+  const change = { path: 'service.ts', section: 'unstaged', kind: '已修改' };
+  const view = await mountGit(t, {}, gitSnapshot('repo-a', { changes: [change], stagedCount: 0 }));
+  const document = view.dom.window.document;
+  document.querySelector('[aria-label="部分暫存預覽 service.ts"]').click();
+  await view.tick();
+  await finishGit(view, gitActions(view, 'readDiff').at(-1), {
+    revision: 2, changes: [change], stagedCount: 0, diffPath: change.path, diffStaged: false, diffText: '+working change'
+  });
+
+  document.querySelector('[title="暫存整檔"]').click();
+  await view.tick();
+  const stage = gitActions(view, 'stageFile').at(-1);
+  assert.deepEqual({ ...stage?.action }, { type: 'stageFile', path: change.path, staged: true });
+  const staged = { revision: 3, changes: [{ ...change, section: 'staged' }], stagedCount: 1, unstagedCount: 0 };
+  await finishGit(view, stage, staged);
+
+  assert.equal(view.requests.filter(request => request.type === 'gitOpenDiff').length, 0, 'native Diff requires a file-name click');
+  const reads = gitActions(view, 'readDiff');
+  assert.equal(reads.length, 2);
+  assert.deepEqual({ ...reads[1].action }, { type: 'readDiff', path: change.path, staged: true });
+  await finishGit(view, reads[1], { ...staged, revision: 4, diffPath: change.path, diffStaged: true, diffText: '+staged change' });
+  assert.match(document.querySelector('.git-diff-heading').textContent, /已暫存/);
+  assert.match(document.querySelector('.git-diff-view').textContent, /staged change/);
+  document.querySelector('.git-change-name').click();
+  const native = view.requests.find(request => request.type === 'gitOpenDiff');
+  assert.equal(native?.path, change.path);
+  assert.equal(native?.staged, true);
 });
 
 test('responsiveness: progressive create options preserve the latest draft and pending previews', async t => {
@@ -1500,9 +1543,6 @@ function snapshot(activeMode = 'developer') {
     cloneRoot: 'C:/workspace/team',
     projectLocalRepositories: {},
     workspaceRootError: undefined,
-    groupRepositories: [{ name: 'alpha', path: 'C:/workspace/team/alpha' }],
-    groupRepositoryScanStatus: 'ready',
-    groupRepositoryScanError: undefined,
     projects: [project(1, 'alpha'), project(2, 'beta'), project(3, 'gamma')],
     groupMilestones: [
       { id: 21, group_id: 3, title: 'Unused release', state: 'active' },
@@ -2137,11 +2177,10 @@ test('retired Issue development navigation and saved tabs reopen on Content', as
 });
 
 test('shows one selected Wiki feature and builds prompts from the actual local Repo inventory', async (t) => {
-  const selectedGroup = snapshot('sa');
-  selectedGroup.groupRepositories = [
+  const selectedGroup = withGroupGuide(snapshot('sa'), [
     { name: 'renamed-alpha', path: 'C:/workspace/team/renamed-alpha' },
     { name: 'unmapped-tools', path: 'C:/workspace/team/unmapped-tools' }
-  ];
+  ]);
   const view = await mount({ mode: 'sa' }, selectedGroup);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
@@ -2183,9 +2222,10 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   copy.click();
   await view.tick();
   const request = view.requests.at(-1);
-  assert.equal(request.type, 'copy');
-  assert.ok(request.text.includes(query.value));
-  assert.ok(request.text.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
+  assert.equal(request.type, 'copySkillGuidePrompt');
+  assert.equal(request.featureId, 'query');
+  assert.equal(request.inputs['query.question'], query.value);
+  assert.equal(request.revision, selectedGroup.skillsContext.revision);
   view.send({ type: 'notificationsChanged', snapshot: { sessionId: 'session-one', revision: 1, unreadCount: 1,
     items: [{ id: 'notice:copied', level: 'info', title: '複製提示詞', messages: ['Prompt copied'], createdAt: 1, updatedAt: 1, read: false }] } });
   await view.tick();
@@ -2197,11 +2237,13 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   await view.tick();
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-functional-exploration');
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  const exploration = document.querySelector('.wiki-prompt-preview').textContent;
+  assert.match(exploration, /functional_exploration.*先從目前原始碼/s);
+  assert.match(exploration, /不執行目標程式或測試/);
+  assert.match(exploration, /不保存文件/);
   document.querySelector('.wiki-copy-button').click();
   await view.tick();
-  assert.match(view.requests.at(-1).text, /functional_exploration.*先從目前原始碼/s);
-  assert.match(view.requests.at(-1).text, /不執行目標程式或測試/);
-  assert.match(view.requests.at(-1).text, /不保存文件/);
+  assert.equal(view.requests.at(-1).featureId, 'functional-exploration');
 
   selectSkillFeature(document, 'audit');
 
@@ -2335,6 +2377,7 @@ test('account settings preserve keyboard focus and delegate relogin with the sav
 
 test('an installed custom folder does not enable the Group guide when the Group kit is missing', async (t) => {
   const state = snapshot('sa'); state.workflowKit = { status: 'missing' };
+  withGroupGuide(state);
   state.workflowKitPolicy = { requireGroupEnvironment: false, allowed: true, settingTarget: 'workspace' };
   state.workflowKitInstallTarget = { root: 'C:/another/repo', manual: true, state: { status: 'installed', version: '0.9.0' } };
   const view = await mount({ mode: 'sa' }, state);
@@ -2348,6 +2391,7 @@ test('an installed custom folder does not enable the Group guide when the Group 
   assert.match(document.querySelector('.workflow-kit-skills-root').textContent, /C:\/another\/repo/);
   assert.equal(document.querySelector('.workflow-kit-install-button').textContent, '下載並更新');
   state.workflowKit = { status: 'installed', version: '0.9.0' };
+  withGroupGuide(state);
   view.sendSnapshot(state); await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
 });
@@ -2394,8 +2438,8 @@ test('keeps Wiki inputs when Group changes and separates drafts by local project
 test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, and workflow kit are ready', async (t) => {
   const state = snapshot('sa');
   state.groupRoot = undefined;
-  state.groupRepositoryScanStatus = 'idle';
   state.workflowKit = { status: 'missing' };
+  withGroupGuide(state, []);
   const view = await mount({ mode: 'sa' }, state);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
@@ -2408,9 +2452,8 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
 });
 test('four Skills tools preserve legacy Wiki drafts and isolate release inputs across roots and reopening', async (t) => {
-  const data = snapshot('sa');
   const selectedRepo = 'C:/工作區 with spaces/service';
-  data.groupRepositories = [{ name: 'service', path: selectedRepo }, { name: 'alpha', path: 'C:/workspace/team/alpha' }];
+  const data = withGroupGuide(snapshot('sa'), [{ name: 'service', path: selectedRepo }, { name: 'alpha', path: 'C:/workspace/team/alpha' }]);
   const view = await mount({ mode: 'sa', scopeKey: 'team-scope',
     wikiGuideInputsByScope: { 'team-scope': { 'query.question': '保留的 Wiki 問題' } },
     wikiGuideSelectionsByScope: { 'team-scope': 'query' } }, data);
@@ -2441,14 +2484,18 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
   document.querySelector('.wiki-copy-button').click();
   await view.tick();
   const copy = view.requests.at(-1);
-  assert.equal(copy.type, 'copy');
-  assert.match(copy.text, /\$release-reviewer/);
-  assert.match(copy.text, /C:\/工作區 with spaces\/service/);
-  assert.match(copy.text, /review_session\.py" start --workspace/);
-  assert.equal(copy.text.includes('--include-json'), false);
-  assert.match(copy.text, /Checklist/);
-  assert.match(copy.text, /VSCode 工作區根目錄：C:\/workspace\/team/);
-  assert.match(copy.text, /本機實際 Git Repo/);
+  assert.equal(copy.type, 'copySkillGuidePrompt');
+  assert.equal(copy.featureId, 'release-review');
+  assert.equal(copy.inputs['release-review.repo'], selectedRepo);
+  assert.equal(copy.inputs['release-review.base'], 'origin/main');
+  assert.equal(copy.inputs['release-review.head'], 'feature/payment');
+  const preview = document.querySelector('.wiki-prompt-preview').textContent;
+  assert.match(preview, /\$release-reviewer/);
+  assert.match(preview, /C:\/工作區 with spaces\/service/);
+  assert.match(preview, /review_session\.py" start --workspace/);
+  assert.match(preview, /Checklist/);
+  assert.match(preview, /VSCode 工作區根目錄：C:\/workspace\/team/);
+  assert.match(preview, /本機實際 Git Repo/);
 
   await change('.skills-tool-selector select', 'codebase-wiki');
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
@@ -2462,10 +2509,10 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
   groupB.groupRoot = 'C:/workspace/another-team';
   groupB.projectContext = { ...groupB.projectContext, root: groupB.groupRoot, revision: 'another-root' };
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
-  groupB.groupRepositories = [
+  withGroupGuide(groupB, [
     { name: 'other-service', path: 'C:/workspace/another-team/other-service' },
     { name: 'tools', path: 'C:/workspace/another-team/tools' }
-  ];
+  ]);
   view.sendSnapshot(groupB);
   await view.tick();
   assert.equal(selectedSkillTool(document), 'codebase-wiki');
@@ -2491,7 +2538,7 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
 });
 
 test('release guide retains multiple field inputs dispatched before the next repaint', async (t) => {
-  const view = await mount({ mode: 'sa' }, snapshot('sa'));
+  const view = await mount({ mode: 'sa' }, withGroupGuide(snapshot('sa')));
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   selectSkillTool(document, 'release-reviewer');
@@ -3581,6 +3628,15 @@ function setProjectContext(state, root, manual = false) {
     root, manual, revision: 'root-' + root };
   state.cloneRoot = root; state.cloneRootManual = manual; state.groupRoot = root;
   state.workflowKitInstallTarget = { ...state.workflowKitInstallTarget, root, manual };
+}
+
+function withGroupGuide(state, repositories = [{ name: 'alpha', path: 'C:/workspace/team/alpha' }]) {
+  const root = state.groupRoot;
+  state.skillsContext = { mode: root ? 'group' : 'unavailable', root, workspaceRoot: root, revision: 'skills-' + root,
+    groupMatch: { status: root ? 'matched' : 'checking', root, profile: 'group', repositories }, repositories, reviewerRepositories: repositories,
+    installed: { ...state.workflowKit, profile: 'group' },
+    availableFeatures: root && state.workflowKit.status === 'installed' ? ['query', 'functional-exploration', 'audit', 'merge-repo', 'release-review'] : [] };
+  return state;
 }
 
 function setSkillsContext(state, mode = 'repository', matching = {}) {

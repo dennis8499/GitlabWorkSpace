@@ -8,14 +8,13 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import net from 'node:net';
 import type { captureGitProcess } from '../../src/git/gitProcess';
-import type { RefreshClock } from '../../src/git/gitRefreshScheduler';
 import { withGitDirectoryLock } from '../../src/git/repositoryOperationLock';
 import { OperationLog } from '../../src/logging/operationLog';
 
 const head = 'a'.repeat(40);
 const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve(); await new Promise(resolve => setTimeout(resolve, 10)); };
 
-class Clock implements RefreshClock {
+class Clock {
   time = 0; next = 0;
   timers = new Map<number, { time: number; run: () => void }>();
   now(): number { return this.time; }
@@ -201,12 +200,16 @@ test('Fetch freshness records only observed successful workbench fetches', async
   assert.equal(f.service.successfulFetches.get(f.id), observed, 'external status events do not invent a fetch time');
 });
 
-test('native Diff exposes blob read failures instead of inventing an empty file', async t => {
+test('native Diff reports a blob read failure and retries the same file', async t => {
   const f = await fixture(); t.after(() => f.service.dispose());
   f.service.safeRelativePath = async () => 'README.md';
   f.service.confirmSavedEditors = async () => true;
   f.service.readBlob = async () => { throw new Error('blob timed out'); };
   await assert.rejects(f.service.openNativeDiff(f.id, 'README.md', true), /blob timed out/);
+  assert.equal(f.nativeDiffs.length, 0);
+  f.service.readBlob = async (_repo: unknown, ref: string) => Buffer.from(ref);
+  await f.service.openNativeDiff(f.id, 'README.md', true);
+  assert.deepEqual(f.nativeDiffs, [{ filename: 'README.md', before: Buffer.from('HEAD:./README.md'), after: Buffer.from(':./README.md') }]);
 });
 
 test('native staged and historical rename Diff reads the old path without prompting for unsaved worktree edits', async t => {

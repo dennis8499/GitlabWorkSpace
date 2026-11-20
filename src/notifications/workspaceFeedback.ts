@@ -77,7 +77,6 @@ export function collectWorkspaceFeedback(center: NotificationCenter, response: W
     state('skills-status', kitMessages.join('\n'), kits.some(kit => kit?.status === 'error') ? 'error' : 'warn', '檢查 Skills');
     state('issue-board', value.issueBoardContent?.status === 'error' ? value.issueBoardContent.error : undefined, 'error', 'Issue Board');
     state('repository-scan', value.repositoryScan?.errors.map(error => `${error.path}：${error.message}`).join('\n'), 'warn', '掃描 Repo');
-    state('group-repository-scan', value.groupRepositoryScanError, 'warn', '掃描 Repo');
     for (const [key, section] of Object.entries(value.sections ?? {})) {
       state(`workspace-section:${key}`, section?.error, 'error', '載入工作台');
     }

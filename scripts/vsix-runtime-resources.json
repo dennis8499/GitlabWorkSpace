@@ -1,0 +1,17 @@
+[
+  "resources/bmad/bmad-help.csv",
+  "resources/bmad/entrypoints.json",
+  "resources/bmad/source.json",
+  "resources/codex-manual-launch.ps1",
+  "resources/codicons/NOTICE.md",
+  "resources/git-askpass.js",
+  "resources/git-askpass.sh",
+  "resources/git-rebase-editor.cjs",
+  "resources/git-ssh-askpass.sh",
+  "resources/gitlab-workspace.svg",
+  "resources/repair-api-control.ps1",
+  "resources/repair-workflow-lease-native.cs",
+  "resources/repair-workflow-lease.ps1",
+  "resources/windows-git-supervisor.ps1",
+  "resources/workflow-kit-status.py"
+]

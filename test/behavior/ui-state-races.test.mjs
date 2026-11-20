@@ -21,7 +21,7 @@ function snapshot(mode = 'sa', selectedRoot = root) {
   return { connected: true, baseUrl: 'https://gitlab.test', currentUser: { id: 7, username: 'tester', name: 'Tester' },
     group: { id: 3, name: 'Team', full_path: 'team' }, groups: [], projects, issues: [], mergeRequests: [],
     groupMilestones: [], groupIssueBoards: [], groupRoot: selectedRoot, cloneRoot: selectedRoot,
-    groupRepositories: [repo], groupRepositoryScanStatus: 'ready', localRepositories: {}, projectLocalRepositories: {},
+    localRepositories: {}, projectLocalRepositories: {},
     projectMembers: [], timers: [], tools: [], activeMode: mode, projectSource: 'gitlab', mergeRequestFilter: 'all',
     connectedScope: 'team-scope', instanceUserScope: 'tester', activeAccountId: 'account', hostNavigationGeneration: 0,
     projectContext: { root: selectedRoot, revision: selectedRoot, folders: [], manual: false },

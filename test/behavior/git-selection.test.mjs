@@ -13,7 +13,7 @@ function repository(id) {
 
 function workspace(activeMode = 'git', navigationState) {
   return { activeMode, connected: false, groups: [], projects: [], issues: [], mergeRequests: [], groupMilestones: [],
-    groupIssueBoards: [], groupRepositories: [], projectLocalRepositories: {}, localRepositories: {}, projectMembers: [],
+    groupIssueBoards: [], projectLocalRepositories: {}, localRepositories: {}, projectMembers: [],
     timers: [], tools: [], workflowKit: { status: 'missing' }, workflowKitReleases: [], workflowKitSource: 'github', busy: false,
     hostNavigationGeneration: navigationState?.generation,
     operationSnapshot: navigationState?.hostSessionId ? { sessionId: navigationState.hostSessionId, revision: 0, operations: [] } : undefined };
