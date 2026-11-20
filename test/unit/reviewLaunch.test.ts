@@ -91,6 +91,32 @@ test('runner roots do not depend on routing or publication state', async t => {
   assert.deepEqual(reviewRunnerWritableRoots(f.runtime, f.request.binding.workflow_kit_runner), [reviewRunnerRuntime(f.runtime)]);
   assert.deepEqual(reviewRunnerWritableRoots(f.runtime), []);
 });
+
+test('Release launch requires both capabilities and resumes the original binding', async t => {
+  const f = await fixture(t);
+  const runner = { ...f.request.binding.workflow_kit_runner!, review_launch_tools: ['release-reviewer'] as const };
+  const binding = { ...f.request.binding, tool: 'release-reviewer' as const, workflow_kit_runner: runner };
+  const request = { ...f.request, binding, tool: binding.tool, draft_format: 'v3' as const };
+  const caps = { schema: 'ReviewCapabilities/v1' as const, tool: binding.tool, skill_version: binding.version,
+    prepare_evidence: true, updates_schema: 'ReleaseReviewUpdates/v1' as const, shared_cache_schema: 'ReviewerSharedCache/v2' as const,
+    payload_sha256: binding.payload_sha256, runtime_root: f.runtime, git_commands: 0 as const, network_commands: 0 as const,
+    features: { launch_preflight: true, read_only_inspection: true } };
+  assert.equal(supportsReviewLaunch(binding, caps), true);
+  assert.equal(supportsReviewLaunch(f.request.binding, caps), false);
+  assert.equal(supportsReviewLaunch(binding, { ...caps, features: {} }), false);
+  const original = await saveReviewLaunchRequest(request);
+  const resumed = await saveReviewLaunchRequest(request, 'status', true);
+  assert.equal(original.sha256, resumed.sha256);
+  const card = getSkillGuideCard('release-reviewer');
+  const prompt = buildSkillGuidePrompt(card, {
+    'release-review.repo': request.project, 'release-review.base': request.base, 'release-review.head': request.head,
+  }, { root: f.workspace, workspaceRoot: f.workspace, reviewerRequestId: request.request_id,
+    repositories: [{ name: 'service', path: request.project }], reviewLaunch: resumed });
+  assert.match(prompt, /\$release-reviewer/);
+  assert.match(prompt, /ReleaseReviewDraft\/v3/);
+  assert.match(prompt, /--action status/);
+  await assert.rejects(saveReviewLaunchRequest({ ...request, binding: { ...binding, version: '9.0.0' } }, 'status', true), /原綁定/);
+});
 test('new runner capabilities and launcher are authenticated, including on subsequent inspection commands', async t => {
   const f = await fixture(t), prefix = '.agents/gitlab-workspace-kit/';
   const assets = { 'run.py': '# runner\n', 'review_launch.py': '# launcher\n',

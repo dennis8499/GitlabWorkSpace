@@ -44,7 +44,7 @@ import { openManualCodexTerminal, type ManualCodexTerminal } from '../codex/manu
 import { resolveCodexExecutable, type CodexExecutable } from '../codex/process';
 import { CodexTerminal, confirmCodexTerminalExit } from '../codex/terminal';
 import { ensureLocalCommit, withWorkflowExecution, workflowGit, workflowHash } from '../codex/projectWorkflows';
-import { saveReviewLaunchRequest, reviewRunnerWritableRoots } from './reviewLaunch';
+import { saveReviewLaunchRequest, reviewRunnerRuntime, reviewRunnerWritableRoots } from './reviewLaunch';
 import { supportsReviewLaunch } from './reviewLaunchProtocol';
 import { reviewSessionActions } from './reviewSessionProtocol';
 import { atomicNetworkJson, NetworkLeaseError, networkRuntimeRoot, reportWorkflowLeaseError } from '../api/localNetworkLease';
@@ -3120,12 +3120,13 @@ export class WorkspacePanel implements vscode.Disposable {
       repositories, repositoryScanStatus: 'ready' as const };
     if (!current.root) throw new Error('請先選擇專案根目錄。');
     const runtime = card.tool === 'merge-reviewer' ? current.reviewRuntimeRoot : card.tool === 'release-reviewer' ? current.releaseReviewRuntimeRoot : undefined;
-    if (card.tool === 'merge-reviewer' && runtime && selectedRepository && supportsReviewLaunch(reviewerBinding, reviewerCapabilities)) {
-      context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: 'merge-reviewer',
+    if (isReviewerTool(card.tool) && runtime && selectedRepository && supportsReviewLaunch(reviewerBinding, reviewerCapabilities)) {
+      context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: card.tool,
         request_id: context.reviewerRequestId!, workspace: current.workspaceRoot ?? current.root, project: selectedRepository.path,
         base: inputs[`${card.id}.base`].trim(), head: inputs[`${card.id}.head`].trim(), runtime_root: runtime,
         ...(current.workspaceFile ? { workspace_file: current.workspaceFile } : {}),
-        ...(current.reviewAuthScope ? { auth_scope: current.reviewAuthScope } : {}), binding: reviewerBinding!, draft_format: 'compact' }, 'start', !!requestId);
+        ...(current.reviewAuthScope ? { auth_scope: current.reviewAuthScope } : {}), binding: reviewerBinding!,
+        draft_format: card.tool === 'merge-reviewer' ? 'compact' : 'v3' }, 'start', !!requestId);
     }
     const prompt = `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`;
     const runtimeRoots = runtime ? await this.reviewerCliRoots(runtime, current.root, workflowKitRunner) : [];
@@ -5388,14 +5389,23 @@ export class WorkspacePanel implements vscode.Disposable {
         'input-repair／draft-repair 須依 status/errors 實際指向修正操作檔、operation 欄位或草稿的讀取／JSON 錯誤，再沿用同一 request_id 與成功的 operation IDs 繼續；依 recoverable/terminal 與 job.state 判斷 exit 3。' +
         'owned evidence 損壞須遵守 helper 的終止判斷，不得從業務 Repo 補回或重新 capture 掩蓋。' +
         '已發布時依 review_outcome 區分發布成功與審查完整性；摘要缺失應明示未知，不推測報告內容。若 cleanup_pending，使用 finish 重試清理並回傳既有報告；其他已發布狀態回傳收據中的報告連結及原有審查缺口，不把發布成功視為審查完整。';
-      if (supportsReviewLaunch(binding, capabilities)) {
-        const launch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: 'merge-reviewer', request_id: request.requestId,
+      const boundRelease = request.tool === 'release-reviewer' &&
+        await access(path.join(reviewRunnerRuntime(root), 'launch', request.requestId + '.json')).then(() => true, (error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return false;
+          throw error;
+        });
+      const structured = supportsReviewLaunch(binding, capabilities);
+      if (boundRelease && !structured) throw new Error('請使用原綁定的 Release Reviewer 與 WorkflowKit 套件恢復審查。');
+      if (structured && (request.tool === 'merge-reviewer' || boundRelease)) {
+        const launch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: request.tool, request_id: request.requestId,
           workspace, project: job.inputs.project, base: job.inputs.base, head: job.inputs.head, runtime_root: root,
-          ...(job.inputs.workspace_file ? { workspace_file: job.inputs.workspace_file } : {}), binding, draft_format: 'compact' },
+          ...(job.inputs.workspace_file ? { workspace_file: job.inputs.workspace_file } : {}), binding,
+          draft_format: request.tool === 'merge-reviewer' ? 'compact' : 'v3' },
         job.cleanup_pending ? 'finish' : 'status', true);
-        const card = getSkillGuideCards().find(item => item.id === 'merge-repo')!;
-        prompt = buildSkillGuidePrompt(card, { 'merge-repo.repo': job.inputs.project, 'merge-repo.base': job.inputs.base,
-          'merge-repo.head': job.inputs.head }, { root: skills.root, workspaceRoot: workspace, repositories,
+        const cardId = request.tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
+        const card = getSkillGuideCards(skills.mode === 'group' ? 'group' : 'repository').find(item => item.id === cardId)!;
+        prompt = buildSkillGuidePrompt(card, { [`${cardId}.repo`]: job.inputs.project, [`${cardId}.base`]: job.inputs.base,
+          [`${cardId}.head`]: job.inputs.head }, { root: skills.root, workspaceRoot: workspace, repositories,
           reviewerRequestId: request.requestId, reviewLaunch: launch });
       }
       prompt = '本次停用 Model Routing，由目前 Agent 沿原 request 完成原生審查，沿用目前模型與強度。\n' + prompt;
@@ -5415,10 +5425,11 @@ export class WorkspacePanel implements vscode.Disposable {
         reviewerBinding: binding, workflowKitRunner: binding?.workflow_kit_runner, reviewerCapabilities, reviewerRequestId: nextRequestId,
         modelRouting: false };
       if (supportsReviewLaunch(binding, reviewerCapabilities)) {
-        context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: 'merge-reviewer', request_id: nextRequestId,
+        context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: request.tool, request_id: nextRequestId,
           workspace, project: job.inputs.project, base: job.inputs.base, head: job.inputs.head, runtime_root: preferred,
           ...(skills.workspaceFile ? { workspace_file: skills.workspaceFile } : {}),
-          ...(skills.reviewAuthScope ? { auth_scope: skills.reviewAuthScope } : {}), binding: binding!, draft_format: 'compact', refresh: true });
+          ...(skills.reviewAuthScope ? { auth_scope: skills.reviewAuthScope } : {}), binding: binding!,
+          draft_format: request.tool === 'merge-reviewer' ? 'compact' : 'v3', refresh: true });
       }
       const prompt = buildSkillGuidePrompt(card, {
         [`${cardId}.repo`]: job.inputs.project, [`${cardId}.base`]: job.inputs.base, [`${cardId}.head`]: job.inputs.head,

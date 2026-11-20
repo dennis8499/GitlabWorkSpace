@@ -9,6 +9,7 @@ export interface WorkflowKitRunnerBinding {
   review_launch_request?: 1;
   review_launch_sha256?: string;
   read_only_inspection?: true;
+  review_launch_tools?: readonly ReviewerToolId[];
 }
 
 /** Project saved runner data onto the capabilities supported by current tasks. */
@@ -17,7 +18,8 @@ export function workflowKitRunnerIdentity(binding: WorkflowKitRunnerBinding): Wo
     script_path: binding.script_path, script_sha256: binding.script_sha256,
     ...(binding.review_launch_request !== undefined ? { review_launch_request: binding.review_launch_request } : {}),
     ...(binding.review_launch_sha256 !== undefined ? { review_launch_sha256: binding.review_launch_sha256 } : {}),
-    ...(binding.read_only_inspection !== undefined ? { read_only_inspection: binding.read_only_inspection } : {})
+    ...(binding.read_only_inspection !== undefined ? { read_only_inspection: binding.read_only_inspection } : {}),
+    ...(binding.review_launch_tools !== undefined ? { review_launch_tools: binding.review_launch_tools } : {})
   };
 }
 
@@ -104,7 +106,7 @@ export interface ReviewBudgetSummary {
 export type ReviewerCapabilityFeature =
   | 'request_id' | 'read_only_view' | 'status_summary' | 'read_window' | 'updates_file'
   | 'durable_review_progress' | 'phase_metrics' | 'literal_search_batch' | 'patch_encoding'
-  | 'operation_diagnostics';
+  | 'operation_diagnostics' | 'launch_preflight' | 'read_only_inspection' | 'managed_paging';
 export interface ReviewerSessionCapabilities {
   schema: 'ReviewCapabilities/v1';
   tool: ReviewerToolId;

@@ -23,14 +23,16 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
   const key = JSON.stringify([binding.script_path, binding.payload_sha256, python.executable, python.args,
     workspace, python.env.GITLAB_WORKSPACE_RUNTIME_DIR, python.env.REVIEW_SHARED_CACHE_DIR,
     binding.workflow_kit_runner?.script_sha256,
-    binding.workflow_kit_runner?.review_launch_sha256, binding.workflow_kit_runner?.read_only_inspection]);
+    binding.workflow_kit_runner?.review_launch_sha256, binding.workflow_kit_runner?.read_only_inspection,
+    binding.workflow_kit_runner?.review_launch_tools]);
   const existing = cache.get(key);
   if (existing) return existing;
   const task = (async () => {
     const options = { env: python.env, encoding: 'utf8' as const,
       windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 };
     const run = async (helperArgs: readonly string[]) => {
-      const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner, helperArgs, { readOnly: binding.tool === 'merge-reviewer' });
+      const readOnly = binding.tool === 'merge-reviewer' || binding.workflow_kit_runner?.review_launch_tools?.includes(binding.tool) === true;
+      const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner, helperArgs, { readOnly });
       return exec(command.executable, command.args, options);
     };
     let result;
@@ -82,7 +84,8 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       ? legacy.updates_schema === 'ReviewUpdates/v1' || legacy.updates_schema === 'ReleaseReviewUpdates/v1'
       : legacy.updates_schema === 'ReviewUpdates/v1';
     const featureNames = ['request_id', 'read_only_view', 'status_summary', 'read_window', 'updates_file',
-      'durable_review_progress', 'phase_metrics', 'literal_search_batch', 'patch_encoding', 'operation_diagnostics'];
+      'durable_review_progress', 'phase_metrics', 'literal_search_batch', 'patch_encoding', 'operation_diagnostics',
+      'launch_preflight', 'read_only_inspection', 'managed_paging'];
     const rawFeatures = legacy.features as unknown;
     const featuresValid = rawFeatures === undefined || (typeof rawFeatures === 'object' && rawFeatures !== null && !Array.isArray(rawFeatures)
       && featureNames.every(name => { const flag = (rawFeatures as Record<string, unknown>)[name]; return flag === undefined || typeof flag === 'boolean'; }));

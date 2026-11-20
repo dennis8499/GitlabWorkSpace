@@ -186,14 +186,16 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     if (card.tool !== request.tool || request.project !== selectedRepo?.path || request.base !== input('base') || request.head !== input('head') ||
       request.workspace !== releaseWorkspace || request.request_id !== context.reviewerRequestId) throw new Error('審查摘要與已保存的啟動輸入不符。');
     return [
-      `$merge-reviewer ${launch.action === 'start' ? '執行分支合併審查' : '接續同一份固定版本審查'}。`,
+      `$${request.tool} ${launch.action === 'start' ? (release ? '執行上版檢查' : '執行分支合併審查') : '接續同一份固定版本審查'}。`,
       `Repo：${request.project}\n分支：${request.head} → ${request.base}\n工作區：${request.workspace}\nRequest：${request.request_id}`,
-      '先讀已安裝 merge-reviewer/SKILL.md 與 references/session-workflow.md；依實際需要載入 authoring／契約文件。',
+      release ? '先讀已安裝 release-reviewer/SKILL.md 與 references/fast-session.md。'
+        : '先讀已安裝 merge-reviewer/SKILL.md 與 references/session-workflow.md；依實際需要載入 authoring／契約文件。',
       `輸入檔：${launch.path}\nSHA-256：${launch.sha256}`,
       '執行下列固定命令；所有路徑、分支、runtime 與安裝綁定皆從輸入檔讀取。start 先做唯讀預檢，通過後才固定證據；既有 request 沿用原快照。',
       reviewLaunchCommand(launch),
       '後續沿用同一命令，只改 --action 為 status、view、check、finish 或 cancel；view 的續讀參數放在 -- 後。status/view 為唯讀。審查 step 依原生 Skill 操作。',
-      '使用 compact 草稿。check 的 completion_preview 核對必要缺口與 scope_notes；finish 完整驗證後依收據區分報告發布與審查完整性。終止時檢視診斷，保留原 request。',
+      release ? '使用 ReleaseReviewDraft/v3。沿用固定工作清單及批次續頁，依 check 的候選引用合併修正。發布後核對阻擋、必要缺口與部署待辦。'
+        : '使用 compact 草稿。check 的 completion_preview 核對必要缺口與 scope_notes；finish 完整驗證後依收據區分報告發布與審查完整性。終止時檢視診斷，保留原 request。',
       '執行方式：單一 Agent。由目前 Agent 直接完成原生審查，沿用目前 CLI 模型與強度；Workbench 使用任務設定。本次停用 Model Routing，舊 profile 的 routing 指令不適用；不建立路由子 Agent。',
     ].join('\n');
   }

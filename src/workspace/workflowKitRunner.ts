@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { PythonRuntime } from './pythonRuntime';
-import type { WorkflowKitRunnerBinding } from './reviewSessionProtocol';
+import { isReviewerTool, type WorkflowKitRunnerBinding } from './reviewSessionProtocol';
 
 const RUNNER_RELATIVE_PATH = '.agents/gitlab-workspace-kit/run.py';
 const RUNNER_FILE = RUNNER_RELATIVE_PATH.split('/').join(path.sep);
@@ -74,14 +74,19 @@ export async function readWorkflowKitRunnerBinding(root: string): Promise<Workfl
   const actual = createHash('sha256').update(await fs.readFile(runnerPath)).digest('hex');
   if (actual !== expected.toLowerCase()) throw new Error('WorkflowKit runner 與已驗證的安裝紀錄不符；請重新安裝工作流程包。');
   const managed = files as Record<string, unknown>;
-  let launch: Pick<WorkflowKitRunnerBinding, 'review_launch_request' | 'review_launch_sha256' | 'read_only_inspection'> = {};
+  let launch: Pick<WorkflowKitRunnerBinding, 'review_launch_request' | 'review_launch_sha256' | 'read_only_inspection' | 'review_launch_tools'> = {};
   if (managed[CAPABILITIES_FILE] !== undefined) {
     const capabilities = JSON.parse((await verifiedAsset(root, CAPABILITIES_FILE, managed[CAPABILITIES_FILE])).toString('utf8'));
     if (capabilities.schema !== 'WorkflowKitRunnerCapabilities/v1' || capabilities.review_launch_request !== 1 || capabilities.read_only_inspection !== true) {
       throw new Error('WorkflowKit runner 能力格式不相容。');
     }
+    const tools: unknown = capabilities.review_launch_tools;
+    if (tools !== undefined && (!Array.isArray(tools) || !tools.every(isReviewerTool) || new Set(tools).size !== tools.length)) {
+      throw new Error('WorkflowKit runner 審查工具清單格式不相容。');
+    }
     await verifiedAsset(root, LAUNCH_FILE, managed[LAUNCH_FILE]);
-    launch = { review_launch_request: 1, read_only_inspection: true, review_launch_sha256: managed[LAUNCH_FILE] as string };
+    launch = { review_launch_request: 1, read_only_inspection: true, review_launch_sha256: managed[LAUNCH_FILE] as string,
+      ...(Array.isArray(tools) ? { review_launch_tools: tools } : {}) };
   }
   return { script_path: runnerPath, script_sha256: actual, ...launch };
 }
@@ -105,7 +110,8 @@ export async function workflowKitPythonCommand(python: PythonRuntime,
   if (actual !== runner.script_sha256.toLowerCase()) throw new Error('WorkflowKit runner 在複製提示詞後已變更；請重新檢查安裝。');
   if (runner.review_launch_request === 1) {
     const current = await readWorkflowKitRunnerBinding(path.dirname(agentsDirectory));
-    if (current?.review_launch_request !== 1 || current.review_launch_sha256 !== runner.review_launch_sha256 || current.script_sha256 !== runner.script_sha256) {
+    if (current?.review_launch_request !== 1 || current.review_launch_sha256 !== runner.review_launch_sha256 ||
+      current.script_sha256 !== runner.script_sha256 || JSON.stringify(current.review_launch_tools) !== JSON.stringify(runner.review_launch_tools)) {
       throw new Error('WorkflowKit launcher 在建立任務後已變更；請重新檢查安裝。');
     }
   }
