@@ -18,8 +18,8 @@ export interface WindowsLeaseToken {
 }
 
 export class WindowsLeaseError extends Error {
-  constructor(readonly coordinationCode: string, readonly nativeCode?: number) {
-    super(coordinationCode);
+  constructor(readonly coordinationCode: string, readonly nativeCode?: number, options?: ErrorOptions) {
+    super(coordinationCode, options);
     this.name = 'WindowsLeaseError';
   }
 }
@@ -136,11 +136,11 @@ export async function tryWindowsLease(directory: string, kind: string, options: 
   const deadline = Math.min(absoluteDeadline, Date.now() + options.timeoutMs);
   const nonwaiting = options.deadline === undefined && options.timeoutMs === 1;
   let missingSince: number | undefined;
-  let attempted = false;
+  let contention: WindowsLeaseError | undefined;
   for (;;) {
     options.signal?.throwIfAborted();
-    if (Date.now() >= absoluteDeadline || attempted && Date.now() >= deadline) throw new WindowsLeaseError('queue-timeout');
-    attempted = true;
+    if (Date.now() >= absoluteDeadline || contention && Date.now() >= deadline)
+      throw new WindowsLeaseError('queue-timeout', contention?.nativeCode, { cause: contention });
     try {
       const data = await request(claim, broker ?? client);
       if (typeof data.directoryId !== 'string') throw new WindowsLeaseError('native-disconnected');
@@ -160,8 +160,9 @@ export async function tryWindowsLease(directory: string, kind: string, options: 
         missingSince = undefined;
         if (error.coordinationCode !== 'busy' && ![32, 33].includes(error.nativeCode ?? 0)) throw error;
       }
+      contention = error;
       const remaining = deadline - Date.now();
-      if (nonwaiting || remaining <= 0) throw new WindowsLeaseError('queue-timeout');
+      if (nonwaiting || remaining <= 0) throw new WindowsLeaseError('queue-timeout', error.nativeCode, { cause: error });
       const poll = kind === 'api-control' ? 8 : 75;
       await new Promise<void>(resolve => setTimeout(resolve, Math.min(poll, remaining)));
     }
