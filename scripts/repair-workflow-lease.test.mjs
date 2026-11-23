@@ -34,9 +34,10 @@ async function fixture(t, kind = 'workflow-kit-asset') {
     assert.ok(path.basename(resolved).startsWith('glw-workflow-repair-'));
     await rm(resolved, { recursive: true, force: true, maxRetries: 5, retryDelay: 30 });
   });
-  const rootFlag = kind === 'codex' ? '-RuntimeRoot' : '-StorageRoot';
+  const rootFlag = ['codex', 'git'].includes(kind) ? '-RuntimeRoot' : '-StorageRoot';
   const scope = path.join(root, 'scope');
-  const lease = kind === 'workflow-kit-cache-control' ? path.join(scope, 'workflow-kit-cache.control') :
+  const lease = kind === 'git' ? path.join(scope, 'git-network.lock') :
+    kind === 'workflow-kit-cache-control' ? path.join(scope, 'workflow-kit-cache.control') :
     path.join(scope, kind === 'codex' ? 'codex-workspaces' : 'workflow-kit-asset-locks', 'f'.repeat(64) + '.lock');
   const snapshotPath = path.join(root, 'proof.json');
   const ownerPath = path.join(lease, 'owner.json');
@@ -161,13 +162,26 @@ test('workflow lock repair refuses capture of an owner whose process is still ru
 
 test('workflow lock repair rejects other lock kinds and paths outside the indicated root', windows, async t => {
   const f = await fixture(t);
-  await assert.rejects(f.invoke({ mode: '-RuntimeRoot' }), /not a supported WorkflowKit or Codex lock/);
-  await assert.rejects(f.invoke({ target: path.join(f.scope, 'git-network.lock') }), /not a supported WorkflowKit or Codex lock/);
+  await assert.rejects(f.invoke({ mode: '-RuntimeRoot' }), /not a supported local lease/);
+  await assert.rejects(f.invoke({ target: path.join(f.scope, 'unrelated.lock') }), /not a supported local lease/);
   await assert.rejects(f.invoke({ target: f.scope + '-sibling\\workflow-kit-cache.control' }), /inside the specified root/);
   const otherOwner = path.join(f.scope, 'workflow-kit-cache.control', 'owner.json');
   await mkdir(path.dirname(otherOwner));
   await assert.rejects(f.invoke({ proof: otherOwner }), /outside the specified storage or runtime root/);
   await assert.rejects(lstat(otherOwner), { code: 'ENOENT' });
+});
+
+test('local lease repair preserves a legacy reviewer Git lock and receipt through restart', windows, async t => {
+  const f = await fixture(t, 'git');
+  const nonce = randomUUID();
+  const owner = { ...JSON.parse(f.owner()), nonce: nonce.replaceAll('-', ''), state: 'running' };
+  await writeFile(f.ownerPath, JSON.stringify(owner));
+  await writeFile(path.join(f.lease, 'execution-' + nonce + '.json'),
+    JSON.stringify({ schema: 'GitLabWorkspaceGitExecution/v1', nonce, processTreeConfirmed: true, exitCode: 0 }));
+  assert.equal((await f.invoke()).Kind, 'git');
+  const retired = await f.invoke(apply);
+  assert.equal(retired.Status, 'Retired');
+  assert.deepEqual(JSON.parse(await readFile(path.join(retired.RetiredPath, 'owner.json'), 'utf8')), owner);
 });
 
 test('workflow lock repair refuses to traverse an ancestor junction', windows, async t => {

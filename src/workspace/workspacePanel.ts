@@ -48,6 +48,7 @@ import { saveReviewLaunchRequest, reviewRunnerRuntime, reviewRunnerWritableRoots
 import { supportsReviewLaunch } from './reviewLaunchProtocol';
 import { reviewSessionActions } from './reviewSessionProtocol';
 import { atomicNetworkJson, NetworkLeaseError, networkRuntimeRoot, reportWorkflowLeaseError } from '../api/localNetworkLease';
+import { execLeasedFile, withWindowsExecutionLeases, type WindowsLeaseToken } from '../api/windowsLocalLease';
 import { ApiControlRecovery, type ApiControlInspection, type ApiControlLaunch } from '../connection/apiControlRecovery';
 import { GitLabNetworkError } from '../api/gitLabNetworkGate';
 import { CodexWorkspaceLease } from '../codex/workspaceLease';
@@ -65,7 +66,7 @@ import { collectWorkspaceFeedback } from '../notifications/workspaceFeedback';
 import type { NotificationTarget, NotificationOrigin } from '../notifications/notificationProtocol';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
-import { WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './workflowKitReleases';
+import { WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY, type WorkflowKitHelper } from './workflowKitReleases';
 import type { BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft, CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry } from './workspaceProtocol';
 import { parseWorkspaceRequest, WorkspaceProtocolError } from './workspaceRequestValidation';
 import { promptNativeAccountLogin, type NativeAccountLogin } from '../connection/nativeAccountLogin';
@@ -2732,19 +2733,22 @@ export class WorkspacePanel implements vscode.Disposable {
       check();
     }
     const leases = new Map<string, CodexWorkspaceLease>();
+    const recovery: WindowsLeaseToken[] = [];
     const hold = async (directory: string, missingLeaf = false) => {
       const actual = await realpath(directory).catch(async error => {
         if (!missingLeaf || (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         return path.join(await realpath(path.dirname(directory)), path.basename(directory));
       });
       const key = codexLeaseKey(actual);
-      if (!leases.has(key)) leases.set(key, await this.acquireCodexLease(
-        path.join(networkRuntimeRoot(), 'codex-workspaces', `${key}.lock`), 'runCodexCli'));
+      if (leases.has(key)) return;
+      const lease = await this.acquireCodexLease(path.join(networkRuntimeRoot(), 'codex-workspaces', `${key}.lock`), 'runCodexCli');
+      leases.set(key, lease);
+      if (lease.recovery) recovery.push(lease.recovery);
     };
     const release = () => this.releaseCodexLeases(leases.values(), 'runCodexCli');
     let prepared: WorkflowCliPreparation | undefined;
     const rollback = async () => {
-      try { await prepared?.rollback?.(); }
+      try { await withWindowsExecutionLeases(recovery, async () => { await prepared?.rollback?.(); }); }
       catch { this.post({ type: 'error', message: 'Codex CLI 啟動前的工作區準備清理尚未完成。' }); }
     };
     let launched = false;
@@ -2769,35 +2773,39 @@ export class WorkspacePanel implements vscode.Disposable {
         this.operationPhase('runCodexCli', '正在準備 Codex 工作…');
       }
       await hold(root);
-      if (source.kind === 'merge-request' && mr) {
-        const current = await this.readCliMergeRequest(source, check);
-        this.assertCliMergeRequestUnchanged(mr, current);
-        prepared = await this.prepareCliMergeRequest(source, current, localRepository, check, hold);
-      } else if (source.kind === 'skill') {
-        prepared = await this.prepareSkillGuideTask(source);
-        if (prepared.skill.name === 'codebase-wiki') {
-          for (const directory of prepared.writableRoots) {
-            await ownedStoragePath(prepared.root, directory);
-            await mkdir(directory, { recursive: true });
-            await ownedStoragePath(prepared.root, directory);
+      await withWindowsExecutionLeases(recovery, async () => {
+        if (source.kind === 'merge-request' && mr) {
+          const current = await this.readCliMergeRequest(source, check);
+          this.assertCliMergeRequestUnchanged(mr, current);
+          prepared = await this.prepareCliMergeRequest(source, current, localRepository, check, hold);
+        } else if (source.kind === 'skill') {
+          prepared = await this.prepareSkillGuideTask(source);
+          if (prepared.skill.name === 'codebase-wiki') {
+            for (const directory of prepared.writableRoots) {
+              await ownedStoragePath(prepared.root, directory);
+              await mkdir(directory, { recursive: true });
+              await ownedStoragePath(prepared.root, directory);
+            }
+            const wiki = { root: prepared.root, source: { ...source, inputs: { ...source.inputs, 'wiki.profile': this.getSkillsContext().mode } }, skill: prepared.skill };
+            const baseline = await captureLocalWikiBaseline(wiki);
+            prepared.finish = async () => {
+              const result = await collectLocalWikiQuality(wiki,
+                await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')), baseline);
+              if (result) this.post({ type: 'message', message: result.summary });
+            };
           }
-          const wiki = { root: prepared.root, source: { ...source, inputs: { ...source.inputs, 'wiki.profile': this.getSkillsContext().mode } }, skill: prepared.skill };
-          const baseline = await captureLocalWikiBaseline(wiki);
-          prepared.finish = async () => {
-            const result = await collectLocalWikiQuality(wiki,
-              await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')), baseline);
-            if (result) this.post({ type: 'message', message: result.summary });
-          };
-        }
-      } else if (source.kind === 'bmad') {
-        prepared = await this.prepareBmadCli(source.request, selection.executable, check);
-      } else if (source.kind === 'review') {
-        prepared = await this.prepareNativeReviewCli(source);
-      } else throw new Error('不支援此 Codex CLI 工作。');
+        } else if (source.kind === 'bmad') {
+          prepared = await this.prepareBmadCli(source.request, selection.executable, check);
+        } else if (source.kind === 'review') {
+          prepared = await this.prepareNativeReviewCli(source);
+        } else throw new Error('不支援此 Codex CLI 工作。');
+      });
       const run = prepared;
+      if (!run) throw new Error('Codex CLI 工作準備未完成。');
       const cwd = run.executionRoot ?? run.root;
       await hold(cwd);
-      const common = (await workflowGit(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']).catch(() => '')).trim();
+      const common = (await withWindowsExecutionLeases(recovery,
+        () => workflowGit(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).catch(() => '')).trim();
       if (path.isAbsolute(common)) await hold(common);
       for (const directory of run.reviewerRuntimeRoots ?? []) {
         if (!sameLocalPath(directory, await canonicalRuntime(directory, run.root))) throw new Error('審查 runtime 已重新導向。');
@@ -2822,7 +2830,8 @@ export class WorkspacePanel implements vscode.Disposable {
       if (source.kind === 'merge-request' && mr) this.assertCliMergeRequestUnchanged(mr, await this.readCliMergeRequest(source, check));
       check();
       const terminal = await terminalHost.launch(selection, { title: run.title, cwd, writableRoots: run.writableRoots,
-        prompt: `${rules}請從已安裝位置讀取 ${JSON.stringify(run.skill.path)}，按下列工作要求執行。\n\n${run.prompt}` }, { beforeCreate: check, show: false, manual });
+        prompt: `${rules}請從已安裝位置讀取 ${JSON.stringify(run.skill.path)}，按下列工作要求執行。\n\n${run.prompt}` },
+        { beforeCreate: check, show: false, manual, ...(recovery.length ? { leases: recovery } : {}) });
       launched = true;
       let closing = false;
       const settleNow = async () => {
@@ -2830,12 +2839,14 @@ export class WorkspacePanel implements vscode.Disposable {
         try {
           const result = manual && await manual.completion;
           if (result ? result.state === 'unknown' : !await confirmCodexTerminalExit(terminal, vscode.TerminalExitReason.Process)) {
+            await this.releaseCodexLeases([...leases.values()].filter(lease => lease.recovery), 'runCodexCli');
             for (const lease of leases.values()) {
+              if (lease.recovery) continue;
               const error = new NetworkLeaseError('Codex CLI 程序停止狀態待核對。', 'terminal-exit-unconfirmed',
                 { leaseKind: 'codex', leasePath: lease.directory });
               reportWorkflowLeaseError(error, 'runCodexCli', 'cleanup', this.session?.log);
             }
-            this.post({ type: 'error', message: '無法確認 Codex CLI 終端程序已停止，工作區執行鎖已保留。請查看 Log。' });
+            this.post({ type: 'error', message: 'Codex CLI 終端結果待核對。請查看工作終端與 GitLab Workspace Log。' });
             return;
           }
           try {
@@ -2845,7 +2856,7 @@ export class WorkspacePanel implements vscode.Disposable {
             }
             const succeeded = result ? result.state === 'exited' && result.code === 0 :
               terminal.exitStatus?.reason === vscode.TerminalExitReason.Process && terminal.exitStatus.code === 0;
-            if (!closing && succeeded) await run.finish?.();
+            if (!closing && succeeded) await withWindowsExecutionLeases(recovery, async () => { await run.finish?.(); });
           } finally { await release(); }
         } finally { this.cliTerminals.delete(terminal); }
       };
@@ -2920,7 +2931,7 @@ export class WorkspacePanel implements vscode.Disposable {
         for (const key of [...targets.keys()].sort()) leases.push(await this.acquireCodexLease(
           path.join(networkRuntimeRoot(), 'codex-workspaces', codexLeaseKey(targets.get(key)!) + '.lock'), request.type));
       } catch (error) { this.noteOutcome({ effect: 'none' }); throw error; }
-      return await task();
+      return await withWindowsExecutionLeases(leases.flatMap(lease => lease.recovery ? [lease.recovery] : []), task);
     } finally { await this.releaseCodexLeases(leases, request.type); }
   }
 
@@ -5675,7 +5686,7 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private async workflowKitHelper(root?: string): Promise<{ path: string; version: string; release?(): Promise<void> }> {
+  private async workflowKitHelper(root?: string): Promise<WorkflowKitHelper> {
     return this.workflowKit.statusHelper(root);
   }
 
@@ -5687,7 +5698,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const python = await resolvePythonRuntime(pythonPath);
     await beforeLaunch?.();
     this.operationPhase('', args[0] === 'install' ? '正在安裝 Skills…' : args[0] === 'inspect' ? '正在驗證工作流程包…' : '正在檢查 Skills 安裝狀態…');
-    const helper: { path: string; version: string; release?(): Promise<void> } = installerPath ? { path: installerPath, version: '' }
+    const helper: WorkflowKitHelper = installerPath ? { path: installerPath, version: '' }
       : await this.workflowKitHelper(args[0] === 'status' ? args[1] : undefined);
     try {
     if (args[0] === 'status') {
@@ -5695,9 +5706,9 @@ export class WorkspacePanel implements vscode.Disposable {
       args = index >= 0 ? [...args.slice(0, index + 1), helper.version, ...args.slice(index + 2)]
         : [...args, '--expected-version', helper.version];
     }
-    const result = await execFileAsync(python.executable, [...python.args, helper.path, ...args], {
-      cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
-    }).catch((error: unknown) => {
+    const result = await execLeasedFile(python.executable, [...python.args, helper.path, ...args], {
+      cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024
+    }, helper.recovery ? [helper.recovery] : []).catch((error: unknown) => {
       const stdout = error && typeof error === 'object' && 'stdout' in error && typeof error.stdout === 'string' ? error.stdout : '';
       const stderr = error && typeof error === 'object' && 'stderr' in error && typeof error.stderr === 'string' ? error.stderr : '';
       throw workflowKitFailure(stdout) ?? workflowKitFailure(stderr) ?? error;

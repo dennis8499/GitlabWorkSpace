@@ -99,11 +99,16 @@ public sealed class WorkflowLeaseDirectory : IDisposable
 
     public static byte[] ReadDocument(string path, int maxBytes)
     {
+        return ReadDocument(path, maxBytes, false);
+    }
+
+    public static byte[] ReadDocument(string path, int maxBytes, bool allowEmpty)
+    {
         using (SafeFileHandle handle = OpenChecked(path, GenericRead, FileShare.Read, false))
         using (var stream = new FileStream(handle, FileAccess.Read))
         {
             long length = stream.Length;
-            if (length < 1 || length > maxBytes) throw new IOException("The metadata size is invalid.");
+            if ((!allowEmpty && length < 1) || length > maxBytes) throw new IOException("The metadata size is invalid.");
             var bytes = new byte[(int)length];
             for (int position = 0; position < bytes.Length;)
             {

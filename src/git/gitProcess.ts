@@ -4,6 +4,7 @@ import { lstat, readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { LocalNetworkLease, networkRuntimeRoot } from '../api/localNetworkLease';
 import { observeRead } from '../api/readObservation';
+import { runWindowsLeaseProcess, windowsExecutionLeases } from '../api/windowsLocalLease';
 
 export interface GitProcessOutput { code: number; stdout: string; stderr: string; truncated: boolean; }
 
@@ -21,7 +22,23 @@ export async function captureGitProcess(executable: string, args: readonly strin
   const network = options.network ?? isGitNetworkCommand(args);
   if (network) observeRead({ transportStage: 'waiting' });
   const lease = network
-    ? await LocalNetworkLease.acquire(path.join(networkRuntimeRoot(), 'git-network.lock'), 'git', { signal: options.signal, timeoutMs }) : undefined;
+    ? await LocalNetworkLease.acquire(path.join(networkRuntimeRoot(), 'git-network.lock'), 'git', { signal: options.signal, timeoutMs, recoverable: true }) : undefined;
+  const windowsLeases = windowsExecutionLeases(lease?.recovery ? [lease.recovery] : []);
+  if (windowsLeases.length && (!lease || lease.recovery)) {
+    if (network) observeRead({ transportStage: 'sending' });
+    try {
+      return await runWindowsLeaseProcess(executable, args, windowsLeases, {
+        ...options, timeoutMs, maxStdoutBytes: options.maxStdoutBytes ?? 8 * 1024 * 1024,
+        env: { ...process.env, ...options.env, GIT_NO_LAZY_FETCH: '1',
+          ...(!network ? { GIT_ALLOW_PROTOCOL: options.localRepositoryTransport ? 'file' : '' } : {}) }
+      });
+    } finally { await lease?.release(); }
+  }
+  if (windowsLeases.length && lease) {
+    await lease.update({ processTreeConfirmed: true });
+    await lease.release();
+    throw new Error('無法在目前工作區鎖下監督 Git 網路程序，尚未啟動 Git。');
+  }
   let processTreeConfirmed = !lease;
   if (network) observeRead({ transportStage: 'sending' });
   const supervised = process.platform === 'win32' && !!lease;

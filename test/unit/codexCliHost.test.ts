@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { CodexCliSource } from '../../src/codex/cliProtocol';
 import type { ManualCodexResult, ManualCodexTerminal } from '../../src/codex/manualTerminal';
 import type { CodexTerminalLaunch, CodexTerminalSelection } from '../../src/codex/terminal';
-import { NetworkLeaseError, networkRuntimeRoot } from '../../src/api/localNetworkLease';
+import { LocalNetworkLease, NetworkLeaseError, networkRuntimeRoot } from '../../src/api/localNetworkLease';
 import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
 import { OperationLog } from '../../src/logging/operationLog';
 
@@ -216,9 +216,10 @@ for (const scenario of [
   { name: 'a successful manual Codex exit finishes the workflow and releases its leases', result: { state: 'exited', code: 0 }, finish: true },
   { name: 'a nonzero manual Codex exit releases leases without finishing the workflow', result: { state: 'exited', code: 23 }, finish: false },
   { name: 'a refused manual Codex launch rolls back preparation and releases its leases', result: { state: 'not-started' }, finish: false },
-  { name: 'an unconfirmed manual Codex exit preserves its leases and records the uncertainty', result: { state: 'unknown' }, finish: false }
+  { name: 'an unconfirmed manual Codex exit preserves legacy leases and records the uncertainty', result: { state: 'unknown' }, finish: false }
 ] as const) {
   test(scenario.name, async t => {
+    if (scenario.result.state === 'unknown') t.mock.method(LocalNetworkLease, 'acquireRecoverable', async () => undefined);
     const f = await fixture(t);
     const m = manualTerminal(f);
     const running = f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
@@ -263,7 +264,8 @@ test('CLI shutdown retains both leases until the direct terminal process is conf
   assert.equal(f.calls.some(call => call.action === 'finish'), false);
 });
 
-test('CLI shutdown preserves unconfirmed leases with per-path cleanup diagnostics', async t => {
+test('CLI shutdown preserves unconfirmed legacy leases with per-path cleanup diagnostics', async t => {
+  t.mock.method(LocalNetworkLease, 'acquireRecoverable', async () => undefined);
   const f = await fixture(t);
   f.changes.exitStatus = undefined;
   await f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
@@ -274,6 +276,18 @@ test('CLI shutdown preserves unconfirmed leases with per-path cleanup diagnostic
   assert.deepEqual(diagnostics.map(value => [value.coordinationCode, value.coordinationPhase, value.leaseKind]),
     f.leasePaths.map(() => ['terminal-exit-unconfirmed', 'cleanup', 'codex']));
   assert.deepEqual(new Set(diagnostics.map(value => value.leasePath)), new Set(f.leasePaths));
+});
+
+test('Windows clears an unconfirmed terminal lease when no child was authorized', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  f.changes.exitStatus = undefined;
+  await f.host.dispatchMessage({ type: 'runCodexCli', source: bmad });
+  const owner = JSON.parse(await readFile(path.join(f.leasePaths[0], 'owner.json'), 'utf8'));
+  assert.deepEqual(owner.lifecycle.jobs, []);
+  await f.host.shutdownCliTerminals();
+  for (const leasePath of f.leasePaths) await assert.rejects(lstat(leasePath), { code: 'ENOENT' });
+  assert.equal(f.calls.some(call => call.action === 'finish'), false);
+  assert.equal(f.logs.some(entry => entry.includes('terminal-exit-unconfirmed')), false);
 });
 
 test('installer preflight attempts all releases and keeps the confirmed result when one release fails', async t => {

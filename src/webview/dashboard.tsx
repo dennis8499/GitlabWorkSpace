@@ -1750,6 +1750,9 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
       const installed = target?.state ?? { status: 'missing' as const };
       const releases = (snapshot.workflowKitReleases ?? []).filter(item => item.source === source);
       const latest = releases[0], compatible = releases.find(item => item.available);
+      const latestLabel = latest?.cached
+        ? `${latest.available ? '已驗證快取' : '快取版本'} v${latest.version}（線上最新版未確認）`
+        : latest ? `最新正式版 v${latest.version}` : '請檢查最新正式版。';
       const selected = releases.find(item => item.id === selectedKitId && item.available) ?? (latest?.available ? latest : undefined);
       const comparison = selected && installed.version ? compareVersions(selected.version, installed.version) : 1;
       const update = comparison > 0;
@@ -1765,7 +1768,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
         (target?.root && snapshot.bmad?.root === target.root ? snapshot.bmad.version : undefined);
       return <section class="tool-card"><div class="panel-title"><strong>WorkflowKit</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
         <p>{installed.version ? `目前版本 v${installed.version}` : '尚未安裝'}</p>
-        <p>{latest ? latest.cached ? `已驗證快取 v${latest.version}（線上最新版未確認）` : `最新正式版 v${latest.version}` : '請檢查最新正式版。'}</p>
+        <p>{latestLabel}</p>
         <p>{compatible ? `${compatible.cached ? '快取相容版本' : '最新相容版本'} v${compatible.version}${compatible.skillCount === undefined ? '' : ` · ${compatible.skillCount} 個 Skills`}` : latest ? '沒有找到相容版本。' : ''}</p>
         {latest?.error && <p class="warning">{latest.error}</p>}
         {latest && !latest.available && compatible && <label class="field">選擇相容版本<select value={selected?.id ?? ''} onChange={event => setSelectedKitId(event.currentTarget.value)}><option value="">請選擇</option><option value={compatible.id}>v{compatible.version}</option></select></label>}

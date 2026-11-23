@@ -1,7 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import path from 'node:path';
 import { NetworkLeaseError } from '../api/localNetworkLease';
+import { execLeasedFile, withWindowsExecutionLeases } from '../api/windowsLocalLease';
 import type { OperationLog } from '../logging/operationLog';
 import { resolvePythonRuntime } from './pythonRuntime';
 import { installedKitIdentity } from './workflowKitIntegration';
@@ -12,7 +11,6 @@ import { resolveWorkflowKitInstallRoot, sameRealLocalPathAsync } from './workspa
 import type { InstalledWorkflowKitState, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkflowKitReleaseSummary } from './workspaceProtocol';
 import type { WorkflowKitRelease, WorkflowKitHelper } from './workflowKitReleases';
 
-const execFileAsync = promisify(execFile);
 type WorkflowKitProfile = 'group' | 'repository';
 
 export interface WorkflowKitContext {
@@ -136,10 +134,9 @@ export class WorkflowKitService {
         : { root: context.root, profile: context.profile, manual: context.manual, error: context.error,
           state: { status: context.root && !context.error ? 'checking' : 'missing' } };
       if (!this.installation) { this.target = target; this.emit(); }
-      const [releases, checked] = await Promise.all([
-        this.packages.listReleases(),
-        context.root && !target.error ? this.readStatus(context.root) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' })
-      ]);
+      const checked = context.root && !target.error ? await this.readStatus(context.root) : { status: 'missing' as const };
+      if (!current()) return;
+      const releases = await this.packages.listReleases();
       if (!current()) return;
       const latest = releases.find(item => item.source === this.source() && item.available);
       const warning = this.installWarnings;
@@ -169,23 +166,30 @@ export class WorkflowKitService {
     try {
       this.options.reportPhase('checkWorkflowKitReleases', '正在查詢最新正式版…');
       const identity = this.target.root ? await installedKitIdentity(this.target.root) : undefined;
-      let releases: WorkflowKitRelease[];
+      let offlineReason: string | undefined;
       try {
-        releases = await this.packages.refresh(source, undefined, identity?.source === source ? identity.version : undefined);
+        const releases = await this.packages.refresh(source, undefined, identity?.source === source ? identity.version : undefined);
         const installedRelease = identity?.source === source
           ? releases.find(item => item.version === identity.version && workflowKitStatusApiCompatible(item.descriptor)) : undefined;
         if (installedRelease) await this.packages.prepareStatusVerifier(installedRelease.id, checkAccess, undefined, this.target.root);
       } catch (error) {
         if (error instanceof PackageIntegrityError || error instanceof NetworkLeaseError) throw error;
-        releases = await this.packages.useCached(source);
-        if (!releases.length) throw error;
-        this.options.onMessage?.(`無法查詢線上 Release（${readableError(error)}），顯示同一來源已驗證的完整快取。`);
+        if (!(await this.packages.useCached(source)).length) throw error;
+        offlineReason = readableError(error);
       }
       checkAccess();
       if (this.context?.root) await this.statusReads.get(pathKey(this.context.root));
       checkAccess();
-      this.releases = await this.packages.listReleases();
       await this.refreshStatus(undefined, true);
+      checkAccess();
+      this.releases = await this.packages.listReleases();
+      const releases = this.releases.filter(item => item.source === source);
+      if (offlineReason !== undefined) {
+        const message = releases.some(item => item.cached && item.available)
+          ? '顯示同一來源已驗證的完整快取。'
+          : '快取附件已清理，請連線重新檢查 Release。';
+        this.options.onMessage?.(`無法查詢線上 Release（${offlineReason}）。${message}`);
+      }
       return releases;
     } finally {
       this.checkingRelease = false;
@@ -234,10 +238,11 @@ export class WorkflowKitService {
       const beforeLaunch = async () => { current(); await guard.validateTarget(context); current(); };
       let result: Record<string, unknown>;
       try {
-        result = await this.options.runWithInstallProgress(selected.version, () => this.runHelper(
+        const leases = 'recovery' in selected && Array.isArray(selected.recovery) ? selected.recovery : [];
+        result = await this.options.runWithInstallProgress(selected.version, () => withWindowsExecutionLeases(leases, () => this.runHelper(
           ['install', selected.archivePath!, root, selected.version, selected.source, '--format', selected.format,
             '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile],
-          10 * 60_000, selected.installerPath, beforeLaunch));
+          10 * 60_000, selected.installerPath, beforeLaunch)));
         if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version || result.profile !== profile) {
           throw new Error('安裝工具回傳的套件資訊不符。');
         }
@@ -347,9 +352,9 @@ export class WorkflowKitService {
         const index = safeArgs.indexOf('--expected-version');
         safeArgs = index >= 0 ? [...safeArgs.slice(0, index + 1), helper.version, ...safeArgs.slice(index + 2)] : [...safeArgs, '--expected-version', helper.version];
       }
-      const result = await execFileAsync(python.executable, [...python.args, helper.path, ...safeArgs], {
-        cwd: this.options.extensionDirectory, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
-      }).catch((error: unknown) => {
+      const result = await execLeasedFile(python.executable, [...python.args, helper.path, ...safeArgs], {
+        cwd: this.options.extensionDirectory, env: python.env, timeout, maxBuffer: 1024 * 1024
+      }, helper.recovery ? [helper.recovery] : []).catch((error: unknown) => {
         const output = error && typeof error === 'object' ? error as { stdout?: unknown; stderr?: unknown } : {};
         throw workflowKitFailure(typeof output.stdout === 'string' ? output.stdout : '') ??
           workflowKitFailure(typeof output.stderr === 'string' ? output.stderr : '') ?? error;

@@ -59,7 +59,7 @@ export class BmadArtifactStore {
     const captureDigest = digest(JSON.stringify([sourceRoot, options.taskId, inventory, changes]));
     const id = `${options.taskId}-${captureDigest.slice(0, 16)}`, directory = this.directory(sourceRoot), root = path.join(directory, id);
     await mkdir(directory, { recursive: true }); await ownedStoragePath(this.storage, directory);
-    const gate = await acquireStorageControl(path.join(directory, options.taskId + '.control'), 'bmad-artifacts');
+    const gate = await acquireStorageControl(path.join(directory, options.taskId + '.control'), 'bmad-artifacts', { recoverable: true });
     try {
       const manifestFile = path.join(root, 'manifest.json');
       let capture: BmadArtifactCapture;
@@ -114,7 +114,7 @@ export class BmadArtifactStore {
     if (!/^[a-zA-Z0-9_-]{1,160}$/.test(id)) throw new Error('BMAD 成果識別無效。');
     const directory = this.directory(sourceRoot), capture = await this.readCapture(path.join(directory, id, 'manifest.json'), sourceRoot);
     if (capture.digest !== confirmedDigest || !capture.projectChanges.length) throw new Error('專案規則尚未取得此版本的人工確認。');
-    const gate = await acquireStorageControl(path.join(directory, 'project-apply.control'), 'bmad-project-apply');
+    const gate = await acquireStorageControl(path.join(directory, 'project-apply.control'), 'bmad-project-apply', { recoverable: true });
     const journal = path.join(directory, id + '.apply.json');
     const applied = new Set<string>();
     const remaining = () => capture.projectChanges.filter(change => !applied.has(change.path)).map(change => change.path);

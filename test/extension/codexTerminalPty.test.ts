@@ -8,6 +8,8 @@ import { parse } from '@iarna/toml';
 import * as vscode from 'vscode';
 import { openManualCodexTerminal } from '../../src/codex/manualTerminal';
 import { CodexTerminal } from '../../src/codex/terminal';
+import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
+import { windowsLeaseActive } from '../../src/api/windowsLocalLease';
 
 const compile = promisify(execFile);
 const fixture = String.raw`
@@ -82,8 +84,10 @@ suite('Codex CLI integrated terminal', () => {
     const { root, cwd, executable, evidence } = await nativeFixture();
     const prompt = '繁體中文\n帶「引號」和 $(literal)\n'.repeat(3_000);
     const runner = new CodexTerminal(vscode, path.join(root, 'storage'));
+    const lease = await CodexWorkspaceLease.acquire(path.join(root, 'codex.lock'));
+    assert.ok(lease.recovery);
     const terminal = await runner.launch({ executable: { file: executable, version: '0.169.0' }, model: 'fixture/model', effort: 'xhigh' },
-      { title: 'Codex CLI 驗證', cwd, prompt, writableRoots: [cwd] });
+      { title: 'Codex CLI 驗證', cwd, prompt, writableRoots: [cwd] }, { leases: [lease.recovery] });
     try {
       let contents: string | undefined;
       for (let attempt = 0; attempt < 150 && contents === undefined; attempt++) {
@@ -98,7 +102,9 @@ suite('Codex CLI integrated terminal', () => {
       const writable = args.find(value => value.startsWith('sandbox_workspace_write.writable_roots='));
       assert.ok(writable);
       assert.deepEqual(parse(writable).sandbox_workspace_write, { writable_roots: [cwd] });
-    } finally { terminal.dispose(); }
+      for (let attempt = 0; attempt < 100 && await windowsLeaseActive(lease.recovery); attempt++) await setTimeout(50);
+      assert.equal(await windowsLeaseActive(lease.recovery), false);
+    } finally { terminal.dispose(); await lease.release(); }
   });
 
   test('prefilled Codex waits for Enter and preserves native argv, terminal IO and exit code', async function () {
@@ -139,13 +145,18 @@ suite('Codex CLI integrated terminal', () => {
       const prompt = 'Interactive fixture\n繁體中文\n帶「引號」和 $(literal)\n';
       const storage = path.join(root, '資料 O\'Hare’s & scope');
       const runner = new CodexTerminal(vscode, storage);
+      const lease = await CodexWorkspaceLease.acquire(path.join(root, 'codex.lock'));
+      assert.ok(lease.recovery);
       const terminal = await runner.launch({ executable: { file: executable, version: '0.169.0' }, model: 'fixture/model', effort: 'xhigh' },
-        { title: 'Codex 等候模式驗證', cwd, prompt, writableRoots: [cwd] }, { manual });
+        { title: 'Codex 等候模式驗證', cwd, prompt, writableRoots: [cwd] }, { manual, leases: [lease.recovery] });
       assert.equal(terminal, manual.terminal);
       assert.equal(await Promise.race([nativeOutput, setTimeout(8_000, 'native output timeout', { ref: false })]), true,
         `Shell Integration commands: ${JSON.stringify(commands)}. Terminal output: ${JSON.stringify(latestOutput)}`);
+      assert.equal(await windowsLeaseActive(lease.recovery), true);
       terminal.sendText('g', false);
       assert.deepEqual(await Promise.race([manual.completion, setTimeout(8_000, 'Codex timeout', { ref: false })]), { state: 'exited', code: 23 });
+      assert.equal(await windowsLeaseActive(lease.recovery), false);
+      await lease.release();
       const [actualCwd, actualPrompt, ...args] = (await readFile(evidence, 'utf8')).trim().split(/\r?\n/).map(value => Buffer.from(value, 'base64').toString('utf8'));
       assert.equal(await realpath(actualCwd), cwd);
       assert.equal(actualPrompt, prompt);

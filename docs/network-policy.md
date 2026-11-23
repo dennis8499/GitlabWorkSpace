@@ -75,21 +75,21 @@ Host key 忽略 scheme、port 及安裝子路徑，保守合併同 hostname；�
 
 ## 鎖、取消與故障復原
 
-協議為 `GitLabWorkspaceLease/v1`。原子建立目錄取得鎖；owner 記錄 nonce、PID、時間與程序狀態。只有相同 nonce 可釋放。協調資料不保存憑證、網址、請求內容或來源全文。
+鎖沿用 `GitLabWorkspaceLease/v1` 的路徑和擁有者格式。Windows 先在暫存目錄寫妥擁有者資料，再一次發布到正式路徑。Windows 的新版紀錄包含程序建立時間、目錄身分及目前的程序樹授權，讓新舊版共享同一套排他鎖。macOS 和 Linux 使用原有的 v1 流程。
 
-`git-network.lock` 必須等實際 Git 程序樹結束才釋放。owner 意外中止、缺少 metadata 或程序樹狀態不明時保留鎖並阻擋後續操作；不依檔案年齡或心跳逾時自動刪鎖。Windows 的短暫 sharing violation 僅有限重試，不放寬所有權檢查。
+GitLab Workspace、MergeReviewer 與 ReleaseReviewer 共用 `git-network.lock`。Windows 在啟動 Git 前記錄授權，並在程序建立時將它納入同一個 Windows Job Object。監督器確認整棵程序樹停止後才記錄完成。新版擁有者意外退出時，後續作業會等待仍存活的監督器，並在證據完整時自動復原。
 
 POSIX 的 Git 主程序可能先於 transport helper 完成退出。工作台最多觀察 500 ms，期間仍持有槽位並接受取消／deadline；只有程序群確實消失才保留原始退出碼。helper 持續存在時終止程序群並回報未完成，無法確認終止時繼續保留鎖。
 
 Windows compiler cache 的新目錄及新編譯檔案明確由目前使用者持有，避免提升權限程序的 Administrators 預設擁有者造成差異。既有 cache 不會被接管或修權限；DLL 摘要、ACL、reparse point 及完整程序樹檢查維持必要條件。
 
-故障時先依 owner 的 PID、childPid、開始時間確認舊操作與所有子程序均已結束，再由操作人員處理該鎖目錄。不要在程序仍執行、PID 身分不明或缺少子程序資料時直接刪鎖。API 控制鎖異常同樣需要先檢查；已完成或取消的正常請求會自行清除預約。
+舊版遺留的鎖、欠缺程序樹完成證據或擁有者資料的鎖，需要以 Windows 重啟證明相關程序已停止，再退役原目錄。步驟見[本機工作流程鎖復原](codex-cli.md#復原本機工作流程鎖)。
 
 ### API 控制鎖的釋放
 
 0.54.2 起，`api/<host-hash>/control.lock` 正常釋放，以及確認擁有程序已結束的 `reserved` API 控制鎖回收，先保留 `owner.json` 將整個目錄更名至同層的唯一 `.retired-<nonce>-<id>` 目錄。成功更名即釋放控制鎖；後續只清理記錄的舊路徑，不再碰原鎖位置。重複釋放共用同一次執行。
 
-舊目錄刪除失敗會留下 `retired-cleanup-pending` 警告及 `leasePath`，不阻擋新請求，也不改判已確認的寫入結果。若舊目錄含其他檔案，保留全部內容供檢查。更名前失敗、狀態檔寫入失敗與所有權不明仍維持阻擋或待核對；不自動重送寫入。Git 與其他資源鎖沿用原協議。
+新版 Windows API 控制鎖也採用同一套原子發布和復原流程。確認預約擁有者已退出或 PID 已由其他程序使用後，才回收該預約。共用速率、並行上限和冷卻期限仍依已保存的狀態計算。結果未確認的寫入須先在 GitLab 核對。
 
 ### API 控制鎖離線復原
 

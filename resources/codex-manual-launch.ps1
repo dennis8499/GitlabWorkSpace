@@ -8,6 +8,7 @@ if ($pipeName -notmatch '^glw-codex-[0-9a-f-]{36}$' -or $nonce -notmatch '^[0-9a
 }
 Remove-Item Env:\GITLAB_WORKSPACE_CODEX_SCRIPT, Env:\GITLAB_WORKSPACE_CODEX_PIPE, Env:\GITLAB_WORKSPACE_CODEX_NONCE
 $encoding = [Text.UTF8Encoding]::new($false)
+$supervisor = Join-Path $PSScriptRoot 'windows-local-lease.ps1'
 
 $invokeCodex = {
     if ($args.Count -ne 0) { throw '請保留預填的 codex 指令。' }
@@ -27,10 +28,16 @@ $invokeCodex = {
 
         try {
             $launch = ConvertFrom-Json -InputObject $line -ErrorAction Stop
-            $start = [Diagnostics.ProcessStartInfo]::new($launch.file)
+            $supervised = $launch.PSObject.Properties['supervisedRequest']
+            $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $start = [Diagnostics.ProcessStartInfo]::new($(if ($supervised) { $powershell } else { $launch.file }))
             $start.UseShellExecute = $false
             $start.WorkingDirectory = $launch.cwd
-            foreach ($argument in $launch.args) { $start.ArgumentList.Add($argument) }
+            $launchArgs = if ($supervised) {
+                @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $supervisor,
+                    '-Terminal', '-RequestPath', $supervised.Value)
+            } else { $launch.args }
+            foreach ($argument in $launchArgs) { $start.ArgumentList.Add($argument) }
             # Inherit the PowerShell terminal's console for the interactive CLI.
             $child = [Diagnostics.Process]::Start($start)
             if ($null -eq $child) { throw 'Codex CLI 程序未啟動。' }

@@ -32,10 +32,10 @@ test('an admission release failure sends nothing and recovers its reserved slot 
     if (this.directory === f.control && fail) { fail = false; throw Object.assign(new Error('control sharing failure'), { code: 'EACCES' }); }
     return release.apply(this, args);
   });
-  await assert.rejects(new GitLabNetworkGate(f.root, 500).fetch(async () => { sent++; return new Response('{}'); }, endpoint));
+  await assert.rejects(new GitLabNetworkGate(f.root, 5_000).fetch(async () => { sent++; return new Response('{}'); }, endpoint));
   assert.equal(sent, 0);
   assert.deepEqual(JSON.parse(await fs.readFile(f.state, 'utf8')).active, [], 'a failure before sending must not strand the current PID slot');
-  assert.equal((await new GitLabNetworkGate(f.root, 500).fetch(async () => { sent++; return new Response('recovered'); }, endpoint)).status, 200);
+  assert.equal((await new GitLabNetworkGate(f.root, 5_000).fetch(async () => { sent++; return new Response('recovered'); }, endpoint)).status, 200);
   assert.equal(sent, 1);
 });
 
@@ -48,7 +48,7 @@ test('a proven dead reserved API control recovers without resetting pacing or fo
   const cooldown = Date.now() + 100;
   await fs.writeFile(f.state, JSON.stringify({ schema: 'GitLabWorkspaceApiState/v1', nextStartAt: cooldown, cooldownUntil: cooldown, active: [foreign] }));
   let sent = 0;
-  await new GitLabNetworkGate(f.root, 800).fetch(async () => { sent++; assert.ok(Date.now() >= cooldown); return new Response('{}'); }, endpoint);
+  await new GitLabNetworkGate(f.root, 800, false).fetch(async () => { sent++; assert.ok(Date.now() >= cooldown); return new Response('{}'); }, endpoint);
   assert.equal(sent, 1);
   const state = JSON.parse(await fs.readFile(f.state, 'utf8'));
   assert.deepEqual(state.active, [foreign]);

@@ -74,7 +74,7 @@ export async function seedBmadContinuation(options: { storage: string; sourceRoo
   signal?.throwIfAborted();
   await mkdir(path.dirname(targetRoot), { recursive: true }); await ownedStoragePath(storage, path.dirname(targetRoot));
   const receiptFile = targetRoot + '.continuation.json';
-  const gate = await acquireStorageControl(targetRoot + '.continuation.control', 'bmad-continuation', { signal });
+  const gate = await acquireStorageControl(targetRoot + '.continuation.control', 'bmad-continuation', { signal, recoverable: true });
   try {
     let receipt: { schema: string; sourceRoot: string; targetRoot: string; digest: string; state: string } | undefined;
     try {

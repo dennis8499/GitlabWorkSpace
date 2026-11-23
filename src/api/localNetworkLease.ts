@@ -5,9 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { ownedStoragePath } from '../storage/ownedStorage';
 import { currentOperationLog, type OperationLog } from '../logging/operationLog';
+import { releaseWindowsLease, tryWindowsLease, WindowsLeaseError, type WindowsLeaseToken } from './windowsLocalLease';
 
 export const LEASE_SCHEMA = 'GitLabWorkspaceLease/v1';
-export interface NetworkLeaseOptions { signal?: AbortSignal; timeoutMs?: number; deadline?: number; log?: OperationLog; }
+export interface NetworkLeaseOptions { signal?: AbortSignal; timeoutMs?: number; deadline?: number; log?: OperationLog; recoverable?: boolean; }
 export class NetworkLeaseError extends Error {
   leasePath?: string;
   leaseKind?: string;
@@ -26,6 +27,7 @@ const workflowLeaseReasons: Record<string, string> = {
   'owner-publication-pending': '暫時讀不到擁有者資料，請稍後重試。若持續出現，請依離線復原步驟檢查。',
   'metadata-unreadable': '無法讀取擁有者資料，請檢查本機權限或檔案占用。',
   'terminal-exit-unconfirmed': '尚未確認終端已退出，已保留鎖供離線檢查。',
+  'process-tree-unconfirmed': '缺少程序樹完成證據，已保留鎖供離線檢查。',
   'retired-cleanup-pending': '已釋放，舊目錄清理待處理。',
   'unpublished-cleanup-pending': '未取得，空目錄清理待處理。',
   'release-pending': '尚未釋放，下次操作會重試釋放這把鎖。'
@@ -237,13 +239,20 @@ export class LocalNetworkLease {
   private released = false;
   private releaseInFlight?: Promise<void>;
   private releaseCommitted?: Promise<void>;
-  private constructor(readonly directory: string, private owner: NetworkLeaseOwner, private readonly identity?: BigIntStats, private readonly log?: OperationLog) {}
+  private constructor(readonly directory: string, private owner: NetworkLeaseOwner, private readonly identity?: BigIntStats,
+    private readonly log?: OperationLog, readonly recovery?: WindowsLeaseToken) {}
   private static workflowKey(directory: string): string {
     const absolute = path.resolve(directory);
     return process.platform === 'win32' ? absolute.toLowerCase() : absolute;
   }
   static async acquire(directory: string, kind: string, options: NetworkLeaseOptions = {}): Promise<LocalNetworkLease> {
-    try { return await this.acquireExclusive(directory, kind, options); }
+    try {
+      if (options.recoverable) {
+        const recoverable = await this.acquireRecoverable(directory, kind, options);
+        if (recoverable) return recoverable;
+      }
+      return await this.acquireExclusive(directory, kind, options);
+    }
     catch (error) {
       if (error instanceof NetworkLeaseError) {
         error.leasePath ??= directory;
@@ -253,6 +262,20 @@ export class LocalNetworkLease {
       }
       throw error;
     }
+  }
+  static async acquireRecoverable(directory: string, kind: string, options: NetworkLeaseOptions): Promise<LocalNetworkLease | undefined> {
+    if (process.platform !== 'win32') return;
+    const acquired = await tryWindowsLease(directory, kind, {
+      deadline: options.deadline, timeoutMs: options.timeoutMs ?? 30_000, signal: options.signal
+    }).catch(error => { throw windowsLeaseFailure(error, directory, kind); });
+    if (!acquired) return;
+    const { token } = acquired;
+    if (acquired.recovered) (options.log ?? currentOperationLog())?.record({
+      feature: 'local-lock', action: 'recover', result: 'success', leasePath: directory, leaseKind: kind, coordinationCode: 'owner-retired'
+    });
+    return new LocalNetworkLease(token.directory,
+      { schema: LEASE_SCHEMA, nonce: token.nonce, pid: token.pid, kind, state: 'running', createdAt: new Date().toISOString() },
+      undefined, options.log, token);
   }
   private static async acquireExclusive(directory: string, kind: string, options: NetworkLeaseOptions): Promise<LocalNetworkLease> {
     const deadline = Math.min(options.deadline ?? Infinity, Date.now() + (options.timeoutMs ?? 30_000));
@@ -374,6 +397,8 @@ export class LocalNetworkLease {
     }
   }
   async update(fields: Partial<NetworkLeaseOwner>): Promise<void> {
+    if (this.recovery) throw new NetworkLeaseError('Windows process supervision owns changes to this lease.', 'invalid-lifecycle',
+      { leasePath: this.directory, leaseKind: this.owner.kind });
     const current = JSON.parse(await readNetworkMetadata(path.join(this.directory, 'owner.json'))) as NetworkLeaseOwner;
     if (current.nonce !== this.owner.nonce) throw new NetworkLeaseError('Network lease owner changed.', 'owner-changed');
     this.owner = { ...this.owner, ...fields, schema: LEASE_SCHEMA, nonce: this.owner.nonce, pid: this.owner.pid, kind: this.owner.kind };
@@ -381,6 +406,13 @@ export class LocalNetworkLease {
   }
   release(options: Pick<NetworkLeaseOptions, 'deadline' | 'signal'> = {}): Promise<void> {
     const kind = this.owner.kind;
+    if (this.recovery) {
+      if (this.released) return Promise.resolve();
+      return this.releaseInFlight ??= releaseWindowsLease(this.recovery, options.deadline, options.signal).then(
+        () => { this.released = true; },
+        error => { throw windowsLeaseFailure(error, this.directory, kind); }
+      ).finally(() => { this.releaseInFlight = undefined; });
+    }
     if (kind !== 'api-control' && !workflowLeaseKind(kind)) return this.releaseLegacy(options);
     if (this.released) return Promise.resolve();
     if (this.releaseInFlight) return this.releaseInFlight;
@@ -440,4 +472,17 @@ export class LocalNetworkLease {
     }
     this.released = true;
   }
+}
+
+function windowsLeaseFailure(error: unknown, directory: string, kind: string): unknown {
+  if (!(error instanceof WindowsLeaseError)) return error;
+  const code = workflowLeaseKind(kind) && error.coordinationCode === 'metadata-unreadable'
+    ? 'owner-unconfirmed' : error.coordinationCode;
+  const osCode = code === 'metadata-missing' ? 'ENOENT' : error.nativeCode === 5 ? 'EACCES' :
+    error.nativeCode === 32 || error.nativeCode === 33 ? 'EBUSY' : undefined;
+  const cause = osCode ? Object.assign(error, { code: osCode }) : error;
+  const mapped = new NetworkLeaseError('Windows 本機鎖無法取得或完成復原（' + code + '）。', code,
+    { cause, leasePath: directory, leaseKind: kind });
+  if (code === 'queue-timeout') mapped.name = 'TimeoutError';
+  return mapped;
 }

@@ -4,13 +4,14 @@ import path from 'node:path';
 import { GitLabReadGate } from './gitLabReadGate';
 import { atomicNetworkJson, checkNetworkBudget, LocalNetworkLease, NetworkLeaseError, networkAbort, networkHostKey, networkRuntimeRoot, networkSleep, readNetworkMetadata, secureRuntimeDirectory } from './localNetworkLease';
 import { acquireStorageControl } from '../storage/controlLease';
+import { windowsProcessBirth } from './windowsLocalLease';
 import { currentOperationLog } from '../logging/operationLog';
 
 interface ApiPolicy { startsPerSecond: number; concurrency: number; }
 interface NetworkPolicy { schema: 'GitLabWorkspaceNetworkPolicy/v1'; api?: Partial<ApiPolicy>; hosts?: Record<string, Partial<ApiPolicy>>; aliases?: Record<string, string>; }
 interface ApiState {
   schema: 'GitLabWorkspaceApiState/v1'; nextStartAt: number; cooldownUntil: number;
-  active: Array<{ nonce: string; pid: number; startedAt: number; deadline: number }>;
+  active: Array<{ nonce: string; pid: number; startedAt: number; deadline: number; birth?: string }>;
 }
 const DEFAULT_POLICY: ApiPolicy = { startsPerSecond: 1, concurrency: 2 };
 const RESPONSE_LIMIT = 32 * 1024 * 1024;
@@ -66,7 +67,8 @@ function checkedPolicy(value: Partial<ApiPolicy>): ApiPolicy {
 
 /** Per-host pacing, active requests and cooldown are shared across accounts and processes. */
 export class GitLabNetworkGate {
-  constructor(private readonly root = networkRuntimeRoot(), private readonly timeoutMs = 30_000) {}
+  constructor(private readonly root = networkRuntimeRoot(), private readonly timeoutMs = 30_000,
+    private readonly recoverable = true) {}
 
   async fetch(fetcher: (input: string | URL | Request, init?: RequestInit) => Promise<Response>, input: URL, init: RequestInit = {}, safeRead = ['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase()), responseLimit = RESPONSE_LIMIT, onStart?: () => void, onBytes?: (bytes: number) => void): Promise<Response> {
     const signal = init.signal ?? undefined;
@@ -159,7 +161,9 @@ export class GitLabNetworkGate {
     try {
       const state = JSON.parse(await readNetworkMetadata(path.join(directory, 'state.json'), { deadline })) as ApiState;
       if (state.schema !== 'GitLabWorkspaceApiState/v1' || !Number.isFinite(state.nextStartAt) || !Number.isFinite(state.cooldownUntil)
-        || !Array.isArray(state.active) || state.active.some(item => typeof item.nonce !== 'string' || !Number.isSafeInteger(item.pid) || !Number.isFinite(item.deadline))) throw new Error('Invalid network state.');
+        || !Array.isArray(state.active) || state.active.some(item => typeof item.nonce !== 'string' || !Number.isSafeInteger(item.pid) ||
+          item.pid <= 0 || !Number.isFinite(item.deadline) ||
+          item.birth !== undefined && (typeof item.birth !== 'string' || !/^[1-9]\d{0,18}$/.test(item.birth)))) throw new Error('Invalid network state.');
       return state;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schema: 'GitLabWorkspaceApiState/v1', nextStartAt: 0, cooldownUntil: 0, active: [] };
@@ -195,10 +199,21 @@ export class GitLabNetworkGate {
       try {
         const state = await this.state(directory, deadline);
         // A dead request owner cannot consume a new slot. Live owners retain slots until cleanup.
-        state.active = state.active.filter(item => {
-          try { process.kill(item.pid, 0); return true; }
-          catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; }
-        });
+        const live: ApiState['active'] = [];
+        for (const record of state.active) {
+          if (control.recovery && record.birth !== undefined) {
+            try {
+              const birth = record.pid === process.pid ? control.recovery.birth : await windowsProcessBirth(record.pid);
+              if (birth !== record.birth) continue;
+            } catch { /* Permission and probe failures preserve the reservation. */ }
+          } else {
+            try { process.kill(record.pid, 0); }
+            catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') continue; }
+          }
+          live.push(record);
+        }
+        const reclaimedDead = live.length !== state.active.length;
+        state.active = live;
         const reclaimed = this.pruneKnown(directory, state);
         const now = Date.now(), readyAt = Math.max(state.nextStartAt, state.cooldownUntil);
         if (state.cooldownUntil > now && observedCooldown !== state.cooldownUntil) {
@@ -212,11 +227,11 @@ export class GitLabNetworkGate {
           let pending = reservations.get(directory);
           if (!pending) { pending = new Map(); reservations.set(directory, pending); }
           pending.set(nonce, reserved);
-          state.active.push({ nonce, pid: process.pid, startedAt: now, deadline });
+          state.active.push({ nonce, pid: process.pid, startedAt: now, deadline, birth: control.recovery?.birth });
           state.nextStartAt = now + 1000 / policy.startsPerSecond;
           await this.commit(directory, state, reclaimed, deadline, signal);
         } else {
-          if (reclaimed.length) await this.commit(directory, state, reclaimed, deadline, signal);
+          if (reclaimed.length || reclaimedDead) await this.commit(directory, state, reclaimed, deadline, signal);
         }
         delay = Math.max(10, Math.min(100, readyAt - now));
       } catch (error) { if (reserved) reserved.phase = 'orphaned'; throw error; }
@@ -261,7 +276,7 @@ export class GitLabNetworkGate {
       if (pendingControls.get(controlPath)?.has(pending)) await this.releaseControl(pending, deadline);
     }
     checkNetworkBudget({ deadline, signal });
-    try { return await acquireStorageControl(controlPath, 'api-control', { deadline, signal }); }
+    try { return await acquireStorageControl(controlPath, 'api-control', { deadline, signal, recoverable: this.recoverable }); }
     catch (error) {
       if (error instanceof Error && Object.isExtensible(error)) Object.assign(error, { leasePath: controlPath });
       throw error;

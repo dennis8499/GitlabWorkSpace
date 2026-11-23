@@ -22,9 +22,9 @@ BMAD 預設一般 Build。Windows 上可從 Build 頁按「檢查 Build Auto」�
 
 ## 復原本機工作流程鎖
 
-安裝或更新 WorkflowKit、啟動 Codex 時若遇到工作流程鎖錯誤，先開啟 GitLab Workspace Log，查看 `workflow-coordination` 的 `leaseKind`、`coordinationCode` 和 `leasePath`。若另一項操作還在執行，等該操作結束再重試。若原擁有者已退出或擁有者資料持續缺失，Windows 可用隨擴充功能提供的 `resources/repair-workflow-lease.ps1` 檢查單一鎖。
+安裝或更新 WorkflowKit、啟動 Codex 時若遇到工作流程鎖錯誤，先開啟 GitLab Workspace Log，查看 `leaseKind`、`coordinationCode` 和 `leasePath`。Windows 會在能確認原擁有者及其程序樹都已結束時，自動復原新版鎖。`queue-timeout` 表示等候釋放逾時，可等目前工作結束後重試。`process-tree-unconfirmed`、`owner-unconfirmed` 或持續出現的 `metadata-missing`，可使用擴充功能隨附的 `resources/repair-workflow-lease.ps1` 檢查單一鎖。
 
-在獨立 PowerShell 中執行下列命令。`$rootPath` 填入同一則 Log 的 `runtimePath`，`$leasePath` 填入 `leasePath`。Codex 工作區鎖使用 `RuntimeRoot`，WorkflowKit 附件鎖與快取控制鎖使用 `StorageRoot`。將 `$scriptPath` 設為擴充功能目錄內腳本的完整路徑，並選擇 `$rootPath` 外一個尚未存在的本機 JSON 路徑作為 `$snapshotPath`。
+在獨立 PowerShell 中執行下列命令。`$rootPath` 填入 Log 的 `runtimePath` 或對應的本機根目錄，`$leasePath` 填入該筆 `leasePath`。Codex 工作區、Git 和 API 控制鎖使用 `RuntimeRoot`。WorkflowKit 附件及快取、Codex 管理 Repo 和 BMAD 使用 `StorageRoot`。將 `$scriptPath` 設為擴充功能目錄內腳本的完整路徑，並選擇 `$rootPath` 外一個尚未存在的本機 JSON 路徑作為 `$snapshotPath`。
 
 ```powershell
 $repair = @('-RuntimeRoot', $rootPath, '-LeasePath', $leasePath, '-SnapshotPath', $snapshotPath)
@@ -32,7 +32,7 @@ $repair = @('-RuntimeRoot', $rootPath, '-LeasePath', $leasePath, '-SnapshotPath'
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $scriptPath @repair
 ```
 
-看到 `Captured` 後儲存工作，從 Windows 選單執行**重新啟動**。重啟後，先確認使用同一 runtime 的 VS Code、Codex 和相關客戶端都已關閉，再開啟獨立 PowerShell 並以相同參數套用。
+看到 `Captured` 後儲存工作，從 Windows 選單執行**重新啟動**。重啟後，先確認使用這把鎖的 VS Code、Codex、MergeReviewer、ReleaseReviewer 和相關客戶端都已關閉，再開啟獨立 PowerShell 並以相同參數套用。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $scriptPath @repair -Apply -ClientsStopped

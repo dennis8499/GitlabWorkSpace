@@ -2348,6 +2348,27 @@ test('online installation sends a Release identity without a client-controlled l
   assert.equal(Object.hasOwn(view.requests.at(-1), 'archivePath'), false);
 });
 
+test('settings preserves offline provenance when a cached WorkflowKit release is cleaned', async t => {
+  const state = snapshot('clone'); setProjectContext(state, 'C:/local/repo', true);
+  state.workflowKitInstallTarget.state = { status: 'missing' };
+  const [release] = state.workflowKitReleases;
+  state.workflowKitReleases = [{ ...release, cached: true }];
+  const view = await mount({ mode: 'clone' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  document.querySelector('.settings-trigger').click(); await view.tick();
+  const tools = document.querySelector('.tool-settings');
+  assert.match(tools.textContent, /已驗證快取 v1\.0\.0/);
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
+
+  const error = '快取附件已清理，請連線重新檢查 Release 後下載。';
+  view.sendSnapshot({ ...state, workflowKitReleases: [{ ...release, cached: true, available: false, error }] });
+  await view.tick();
+
+  assert.match(tools.textContent, /快取版本 v1\.0\.0（線上最新版未確認）/);
+  assert.equal(tools.querySelector('.warning').textContent, error);
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
+});
+
 test('account management receives metadata after native login without receiving credentials', async t => {
   const state = { ...snapshot(), connected: false, currentUser: undefined, baseUrl: undefined, group: undefined, groupRoot: undefined, accounts: [] };
   const view = await mount({}, state); t.after(() => view.dom.window.close());

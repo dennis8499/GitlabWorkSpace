@@ -34,7 +34,7 @@ test('API release retires the directory before deleting metadata so a canonical 
   await lease.release({ deadline: Date.now() + 1000 });
   await assert.rejects(fs.lstat(f.control), { code: 'ENOENT' });
   let sent = 0;
-  await new GitLabNetworkGate(f.root, 1000).fetch(async () => { sent++; return new Response('{}'); }, endpoint);
+  await new GitLabNetworkGate(f.root, 1000, false).fetch(async () => { sent++; return new Response('{}'); }, endpoint);
   assert.equal(sent, 1); assert.deepEqual(JSON.parse(await fs.readFile(f.state, 'utf8')).active, []);
 });
 
@@ -48,13 +48,13 @@ test('retired directory cleanup failure warns without blocking clients or changi
     return unlink(...args);
   });
   let posts = 0;
-  const gate = new GitLabNetworkGate(f.root, 1000);
+  const gate = new GitLabNetworkGate(f.root, 1000, false);
   const client = Reflect.construct(GitLabClient, ['https://retirement.example', 'host-only-token', async () => { posts++; return new Response('{"id":7}'); },
     undefined, undefined, undefined, undefined, 2000, gate]) as GitLabClient;
   const issue = await log.run('issue', 'create', {}, () => client.createIssue(1, { title: 'Confirmed single write' }));
   assert.equal(issue.id, 7); assert.equal(posts, 1);
   await gate.fetch(async () => new Response('{}'), endpoint);
-  await new GitLabNetworkGate(f.root, 1000).fetch(async () => new Response('{}'), endpoint);
+  await new GitLabNetworkGate(f.root, 1000, false).fetch(async () => new Response('{}'), endpoint);
   assert.deepEqual(JSON.parse(await fs.readFile(f.state, 'utf8')).active, []);
   const warning = output.find(line => line.includes('retired-cleanup-pending'));
   assert.ok(warning); assert.ok(warning.includes('control.lock.retired-'));
@@ -157,7 +157,7 @@ test('a successor control releases independently while its predecessor is still 
     await rename(...args);
     if (String(args[0]) === f.control && garbageBlocked) { overlapped = true; releaseCleanup(); }
   });
-  const gate = new GitLabNetworkGate(f.root, 10_000);
+  const gate = new GitLabNetworkGate(f.root, 10_000, false);
   let firstStarted!: () => void;
   const firstReady = new Promise<void>(resolve => { firstStarted = resolve; });
   const first = gate.fetch(async () => { firstStarted(); await responseReady; return new Response('first'); }, endpoint);
@@ -218,7 +218,7 @@ test('missing API owner diagnostics identify the exact lease without sending a r
     if (String(args[0]) === path.join(f.control, 'owner.json')) offset += 2100;
     return read(...args);
   });
-  await assert.rejects(new GitLabNetworkGate(f.root, 30_000).fetch(async () => { sent++; return new Response('{}'); }, endpoint), error => {
+  await assert.rejects(new GitLabNetworkGate(f.root, 30_000, false).fetch(async () => { sent++; return new Response('{}'); }, endpoint), error => {
     const diagnostics = (error as Error & { diagnostics?: { code: string; leasePath?: string; requestStarted: boolean } }).diagnostics;
     assert.equal(diagnostics?.code, 'metadata-missing'); assert.equal(diagnostics?.leasePath, f.control); assert.equal(diagnostics?.requestStarted, false);
     return true;

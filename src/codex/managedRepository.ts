@@ -3,6 +3,7 @@ import { lstat, mkdir, readFile, realpath, rename } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitLabProject } from '../api/types';
 import { atomicNetworkJson } from '../api/localNetworkLease';
+import { withWindowsExecutionLeases } from '../api/windowsLocalLease';
 import { projectRemoteMatches } from '../git/cloneService';
 import { captureGitProcess } from '../git/gitProcess';
 import { acquireStorageControl } from '../storage/controlLease';
@@ -51,8 +52,8 @@ export async function ensureManagedRepositoryCache(options: ManagedRepositoryCac
   const root = path.join(parent, key), receipt = root + '.json';
   await ownedStoragePath(parent, root);
   await options.beforeAccess?.(root);
-  const lease = await acquireStorageControl(root + '.control', 'codex-repository-cache', { signal });
-  try {
+  const lease = await acquireStorageControl(root + '.control', 'codex-repository-cache', { signal, recoverable: true });
+  const materialize = async () => {
     let local: string | undefined;
     if (options.localRepository) {
       local = await realpath(options.localRepository);
@@ -97,6 +98,8 @@ export async function ensureManagedRepositoryCache(options: ManagedRepositoryCac
     }
     // Keep the verified object available when the next fetch replaces FETCH_HEAD.
     await git(root, ['update-ref', `refs/gitlab-workspace/cache/${options.sourceSha}`, options.sourceSha]);
-    return { root, remote: 'origin', key };
-  } finally { await lease.release(); }
+    return { root, remote: 'origin' as const, key };
+  };
+  try { return await withWindowsExecutionLeases(lease.recovery ? [lease.recovery] : [], materialize); }
+  finally { await lease.release(); }
 }

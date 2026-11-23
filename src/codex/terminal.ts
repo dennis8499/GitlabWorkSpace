@@ -9,6 +9,7 @@ import type * as VSCode from 'vscode';
 import { insideStorage, missingFile, ownedStoragePath, removeOwnedStorage } from '../storage/ownedStorage';
 import type { ManualCodexTerminal } from './manualTerminal';
 import { codexExecutableVersion, resolveCodexExecutable, type CodexExecutable } from './process';
+import { windowsLeaseLauncher, windowsLeasePowerShell, type WindowsLeaseToken } from '../api/windowsLocalLease';
 
 interface CatalogModel {
   id: string;
@@ -34,6 +35,7 @@ interface CodexTerminalLaunchOptions {
   beforeCreate?: () => void;
   show?: boolean;
   manual?: ManualCodexTerminal;
+  leases?: readonly WindowsLeaseToken[];
 }
 
 export async function confirmCodexTerminalExit(terminal: VSCode.Terminal, processExit: VSCode.TerminalExitReason): Promise<boolean> {
@@ -213,15 +215,27 @@ export class CodexTerminal {
       const promptFile = path.join(directory, 'input.md');
       await writeFile(promptFile, launch.prompt, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
       args.push('--', `請讀取此 UTF-8 檔案並依內容執行本次工作。檔案路徑 ${JSON.stringify(promptFile)}`);
+      let supervisedRequest: string | undefined;
+      if (options.leases?.length) {
+        supervisedRequest = path.join(directory, 'launch.json');
+        await writeFile(supervisedRequest, JSON.stringify({
+          executable: executable.file, args, cwd, leases: options.leases, timeoutMs: 2_147_483_647
+        }), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+      }
       options.beforeCreate?.();
       if (options.manual) {
-        options.manual.start({ file: executable.file, args, cwd });
+        options.manual.start({ file: executable.file, args, cwd, supervisedRequest });
         void options.manual.completion.then(result => {
           if (result.state !== 'unknown') return removeOwnedStorage(this.storage, directory);
         }).catch(() => undefined);
         return options.manual.terminal;
       }
-      const terminal = this.vscode.window.createTerminal({ name: launch.title, shellPath: executable.file, shellArgs: args, cwd, isTransient: true });
+      const terminal = this.vscode.window.createTerminal({ name: launch.title, cwd, isTransient: true,
+        ...(supervisedRequest
+          ? { shellPath: windowsLeasePowerShell, shellArgs: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+              windowsLeaseLauncher, '-Terminal', '-RequestPath', supervisedRequest] }
+          : { shellPath: executable.file, shellArgs: args })
+      });
       const closed = this.vscode.window.onDidCloseTerminal(ended => {
         if (ended !== terminal) return;
         closed.dispose();

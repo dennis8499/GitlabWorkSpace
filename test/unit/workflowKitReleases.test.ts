@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
+import fs, { mkdtemp, mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -239,6 +239,114 @@ test('a failed installation releases its assets and leaves no unreferenced manag
   const selected = await manager.acquireRelease(item.id, project, () => {}, () => {}); await selected.release();
   await assert.rejects(readFile(selected.archivePath), { code: 'ENOENT' }); await assert.rejects(readFile(selected.installerPath), { code: 'ENOENT' });
 });
+test('background maintenance skips stale locks for missing release attachments', async t => {
+  const { manager, root } = await context(t);
+  const [item] = await manager.refresh('github');
+  await manager.prepareInstaller(item.id);
+  const lock = path.join(root, 'workflow-kit-asset-locks', item.sha256 + '.lock');
+  await mkdir(lock, { recursive: true });
+  const owner = path.join(lock, 'owner.json');
+  await writeFile(owner, '{');
+  const acquire = t.mock.method(LocalNetworkLease, 'acquire');
+
+  await manager.maintain();
+  await manager.maintain();
+
+  assert.equal(acquire.mock.calls.filter(call => call.arguments[0] === lock).length, 0);
+  assert.deepEqual(manager.cleanupWarnings, []);
+  assert.equal(await readFile(owner, 'utf8'), '{');
+});
+
+test('background maintenance logs an unconfirmed attachment and installation reports the block', async t => {
+  const warnings: string[] = [];
+  const log = new OperationLog({ info() {}, warn: line => warnings.push(line), error() {} });
+  t.after(() => log.dispose());
+  const { manager, root } = await context(t, undefined, log);
+  const [item] = await manager.refresh('github');
+  const { archivePath } = await manager.getRelease(item.id);
+  const [cached] = await manager.useCached('github');
+  const archive = await readFile(archivePath);
+  const lock = path.join(root, 'workflow-kit-asset-locks', item.sha256 + '.lock');
+  await mkdir(lock, { recursive: true });
+  const owner = path.join(lock, 'owner.json');
+  await writeFile(owner, '{');
+
+  await manager.maintain();
+  await manager.maintain();
+
+  assert.deepEqual(manager.cleanupWarnings, []);
+  assert.deepEqual(await readFile(archivePath), archive);
+  assert.equal(await readFile(owner, 'utf8'), '{');
+  assert.equal((await manager.listReleases())[0].available, true);
+  const diagnostics = warnings.map(line => JSON.parse(line.slice(line.indexOf('{'))));
+  assert.equal(diagnostics.filter(detail => detail.leasePath === lock && detail.coordinationCode === 'owner-unconfirmed' &&
+    detail.coordinationPhase === 'cleanup').length, 2);
+  await assert.rejects(manager.acquireRelease(cached.id, root, () => {}, () => {}), {
+    name: 'NetworkLeaseError', coordinationCode: 'owner-unconfirmed', leasePath: lock
+  });
+});
+
+test('an inaccessible attachment remains cached and its path is logged', async t => {
+  const warnings: string[] = [];
+  const log = new OperationLog({ info() {}, warn: line => warnings.push(line), error() {} });
+  t.after(() => log.dispose());
+  const { manager } = await context(t, undefined, log);
+  const [item] = await manager.refresh('github');
+  const { archivePath } = await manager.getRelease(item.id);
+  await manager.useCached('github');
+  const archive = await readFile(archivePath);
+  const lstat = fs.lstat;
+  t.mock.method(fs, 'lstat', async (...args: Parameters<typeof lstat>) => {
+    if (args[0] === archivePath) throw Object.assign(new Error('Test attachment access failure'), { code: 'EACCES' });
+    return lstat(...args);
+  });
+
+  await manager.maintain();
+
+  assert.deepEqual(manager.cleanupWarnings, []);
+  assert.deepEqual(await readFile(archivePath), archive);
+  assert.equal((await manager.listReleases())[0].available, true);
+  const diagnostics = warnings.map(line => JSON.parse(line.slice(line.indexOf('{'))));
+  assert.ok(diagnostics.some(detail => detail.targetPath === archivePath && detail.systemCode === 'EACCES' &&
+    detail.coordinationPhase === 'cleanup'));
+});
+
+test('offline release checks publish availability after status maintenance', async t => {
+  const { manager, root } = await context(t);
+  const [item] = await manager.refresh('github');
+  const { archivePath } = await manager.getRelease(item.id);
+  const project = path.join(root, 'project');
+  await mkdir(project);
+  const offline = new WorkflowKitReleaseManager(root, async () => { throw new Error('Release source unavailable'); });
+  const messages: string[] = [];
+  const service = new WorkflowKitService({ storagePath: root, extensionDirectory: root, extensionVersion: '0.58.0',
+    readSource: () => 'github', writeSource: async () => undefined, pythonPath: () => 'python', reportPhase: () => undefined,
+    onMessage: message => messages.push(message), runWithInstallProgress: (_version, task) => task(),
+    releaseManager: offline, runHelper: async () => ({ ok: true, status: 'missing' }) });
+  t.after(() => service.dispose());
+  service.setContext({ root: project, revision: 'project', manual: false });
+  const lockRoot = path.join(root, 'workflow-kit-asset-locks');
+  await mkdir(lockRoot);
+  const lease = await LocalNetworkLease.acquire(path.join(lockRoot, item.sha256 + '.lock'), 'workflow-kit-asset');
+  try {
+    const [retained] = await service.checkReleases('github', () => {});
+    assert.equal(retained.available, true);
+    assert.equal(service.snapshot.releases[0].available, true);
+    assert.match(messages[0], /顯示同一來源已驗證的完整快取/);
+  } finally { await lease.release(); }
+
+  const [cleaned] = await service.checkReleases('github', () => {});
+
+  await assert.rejects(readFile(archivePath), { code: 'ENOENT' });
+  assert.equal(cleaned.available, false);
+  assert.equal(cleaned.cached, true);
+  assert.equal(service.snapshot.releases[0].available, false);
+  assert.equal(service.snapshot.releases[0].cached, true);
+  assert.match(service.snapshot.releases[0].error ?? '', /請連線重新檢查 Release/);
+  assert.match(messages[1], /快取附件已清理/);
+  assert.equal(messages.length, 2);
+});
+
 test('installation preserves a stopped asset owner and the original error when its first asset cannot be released', async t => {
   const { manager, root, calls } = await context(t);
   const [item] = await manager.refresh('github');
@@ -352,6 +460,35 @@ test('different installed versions sharing an installer hash keep the artifact u
   await rm(marker(first)); await manager.maintain(first); assert.ok((await readFile(newer.installerPath)).length);
   await rm(marker(second)); await manager.maintain(second); await assert.rejects(readFile(newer.installerPath), { code: 'ENOENT' });
 });
+test('pruning preserves a shared verifier registered by another window during cleanup', async t => {
+  const { manager, root, respond } = await context(t, [release('2.0.0'), release('1.0.0')]);
+  const [latest, older] = await manager.refresh('github', undefined, '1.0.0');
+  const project = path.join(root, 'project');
+  const manifests = path.join(project, '.gitlab-workspace', 'tool-manifests');
+  await mkdir(manifests, { recursive: true });
+  const installerPath = await manager.prepareStatusVerifier(older.id, undefined, undefined, project);
+  const verifier = await readFile(installerPath);
+  const otherWindow = new WorkflowKitReleaseManager(root, respond);
+  await otherWindow.refresh('github');
+  const lock = path.join(root, 'workflow-kit-asset-locks', older.descriptor.assets.installer.sha256 + '.lock');
+  const acquire = LocalNetworkLease.acquire;
+  let registered = false;
+  t.mock.method(LocalNetworkLease, 'acquire', async function (this: typeof LocalNetworkLease, directory, kind, options) {
+    if (!registered && directory === lock && options?.timeoutMs === 1) {
+      registered = true;
+      await writeFile(path.join(manifests, 'workflow-kit.json'), JSON.stringify({ source: 'github', version: latest.version }));
+      assert.equal(await otherWindow.prepareStatusVerifier(latest.id, undefined, undefined, project), installerPath);
+    }
+    return acquire.call(this, directory, kind, options);
+  } as typeof acquire);
+
+  await manager.maintain();
+
+  assert.equal(registered, true);
+  assert.deepEqual(await readFile(installerPath), verifier);
+  assert.deepEqual(await otherWindow.statusHelper({ source: 'github', version: latest.version }), { path: installerPath, version: latest.version });
+});
+
 test('supports the intranet Gitea mirror without automatically contacting GitHub', async t => {
   const { manager, calls } = await context(t, [release('1.0.0', 'gitea')]);
   const [item] = await manager.refresh('gitea'); await manager.getRelease(item.id);

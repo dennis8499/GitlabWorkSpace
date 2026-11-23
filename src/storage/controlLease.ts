@@ -14,6 +14,10 @@ const inconclusiveRecovery = (error: unknown): boolean => error instanceof Synta
 export async function acquireStorageControl(directory: string, kind: string, options: NetworkLeaseOptions = {}): Promise<LocalNetworkLease> {
   options = { ...options, deadline: Math.min(options.deadline ?? Infinity, Date.now() + (options.timeoutMs ?? 30_000)) };
   checkNetworkBudget(options);
+  if (options.recoverable) {
+    const lease = await LocalNetworkLease.acquireRecoverable(directory, kind, options);
+    if (lease) return lease;
+  }
   const guard = directory + '.recovery', nonce = randomUUID();
   let guarded = false;
   try {
@@ -71,5 +75,5 @@ export async function acquireStorageControl(directory: string, kind: string, opt
     }
   }
   checkNetworkBudget(options);
-  return LocalNetworkLease.acquire(directory, kind, options);
+  return LocalNetworkLease.acquire(directory, kind, { ...options, recoverable: false });
 }

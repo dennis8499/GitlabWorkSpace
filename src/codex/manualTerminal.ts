@@ -17,6 +17,7 @@ interface NativeLaunch {
   file: string;
   cwd: string;
   args: readonly string[];
+  supervisedRequest?: string;
 }
 
 export type ManualCodexResult = { state: 'not-started' } | { state: 'exited'; code: number } | { state: 'unknown' };
