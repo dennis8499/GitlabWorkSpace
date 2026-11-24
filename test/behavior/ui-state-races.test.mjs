@@ -56,6 +56,15 @@ async function mount(t, data = snapshot(), saved = { mode: data.activeMode }) {
     get state() { return state; } };
 }
 
+test('a retained Dashboard announces readiness when VS Code shows it again', async t => {
+  const view = await mount(t);
+  view.requests.length = 0;
+  view.send({ type: 'requestWorkspaceReady' });
+  await view.tick();
+  assert.deepEqual(view.requests.map(({ type }) => type), ['ready']);
+  assert.equal(view.document.querySelector('.page[data-mode]')?.dataset.mode, 'sa');
+});
+
 test('Skills binds unavailable known roots immediately and preserves the selected tool through detection', async t => {
   const pending = snapshot(); pending.skillsContext.mode = 'unavailable';
   const view = await mount(t, pending);

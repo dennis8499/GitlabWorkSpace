@@ -4,6 +4,8 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
+import { SnapshotTransport } from '../../src/workspace/snapshotTransport';
+import type { WorkspaceResponse, WorkspaceSnapshot } from '../../src/workspace/workspaceProtocol';
 
 const html = '<html><head></head><body><script src="app.js"></script></body></html>';
 const uri = (fsPath: string) => ({ fsPath, toString: () => fsPath.replaceAll('\\', '/') });
@@ -12,12 +14,13 @@ function surface() {
   const listeners = new Set<() => void>();
   let closed = false;
   const listen = (callback: () => void) => { listeners.add(callback); return { dispose: () => listeners.delete(callback) }; };
-  let onDispose = () => {};
+  let onDispose = () => {}, onVisibility = () => {};
   return { visible: true, listeners, get closed() { return closed; },
+    setVisible(value: boolean) { this.visible = value; onVisibility(); },
     reveal() {},
     dispose() { closed = true; onDispose(); },
     onDidDispose(callback: () => void) { onDispose = callback; return listen(callback); },
-    onDidChangeViewState: listen, onDidChangeVisibility: listen,
+    onDidChangeViewState(callback: () => void) { onVisibility = callback; return listen(callback); },
     webview: { html: '', options: {}, cspSource: 'test:', asWebviewUri: (value: unknown) => value,
       onDidReceiveMessage: listen, postMessage: async () => true }
   };
@@ -40,9 +43,28 @@ function fixture(read: () => Promise<string>) {
     ViewColumn: { Active: 1 }, window: { createWebviewPanel: () => { const panel = surface(); panels.push(panel); return panel; } } };
   const { WorkspacePanel } = load('workspace/workspacePanel.js', vscode, read);
   const host = Object.create(WorkspacePanel.prototype);
+  const sent: WorkspaceResponse[] = [];
+  const transport = new SnapshotTransport();
+  const cached: WorkspaceSnapshot = {
+    connected: false, groups: [], projects: [], activeMode: 'dashboard', issues: [], mergeRequests: [],
+    groupMilestones: [], groupIssueBoards: [], localRepositories: {}, projectLocalRepositories: {}, projectMembers: [], timers: [],
+    workflowKit: { status: 'missing' }, workflowKitInstallTarget: { manual: false, state: { status: 'missing' } }, workflowKitSource: 'github'
+  };
+  let entries = 0;
   Object.assign(host, { context: { extensionUri: uri('extension') }, activeMode: 'dashboard', disposed: false,
-    suspendViewReads() {}, scheduleGitRepositoryListSend() {} });
-  return { host, panels };
+    viewGeneration: 0, viewReadAbort: new AbortController(), pendingViewNotices: [], issueNavigation: null, snapshotTransport: transport,
+    sendSnapshot() { const message = transport.next(cached, 'offline'); if (message) sent.push(message); },
+    post(message: WorkspaceResponse) { sent.push(message); },
+    refresh: async () => { entries++; },
+    suspendViewReads() {
+      host.viewGeneration++;
+      host.webviewReady = false;
+      host.viewReadAbort.abort();
+    },
+    handleMessage(message: unknown) { return host.dispatchMessage(message); },
+    scheduleGitRepositoryListSend() {}
+  });
+  return { host, panels, sent, get entries() { return entries; } };
 }
 
 test('a missing Dashboard asset disposes its panel and a repaired build can be opened', async () => {
@@ -66,4 +88,38 @@ test('closing a Dashboard while its asset is loading cannot restore a dead panel
   await pending;
   assert.equal(f.host.panel, undefined);
   assert.equal(f.panels[0].webview.html, '');
+});
+
+test('a recreated Dashboard receives a full snapshot and navigation in the same view generation', async () => {
+  const f = fixture(async () => html);
+  await f.host.show();
+  await f.host.handleMessage({ type: 'ready' });
+  assert.equal(f.sent[0]?.type, 'snapshot');
+
+  f.sent.length = 0;
+  await f.host.handleMessage({ type: 'ready' });
+  assert.deepEqual(f.sent.map(message => message.type), ['snapshot', 'issueNavigation']);
+  assert.equal(f.host.viewGeneration, 0);
+  assert.equal(f.entries, 1);
+  assert.equal(f.sent[0].type === 'snapshot' && f.sent[0].snapshot.activeMode, 'dashboard');
+});
+
+test('a Dashboard that signals ready while hidden restores once when shown', async () => {
+  const f = fixture(async () => html);
+  await f.host.show();
+  const panel = f.panels[0];
+  panel.setVisible(false);
+  await f.host.handleMessage({ type: 'ready', projectSource: 'local' });
+  assert.equal(f.host.webviewReady, false);
+  assert.equal(f.entries, 0);
+  assert.equal(f.sent.length, 0);
+
+  panel.setVisible(true);
+  panel.setVisible(true);
+  assert.equal(f.host.webviewReady, true);
+  assert.equal(f.host.viewReadAbort.signal.aborted, false);
+  assert.equal(f.host.projectSource, 'local');
+  assert.equal(f.sent[0]?.type, 'snapshot');
+  await f.host.handleMessage({ type: 'ready' });
+  assert.equal(f.entries, 1);
 });

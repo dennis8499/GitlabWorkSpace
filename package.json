@@ -263,8 +263,8 @@
           "type": "string"
         },
         "gitlabWorkspace.codex.waitForEnter": {
-          "default": false,
-          "description": "在 Windows 專用 PowerShell 7 工作終端預填 codex 指令，等待你開啟 Auto-Accept 並按 Enter。只讀取使用者設定。",
+          "default": true,
+          "description": "在本機 Windows 的專用 PowerShell 7 終端預填 codex 並等候 Enter。設定為 false 時直接執行。只讀取使用者設定。",
           "scope": "machine",
           "type": "boolean"
         },
@@ -556,5 +556,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.58.1"
+  "version": "0.58.2"
 }

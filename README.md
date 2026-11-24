@@ -2,6 +2,8 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
+0.58.2 修正整合終端最大化後工作台卡在載入的問題，並讓 Codex 工作流程預設在工作終端等候 Enter。支援偵測 Microsoft Store 版 PowerShell。[0.58.2 版本說明](docs/releases/v0.58.2.md)
+
 0.58.1 改善 Windows 本機鎖復原。宿主意外退出後，下一次作業可在核對擁有者與子程序的終止證據後接手。詳見 [0.58.1 版本說明](docs/releases/v0.58.1.md)。
 
 0.56.2 整理退役的側欄程式與驗證入口，並依實際安裝步驟調整歷史 WorkflowKit 相容性測試時間。詳見 [0.56.2 版本說明](docs/releases/v0.56.2.md)。

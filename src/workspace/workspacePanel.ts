@@ -289,6 +289,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private cloneOperation?: CloneOperationState;
   private webviewReady = false;
   private readyViewGeneration?: number;
+  private pendingViewReady?: Extract<WorkspaceRequest, { type: 'ready' }>;
   private readonly cloneSelectionWaiters = new Map<string, { resolve: (projectIds: number[]) => void; timeout: NodeJS.Timeout }>();
   private requestGeneration = 0;
   private refreshScopeKey?: string;
@@ -461,20 +462,28 @@ export class WorkspacePanel implements vscode.Disposable {
       });
       this.panel = panel;
       this.webviewReady = false;
+      let visible = panel.visible;
       const messageListener = panel.webview.onDidReceiveMessage((message: unknown) => {
-        void this.handleMessage(message).catch(() => undefined);
+        if (this.panel === panel) void this.handleMessage(message).catch(() => undefined);
       });
       const visibilityListener = panel.onDidChangeViewState(() => {
-        if (this.panel !== panel) return;
-        this.gitRepositories?.setActivePanelRepository(panel.visible && this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined);
-        if (!panel.visible) this.suspendViewReads();
-        if (panel.visible) this.scheduleGitRepositoryListSend();
+        if (this.panel !== panel || visible === panel.visible) return;
+        visible = panel.visible;
+        if (!visible) {
+          this.suspendViewReads();
+          return;
+        }
+        this.gitRepositories?.setActivePanelRepository(this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined);
+        if (this.pendingViewReady) void this.handleMessage(this.pendingViewReady).catch(() => undefined);
+        else if (!this.webviewReady) void panel.webview.postMessage({ type: 'requestWorkspaceReady' } satisfies WorkspaceResponse);
+        this.scheduleGitRepositoryListSend();
       });
       panel.onDidDispose(() => {
         messageListener.dispose(); visibilityListener.dispose();
         if (this.panel === panel) {
           this.pendingSettingsOpen = false;
           this.pendingSettingsOptions = undefined;
+          this.pendingViewReady = undefined;
           this.gitRepositories?.setActivePanelRepository(undefined);
           if (this.gitRepositoryListTimer) { clearTimeout(this.gitRepositoryListTimer); this.gitRepositoryListTimer = undefined; }
           this.suspendViewReads();
@@ -1524,6 +1533,50 @@ export class WorkspacePanel implements vscode.Disposable {
     return { effect: applied ? 'applied' : 'none' };
   }
 
+  private async restoreWorkspaceView(request: Extract<WorkspaceRequest, { type: 'ready' }>): Promise<void> {
+    if (this.disposed) return;
+    if (this.panel?.visible === false) {
+      this.pendingViewReady = request;
+      return;
+    }
+    this.pendingViewReady = undefined;
+    const generation = this.viewGeneration;
+    const enterPage = this.readyViewGeneration !== generation || !this.webviewReady;
+    if (enterPage) {
+      this.readyViewGeneration = generation;
+      this.webviewReady = true;
+      if (this.viewReadAbort.signal.aborted) this.viewReadAbort = new AbortController();
+      // A native scan can select the local page before the saved Webview state arrives.
+      const source = this.pendingProjectSource ?? request.projectSource;
+      if (source) this.projectSource = source;
+      this.pendingProjectSource = undefined;
+      this.developerView = request.developerView ?? 'list';
+      if (request.mergeRequestFilter) this.mergeRequestFilter = request.mergeRequestFilter;
+    }
+
+    // Maximizing the terminal can replace the Webview document within the same
+    // visibility generation. The new document needs a full snapshot and navigation.
+    this.sendFullSnapshot();
+    this.post({ type: 'issueNavigation', navigation: this.issueNavigation });
+    this.publishPendingViewPanels();
+    if (!enterPage) return;
+
+    await this.refresh({ reason: 'entry' });
+    if (generation !== this.viewGeneration || this.disposed) return;
+    if (this.activeMode === 'reviewer' && this.pendingMergeRequestRead) {
+      const { projectId, iid } = this.pendingMergeRequestRead;
+      void this.loadMergeRequest(projectId, iid).catch(error => this.post({ type: 'error', message: readableError(error) }));
+    }
+    for (const notice of this.pendingViewNotices.splice(0)) this.sendViewMessage(notice);
+    this.publishPendingViewPanels();
+  }
+
+  private publishPendingViewPanels(): void {
+    this.publishAccountPanel();
+    if (this.pendingNotificationsOpen) { this.post({ type: 'openNotifications' }); this.pendingNotificationsOpen = false; }
+    this.publishSettings();
+  }
+
   private async dispatchMessage(value: unknown): Promise<void> {
     this.webviewMessagesReceived++;
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
@@ -1537,48 +1590,14 @@ export class WorkspacePanel implements vscode.Disposable {
       if (request.projectRevision !== current.revision) throw new Error('專案根目錄已變更，請重新確認操作位置。');
     }
     switch (request.type) {
-      case 'ready': {
-        if (this.readyViewGeneration === this.viewGeneration && this.webviewReady) { this.sendSnapshot(); break; }
-        this.readyViewGeneration = this.viewGeneration;
-        this.webviewReady = true;
-        this.snapshotTransport?.reset();
-        this.snapshotGraphScope = undefined;
-        this.post({ type: 'operationsSnapshot', snapshot: this.operations.snapshot() });
-        if (this.viewReadAbort.signal.aborted) this.viewReadAbort = new AbortController();
-        // A native scan can open a new Webview whose saved source is GitLab.
-        // Apply that command's destination before publishing the first snapshot.
-        if (this.pendingProjectSource) this.projectSource = this.pendingProjectSource;
-        else if (request.projectSource === 'gitlab' || request.projectSource === 'local') this.projectSource = request.projectSource;
-        this.pendingProjectSource = undefined;
-        // Local navigation and account forms must not wait for remote data or
-        // a Python installation inspection before becoming usable.
-        this.sendSnapshot();
-        this.publishAccountPanel();
-        if (this.pendingNotificationsOpen) { this.post({ type: 'openNotifications' }); this.pendingNotificationsOpen = false; }
-        this.publishSettings();
-        const generation = this.viewGeneration;
-        this.developerView = request.developerView === 'graph' ? 'graph' : 'list';
-        if (request.mergeRequestFilter && ['all', 'reviewer', 'assigned'].includes(request.mergeRequestFilter)) this.mergeRequestFilter = request.mergeRequestFilter;
-        await this.refresh({ reason: 'entry' });
-        if (generation !== this.viewGeneration || this.disposed) break;
-        if (this.activeMode === 'reviewer' && this.pendingMergeRequestRead) {
-          const { projectId, iid } = this.pendingMergeRequestRead;
-          void this.loadMergeRequest(projectId, iid).catch(error => this.post({ type: 'error', message: readableError(error) }));
-        }
-        this.post({ type: 'issueNavigation', navigation: this.issueNavigation });
-        for (const notice of this.pendingViewNotices.splice(0)) this.sendViewMessage(notice);
-        if (this.pendingNotificationsOpen) { this.post({ type: 'openNotifications' }); this.pendingNotificationsOpen = false; }
-        this.publishAccountPanel();
-        this.publishSettings();
-        break;
-      }
+      case 'ready': await this.restoreWorkspaceView(request); break;
       case 'reconcileOperations': {
         const generation = this.viewGeneration, signal = this.viewReadAbort.signal;
         const snapshot = await this.operations.snapshotWithStored(undefined, request.pendingIds, signal);
         if (!signal.aborted && generation === this.viewGeneration) this.post({ type: 'operationsSnapshot', snapshot });
         break;
       }
-      case 'resyncWorkspace': this.snapshotTransport?.reset(); this.snapshotGraphScope = undefined; this.sendSnapshot(); break;
+      case 'resyncWorkspace': this.sendFullSnapshot(); break;
       case 'cancelRepositoryOperation': this.repositoryOperationAbort?.abort(); break;
       case 'confirmOperationResult': await this.confirmOperationResult(request.targetOperationId, request.recovery); break;
       case 'refresh':
@@ -2676,10 +2695,8 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private codexManualStartSetting(): { powerShell: string } | undefined {
     const config = vscode.workspace.getConfiguration('gitlabWorkspace');
-    if (config.inspect<boolean>('codex.waitForEnter')?.globalValue === true) {
-      return { powerShell: config.inspect<string>('codex.pwshPath')?.globalValue ?? '' };
-    }
-    return undefined;
+    if (config.inspect<boolean>('codex.waitForEnter')?.globalValue === false) return undefined;
+    return { powerShell: config.inspect<string>('codex.pwshPath')?.globalValue ?? '' };
   }
 
   private openManualCodexTerminal(cwd: string, powerShell: string, check: () => void): Promise<ManualCodexTerminal> {
@@ -3891,6 +3908,12 @@ export class WorkspacePanel implements vscode.Disposable {
       errors: [],
       updatedAt: Date.now()
     };
+  }
+
+  private sendFullSnapshot(): void {
+    this.snapshotTransport?.reset();
+    this.snapshotGraphScope = undefined;
+    this.sendSnapshot();
   }
 
   private sendSnapshot(): void {

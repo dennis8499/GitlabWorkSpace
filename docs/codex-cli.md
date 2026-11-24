@@ -4,7 +4,7 @@
 
 1. 從 **工作流程 → Skills 或 BMAD** 填寫表單後按 **使用 Codex 執行**，或在 MR 詳情選 **一鍵 MergeReviewer** 或 **一鍵 ReleaseReviewer**。
 2. 選擇模型及其支援的思考強度。可沿用 CLI 設定或輸入模型 ID。實際可用的模型依 CLI 帳號及提供者而定。
-3. 在新開啟的 VS Code 整合終端操作 Codex。問題、登入及核准提示皆由 CLI 依目前設定處理。終端關閉後，依 Reviewer 收據、BMAD 進度或本地 Wiki 檔案檢閱成果。
+3. 在新開啟的 VS Code 整合終端按 **Enter** 啟動 Codex。問題、登入及核准提示由 CLI 依目前設定處理。終端關閉後，依 Reviewer 收據、BMAD 進度或本地 Wiki 檔案檢閱成果。
 
 MR 審查會在啟動前核對來源與目標版本，缺少固定提交時從已核對的 GitLab 專案取得。若版本更新，請重新整理 MR 再執行。報告留在 Reviewer 使用的 Repo `review-reports/`。在工作流程頁可使用原生 Reviewer 紀錄開報告，或依其狀態恢復同一份審查。
 
@@ -14,11 +14,11 @@ BMAD 預設一般 Build。Windows 上可從 Build 頁按「檢查 Build Auto」�
 
 ## 先開啟 Auto-Accept 再啟動 Codex
 
-在本機 Windows 的 VS Code 1.93 以上啟用 Terminal Shell Integration，並安裝 PowerShell 7.3 以上。在 VS Code **使用者設定**將 `gitlabWorkspace.codex.waitForEnter` 設為 `true`。若使用可攜版 PowerShell，可將 `gitlabWorkspace.codex.pwshPath` 設為 `pwsh.exe` 的絕對路徑。留白時從 PATH 與 Windows 標準安裝位置偵測。
+從 0.58.2 起，工作流程預設等你在終端按 Enter。此模式需要本機 Windows、VS Code 1.93 以上、Terminal Shell Integration 與 PowerShell 7.3 以上。若使用可攜版 PowerShell，可在 VS Code **使用者設定**用 `gitlabWorkspace.codex.pwshPath` 指定 `pwsh.exe` 的絕對路徑。留白時會搜尋 PATH、Windows 標準安裝位置與目前使用者的 Microsoft Store 版 PowerShell。
 
 1. 在 Skills、BMAD 或審查入口選好模型與思考強度。專用工作終端會預填 `codex`。
 2. 在該終端開啟你安裝的 Auto-Accept，再按 **Enter**。GitLab Workspace 會核對環境並以本次選定的參數啟動 Codex。
-3. 等待期間可直接關閉工作終端取消。若 MR 在等待期間已更新，請重新整理再啟動審查。將 `gitlabWorkspace.codex.waitForEnter` 設為 `false` 即使用直接啟動模式。
+3. 等待期間可關閉工作終端取消。若 MR 在等待期間已更新，請重新整理再啟動審查。若環境缺少等待模式所需的條件，工作流程會停止並顯示原因。可在 VS Code **使用者設定**將 `gitlabWorkspace.codex.waitForEnter` 設為 `false`，恢復選完模型後直接啟動的方式。
 
 ## 復原本機工作流程鎖
 

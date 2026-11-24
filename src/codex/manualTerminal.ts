@@ -33,6 +33,33 @@ export interface ManualCodexTerminal {
 }
 
 const run = promisify(execFile);
+const storePackageFamily = 'Microsoft.PowerShell_8wekyb3d8bbwe';
+
+async function installedPowerShell(candidate: string, root: string): Promise<string | undefined> {
+  if (!path.isAbsolute(candidate) || path.basename(candidate).toLowerCase() !== 'pwsh.exe' || candidate.includes('\0')) return;
+  try {
+    const file = await realpath(candidate);
+    if (insideStorage(root, file) || path.basename(file).toLowerCase() !== 'pwsh.exe') return;
+    const { stdout } = await run(file, ['--version'], { windowsHide: true, timeout: 3_000, maxBuffer: 8_192 });
+    const version = /\bPowerShell\s+(\d+)\.(\d+)\.\d+/.exec(stdout);
+    if (version && (+version[1] > 7 || +version[1] === 7 && +version[2] >= 3)) return file;
+  } catch { /* Try another installation. */ }
+}
+
+async function registeredPowerShell(): Promise<string | undefined> {
+  const systemPowerShell = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const command = [
+    '[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)',
+    "$package = Get-AppxPackage -Name Microsoft.PowerShell -ErrorAction Stop | Where-Object PackageFamilyName -eq '" +
+      storePackageFamily + "' | Select-Object -First 1",
+    "if ($package.InstallLocation) { [Console]::WriteLine((Join-Path $package.InstallLocation 'pwsh.exe')) }"
+  ].join('\n');
+  try {
+    const { stdout } = await run(systemPowerShell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command],
+      { windowsHide: true, timeout: 5_000, maxBuffer: 8_192 });
+    return stdout.trim() || undefined;
+  } catch { return undefined; }
+}
 
 async function resolvePowerShell(configured: string, root: string): Promise<string> {
   const search = (process.env.PATH ?? '').split(path.delimiter).map(value => value.replace(/^"|"$/g, '')).filter(value => path.isAbsolute(value));
@@ -40,14 +67,19 @@ async function resolvePowerShell(configured: string, root: string): Promise<stri
   if (programFiles && path.isAbsolute(programFiles)) search.push(path.join(programFiles, 'PowerShell', '7'));
   const candidates = configured ? [configured] : search.map(directory => path.join(directory, 'pwsh.exe'));
   for (const candidate of new Set(candidates)) {
-    if (!path.isAbsolute(candidate) || path.basename(candidate).toLowerCase() !== 'pwsh.exe' || candidate.includes('\0')) continue;
-    try {
-      const file = await realpath(candidate);
-      if (insideStorage(root, file) || path.basename(file).toLowerCase() !== 'pwsh.exe') continue;
-      const { stdout } = await run(file, ['--version'], { windowsHide: true, timeout: 3_000, maxBuffer: 8_192 });
-      const version = /\bPowerShell\s+(\d+)\.(\d+)\.\d+/.exec(stdout);
-      if (version && (+version[1] > 7 || +version[1] === 7 && +version[2] >= 3)) return file;
-    } catch { /* Try another installation, including when PATH contains a Store alias. */ }
+    const file = await installedPowerShell(candidate, root);
+    if (file) return file;
+  }
+  const aliases = process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps').toLowerCase();
+  const configuredAlias = aliases && path.isAbsolute(configured) &&
+    [path.join(aliases, 'pwsh.exe'), path.join(aliases, storePackageFamily.toLowerCase(), 'pwsh.exe')].includes(path.normalize(configured).toLowerCase());
+  // The Store's App Execution Alias can run even when realpath cannot resolve it.
+  if (!configured || configuredAlias) {
+    const registered = await registeredPowerShell();
+    if (registered) {
+      const file = await installedPowerShell(registered, root);
+      if (file) return file;
+    }
   }
   throw new Error('找不到可執行的 PowerShell 7.3 以上版本。請在使用者設定指定 gitlabWorkspace.codex.pwshPath。');
 }

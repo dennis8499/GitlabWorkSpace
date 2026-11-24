@@ -12,7 +12,9 @@ import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
 import { OperationLog } from '../../src/logging/operationLog';
 
 const vscode = {
-  workspace: { isTrusted: true },
+  workspace: { isTrusted: true, getConfiguration: () => ({
+    inspect: (_setting: string): { globalValue?: unknown; workspaceValue?: unknown } | undefined => undefined
+  }) },
   TerminalExitReason: { Process: 2, Extension: 4 },
   window: { onDidCloseTerminal: () => ({ dispose() {} }) }
 };
@@ -126,6 +128,10 @@ function manualTerminal(f: Awaited<ReturnType<typeof fixture>>) {
 
 test('retained workflow sources launch the chosen CLI settings with prepared input and writable scope', async t => {
   const f = await fixture(t);
+  t.mock.method(vscode.workspace, 'getConfiguration', () => ({
+    inspect: (setting: string) => setting === 'codex.waitForEnter' ? { globalValue: false } : undefined
+  }));
+  delete f.host.codexManualStartSetting;
   for (const source of [skill, bmad, review, mergeRequest('merge-reviewer'), mergeRequest('release-reviewer')]) {
     f.calls.length = 0;
     await f.host.dispatchMessage({ type: 'runCodexCli', source });
@@ -144,6 +150,39 @@ test('retained workflow sources launch the chosen CLI settings with prepared inp
       assert.equal(data.repository, f.root);
     } else assert.deepEqual(f.calls[1].data, source.kind === 'bmad' ? source.request : source);
   }
+});
+
+test('Codex workflow entries wait for Enter by default despite a workspace override', async t => {
+  t.mock.method(vscode.workspace, 'getConfiguration', () => ({
+    inspect: (setting: string) => setting === 'codex.waitForEnter' ? { workspaceValue: false } : undefined
+  }));
+  const sources = [
+    { name: 'Skills', source: skill },
+    { name: 'BMAD', source: bmad },
+    { name: 'Reviewer resume', source: review },
+    { name: 'MR MergeReviewer', source: mergeRequest('merge-reviewer') },
+    { name: 'MR ReleaseReviewer', source: mergeRequest('release-reviewer') }
+  ];
+  for (const { name, source } of sources) await t.test(name, async tc => {
+    const f = await fixture(tc);
+    const m = manualTerminal(f);
+    delete f.host.codexManualStartSetting;
+    const running = f.host.dispatchMessage({ type: 'runCodexCli', source });
+    try {
+      await Promise.race([m.shown, running.then(() => assert.fail('The workflow started before the terminal confirmation'))]);
+      assert.deepEqual(f.calls.map(call => call.action), ['choose']);
+      for (const leasePath of f.leasePaths) await assert.rejects(lstat(leasePath), { code: 'ENOENT' });
+      m.enter();
+      await running;
+      assert.deepEqual(f.calls.map(call => call.action), ['choose', source.kind, 'launch', 'outcome']);
+      assert.equal(f.launched.length, 1);
+    } finally {
+      m.exit({ state: 'exited', code: 0 });
+      m.manual.close();
+      await Promise.resolve();
+      await Promise.all(f.host.cliSettlements);
+    }
+  });
 });
 
 test('cancelled CLI model selection stops before workflow preparation and terminal creation', async t => {

@@ -378,6 +378,7 @@ export type WorkspaceRequest = (NotificationRequest
 export type WorkspaceResponse =
   | import('./uiIntentProtocol').UiIntentResult
   | import('./uiIntentProtocol').HostNavigation
+  | { type: 'requestWorkspaceReady' }
   | { type: 'protocolError'; operationId?: string; message: string }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }

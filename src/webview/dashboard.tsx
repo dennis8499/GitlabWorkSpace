@@ -633,6 +633,14 @@ function App() {
   const projectsRef = useRef<GitLabProject[]>([]);
 
   useEffect(() => {
+    const announceReady = () => {
+      const saved = vscode.getState();
+      const scoped = saved?.scopeKey ? saved.scopedData?.[saved.scopeKey] : undefined;
+      const filter = scoped?.reviewFilter ?? saved?.reviewFilter ?? reviewFilter;
+      post({ type: 'ready', projectSource: saved?.projectSource ?? projectTab,
+        developerView: scoped?.developerView ?? saved?.developerView ?? developerView,
+        ...(filter !== 'all' ? { mergeRequestFilter: filter } : {}) });
+    };
     const settleBranchFailure = (operation: WorkspaceOperationState): void => {
       const pending = branchRequest.current;
       if (!pending || operation.action !== 'loadSkillBranches' || operation.scopeRevision !== localOperationScope
@@ -654,6 +662,7 @@ function App() {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       let message = event.data;
       if (!message) return;
+      if (message.type === 'requestWorkspaceReady') { announceReady(); return; }
       if (message.type === 'snapshotPatch') {
         const current = snapshotStream.current;
         if (retiredSnapshotStreams.current.has(message.streamId)) return;
@@ -960,7 +969,7 @@ function App() {
     };
     window.addEventListener('message', receive);
     window.addEventListener('workspaceIssueRequest', forwardIssueRequest);
-    post({ type: 'ready', projectSource: projectTab, developerView, ...(reviewFilter !== 'all' ? { mergeRequestFilter: reviewFilter } : {}) });
+    announceReady();
     return () => { window.removeEventListener('message', receive); window.removeEventListener('workspaceIssueRequest', forwardIssueRequest); };
   }, []);
 
