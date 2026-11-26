@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { NetworkLeaseError } from '../../src/api/localNetworkLease';
 import { windowsExecutionLeases } from '../../src/api/windowsLocalLease';
+import { resolveProjectRootContext } from '../../src/workspace/projectRoot';
 import { WorkflowKitService, WorkflowKitVersionMismatchError, type WorkflowKitContext } from '../../src/workspace/workflowKitService';
 import { readInstalledReviewerBinding } from '../../src/workspace/installedReviewer';
 import { workflowKitPythonCommand } from '../../src/workspace/workflowKitRunner';
@@ -586,12 +587,16 @@ test('installation revalidates its context and exposes the installed capability 
   const target = path.join(root, 'project');
   await mkdir(target);
   const targetAlias = path.join(root, 'project-alias');
-  let installRoot = targetAlias;
+  let selectedRoot = targetAlias;
   try { await symlink(target, targetAlias, process.platform === 'win32' ? 'junction' : 'dir'); }
   catch (error) {
     if (!['EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
-    installRoot = target;
+    selectedRoot = target;
   }
+  const project = await resolveProjectRootContext([{ uri: 'file:' + selectedRoot, name: 'project', path: selectedRoot }], undefined, '');
+  assert.ok(project.root, project.error ?? 'Expected a resolved project root');
+  const installRoot = project.root;
+  assert.equal(installRoot, await realpath(target));
   const release = { id: 'github-1.1.0', version: '1.1.0', source: 'github', assetName: 'kit.zip', format: 'zip', entryRoot: 'workflow-kit',
     available: true, descriptor: { statusApi: 1, installerApi: 1, workspaceContract: 2 }, descriptorSha256: 'a'.repeat(64),
     sha256: 'b'.repeat(64), assetUrls: { package: '', installer: '' }, archivePath: 'kit.zip', installerPath: 'installer.py' };
@@ -601,20 +606,21 @@ test('installation revalidates its context and exposes the installed capability 
     if (args[0] === 'status') return installed
       ? { ok: true, status: 'installed', profile: 'group', source: 'github', version: '1.1.0', workspaceContract: 2, installerApi: 1, capabilities: ['query'] }
       : { ok: true, status: 'missing' };
+    assert.equal(args[2], installRoot);
     await beforeLaunch?.();
     installed = true;
     return { ok: true, package: 'gitlab-workspace-kit', version: '1.1.0', profile: 'group', warnings: ['uv 尚未安裝'] };
   }));
   t.after(() => service.dispose());
 
-  service.setContext(context(installRoot, 'revision-1'));
+  service.setContext(context(installRoot, project.revision));
   await service.refreshStatus();
   const result = await service.install('github-1.1.0', {
     canInstall: () => undefined,
     checkAccess: () => undefined,
     validateTarget: async expected => {
       assert.equal(expected.root, installRoot);
-      assert.equal(expected.revision, 'revision-1');
+      assert.equal(expected.revision, project.revision);
       validated = true;
     }
   });
@@ -624,6 +630,6 @@ test('installation revalidates its context and exposes the installed capability 
   assert.equal(result.root, installRoot);
   assert.deepEqual(result.warnings, ['uv 尚未安裝']);
   assert.equal(service.snapshot.installing, false);
-  assert.equal(service.snapshot.state.status, 'installed');
+  assert.equal(service.snapshot.state.status, 'installed', service.snapshot.state.message ?? 'Expected an installed WorkflowKit');
   assert.deepEqual(service.snapshot.state.capabilities, ['query']);
 });
