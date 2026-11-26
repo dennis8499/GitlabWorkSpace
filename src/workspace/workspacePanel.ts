@@ -38,20 +38,20 @@ import { captureLocalWikiBaseline, collectLocalWikiQuality, localWikiCoveragePla
 import { ensureManagedRepositoryCache } from '../codex/managedRepository';
 import { ownedStoragePath } from '../storage/ownedStorage';
 import { actionUsesGitLab } from './gitLabDependency';
-import type { CodexCliSource } from '../codex/cliProtocol';
+import type { CodexCliRunState, CodexCliRunSummary, CodexCliSource } from '../codex/cliProtocol';
 import { probeCliBuildAuto } from '../codex/buildAutoCli';
-import { openManualCodexTerminal, type ManualCodexTerminal } from '../codex/manualTerminal';
+import { openManualCodexTerminal, resolveCodexPowerShell, type ManualCodexTerminal } from '../codex/manualTerminal';
 import { resolveCodexExecutable, type CodexExecutable } from '../codex/process';
 import { CodexTerminal, confirmCodexTerminalExit } from '../codex/terminal';
-import { ensureLocalCommit, withWorkflowExecution, workflowGit, workflowHash } from '../codex/projectWorkflows';
+import { withWorkflowExecution, workflowGit, workflowHash } from '../codex/projectWorkflows';
 import { saveReviewLaunchRequest, reviewRunnerRuntime, reviewRunnerWritableRoots } from './reviewLaunch';
 import { supportsReviewLaunch } from './reviewLaunchProtocol';
-import { reviewSessionActions } from './reviewSessionProtocol';
+import { canRetryPrivateRefs, reviewSessionActions, supportsPrivateRefCleanup, type WorkflowKitRunnerBinding } from './reviewSessionProtocol';
 import { atomicNetworkJson, NetworkLeaseError, networkRuntimeRoot, reportWorkflowLeaseError } from '../api/localNetworkLease';
 import { execLeasedFile, withWindowsExecutionLeases, type WindowsLeaseToken } from '../api/windowsLocalLease';
 import { ApiControlRecovery, type ApiControlInspection, type ApiControlLaunch } from '../connection/apiControlRecovery';
 import { GitLabNetworkError } from '../api/gitLabNetworkGate';
-import { CodexWorkspaceLease } from '../codex/workspaceLease';
+import { CodexReviewLeasePool, CodexWorkspaceLease, type CodexLeaseHandle } from '../codex/workspaceLease';
 import { canonicalRuntime } from '../codex/taskValidation';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
@@ -60,7 +60,7 @@ import { OperationTracker, isActiveOperation, type WorkspaceOperationState } fro
 import { SnapshotTransport } from './snapshotTransport';
 import { HostUiIntents, type UiIntentTicket } from './hostUiIntents';
 import { uiIntentField, type UiIntentField, type UiIntentValues } from './uiIntentProtocol';
-import { describeAction, effectiveOperationScope } from './actionPolicy';
+import { codexCliResourceKey, codexReviewerTool, describeAction, effectiveOperationScope } from './actionPolicy';
 import { NotificationCenter } from '../notifications/notificationCenter';
 import { collectWorkspaceFeedback } from '../notifications/workspaceFeedback';
 import type { NotificationTarget, NotificationOrigin } from '../notifications/notificationProtocol';
@@ -71,7 +71,8 @@ import type { BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIss
 import { parseWorkspaceRequest, WorkspaceProtocolError } from './workspaceRequestValidation';
 import { promptNativeAccountLogin, type NativeAccountLogin } from '../connection/nativeAccountLogin';
 import { workspaceSettingIds, type WorkspaceSettingId } from './workspaceProtocol';
-import { WorkflowKitService } from './workflowKitService';
+import { WorkflowKitService, WorkflowKitVersionMismatchError } from './workflowKitService';
+import type { WorkflowKitStatusProof } from './workflowKitIntegration';
 import { workflowKitInstallationVerified, workflowKitInterfaceCompatible } from './workflowKitCompatibility';
 import { normalizeWorkspaceMode } from './workspaceProtocol';
 import type { GitLabSession } from '../connection/session';
@@ -87,7 +88,7 @@ import { readReviewerBranches } from './reviewerBranches';
 import { readReviewSessions, readReviewJob, readVerifiedReviewPublication, cancelReviewSession, reviewSessionScript, invalidateReviewAuth, reviewerAuthScope, defaultReviewRuntime, reviewRuntimeCandidates, resolveReviewRuntime, sharedReviewCacheRoot, sharedReviewCacheV2Root } from './reviewSessions';
 import { isReviewerTool, type ReviewerToolId } from './reviewSessionProtocol';
 import { readInstalledReviewerBinding } from './installedReviewer';
-import { readWorkflowKitRunnerBinding } from './workflowKitRunner';
+import { readWorkflowKitRunnerBinding, type VerifiedWorkflowKitInstallation } from './workflowKitRunner';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { isGitPanelRequest, isGitWriteAction, isGitRefName } from '../git/gitProtocol';
@@ -112,8 +113,36 @@ interface WorkflowCliPreparation {
   prompt: string;
   skill: { name: string; path: string };
   reviewerRuntimeRoots?: string[];
+  review?: { tool: ReviewerToolId; requestId: string; runtimeRoot: string; workspace: string; repository: string };
   finish?: () => Promise<void>;
   rollback?: () => Promise<void>;
+  reset?: () => Promise<void>;
+  verifyHandoff?: () => Promise<void>;
+}
+
+interface TrackedCodexRun {
+  source: CodexCliSource;
+  key: string;
+  nativeReviewKey?: string;
+  scope: string;
+  operationId?: string;
+  summary: CodexCliRunSummary;
+  blocking: boolean;
+  handedOff?: boolean;
+  terminal?: vscode.Terminal;
+  close?: () => Promise<void>;
+  cleanup?: () => Promise<boolean>;
+  reset?: () => Promise<void>;
+}
+
+interface PreparedNativeReview {
+  prompt: string;
+  reviewRequestId: string;
+  runtimeRoot: string;
+  workspace: string;
+  repository: string;
+  runner?: WorkflowKitRunnerBinding;
+  verifyHandoff: () => Promise<void>;
 }
 
 interface CliMergeRequestBinding {
@@ -149,6 +178,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private codexTerminal?: CodexTerminal;
   private readonly cliTerminals = new Map<vscode.Terminal, { gitLab: boolean; close: () => Promise<void> }>();
   private readonly cliSettlements = new Set<Promise<void>>();
+  private readonly codexReviewLeases = new CodexReviewLeasePool();
+  private readonly cliRuns = new Map<string, TrackedCodexRun>();
+  private cliInputQueue: Promise<unknown> = Promise.resolve();
   private cliShuttingDown = false;
   private readonly bmadAutoBuildProofs = new Map<string, NonNullable<BmadWorkflowSnapshot['autoBuild']>>();
   private projectEnvironmentSnapshots?: ProjectEnvironmentSnapshotCache;
@@ -166,7 +198,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private readonly accountLoginReceipts = new Map<string, Extract<WorkspaceResponse, { type: 'accountLoginResult' }>>();
   private localWorkspaceRepositories: ScannedRepository[] = [];
   private reviewerNativeRepositories: ScannedRepository[] = [];
-  private reviewerWorkspaceFolders?: { signature: string; folders: string[] };
+  private reviewerWorkspaceFolders?: { signature: string; folders: string[]; inventoryRevision: string };
+  private inventoryTask?: { revision: string; task: Promise<void> };
+  private inventoryRefreshEpoch = 0;
   private repositoryScan: RepositoryScanState = { status: 'idle', checkedDirectories: 0, repositories: [], errors: [], excludes: DEFAULT_SCAN_EXCLUDES };
   private repositoryScanAbort?: AbortController;
   private repositoryOperationAbort?: AbortController;
@@ -266,8 +300,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private currentUser?: GitLabUser;
   private projectRootSelecting = false;
   private workflowKitRefreshGeneration = 0;
-  private workflowKitRefreshTask?: { signature: string; projects: GitLabProject[]; installing: boolean; signal?: AbortSignal; task: Promise<void> };
-  private workflowKitInstallRefreshTask?: { signature: string; installing: boolean; signal?: AbortSignal; task: Promise<void> };
+  private workflowKitRefreshTask?: { signature: string; projects: GitLabProject[]; installing: boolean; signal?: AbortSignal; task: Promise<WorkflowKitStatusProof | undefined> };
+  private workflowKitInstallRefreshGeneration?: number;
+  private workflowKitInstallRefreshTask?: { signature: string; installing: boolean; signal?: AbortSignal; task: Promise<WorkflowKitStatusProof | undefined> };
   private operationTracker?: OperationTracker;
   private get operations(): OperationTracker { return this.operationTracker ??= new OperationTracker(operation => {
     this.notifications.recordOperation(operation);
@@ -960,7 +995,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private assertCodexEnvironmentTransitionAllowed(gitLabOnly = false): void {
-    if (this.cliTerminals && [...this.cliTerminals.values()].some(terminal => !gitLabOnly || terminal.gitLab)) {
+    if (this.cliTerminals && [...this.cliTerminals.values()].some(terminal => !gitLabOnly || terminal.gitLab)
+        || this.cliRuns && [...this.cliRuns.values()].some(run => run.blocking && (!gitLabOnly || run.source.kind === 'merge-request'))) {
       throw new Error('目前有 Codex CLI 終端執行中，關閉後才能切換環境。');
     }
   }
@@ -1605,6 +1641,8 @@ export class WorkspacePanel implements vscode.Disposable {
         else await this.refresh({ forceNetwork: true, forceRepositories: true, refreshGitSnapshot: true, reason: 'manual' });
         break;
       case 'runCodexCli': await this.runCodexCli(request.source); break;
+      case 'resetCodexCliRun': await this.resetCodexCliRun(request.runId); break;
+      case 'showCodexCliTerminal': this.currentCodexRun(request.runId)?.terminal?.show(); break;
       case 'codexCliSettings': await this.configureCodexCli(request.action); break;
       case 'refreshBmad': {
         if (request.probeBuildAuto) await this.checkBmadBuildAuto();
@@ -1958,6 +1996,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.gitRepositories?.setActivePanelRepository(undefined);
     this.bmad?.setContext(this.projectContext?.root, this.projectContext?.revision, false);
     this.inventoryGeneration++;
+    this.inventoryTask = undefined;
     this.refreshAbort?.abort(); this.requestGeneration++;
     this.previewAbort?.abort(); this.previewGeneration++;
     this.issueOpenAbort?.abort(); this.issueOpenGeneration++;
@@ -1999,6 +2038,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.requestGeneration++;
     this.busy = false;
     this.inventoryGeneration++;
+    this.inventoryTask = undefined;
     this.repositoryScanAbort?.abort();
     this.previewAbort?.abort(); this.previewGeneration++;
     this.issueOpenAbort?.abort(); this.issueOpenGeneration++;
@@ -2275,7 +2315,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (dashboard) {
       this.dashboardSections = { local: { status: 'loading' }, gitlab: this.session.baseUrl ? { status: 'loading' } : { status: 'idle' } };
       this.sendSnapshot();
-      void this.refreshDashboardLocal(generation, signal, current);
+      void this.refreshDashboardLocal(generation, signal, current, options.forceRepositories);
     } else {
       this.busy = true;
       this.setBusyOwner(busyOwner, '正在更新目前頁面');
@@ -2286,7 +2326,7 @@ export class WorkspacePanel implements vscode.Disposable {
         if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return;
         if (mode === 'sa') {
           await this.refreshWorkflowKit(true, signal);
-          if (current()) await this.refreshInventory();
+          if (current()) await this.refreshInventory(options.forceRepositories);
         } else if (mode === 'bmad') {
           await this.refreshBmadWorkflow(true);
         } else if (mode === 'git') {
@@ -2304,7 +2344,7 @@ export class WorkspacePanel implements vscode.Disposable {
           this.projectContext = context;
           this.groupRoot = context.root; this.cloneRoot = context.root;
           this.workspaceRootError = context.error;
-          await this.refreshInventory();
+          await this.refreshInventory(options.forceRepositories);
         }
         return;
       }
@@ -2392,7 +2432,7 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private async refreshDashboardLocal(generation: number, signal: AbortSignal, current: () => boolean): Promise<void> {
+  private async refreshDashboardLocal(generation: number, signal: AbortSignal, current: () => boolean, forceInventory = false): Promise<void> {
     if (getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) {
       this.dashboardSections = { ...this.dashboardSections, local: { status: 'idle' } };
       this.sendSnapshot(); return;
@@ -2406,11 +2446,17 @@ export class WorkspacePanel implements vscode.Disposable {
       this.workspaceRootError = context.error;
       // Repo inventory is the dashboard's core content. A missing Python runtime or a
       // slow WorkflowKit status helper must never hold this section in a loading state.
-      if (context.root) void this.refreshWorkflowKitInstallState(false, signal).catch(error => {
-        if (!signal.aborted) this.workflowKit.setStatusError(readableError(error), context.revision);
-      });
-      else this.workflowKit.setContext({ revision: context.revision, manual: context.manual, error: context.error });
-      await this.refreshInventory();
+      if (context.root) {
+        const status = this.refreshWorkflowKitInstallState(false, signal);
+        const installGeneration = this.workflowKitInstallRefreshGeneration;
+        void status.catch(error => {
+          if (current() && !signal.aborted && generation === this.requestGeneration &&
+              installGeneration === this.workflowKitInstallRefreshGeneration) {
+            this.workflowKit.setStatusError(readableError(error), context.revision);
+          }
+        });
+      } else this.workflowKit.setContext({ revision: context.revision, manual: context.manual, error: context.error });
+      await this.refreshInventory(forceInventory);
       if (!current() || signal.aborted || generation !== this.requestGeneration) return;
       this.dashboardSections = { ...this.dashboardSections, local: { status: 'ready' } };
     } catch (error) {
@@ -2674,7 +2720,7 @@ export class WorkspacePanel implements vscode.Disposable {
     catch (error) { throw reportWorkflowLeaseError(error, action, 'admission', this.session?.log); }
   }
 
-  private async releaseCodexLeases(leases: Iterable<CodexWorkspaceLease>, action: string): Promise<void> {
+  private async releaseCodexLeases(leases: Iterable<CodexLeaseHandle>, action: string): Promise<boolean> {
     const results = await Promise.allSettled([...leases].reverse().map(lease => lease.release()));
     let failed = false;
     for (const result of results) {
@@ -2683,6 +2729,7 @@ export class WorkspacePanel implements vscode.Disposable {
       reportWorkflowLeaseError(result.reason, action, 'cleanup', this.session?.log);
     }
     if (failed) this.post({ type: 'message', message: '工作區執行鎖清理待重試，請查看 Log。' });
+    return !failed;
   }
 
   private getCodexTerminal(): CodexTerminal {
@@ -2699,9 +2746,13 @@ export class WorkspacePanel implements vscode.Disposable {
     return { powerShell: config.inspect<string>('codex.pwshPath')?.globalValue ?? '' };
   }
 
-  private openManualCodexTerminal(cwd: string, powerShell: string, check: () => void): Promise<ManualCodexTerminal> {
+  private openManualCodexTerminal(cwd: string, powerShell: string, check: () => void, title?: string): Promise<ManualCodexTerminal> {
     return openManualCodexTerminal(vscode, { cwd, powerShell, beforeCreate: check,
-      script: this.context.asAbsolutePath('resources/codex-manual-launch.ps1') });
+      script: this.context.asAbsolutePath('resources/codex-manual-launch.ps1'), title });
+  }
+
+  private prepareCodexPowerShell(cwd: string, configured: string): Promise<string> {
+    return process.platform === 'win32' && !vscode.env.remoteName ? resolveCodexPowerShell(configured, cwd) : Promise.resolve(configured);
   }
 
   private async configureCodexCli(action: 'check' | 'login' | 'executable'): Promise<void> {
@@ -2717,11 +2768,102 @@ export class WorkspacePanel implements vscode.Disposable {
     this.post({ type: 'codexCliStatus', ...status });
   }
 
+  private codexRunScope(source: CodexCliSource): string {
+    return this.actionScope({ type: 'runCodexCli', source });
+  }
+
+  private currentCodexRun(id: string): TrackedCodexRun | undefined {
+    const run = this.cliRuns.get(id);
+    return run && run.scope === this.codexRunScope(run.source) ? run : undefined;
+  }
+
+  private setCodexRunState(run: TrackedCodexRun, state: CodexCliRunState, error?: string): void {
+    run.summary = { ...run.summary, state, error, terminalAvailable: !!run.terminal && !run.terminal.exitStatus };
+    if (this.panel) this.sendSnapshot();
+  }
+
+  private forgetCodexRun(run: TrackedCodexRun): void {
+    this.cliRuns.delete(run.summary.runId);
+    if (this.panel) this.sendSnapshot();
+  }
+
+  private async resetCodexCliRun(id: string): Promise<void> {
+    const run = this.currentCodexRun(id);
+    if (!run || run.summary.state !== 'failed' && run.summary.state !== 'unconfirmed') return;
+    this.setCodexRunState(run, 'resetting');
+    try {
+      await run.close?.();
+      if (run.cleanup && !await run.cleanup()) {
+        this.setCodexRunState(run, 'unconfirmed', '執行終止或鎖清理仍待核對，請查看 Log。');
+        return;
+      }
+      await run.reset?.();
+      if (run.operationId) this.operations.resolveUnknown(run.operationId, { status: 'failed', effect: run.handedOff ? 'applied' : 'none' });
+      this.forgetCodexRun(run);
+    } catch (error) {
+      this.setCodexRunState(run, 'unconfirmed', readableError(error));
+      throw error;
+    }
+  }
+
+  private withCodexInput<T>(select: () => Promise<T>): Promise<T> {
+    const task = this.cliInputQueue.then(select);
+    this.cliInputQueue = task.catch(() => undefined);
+    return task;
+  }
+
+  private async reserveNativeReview(run: TrackedCodexRun, tool: ReviewerToolId, runtime: string, requestId: string,
+    projectRoot: string, check: () => void): Promise<boolean> {
+    const canonical = await canonicalRuntime(runtime, projectRoot);
+    check();
+    const key = JSON.stringify([tool, localPathKey(canonical), requestId]);
+    const active = [...this.cliRuns.values()].find(value => value !== run && value.blocking && value.nativeReviewKey === key);
+    if (active) {
+      if (active.scope === run.scope && active.terminal && !active.terminal.exitStatus) active.terminal.show();
+      else this.post({ type: 'message', message: '同一份審查正在準備、執行或等待清理。' });
+      this.noteOutcome({ status: 'cancelled', effect: 'none' });
+      return false;
+    }
+    if (run.nativeReviewKey && run.nativeReviewKey !== key) throw new Error('恢復審查的 runtime 已變更，請重新執行。');
+    run.nativeReviewKey = key;
+    return true;
+  }
+
   private async runCodexCli(source: CodexCliSource): Promise<void> {
+    const tool = codexReviewerTool(source);
+    const scope = this.codexRunScope(source);
+    const repo = tool && source.kind === 'skill' ? source.inputs[`${source.featureId}.repo`] : undefined;
+    const key = JSON.stringify([codexCliResourceKey(source), repo && localPathKey(repo)]);
+    const previous = [...this.cliRuns.values()].find(value => value.scope === scope && value.key === key && value.blocking);
+    if (previous) {
+      previous.terminal?.show();
+      this.noteOutcome({ status: 'cancelled', effect: 'none' });
+      return;
+    }
+    const label = tool === 'merge-reviewer' ? 'MergeReviewer' : tool === 'release-reviewer' ? 'ReleaseReviewer'
+      : source.kind === 'bmad' ? 'BMAD' : 'Codex CLI';
+    const title = source.kind === 'merge-request' ? `${label} · MR !${source.iid}` : repo ? `${label} · ${path.basename(repo)}` : label;
+    const run: TrackedCodexRun = { key, scope, source, operationId: this.operationContext.getStore(), blocking: true,
+      summary: { runId: randomUUID(), title, state: 'preparing', source: source.kind, tool,
+        ...(source.kind === 'merge-request' ? { projectId: source.projectId, iid: source.iid } : {}) } };
+    this.cliRuns.set(run.summary.runId, run);
+    this.setCodexRunState(run, 'preparing');
+    try { await this.launchCodexCli(source, run); }
+    catch (error) {
+      run.blocking = !!run.cleanup;
+      if (run.summary.state !== 'unconfirmed') this.setCodexRunState(run, 'failed', readableError(error));
+      throw error;
+    } finally {
+      if (run.summary.state === 'preparing' || run.summary.state === 'waiting-for-enter') this.forgetCodexRun(run);
+    }
+  }
+
+  private async launchCodexCli(source: CodexCliSource, tracked: TrackedCodexRun): Promise<void> {
     if (!vscode.workspace.isTrusted) throw new Error('請先信任此 VS Code 工作區，才能執行 Codex CLI。');
     const context = await this.resolveProjectContext();
     if (!context.root) throw new Error('請先選擇專案根目錄。');
     this.projectContext = context;
+    tracked.scope = this.codexRunScope(source);
     const root = await realpath(context.root);
     const gitLab = source.kind === 'merge-request';
     const checkAccess = this.captureProjectAccess(gitLab);
@@ -2730,27 +2872,55 @@ export class WorkspacePanel implements vscode.Disposable {
       checkAccess();
       manual?.signal.throwIfAborted();
       if (this.disposed || this.cliShuttingDown || !vscode.workspace.isTrusted) throw new Error('工作區已關閉或信任狀態已變更。');
+      if (gitLab && (!this.projectContext?.root || !sameLocalPath(this.projectContext.root, root))) {
+        throw new Error('專案根目錄已變更，請重新執行審查。');
+      }
     };
-    const mr = source.kind === 'merge-request' ? await this.readCliMergeRequest(source, check) : undefined;
+    if (source.kind === 'review' && source.action === 'resume') {
+      const review = await this.locateReviewSession(source);
+      if (!await this.reserveNativeReview(tracked, source.tool, review.root, source.requestId, root, check)) return;
+    }
     const terminalHost = this.getCodexTerminal();
-    const selection = await terminalHost.choose(this.codexExecutableSetting(), root);
-    if (!selection) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
-    check();
-    let localRepository: string | undefined;
-    if (mr) {
-      const candidates = await this.linkedRepositoryCandidates(mr.project);
+    const initialSetting = this.codexManualStartSetting();
+    if (initialSetting) void this.prepareCodexPowerShell(root, initialSetting.powerShell).catch(() => undefined);
+    const pinnedMr = source.kind === 'merge-request' ? await this.readCliMergeRequest(source, check) : undefined;
+    const candidateRevision = this.inventoryRevision();
+    const initialCandidates = pinnedMr ? this.linkedRepositoryCandidates(pinnedMr.project) : Promise.resolve([]);
+    void initialCandidates.catch(() => undefined);
+    const choice = await this.withCodexInput(async () => {
       check();
-      localRepository = candidates[0];
-      if (candidates.length > 1) {
-        const picked = await vscode.window.showQuickPick(candidates.map(candidate => ({ label: path.basename(candidate), description: candidate })),
-          { title: '選擇 MR 來源的本機 Repo', matchOnDescription: true, ignoreFocusOut: true });
-        if (!picked) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
-        localRepository = picked.description;
+      const selection = await terminalHost.choose(this.codexExecutableSetting(), root);
+      if (!selection) return;
+      const mr = pinnedMr;
+      check();
+      let localRepository: string | undefined;
+      if (mr) {
+        let candidates: string[] = [];
+        if (candidateRevision === this.inventoryRevision()) {
+          candidates = await initialCandidates.catch(error => {
+            if (candidateRevision === this.inventoryRevision()) throw error;
+            return [];
+          });
+        }
+        if (candidateRevision !== this.inventoryRevision()) candidates = await this.linkedRepositoryCandidates(mr.project);
+        check();
+        localRepository = candidates[0];
+        if (candidates.length > 1) {
+          const picked = await vscode.window.showQuickPick(candidates.map(candidate => ({ label: path.basename(candidate), description: candidate })),
+            { title: '選擇 MR 來源的本機 Repo', matchOnDescription: true, ignoreFocusOut: true });
+          if (!picked) return;
+          localRepository = picked.description;
+        }
       }
       check();
-    }
-    const leases = new Map<string, CodexWorkspaceLease>();
+      return { selection, mr, localRepository };
+    });
+    if (!choice) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
+    const { selection, mr, localRepository } = choice;
+    const reviewer = codexReviewerTool(source);
+    const leases = new Map<string, CodexLeaseHandle>();
     const recovery: WindowsLeaseToken[] = [];
+    let privateLease: CodexWorkspaceLease | undefined;
     const hold = async (directory: string, missingLeaf = false) => {
       const actual = await realpath(directory).catch(async error => {
         if (!missingLeaf || (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
@@ -2758,11 +2928,22 @@ export class WorkspacePanel implements vscode.Disposable {
       });
       const key = codexLeaseKey(actual);
       if (leases.has(key)) return;
-      const lease = await this.acquireCodexLease(path.join(networkRuntimeRoot(), 'codex-workspaces', `${key}.lock`), 'runCodexCli');
+      const leasePath = path.join(networkRuntimeRoot(), 'codex-workspaces', `${key}.lock`);
+      const open = () => this.acquireCodexLease(leasePath, 'runCodexCli');
+      const lease = reviewer ? await this.codexReviewLeases.acquire(leasePath, open) : await open();
       leases.set(key, lease);
-      if (lease.recovery) recovery.push(lease.recovery);
+      if (lease.recovery) {
+        if (reviewer && !privateLease) {
+          privateLease = await this.acquireCodexLease(path.join(networkRuntimeRoot(), 'codex-workspaces',
+            `${codexLeaseKey(`run:${tracked.summary.runId}`)}.lock`), 'runCodexCli');
+          if (!privateLease.recovery) throw new Error('無法監督本次 Codex CLI 程序。');
+          recovery.push(privateLease.recovery);
+        }
+        recovery.push(lease.recovery);
+      }
     };
-    const release = () => this.releaseCodexLeases(leases.values(), 'runCodexCli');
+    const release = async () => (!privateLease || await this.releaseCodexLeases([privateLease], 'runCodexCli')) &&
+      await this.releaseCodexLeases(leases.values(), 'runCodexCli');
     let prepared: WorkflowCliPreparation | undefined;
     const rollback = async () => {
       try { await withWindowsExecutionLeases(recovery, async () => { await prepared?.rollback?.(); }); }
@@ -2773,14 +2954,17 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       const setting = this.codexManualStartSetting();
       if (setting) {
-        const pending = await this.openManualCodexTerminal(root, setting.powerShell, check);
+        const pending = await this.openManualCodexTerminal(root, setting.powerShell, check, tracked.summary.title);
         manual = pending;
+        tracked.terminal = pending.terminal;
         const preparation = new Promise<void>(resolve => { preparationDone = resolve; });
         this.cliTerminals.set(pending.terminal, { gitLab, close: async () => {
           try { pending.close(); } finally { await preparation; }
         } });
+        tracked.close = this.cliTerminals.get(pending.terminal)?.close;
         check();
         this.operationPhase('runCodexCli', '等待在工作終端按 Enter…');
+        this.setCodexRunState(tracked, 'waiting-for-enter');
         pending.terminal.show();
         if (!await pending.requested) {
           this.noteOutcome({ status: 'cancelled', effect: 'none' });
@@ -2788,13 +2972,14 @@ export class WorkspacePanel implements vscode.Disposable {
         }
         check();
         this.operationPhase('runCodexCli', '正在準備 Codex 工作…');
+        this.setCodexRunState(tracked, 'preparing');
       }
       await hold(root);
       await withWindowsExecutionLeases(recovery, async () => {
         if (source.kind === 'merge-request' && mr) {
           const current = await this.readCliMergeRequest(source, check);
           this.assertCliMergeRequestUnchanged(mr, current);
-          prepared = await this.prepareCliMergeRequest(source, current, localRepository, check, hold);
+          prepared = await this.prepareCliMergeRequest(source, current, root, localRepository, check, hold, manual?.signal);
         } else if (source.kind === 'skill') {
           prepared = await this.prepareSkillGuideTask(source);
           if (prepared.skill.name === 'codebase-wiki') {
@@ -2819,6 +3004,10 @@ export class WorkspacePanel implements vscode.Disposable {
       });
       const run = prepared;
       if (!run) throw new Error('Codex CLI 工作準備未完成。');
+      if (run.review && !await this.reserveNativeReview(tracked, run.review.tool, run.review.runtimeRoot, run.review.requestId, root, check)) {
+        manual?.reject();
+        return;
+      }
       const cwd = run.executionRoot ?? run.root;
       await hold(cwd);
       const common = (await withWindowsExecutionLeases(recovery,
@@ -2846,35 +3035,90 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       if (source.kind === 'merge-request' && mr) this.assertCliMergeRequestUnchanged(mr, await this.readCliMergeRequest(source, check));
       check();
+      let cleanInput: (() => Promise<void>) | undefined;
       const terminal = await terminalHost.launch(selection, { title: run.title, cwd, writableRoots: run.writableRoots,
         prompt: `${rules}請從已安裝位置讀取 ${JSON.stringify(run.skill.path)}，按下列工作要求執行。\n\n${run.prompt}` },
-        { beforeCreate: check, show: false, manual, ...(recovery.length ? { leases: recovery } : {}) });
+        { beforeCreate: async () => { check(); await run.verifyHandoff?.(); check(); }, show: false, manual, onInput: cleanup => { cleanInput = cleanup; },
+          ...(recovery.length ? { leases: recovery } : {}) });
       launched = true;
+      tracked.handedOff = true;
+      tracked.terminal = terminal;
+      tracked.reset = run.reset;
+      this.setCodexRunState(tracked, 'running');
       let closing = false;
+      let confirmed = false;
+      let reviewError: string | undefined;
+      const inspectReview = async () => {
+        const review = run.review;
+        if (!review) return;
+        const job = await readReviewJob(review.runtimeRoot, review.requestId, review.workspace, [review.repository], review.tool)
+          .catch(() => undefined);
+        if (!job || job.state !== 'failed' || reviewError || !this.cliRuns.has(tracked.summary.runId)) return;
+        reviewError = job.error || '審查已停止。';
+        if (tracked.summary.state === 'running') this.setCodexRunState(tracked, 'failed', reviewError);
+        const detail = job.git_coordination;
+        if (detail && typeof detail.code === 'string' && typeof detail.lock_path === 'string') {
+          this.session?.log?.record({ feature: 'workflow', action: 'reviewGit', result: 'error', coordinationCode: detail.code,
+            coordinationPhase: detail.phase === 'admission' || detail.phase === 'cleanup' ? detail.phase : undefined,
+            leaseKind: 'git', leasePath: detail.lock_path, systemCode: Number.isInteger(detail.native_code) ? `Win32 ${detail.native_code}` : undefined,
+            message: reviewError });
+        }
+      };
+      const watcher = run.review && vscode.workspace.createFileSystemWatcher?.(new vscode.RelativePattern(
+        run.review.runtimeRoot, `jobs/${run.review.requestId}.json`));
+      const inspect = () => { void inspectReview().catch(() => undefined); };
+      watcher?.onDidCreate(inspect);
+      watcher?.onDidChange(inspect);
+      inspect();
+      const clean = async () => {
+        if (!confirmed) {
+          if (privateLease?.recovery) confirmed = await this.releaseCodexLeases([privateLease], 'runCodexCli');
+          else if (!reviewer && leases.size && [...leases.values()].every(lease => lease.recovery)) confirmed = await release();
+          else if (!manual) confirmed = await confirmCodexTerminalExit(terminal, vscode.TerminalExitReason.Process);
+          if (!confirmed) return false;
+        }
+        const released = await release();
+        if (released) await cleanInput?.();
+        return released;
+      };
       const settleNow = async () => {
         listener?.dispose();
+        watcher?.dispose();
         try {
           const result = manual && await manual.completion;
-          if (result ? result.state === 'unknown' : !await confirmCodexTerminalExit(terminal, vscode.TerminalExitReason.Process)) {
-            await this.releaseCodexLeases([...leases.values()].filter(lease => lease.recovery), 'runCodexCli');
+          confirmed = result ? result.state !== 'unknown' : await confirmCodexTerminalExit(terminal, vscode.TerminalExitReason.Process);
+          await inspectReview();
+          let failure = reviewError;
+          if (result?.state === 'not-started') {
+            await rollback();
+            failure ??= 'Codex CLI 程序未啟動。請查看工作終端。';
+          }
+          const exitCode = result?.state === 'exited' ? result.code : !result ? terminal.exitStatus?.code : undefined;
+          if (!closing && exitCode !== undefined && exitCode !== 0) failure ??= `Codex CLI 結束，代碼 ${exitCode}。`;
+          try {
+            if (!closing && exitCode === 0) await withWindowsExecutionLeases(recovery, async () => { await run.finish?.(); });
+          } catch (error) { failure ??= readableError(error); }
+          tracked.cleanup = clean;
+          let cleaned = false;
+          try { cleaned = await clean(); } catch (error) { failure ??= readableError(error); }
+          if (!cleaned) {
             for (const lease of leases.values()) {
-              if (lease.recovery) continue;
+              if (confirmed || lease.recovery) continue;
               const error = new NetworkLeaseError('Codex CLI 程序停止狀態待核對。', 'terminal-exit-unconfirmed',
                 { leaseKind: 'codex', leasePath: lease.directory });
               reportWorkflowLeaseError(error, 'runCodexCli', 'cleanup', this.session?.log);
             }
-            this.post({ type: 'error', message: 'Codex CLI 終端結果待核對。請查看工作終端與 GitLab Workspace Log。' });
+            this.setCodexRunState(tracked, 'unconfirmed', failure ?? 'Codex CLI 終端或鎖的狀態待核對。請查看 Log。');
+            if (!confirmed) this.post({ type: 'error', message: 'Codex CLI 終端結果待核對。請查看工作終端與 GitLab Workspace Log。' });
             return;
           }
-          try {
-            if (result?.state === 'not-started') {
-              await rollback();
-              this.post({ type: 'error', message: 'Codex CLI 程序未啟動。請查看工作終端。' });
-            }
-            const succeeded = result ? result.state === 'exited' && result.code === 0 :
-              terminal.exitStatus?.reason === vscode.TerminalExitReason.Process && terminal.exitStatus.code === 0;
-            if (!closing && succeeded) await withWindowsExecutionLeases(recovery, async () => { await run.finish?.(); });
-          } finally { await release(); }
+          tracked.blocking = false;
+          tracked.cleanup = undefined;
+          if (tracked.summary.state === 'resetting') return;
+          if (failure || result?.state === 'unknown' || !closing && exitCode === undefined) {
+            this.setCodexRunState(tracked, 'failed', failure ?? 'Codex CLI 已停止，終端未回傳退出代碼。');
+            if (failure) this.post({ type: 'error', message: failure });
+          } else this.forgetCodexRun(tracked);
         } finally { this.cliTerminals.delete(terminal); }
       };
       let settling: Promise<void> | undefined;
@@ -2898,6 +3142,7 @@ export class WorkspacePanel implements vscode.Disposable {
         if (closed === terminal) onSettled();
       });
       this.cliTerminals.set(terminal, { gitLab, close });
+      tracked.close = close;
       if (manual) void manual.completion.then(onSettled);
       if (this.cliShuttingDown || this.disposed) await close();
       else if (!manual) {
@@ -2919,7 +3164,12 @@ export class WorkspacePanel implements vscode.Disposable {
       try {
         if (!launched) {
           if (manual) this.cliTerminals.delete(manual.terminal);
-          try { await rollback(); } finally { await release(); }
+          try { await rollback(); } finally {
+            if (!await release()) {
+              tracked.cleanup = release;
+              this.setCodexRunState(tracked, 'unconfirmed', 'Codex CLI 啟動準備的鎖待清理。請查看 Log。');
+            }
+          }
         }
       } finally { preparationDone?.(); }
     }
@@ -2994,9 +3244,12 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async prepareCliMergeRequest(source: Extract<CodexCliSource, { kind: 'merge-request' }>, binding: CliMergeRequestBinding,
-    localRepository: string | undefined, check: () => void, hold: (directory: string, missingLeaf?: boolean) => Promise<void>): Promise<WorkflowCliPreparation> {
-    await this.assertWorkflowKitReady(); check();
-    if (localRepository) await hold(localRepository);
+    root: string, localRepository: string | undefined, check: () => void,
+    hold: (directory: string, missingLeaf?: boolean) => Promise<void>, signal?: AbortSignal): Promise<WorkflowCliPreparation> {
+    check();
+    if (localRepository) { await hold(localRepository); check(); }
+    const statusProof = await this.assertWorkflowKitReady(source.reviewerTool, root, check);
+    check();
     const baseUrl = this.session.baseUrl!;
     const account = this.session.accounts?.find(value => value.id === this.session.activeAccountId);
     const accountKey = workflowHash(JSON.stringify([account?.baseUrl ?? baseUrl, this.session.activeAccountId, account?.userId ?? this.currentUser?.id]));
@@ -3005,7 +3258,11 @@ export class WorkspacePanel implements vscode.Disposable {
     const networkEnvironment = createScopedGitEnvironment(binding.project.http_url_to_repo, credentials.token);
     const headRef = `refs/merge-requests/${source.iid}/head`;
     const cache = await ensureManagedRepositoryCache({ storage, accountKey, baseUrl, project: binding.project, localRepository,
-      sourceSha: binding.head, sourceRef: headRef, networkEnvironment, beforeAccess: async root => { check(); await hold(root, true); } });
+      sourceSha: binding.head, sourceRef: headRef, base: { sha: binding.base, ref: `refs/heads/${binding.targetBranch}` },
+      networkEnvironment, signal, assertCurrent: check, beforeAccess: async root => { check(); await hold(root, true); } });
+    check();
+    this.assertCliMergeRequestUnchanged(binding, await this.readCliMergeRequest(source, check));
+    await this.workflowKit.assertInstallationCurrent(statusProof);
     check();
     const id = randomUUID().replaceAll('-', '');
     const prefix = `workbench/mr-${source.iid}-${id}`;
@@ -3018,9 +3275,7 @@ export class WorkspacePanel implements vscode.Disposable {
     };
     const runtimeDirectory = path.join(storage, 'codex-cli-reviews', id);
     try {
-      await withWorkflowExecution({ networkEnvironment, assertCurrent: check }, async () => {
-        await ensureLocalCommit(cache.root, binding.base, { remote: cache.remote, ref: `refs/heads/${binding.targetBranch}` });
-        await ensureLocalCommit(cache.root, binding.head, { remote: cache.remote, ref: headRef });
+      await withWorkflowExecution({ assertCurrent: check }, async () => {
         for (const { name, sha } of refs) {
           await workflowGit(cache.root, ['update-ref', name, sha, '']);
           if ((await workflowGit(cache.root, ['rev-parse', '--verify', `${name}^{commit}`])).trim() !== sha) throw new Error('本機審查 refs 與 MR 固定版本不符。');
@@ -3035,7 +3290,7 @@ export class WorkspacePanel implements vscode.Disposable {
       const feature = source.reviewerTool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
       const run = await this.prepareSkillGuideTask({ featureId: feature, revision: skills.revision,
         inputs: { [`${feature}.repo`]: cache.root, [`${feature}.base`]: `${prefix}-base`, [`${feature}.head`]: `${prefix}-head` } }, id,
-        { name: binding.project.path_with_namespace, path: cache.root, workspaceFile });
+        { name: binding.project.path_with_namespace, path: cache.root, workspaceFile }, false, statusProof);
       const runtime = source.reviewerTool === 'merge-reviewer' ? skills.reviewRuntimeRoot : skills.releaseReviewRuntimeRoot;
       if (!runtime) throw new Error('請先準備 Reviewer 的本機執行目錄。');
       const workspace = skills.workspaceRoot ?? run.root;
@@ -3045,6 +3300,15 @@ export class WorkspacePanel implements vscode.Disposable {
       run.writableRoots[0] = cache.root;
       run.prompt += `\n\nMR !${source.iid} 的目標 SHA 固定為 ${binding.base}，來源 SHA 固定為 ${binding.head}。只處理所選 Repo 的本機審查，完成後在終端列印 ${JSON.stringify(reportDirectory)} 下實際產生的報告路徑。GitLab 留言、核准、合併與推送由使用者在原入口操作。`;
       run.rollback = discardRefs;
+      run.reset = async () => {
+        const jobPath = path.join(runtime, 'jobs', `${id}.json`);
+        if (!await ownedStoragePath(runtime, jobPath)) {
+          await discardRefs();
+          return;
+        }
+        const job = await readReviewJob(runtime, id, workspace, [cache.root], source.reviewerTool);
+        if (['failed', 'cancelled'].includes(job.state) && !job.context_retained && !job.cleanup_pending) await discardRefs();
+      };
       run.finish = async () => {
         if (!await ownedStoragePath(runtime, path.join(runtime, 'jobs', `${id}.json`))) return;
         const job = await readReviewJob(runtime, id, workspace, [cache.root], source.reviewerTool);
@@ -3060,8 +3324,10 @@ export class WorkspacePanel implements vscode.Disposable {
   }
   private async copySkillGuidePrompt(request: Extract<WorkspaceRequest, { type: 'copySkillGuidePrompt' }>): Promise<void> {
     if (request.featureId === 'ingest') throw new Error('建立／更新 Repo Wiki 請從工作流程頁啟動 Codex CLI。');
-    const prepared = await this.prepareSkillGuideTask(request);
+    const prepared = await this.prepareSkillGuideTask(request, undefined, undefined, true);
     this.operationPhase('copySkillGuidePrompt', '寫入剪貼簿…');
+    await prepared.verifyHandoff?.();
+    if (request.revision !== this.getSkillsContext().revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認表單。');
     await vscode.env.clipboard.writeText(prepared.prompt);
     this.post({ type: 'message', message: '已複製目前環境的 Skills 提示詞。' });
   }
@@ -3078,29 +3344,37 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async prepareNativeReviewCli(source: Extract<CodexCliSource, { kind: 'review' }>): Promise<WorkflowCliPreparation> {
-    await this.refreshWorkflowKit();
+    const proof = this.getSkillsContext().installed.status === 'installed' ? undefined : await this.refreshWorkflowKit();
     const skills = this.getSkillsContext();
-    const result = await this.controlReviewSession(source, source.action, true);
+    const result = await this.controlReviewSession(source, source.action, true, proof);
     if (!result || !skills.root) throw new Error('無法準備原生審查。');
-    const binding = await readInstalledReviewerBinding(skills.root, source.tool);
-    const workspace = skills.workspaceRoot ?? skills.root;
-    const job = await readReviewJob(result.originalRuntimeRoot ?? result.runtimeRoot, source.requestId, workspace,
-      (skills.reviewerRepositories ?? []).map(repository => repository.path), source.tool);
-    const runtimeRoots = await this.reviewerCliRoots(result.runtimeRoot, skills.root, binding.workflow_kit_runner);
+    const runtimeRoots = await this.reviewerCliRoots(result.runtimeRoot, skills.root, result.runner);
     const spec = await this.workflowCliSpec(`${source.action === 'resume' ? '接續' : '重新同步'} ${source.tool}`, skills.root, source.tool, result.prompt, runtimeRoots);
     spec.reviewerRuntimeRoots = runtimeRoots;
-    spec.executionRoot = job.inputs.project;
-    spec.writableRoots[0] = job.inputs.project;
+    spec.executionRoot = result.repository;
+    spec.writableRoots[0] = result.repository;
+    spec.review = { tool: source.tool, requestId: result.reviewRequestId, runtimeRoot: result.runtimeRoot,
+      workspace: result.workspace, repository: result.repository };
+    spec.verifyHandoff = result.verifyHandoff;
     return spec;
   }
 
   private async prepareSkillGuideTask(request: { featureId: string; inputs: Record<string, string>; revision: string }, requestId?: string,
-    managedRepository?: { name: string; path: string; workspaceFile: string }): Promise<WorkflowCliPreparation> {
+    managedRepository?: { name: string; path: string; workspaceFile: string }, promptOnly = false,
+    statusProof?: WorkflowKitStatusProof): Promise<WorkflowCliPreparation> {
     this.operationPhase('copySkillGuidePrompt', '核對目前環境與 Skills…');
     const previous = this.getSkillsContext();
     if (request.revision !== previous.revision) throw new Error('Skills 環境已變更，請重新確認提示詞。');
-    await this.refreshWorkflowKit();
-    if (['merge-repo', 'release-review', 'commit-draft', 'mr-precheck'].includes(request.featureId)) await this.refreshInventory();
+    const repositoryFeature = ['merge-repo', 'release-review', 'commit-draft', 'mr-precheck'].includes(request.featureId);
+    const inventorySignature = JSON.stringify((vscode.workspace.workspaceFolders ?? [])
+      .filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath));
+    const selected = request.inputs[`${request.featureId}.repo`] ?? '';
+    const warm = previous.root && previous.installed.status === 'installed' && previous.availableFeatures.includes(request.featureId) &&
+      !this.workflowKitRefreshTask && (!repositoryFeature || this.reviewerWorkspaceFolders?.signature === inventorySignature &&
+        this.reviewerWorkspaceFolders.inventoryRevision === this.inventoryRevision() &&
+        (!!managedRepository || !!resolveReviewerRepository(selected, previous.reviewerRepositories ?? [])));
+    if (!warm && repositoryFeature) await this.refreshInventory();
+    if (!warm && !statusProof) statusProof = await this.refreshWorkflowKit();
     const observed = this.getSkillsContext();
     const current = managedRepository ? { ...observed, workspaceFile: managedRepository.workspaceFile, workspaceRoot: observed.workspaceRoot ?? observed.root,
       workspaceRootAmbiguous: false,
@@ -3114,9 +3388,22 @@ export class WorkspacePanel implements vscode.Disposable {
     const repositories = repositoryTool ? current.reviewerRepositories ?? [] : current.repositories;
     const selectedRepository = repositoryTool ? resolveReviewerRepository(request.inputs[`${card.id}.repo`] ?? '', repositories) : undefined;
     if (repositoryTool && !selectedRepository) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
+    if (warm && selectedRepository) {
+      const actual = await realpath(selectedRepository.path);
+      const marker = await lstat(path.join(actual, '.git'));
+      if (!sameLocalPath(actual, selectedRepository.path) || marker.isSymbolicLink() || !marker.isFile() && !marker.isDirectory()) {
+        throw new Error('所選 Repo 已變更，請更新本機 Repo 清單。');
+      }
+    }
+    if (!current.root) throw new Error('請先選擇專案根目錄。');
+    const installation = await this.workflowKit.verifyInstallation(current.root, { reviewer, proof: statusProof });
+    const verifyHandoff = () => this.workflowKit.assertInstallationCurrent(installation.marker, card.tool);
+    if (current.installed.version && installation.marker.version !== current.installed.version) {
+      throw new Error('WorkflowKit 安裝版本已變更，請重新整理工作流程。');
+    }
     if (card.tool === 'commit-reviewer') {
-      if (!current.root || !selectedRepository || current.workspaceRootAmbiguous) throw new Error('請選擇明確的工作區及本機 Repo。');
-      const binding = await readInstalledCommitReviewer(current.root);
+      if (!selectedRepository || current.workspaceRootAmbiguous) throw new Error('請選擇明確的工作區及本機 Repo。');
+      const binding = await readInstalledCommitReviewer(current.root, installation);
       const runtime = commitReviewRuntime(current.workspaceRoot ?? current.root);
       if (this.getSkillsContext().revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認表單。');
       const inputs = { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path };
@@ -3128,15 +3415,15 @@ export class WorkspacePanel implements vscode.Disposable {
         [path.dirname(runtime)]);
       spec.writableRoots[0] = selectedRepository.path;
       spec.executionRoot = selectedRepository.path;
+      spec.verifyHandoff = verifyHandoff;
       return spec;
     }
-    const reviewerBinding = reviewer && current.root ? await readInstalledReviewerBinding(current.root, card.tool as ReviewerToolId) : undefined;
-    const workflowKitRunner = reviewerBinding?.workflow_kit_runner ?? (current.root && current.installed.status === 'installed'
-      ? await readWorkflowKitRunnerBinding(current.root) : undefined);
+    const reviewerBinding = isReviewerTool(card.tool) ? await readInstalledReviewerBinding(current.root, card.tool, installation) : undefined;
+    const workflowKitRunner = installation.runner;
     const reviewerCapabilities = reviewerBinding ? await readReviewerCapabilities(reviewerBinding,
       await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')),
-      current.workspaceRoot ?? current.root!) : undefined;
-    if (reviewer && this.getSkillsContext().revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認提示詞。');
+      current.workspaceRoot ?? current.root, installation.marker) : undefined;
+    if (this.getSkillsContext().revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認提示詞。');
     const inputs = selectedRepository ? { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path } : request.inputs;
     const context: SkillGuideContext = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
       reviewRuntimeRoot: current.reviewRuntimeRoot, releaseReviewRuntimeRoot: current.releaseReviewRuntimeRoot, reviewAuthScope: current.reviewAuthScope,
@@ -3146,8 +3433,8 @@ export class WorkspacePanel implements vscode.Disposable {
       workspaceFile: current.workspaceFile, workspaceRoot: current.workspaceRoot,
       workspaceRootAmbiguous: current.workspaceRootAmbiguous,
       repositories, repositoryScanStatus: 'ready' as const };
-    if (!current.root) throw new Error('請先選擇專案根目錄。');
     const runtime = card.tool === 'merge-reviewer' ? current.reviewRuntimeRoot : card.tool === 'release-reviewer' ? current.releaseReviewRuntimeRoot : undefined;
+    if (runtime && promptOnly) await canonicalRuntime(runtime, current.root);
     if (isReviewerTool(card.tool) && runtime && selectedRepository && supportsReviewLaunch(reviewerBinding, reviewerCapabilities)) {
       context.reviewLaunch = await saveReviewLaunchRequest({ schema: 'ReviewLaunchRequest/v1', tool: card.tool,
         request_id: context.reviewerRequestId!, workspace: current.workspaceRoot ?? current.root, project: selectedRepository.path,
@@ -3157,12 +3444,17 @@ export class WorkspacePanel implements vscode.Disposable {
         draft_format: card.tool === 'merge-reviewer' ? 'compact' : 'v3' }, 'start', !!requestId);
     }
     const prompt = `${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`;
-    const runtimeRoots = runtime ? await this.reviewerCliRoots(runtime, current.root, workflowKitRunner) : [];
+    const runtimeRoots = runtime && !promptOnly ? await this.reviewerCliRoots(runtime, current.root, workflowKitRunner) : [];
     const spec = await this.workflowCliSpec(card.title, current.root, card.tool, prompt, runtimeRoots);
-    if (runtime) spec.reviewerRuntimeRoots = runtimeRoots;
+    spec.verifyHandoff = verifyHandoff;
+    if (runtime && !promptOnly) spec.reviewerRuntimeRoots = runtimeRoots;
     if (selectedRepository) {
       spec.executionRoot = selectedRepository.path;
       spec.writableRoots[0] = selectedRepository.path;
+    }
+    if (runtime && isReviewerTool(card.tool) && context.reviewerRequestId && selectedRepository) {
+      spec.review = { tool: card.tool, requestId: context.reviewerRequestId, runtimeRoot: runtime,
+        workspace: current.workspaceRoot ?? current.root, repository: selectedRepository.path };
     }
     if (card.tool === 'codebase-wiki') {
       const helperRuntime = path.join(spec.root, '.gitlab-workspace', 'runtime');
@@ -3210,7 +3502,22 @@ export class WorkspacePanel implements vscode.Disposable {
     this.sendSnapshot();
   }
 
-  private async refreshInventory(): Promise<void> {
+  private inventoryRevision(): string {
+    return `${this.workspaceFoldersGeneration ?? 0}:${this.gitRepositories?.inventoryRevision ?? 0}:${this.inventoryRefreshEpoch ?? 0}`;
+  }
+
+  private refreshInventory(force = false): Promise<void> {
+    if (force) this.inventoryRefreshEpoch = (this.inventoryRefreshEpoch ?? 0) + 1;
+    const revision = this.inventoryRevision();
+    if (this.inventoryTask?.revision === revision) return this.inventoryTask.task;
+    const task = this.refreshInventoryNow(revision);
+    const entry = { revision, task };
+    this.inventoryTask = entry;
+    void task.finally(() => { if (this.inventoryTask === entry) this.inventoryTask = undefined; }).catch(() => undefined);
+    return task;
+  }
+
+  private async refreshInventoryNow(revision: string): Promise<void> {
     if (this.disposed || getWorkspaceCapabilities(vscode.workspace?.workspaceFolders).isVirtualWorkspace) return;
     const generation = this.inventoryGeneration = (this.inventoryGeneration ?? 0) + 1;
     const openedFolders = (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath);
@@ -3220,8 +3527,14 @@ export class WorkspacePanel implements vscode.Disposable {
           ?? Promise.resolve({ repositories: [] as ScannedRepository[] }),
         Promise.all(openedFolders.map(folder => realpath(folder).catch(() => folder)))
       ]);
-      if (generation !== this.inventoryGeneration || this.disposed) return;
-      this.reviewerWorkspaceFolders = { signature: JSON.stringify(openedFolders), folders };
+      if (this.disposed) return;
+      const current = this.inventoryRevision();
+      if (current !== revision) {
+        if (this.reviewerWorkspaceFolders?.inventoryRevision !== current) await this.refreshInventory();
+        return;
+      }
+      if (generation !== this.inventoryGeneration) return;
+      this.reviewerWorkspaceFolders = { signature: JSON.stringify(openedFolders), folders, inventoryRevision: revision };
       const registered = inventory.repositories;
       this.reviewerNativeRepositories = registered;
       const localInventory = new Map((this.repositoryScan?.repositories ?? []).map(repository => [localPathKey(repository.path), repository]));
@@ -3230,7 +3543,7 @@ export class WorkspacePanel implements vscode.Disposable {
       if ('error' in inventory) this.session.log?.record({ feature: 'projects', action: 'repositoryInventory', result: 'error', message: readableError(inventory.error) });
       this.sendSnapshot();
     } catch (error) {
-      if (generation !== this.inventoryGeneration || this.disposed) return;
+      if (generation !== this.inventoryGeneration || this.disposed || revision !== this.inventoryRevision()) return;
       this.reviewerNativeRepositories = [];
       this.sendSnapshot();
       this.session.log?.record({ feature: 'projects', action: 'repositoryInventory', result: 'error', message: readableError(error) });
@@ -3256,7 +3569,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }, [root], resume);
       if (this.disposed || this.repositoryScanAbort !== controller || workspaceGeneration !== this.workspaceFoldersGeneration) return;
       this.repositoryScan = result;
-      await this.refreshInventory();
+      await this.refreshInventory(true);
       await this.syncSidebarState?.();
       this.session.log?.record({ feature: 'projects', action: 'repositoryScanResult', result: result.status === 'cancelled' ? 'cancelled' : result.status === 'error' ? 'error' : 'success', message: `找到 ${result.repositories.length} 個 Repo，${result.errors.length} 個掃描錯誤。` });
     } catch (error) {
@@ -3941,6 +4254,7 @@ export class WorkspacePanel implements vscode.Disposable {
       localOperationScope: this.getLocalOperationScope(),
       operations: [...this.operations.list(this.operationScope()), ...this.operations.list(this.getLocalOperationScope())],
       operationSnapshot: this.operations.snapshot(),
+      codexCliRuns: [...(this.cliRuns?.values() ?? [])].filter(run => run.scope === this.codexRunScope(run.source)).map(run => run.summary),
       projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations ||
         this.cloneRootSelecting || this.projectRootSelecting || workflowKit.installing),
       dashboardSections: this.dashboardSections,
@@ -4610,7 +4924,7 @@ export class WorkspacePanel implements vscode.Disposable {
       if (this.repositoryOperationAbort === repositoryAbort) this.repositoryOperationAbort = undefined;
       this.repositoryOperationInProgress = false;
       this.projectEnvironmentSnapshots?.invalidate(root);
-      try { await this.reconcileAfterWrite(async () => { await this.refreshProjectRoot(true); await this.refreshInventory(); }); }
+      try { await this.reconcileAfterWrite(async () => { await this.refreshProjectRoot(true); await this.refreshInventory(true); }); }
       finally { this.sendSnapshot(); }
     }
   }
@@ -4758,7 +5072,7 @@ export class WorkspacePanel implements vscode.Disposable {
       progressPublisher?.dispose();
       if (this.repositoryOperationAbort === repositoryAbort) this.repositoryOperationAbort = undefined;
       this.projectEnvironmentSnapshots?.invalidate(root);
-      try { await this.reconcileAfterWrite(async () => { await this.refreshProjectRoot(true); await this.refreshInventory(); }); }
+      try { await this.reconcileAfterWrite(async () => { await this.refreshProjectRoot(true); await this.refreshInventory(true); }); }
       finally { this.repositoryOperationInProgress = false; this.sendSnapshot(); }
     }
   }
@@ -5331,10 +5645,10 @@ export class WorkspacePanel implements vscode.Disposable {
     if (revision !== skills.revision) return;
     try {
       const workspace = skills.workspaceRoot ?? skills.root;
-      const binding = skills.root ? await readInstalledReviewerBinding(skills.root, tool) : undefined;
-      const capabilities = binding && workspace ? await readReviewerCapabilities(binding,
+      const platform = skills.root && workspace ? await this.verifiedReviewer(skills.root, tool) : undefined;
+      const capabilities = platform && workspace ? await readReviewerCapabilities(platform.binding,
         await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')),
-        workspace) : undefined;
+        workspace, platform.marker) : undefined;
       if (!this.disposed && revision === this.getSkillsContext().revision) {
         this.post({ type: 'reviewerCapabilities', revision, requestId, tool, capabilities });
       }
@@ -5378,7 +5692,12 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private async controlReviewSession(request: { revision: string; requestId: string; tool: ReviewerToolId }, action: 'cancel' | 'refresh' | 'resume' | 'report', execution = false): Promise<{ prompt: string; reviewRequestId: string; runtimeRoot: string; originalRuntimeRoot?: string } | void> {
+  private async verifiedReviewer(root: string, tool: ReviewerToolId, proof?: WorkflowKitStatusProof) {
+    const installation = await this.workflowKit.verifyInstallation(root, { reviewer: true, proof });
+    return { marker: installation.marker, binding: await readInstalledReviewerBinding(root, tool, installation) };
+  }
+
+  private async locateReviewSession(request: { revision: string; requestId: string; tool: ReviewerToolId }) {
     if (!isReviewerTool(request.tool)) throw new Error('無效的審查工具。');
     const skills = this.getSkillsContext();
     const preferred = request.tool === 'merge-reviewer' ? skills.reviewRuntimeRoot : skills.releaseReviewRuntimeRoot;
@@ -5388,18 +5707,30 @@ export class WorkspacePanel implements vscode.Disposable {
     const paths = repositories.map(repo => repo.path);
     const root = await resolveReviewRuntime(preferred, request.requestId, workspace, paths, request.tool);
     const job = await readReviewJob(root, request.requestId, workspace, paths, request.tool);
-    const actions = reviewSessionActions({ state: job.state, cleanupPending: job.cleanup_pending, reportPath: job.report_path,
-      retainedContext: job.context_retained, recovery: { terminal: job.terminal === true, recoverable: job.recoverable === true } });
+    return { skills, preferred, workspace, repositories, paths, root, job };
+  }
+
+  private async controlReviewSession(request: { revision: string; requestId: string; tool: ReviewerToolId },
+    action: 'cancel' | 'refresh' | 'resume' | 'report', execution = false, statusProof?: WorkflowKitStatusProof): Promise<PreparedNativeReview | void> {
+    const { skills, preferred, workspace, repositories, paths, root, job } = await this.locateReviewSession(request);
+    const state = { tool: request.tool, state: job.state, cleanupPending: job.cleanup_pending, reportPath: job.report_path,
+      privateRefCleanupPending: job.network_log?.private_ref_cleanup_pending, retainedContext: job.context_retained,
+      recovery: { terminal: job.terminal === true, recoverable: job.recoverable === true } };
+    const actions = reviewSessionActions(state);
     if (action === 'resume' && !actions.resume) throw new Error(job.state === 'published'
       ? '這份審查已發布；請開啟既有報告。需要新證據時使用重新同步。'
       : '這份審查已終止；請檢視診斷。重新同步會建立新的 request，不恢復已終止的審查。');
-    if (action === 'cancel' && !actions.cancel) throw new Error('這份審查已結束，沒有可取消的工作。');
     if (action === 'cancel') {
+      const retryCandidate = canRetryPrivateRefs(state, true);
+      if (!actions.cancel && !retryCandidate) throw new Error('這份審查已結束，沒有可取消的工作。');
       if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
       const python = await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python'));
-      const binding = await readInstalledReviewerBinding(skills.root, request.tool);
+      const { binding, marker } = await this.verifiedReviewer(skills.root, request.tool);
+      const privateRefCleanupRetry = retryCandidate && supportsPrivateRefCleanup(await readReviewerCapabilities(binding, python, workspace, marker));
+      if (!reviewSessionActions(state, privateRefCleanupRetry).cancel) throw new Error('請更新 ReleaseReviewer 後再重試回收 Git 暫存 ref。');
+      await this.workflowKit.assertInstallationCurrent(marker, request.tool);
       await cancelReviewSession(root, request.requestId, workspace, paths, python,
-        path.join(skills.root, '.agents', 'skills'), request.tool, binding.workflow_kit_runner);
+        path.join(skills.root, '.agents', 'skills'), request.tool, binding.workflow_kit_runner, { installation: marker, privateRefCleanupRetry });
       await this.loadReviewSessions(request.revision, request.tool);
     } else if (action === 'report') {
       if (!job.report_path) throw new Error('這份審查尚未產生報告。');
@@ -5408,9 +5739,9 @@ export class WorkspacePanel implements vscode.Disposable {
     } else if (action === 'resume') {
       if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
       const script = reviewSessionScript(path.join(skills.root, '.agents', 'skills'), request.tool);
-      const binding = await readInstalledReviewerBinding(skills.root, request.tool);
+      const { binding, marker } = await this.verifiedReviewer(skills.root, request.tool, statusProof);
       const python = await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python'));
-      const capabilities = await readReviewerCapabilities(binding, python, workspace);
+      const capabilities = await readReviewerCapabilities(binding, python, workspace, marker);
       const statusCommand = capabilities?.schema === 'ReviewCapabilities/v1' && capabilities.features?.status_summary === true
         ? 'status --summary' : 'status';
       const wrapped = (argumentsText: string): string => binding.workflow_kit_runner
@@ -5443,15 +5774,19 @@ export class WorkspacePanel implements vscode.Disposable {
           reviewerRequestId: request.requestId, reviewLaunch: launch });
       }
       prompt = '本次停用 Model Routing，由目前 Agent 沿原 request 完成原生審查，沿用目前模型與強度。\n' + prompt;
-      if (execution) return { prompt, reviewRequestId: request.requestId, runtimeRoot: root };
+      const verifyHandoff = () => this.workflowKit.assertInstallationCurrent(marker, request.tool);
+      if (execution) return { prompt, reviewRequestId: request.requestId, runtimeRoot: root, workspace,
+        repository: job.inputs.project, runner: binding.workflow_kit_runner, verifyHandoff };
+      await verifyHandoff();
       await vscode.env.clipboard.writeText(prompt);
       this.post({ type: 'message', message: '已複製恢復審查指令；貼入 Codex 後沿用同份固定證據。' });
     } else {
       const cardId = request.tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
       const card = getSkillGuideCards(skills.mode === 'group' ? 'group' : 'repository').find(item => item.id === cardId)!;
-      const binding = skills.root ? await readInstalledReviewerBinding(skills.root, request.tool) : undefined;
-      const reviewerCapabilities = binding ? await readReviewerCapabilities(binding,
-        await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')), workspace) : undefined;
+      if (!skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
+      const { binding, marker } = await this.verifiedReviewer(skills.root, request.tool, statusProof);
+      const reviewerCapabilities = await readReviewerCapabilities(binding,
+        await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')), workspace, marker);
       const nextRequestId = randomUUID().replaceAll('-', '');
       const context: SkillGuideContext = { profile: skills.mode === 'group' ? 'group' : 'repository', root: skills.root,
         workspaceRoot: workspace, workspaceFile: skills.workspaceFile, repositories,
@@ -5469,7 +5804,10 @@ export class WorkspacePanel implements vscode.Disposable {
         [`${cardId}.repo`]: job.inputs.project, [`${cardId}.base`]: job.inputs.base, [`${cardId}.head`]: job.inputs.head,
       }, context);
       const refreshPrompt = (context.reviewLaunch ? prompt : prompt.replace(' start ', ' start --refresh ')) + '\n使用已準備的新 request_id，保留既有審查的固定版本與報告。';
-      if (execution) return { prompt: refreshPrompt, reviewRequestId: nextRequestId, runtimeRoot: preferred, originalRuntimeRoot: root };
+      const verifyHandoff = () => this.workflowKit.assertInstallationCurrent(marker, request.tool);
+      if (execution) return { prompt: refreshPrompt, reviewRequestId: nextRequestId, runtimeRoot: preferred, workspace,
+        repository: job.inputs.project, runner: binding.workflow_kit_runner, verifyHandoff };
+      await verifyHandoff();
       await vscode.env.clipboard.writeText(refreshPrompt);
       this.post({ type: 'message', message: '已複製重新同步審查指令；貼入 Codex 執行後才會取得新版本。' });
     }
@@ -5696,17 +6034,60 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.context.globalState.update(MR_WRITES_KEY, entries);
   }
 
-  private async assertWorkflowKitReady(): Promise<void> {
-    await this.refreshWorkflowKit();
-    const skills = this.getSkillsContext();
-    if (!skills.root || skills.mode === 'unavailable') throw new Error(skills.reason ?? '請先選擇專案資料夾。');
-    if (this.workflowKit.snapshot.installing && this.workflowKit.snapshot.installTarget.root === skills.root) {
-      throw new Error('此專案的技能包正在安裝中，請等候完成後再執行操作。');
+  private async assertWorkflowKitReady(tool: ReviewerToolId, root: string, check: () => void): Promise<WorkflowKitStatusProof> {
+    const feature = tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
+    const currentSkills = (requireRoot = false): SkillsContext => {
+      check();
+      const skills = this.getSkillsContext();
+      if (skills.root && !sameLocalPath(skills.root, root)) throw new Error('專案根目錄已變更，請重新執行審查。');
+      if (requireRoot && !skills.root) throw new Error(skills.reason ?? '請先選擇專案資料夾。');
+      const kit = this.workflowKit.snapshot;
+      if (kit.installing && kit.installTarget.root && sameLocalPath(kit.installTarget.root, root)) {
+        throw new Error('此專案的技能包正在安裝中，請等候完成後再執行操作。');
+      }
+      return skills;
+    };
+    const installedVersion = (skills: SkillsContext) => skills.installed.status === 'installed' && skills.installed.profile === skills.mode &&
+      workflowKitInterfaceCompatible(skills.installed) && workflowKitInstallationVerified(skills.installed) ? skills.installed.version : undefined;
+    const readyVersion = (skills: SkillsContext) => skills.root && skills.availableFeatures.includes(feature) ? installedVersion(skills) : undefined;
+    const verify = (expectedInstalledVersion: string, evidence: { proof?: WorkflowKitStatusProof; requireCachedProof?: boolean } = {}) =>
+      this.workflowKit.verifyInstallation(root, { reviewer: true, expectedInstalledVersion, ...evidence });
+
+    let skills = currentSkills();
+    const expectedVersion = readyVersion(skills);
+    let installation: VerifiedWorkflowKitInstallation | undefined;
+    let observedVersion: string | undefined;
+    if (expectedVersion) {
+      try { installation = await verify(expectedVersion); }
+      catch (error) {
+        if (!(error instanceof WorkflowKitVersionMismatchError)) throw error;
+        observedVersion = error.actualVersion;
+      }
     }
-    if (skills.installed.profile !== skills.mode || !workflowKitInterfaceCompatible(skills.installed) ||
-        !workflowKitInstallationVerified(skills.installed)) {
-      throw new Error(skills.reason ?? '請先在設定中安裝或更新目前專案的工作流程包。');
+    if (!installation) {
+      skills = currentSkills();
+      if (observedVersion && readyVersion(skills) === observedVersion) {
+        // Another review may have published a fresh proof while this one was reading the manifest.
+        installation = await verify(observedVersion, { requireCachedProof: true });
+      } else {
+        const proof = await this.refreshWorkflowKit();
+        skills = currentSkills(true);
+        if (skills.mode === 'unavailable') throw new Error(skills.reason ?? '請先選擇專案資料夾。');
+        const version = installedVersion(skills);
+        if (!version) throw new Error(skills.reason ?? '請先在設定中安裝或更新目前專案的工作流程包。');
+        if (!skills.availableFeatures.includes(feature)) throw new Error(skills.reason ?? '目前安裝的工作流程包不提供所選 Reviewer。');
+        if (observedVersion && version !== observedVersion) throw new WorkflowKitVersionMismatchError(version);
+        if (!proof || !sameLocalPath(proof.root, root)) throw new Error('WorkflowKit 安裝尚未通過驗證。');
+        installation = await verify(version, { proof });
+      }
     }
+    currentSkills(true);
+    if (!sameLocalPath(installation.marker.root, root)) throw new Error('專案根目錄已變更，請重新執行審查。');
+    await this.workflowKit.assertInstallationCurrent(installation.marker, tool);
+    await readInstalledReviewerBinding(root, tool, installation);
+    await this.workflowKit.assertInstallationCurrent(installation.marker);
+    currentSkills(true);
+    return installation.marker;
   }
 
   private async workflowKitHelper(root?: string): Promise<WorkflowKitHelper> {
@@ -5724,10 +6105,11 @@ export class WorkspacePanel implements vscode.Disposable {
     const helper: WorkflowKitHelper = installerPath ? { path: installerPath, version: '' }
       : await this.workflowKitHelper(args[0] === 'status' ? args[1] : undefined);
     try {
-    if (args[0] === 'status') {
+    if (args[0] === 'status' && helper.version) {
       const index = args.indexOf('--expected-version');
-      args = index >= 0 ? [...args.slice(0, index + 1), helper.version, ...args.slice(index + 2)]
-        : [...args, '--expected-version', helper.version];
+      const version = helper.version;
+      args = index >= 0 ? [...args.slice(0, index + 1), version, ...args.slice(index + 2)]
+        : [...args, '--expected-version', version];
     }
     const result = await execLeasedFile(python.executable, [...python.args, helper.path, ...args], {
       cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024
@@ -5768,25 +6150,30 @@ export class WorkspacePanel implements vscode.Disposable {
     check(); return check;
   }
 
-  private refreshWorkflowKit(publish = true, signal?: AbortSignal): Promise<void> {
+  private refreshWorkflowKit(publish = true, signal?: AbortSignal): Promise<WorkflowKitStatusProof | undefined> {
+    if (signal?.aborted) return Promise.resolve(undefined);
     const signature = this.projectContextSignature(), projects = this.projects, installing = this.workflowKit.snapshot.installing;
     const pending = this.workflowKitRefreshTask;
-    if (pending && pending.signature === signature && pending.installing === installing && !pending.signal?.aborted) return pending.task;
-    const task = this.refreshWorkflowKitNow(publish, signal);
+    if (pending && pending.signature === signature && pending.installing === installing &&
+        (!pending.signal || pending.signal === signal) && !pending.signal?.aborted) return pending.task;
+    const generation = ++this.workflowKitRefreshGeneration;
+    const environmentGeneration = ++this.skillsEnvironmentGeneration;
+    const current = () => !signal?.aborted && !this.disposed && generation === this.workflowKitRefreshGeneration && environmentGeneration === this.skillsEnvironmentGeneration &&
+      signature === this.projectContextSignature() && installing === this.workflowKit.snapshot.installing;
+    const task = Promise.resolve().then(() => this.refreshWorkflowKitNow(publish, signal, current)).catch(error => {
+      if (signal && !current()) return undefined;
+      throw error;
+    });
     const entry = { signature, projects, installing, signal, task };
     this.workflowKitRefreshTask = entry;
     void task.finally(() => { if (this.workflowKitRefreshTask === entry) this.workflowKitRefreshTask = undefined; }).catch(() => undefined);
     return task;
   }
 
-  private async refreshWorkflowKitNow(publish = true, signal?: AbortSignal): Promise<void> {
-    const generation = ++this.workflowKitRefreshGeneration;
-    const environmentGeneration = ++this.skillsEnvironmentGeneration;
-    const signature = this.projectContextSignature();
-    const installing = this.workflowKit.snapshot.installing;
-    const current = () => !signal?.aborted && !this.disposed && generation === this.workflowKitRefreshGeneration && environmentGeneration === this.skillsEnvironmentGeneration &&
-      signature === this.projectContextSignature() && installing === this.workflowKit.snapshot.installing;
+  private async refreshWorkflowKitNow(publish: boolean, signal: AbortSignal | undefined, current: () => boolean): Promise<WorkflowKitStatusProof | undefined> {
+    if (!current()) return;
     const context = await this.resolveProjectContext();
+    if (!current()) return;
     const match = context.root ? await this.inspectEnvironmentSnapshot(context.root, [], signal)
       : { status: 'unverified' as const, reason: context.error, repositories: [] };
     if (!current()) return;
@@ -5794,7 +6181,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.groupRoot = context.root; this.workspaceRootError = context.error ?? match.reason;
     this.cloneRoot = context.root;
     void this.watchRepositoryRemotes(signal);
-    await this.refreshWorkflowKitInstallState(publish, signal, { context, checked: context.root ? {
+    const proof = await this.refreshWorkflowKitInstallState(publish, signal, { context, checked: context.root ? {
       root: context.root, profile: match.profile, error: context.error ?? (match.status === 'error' ? match.reason : undefined),
       remoteFingerprint: match.repositories.find(repo => sameLocalPath(repo.path, context.root!))?.remoteFingerprint
     } : undefined });
@@ -5802,29 +6189,38 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.activeMode === 'bmad' && this.panel?.visible !== false && this.webviewReady) {
       void this.refreshBmadWorkflow().catch(error => this.post({ type: 'error', message: readableError(error) }));
     }
+    return proof;
   }
 
   /** Settings and installation need only the selected target, never its child repositories. */
   private refreshWorkflowKitInstallState(publish = true, signal?: AbortSignal,
-    prepared?: { context: ProjectRootContext; checked: Awaited<ReturnType<typeof inspectWorkflowKitInstallRoot>> | undefined }): Promise<void> {
+    prepared?: { context: ProjectRootContext; checked: Awaited<ReturnType<typeof inspectWorkflowKitInstallRoot>> | undefined }): Promise<WorkflowKitStatusProof | undefined> {
+    if (signal?.aborted) return Promise.resolve(undefined);
     const signature = this.projectContextSignature(), installing = this.workflowKit.snapshot.installing;
     const pending = this.workflowKitInstallRefreshTask;
     if (pending && pending.signature === signature && pending.installing === installing &&
         (!pending.signal || pending.signal === signal) && !pending.signal?.aborted) return pending.task;
-    const task = this.refreshWorkflowKitInstallStateNow(publish, signal, prepared);
+    const generation = this.workflowKitInstallRefreshGeneration = (this.workflowKitInstallRefreshGeneration ?? 0) + 1;
+    const current = () => !signal?.aborted && !this.disposed && signature === this.projectContextSignature() &&
+      (!signal || generation === this.workflowKitInstallRefreshGeneration);
+    const task = Promise.resolve().then(() => this.refreshWorkflowKitInstallStateNow(publish, signal, prepared, current)).catch(error => {
+      if (signal && !current()) return undefined;
+      throw error;
+    });
     const entry = { signature, installing, signal, task };
     this.workflowKitInstallRefreshTask = entry;
     void task.finally(() => { if (this.workflowKitInstallRefreshTask === entry) this.workflowKitInstallRefreshTask = undefined; }).catch(() => undefined);
     return task;
   }
 
-  private async refreshWorkflowKitInstallStateNow(publish = true, signal?: AbortSignal,
-    prepared?: { context: ProjectRootContext; checked: Awaited<ReturnType<typeof inspectWorkflowKitInstallRoot>> | undefined }): Promise<void> {
-    const signature = this.projectContextSignature();
+  private async refreshWorkflowKitInstallStateNow(publish: boolean, signal: AbortSignal | undefined,
+    prepared: { context: ProjectRootContext; checked: Awaited<ReturnType<typeof inspectWorkflowKitInstallRoot>> | undefined } | undefined,
+    current: () => boolean): Promise<WorkflowKitStatusProof | undefined> {
+    if (!current()) return;
     const context = prepared?.context ?? await this.resolveProjectContext();
+    if (!current()) return;
     const checked = prepared ? prepared.checked
       : context.root && !context.error ? await inspectWorkflowKitInstallRoot(context.root, signal) : undefined;
-    const current = () => !signal?.aborted && !this.disposed && signature === this.projectContextSignature();
     if (!current()) return;
     if (context.folders.length === 1 && this.context.workspaceState.get<string>(PROJECT_FOLDER_KEY) !== context.selectedFolderUri) {
       await this.context.workspaceState.update(PROJECT_FOLDER_KEY, context.selectedFolderUri);
@@ -5842,7 +6238,7 @@ export class WorkspacePanel implements vscode.Disposable {
       profile: checked?.profile, error: context.error ?? checked?.error, remoteFingerprint: checked?.remoteFingerprint });
     this.skillsContextCache = undefined;
     if (publish) this.sendSnapshot();
-    await this.workflowKit.refreshStatus(signal);
+    const proof = await this.workflowKit.refreshStatus(signal);
     if (!current()) return;
     const state = this.workflowKit.snapshot.state;
     const requestId = this.operationContext.getStore();
@@ -5851,6 +6247,7 @@ export class WorkspacePanel implements vscode.Disposable {
     else if (state.status === 'error' && operation?.effect === 'applied') this.noteOutcome({ refreshError: state.message ?? 'Skills 已更新，但狀態檢查失敗。' });
     if (publish) this.sendSnapshot();
     if (context.root && state.bmadMode) void this.refreshBmadEnvironment(context.root);
+    return proof;
   }
 
   private async selectWorkflowKitInstallRoot(): Promise<void> {
@@ -5908,7 +6305,7 @@ export class WorkspacePanel implements vscode.Disposable {
       if (installed.warnings.length) this.post({ type: 'message', message: `WorkflowKit 安裝成功：${installed.warnings.join(' ')}` });
       this.post({ type: 'message', message: `GitLab Workspace kit v${installed.version} installed in ${installed.root}.` });
     } finally {
-      await this.reconcileAfterWrite(() => this.refreshWorkflowKitInstallState());
+      await this.reconcileAfterWrite(async () => { await this.refreshWorkflowKitInstallState(); });
       if (this.activeMode === 'bmad') await this.refreshBmadWorkflow(true);
     }
   }

@@ -430,6 +430,35 @@ test('cancel routes only the selected validated job to its installed helper', as
   await assert.rejects(cancelReviewSession(root, f.id, f.base, [f.repo], python, skills, 'merge-reviewer'));
 });
 
+test('a context-free Release request permits only a supported request-scoped ref retry', async t => {
+  const f = await fixture(t), root = path.join(f.base, '.release-review-runtime');
+  const own = { ...f.job, schema: 'ReleaseReviewSession/v1', runtime_root: root, state: 'cancelled', phase: 'terminal',
+    context_retained: false, network_activity: { fetch_attempt_count: 1 }, network_log: { private_ref_cleanup_pending: true } };
+  const sibling = { ...own, request_id: 'b'.repeat(32), network_log: { repository_private_ref_cleanup_pending: true } };
+  await mkdir(path.join(root, 'jobs'), { recursive: true });
+  await writeFile(path.join(root, '.release-reviewer-runtime.json'), JSON.stringify({ schema: 'ReleaseReviewRuntime/v1', directory: root }));
+  for (const job of [own, sibling]) await writeFile(path.join(root, 'jobs', job.request_id + '.json'), JSON.stringify(job));
+  const skills = path.join(f.base, '.agents', 'skills');
+  const script = reviewSessionScript(skills, 'release-reviewer'), capture = path.join(f.base, 'retry-argv.json');
+  await mkdir(path.dirname(script), { recursive: true });
+  await writeFile(script, '# installed helper');
+  const python = { executable: process.execPath, version: 'test transport', args: ['-e',
+    'require("node:fs").writeFileSync(process.env.REVIEW_TEST_CAPTURE, JSON.stringify(process.argv.slice(1)))', '--'],
+    env: { ...process.env, REVIEW_TEST_CAPTURE: capture } };
+  const run = (id: string, privateRefCleanupRetry: boolean) =>
+    cancelReviewSession(root, id, f.base, [f.repo], python, skills, 'release-reviewer', undefined, { privateRefCleanupRetry });
+  const rows = await readReviewSessions(root, f.base, [f.repo], 'release-reviewer');
+  const ownRow = rows.find(row => row.requestId === own.request_id);
+  assert.equal(ownRow?.privateRefCleanupPending, true);
+  assert.equal(ownRow.fetchCount, 1);
+  assert.equal(rows.find(row => row.requestId === sibling.request_id)?.privateRefCleanupPending, undefined);
+  await assert.rejects(run(own.request_id, false), /已結束/);
+  await assert.rejects(run(sibling.request_id, true), /已結束/);
+  await assert.rejects(readFile(capture), { code: 'ENOENT' });
+  await run(own.request_id, true);
+  assert.deepEqual(JSON.parse(await readFile(capture, 'utf8')), ['-B', script, 'cancel', '--runtime-root', root, '--request-id', own.request_id]);
+});
+
 test('published local status projects only persisted reviewer outcomes and leaves legacy or malformed summaries unknown', async t => {
   const f = await fixture(t);
   for (const [tool, runtimeSchema, jobSchema, outcomeSchema] of [

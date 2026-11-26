@@ -347,6 +347,32 @@ test('Release local controls keep same-ID Merge sessions separate and resume the
   assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
 });
 
+test('the terminal Release row offers ref retry only with the installed helper capability', async t => {
+  const view = await mount(t, 'group', undefined, ['release-review'], undefined, false);
+  view.document.getElementById('skill-tool-release-reviewer').click(); await view.tick();
+  const request = view.requests.findLast(item => item.type === 'loadReviewerCapabilities' && item.tool === 'release-reviewer');
+  assert.ok(request);
+  const row = { tool: 'release-reviewer', requestId: 'a'.repeat(32), repository: 'own', repositoryPath: 'C:/own',
+    base: 'main', head: 'topic', state: 'cancelled', phase: 'terminal', updatedAt: '2026-11-25T00:00:00Z',
+    retainedContext: false, privateRefCleanupPending: true, fetchCount: 0, packCacheHits: 0 };
+  const sibling = { ...row, requestId: 'b'.repeat(32), repository: 'sibling', privateRefCleanupPending: false };
+  const show = async own => view.send({ type: 'reviewSessions', revision: request.revision, tool: row.tool, sessions: [own, sibling] });
+  const buttons = () => [...view.document.querySelectorAll('.review-sessions button')]
+    .filter(item => item.textContent === '重試回收 Git 暫存 ref');
+  await show(row);
+  assert.equal(buttons().length, 0);
+  await view.send({ type: 'reviewerCapabilities', revision: request.revision, requestId: request.requestId, tool: row.tool,
+    capabilities: { schema: 'ReviewCapabilities/v1', tool: row.tool, features: { private_ref_cleanup_retry: true } } });
+  assert.equal(buttons().length, 1);
+  buttons()[0].click(); await view.tick();
+  const retry = view.requests.findLast(item => item.type === 'cancelReviewSession');
+  assert.equal(retry.tool, row.tool);
+  assert.equal(retry.requestId, row.requestId);
+  await show({ ...row, privateRefCleanupPending: false });
+  assert.equal(buttons().length, 0);
+  assert.equal(view.document.querySelectorAll('.review-session-list article').length, 2);
+});
+
 test('both reviewer cards keep input repair resumable and route controls to the same request', async t => {
   const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review']);
   for (const tool of ['merge-reviewer', 'release-reviewer']) {

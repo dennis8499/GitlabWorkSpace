@@ -2,6 +2,8 @@ import type { WorkspaceRequest } from './workspaceProtocol';
 import type { GitAction } from '../git/gitProtocol';
 import type { IssueAction, IssuePanelRequest } from '../issues/protocol';
 import type { WorkspaceCapabilities } from './workspaceCapabilities';
+import type { CodexCliSource } from '../codex/cliProtocol';
+import type { ReviewerToolId } from './reviewSessionProtocol';
 
 export type ActionKind = 'local' | 'read' | 'write' | 'control';
 export type ActionConcurrency = 'latest' | 'join' | 'exclusive' | 'parallel';
@@ -15,7 +17,7 @@ export interface ActionPolicy {
 // These exhaustive tables also classify control traffic, which must never
 // produce further lifecycle messages or notifications.
 export const workspaceActionKinds = {
-  runCodexCli: 'write', codexCliSettings: 'read',
+  runCodexCli: 'write', codexCliSettings: 'read', resetCodexCliRun: 'control', showCodexCliTerminal: 'control',
   ready: 'control',
   reconcileOperations: 'control',
   gitReady: 'control',
@@ -284,6 +286,22 @@ export function effectiveOperationScope(value: string | { type: string; [key: st
 }
 
 const canonicalRoot = (value?: string): string => (value ?? 'workspace').replace(/\\/g, '/').replace(/\/$/, '').toLocaleLowerCase('en-US');
+export function codexReviewerTool(source: CodexCliSource): ReviewerToolId | undefined {
+  if (source.kind === 'merge-request') return source.reviewerTool;
+  if (source.kind === 'review') return source.tool;
+  if (source.kind === 'skill') {
+    if (source.featureId === 'merge-repo') return 'merge-reviewer';
+    if (source.featureId === 'release-review') return 'release-reviewer';
+  }
+}
+
+export function codexCliResourceKey(source: CodexCliSource): string {
+  if (source.kind === 'merge-request') return `mr:${source.projectId}:${source.iid}:codex:${source.reviewerTool}`;
+  const reviewer = codexReviewerTool(source);
+  if (!reviewer) return 'codex-cli:workflow';
+  return source.kind === 'review' ? `codex-cli:${reviewer}:${source.requestId}` : `codex-cli:${reviewer}:start`;
+}
+
 export function writeResourceLock(resourceKey: string, context: ActionContext = {}): string {
   const global = resourceKey === 'clipboard' || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:');
   const local = resourceKey === 'repositories' || resourceKey === 'skills' || resourceKey.startsWith('codex-cli:');
@@ -343,9 +361,8 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
   else if (action === 'runCodexCli' && request.source) {
-    const source = request.source;
-    resourceKey = source.kind === 'merge-request' ? 'mr:' + source.projectId + ':' + source.iid : 'codex-cli:workflow';
-    slot = resourceKey + ':' + (source.kind === 'merge-request' ? source.reviewerTool : source.kind);
+    resourceKey = codexCliResourceKey(request.source);
+    slot = resourceKey;
   } else if (action === 'codexCliSettings') {
     kind = request.action === 'login' ? 'write' : request.action === 'executable' ? 'control' : 'read';
     resourceKey = 'codex-cli:settings';

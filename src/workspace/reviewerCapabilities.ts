@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import type { PythonRuntime } from './pythonRuntime';
 import type { InstalledReviewerBinding, NativeMergeReviewerCapabilities, ReviewerCapabilities, ReviewerSessionCapabilities } from './reviewSessionProtocol';
 import { workflowKitPythonCommand } from './workflowKitRunner';
+import type { VerifiedWorkflowKitManifest } from './workflowKitIntegration';
 export type { ReviewerCapabilities } from './reviewSessionProtocol';
 const exec = promisify(execFile);
 const cache = new Map<string, Promise<ReviewerCapabilities | undefined>>();
@@ -19,12 +20,12 @@ function versionAtLeast(version: string, minimum: string): boolean {
 
 /** Probe only the bound local helper. Its capabilities command never starts capture. */
 export function readReviewerCapabilities(binding: InstalledReviewerBinding, python: PythonRuntime,
-  workspace: string): Promise<ReviewerCapabilities | undefined> {
+  workspace: string, installation?: VerifiedWorkflowKitManifest): Promise<ReviewerCapabilities | undefined> {
   const key = JSON.stringify([binding.script_path, binding.payload_sha256, python.executable, python.args,
     workspace, python.env.GITLAB_WORKSPACE_RUNTIME_DIR, python.env.REVIEW_SHARED_CACHE_DIR,
     binding.workflow_kit_runner?.script_sha256,
     binding.workflow_kit_runner?.review_launch_sha256, binding.workflow_kit_runner?.read_only_inspection,
-    binding.workflow_kit_runner?.review_launch_tools]);
+    binding.workflow_kit_runner?.review_launch_tools, installation?.sha256]);
   const existing = cache.get(key);
   if (existing) return existing;
   const task = (async () => {
@@ -32,7 +33,7 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 };
     const run = async (helperArgs: readonly string[]) => {
       const readOnly = binding.tool === 'merge-reviewer' || binding.workflow_kit_runner?.review_launch_tools?.includes(binding.tool) === true;
-      const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner, helperArgs, { readOnly });
+      const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner, helperArgs, { readOnly, installation });
       return exec(command.executable, command.args, options);
     };
     let result;
@@ -85,7 +86,7 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       : legacy.updates_schema === 'ReviewUpdates/v1';
     const featureNames = ['request_id', 'read_only_view', 'status_summary', 'read_window', 'updates_file',
       'durable_review_progress', 'phase_metrics', 'literal_search_batch', 'patch_encoding', 'operation_diagnostics',
-      'launch_preflight', 'read_only_inspection', 'managed_paging'];
+      'launch_preflight', 'read_only_inspection', 'managed_paging', 'private_ref_cleanup_retry'];
     const rawFeatures = legacy.features as unknown;
     const featuresValid = rawFeatures === undefined || (typeof rawFeatures === 'object' && rawFeatures !== null && !Array.isArray(rawFeatures)
       && featureNames.every(name => { const flag = (rawFeatures as Record<string, unknown>)[name]; return flag === undefined || typeof flag === 'boolean'; }));

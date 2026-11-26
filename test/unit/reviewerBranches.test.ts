@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, realpath, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, realpath, rename, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -178,6 +178,7 @@ test('copying Reviewer prompts validates the selected workspace Repo and include
     availableFeatures: ['release-review', 'merge-repo'], installed: { version: 'test' } };
   const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {
     operationPhase: () => undefined, getSkillsContext: () => context, refreshWorkflowKit: async () => undefined,
+    workflowKit: { verifyInstallation: async () => ({ marker: { version: context.installed.version } }), assertInstallationCurrent: async () => undefined },
     refreshInventory: async () => undefined, post: () => undefined
   });
   const request = { featureId: 'release-review', revision: 'current', inputs: {
@@ -214,6 +215,81 @@ test('copying Reviewer prompts validates the selected workspace Repo and include
   await assert.rejects(host.copySkillGuidePrompt(request), /VS Code 工作區/);
   assert.equal(clipboard.length, 1);
   vscode.workspace.workspaceFile = undefined;
+});
+
+test('copying a Reviewer prompt reuses inventory and rechecks the selected Repo', async t => {
+  const root = await repository(t), selected = await repository(t);
+  vscode.workspace.workspaceFolders = [root, selected].map(fsPath => ({ uri: { scheme: 'file', fsPath } }));
+  const context = { revision: 'current', mode: 'group', root, workspaceRoot: root, repositories: [],
+    reviewerRepositories: [{ name: 'fixture', path: selected }], installed: { status: 'installed', version: 'fixture' },
+    availableFeatures: ['merge-repo'] };
+  const host = Object.assign(Object.create(WorkspacePanel!.prototype), {
+    getSkillsContext: () => context, operationPhase: () => undefined, post: () => undefined,
+    workflowKit: { verifyInstallation: async () => ({ marker: { version: context.installed.version } }), assertInstallationCurrent: async () => undefined },
+    reviewerWorkspaceFolders: { signature: JSON.stringify([root, selected]), folders: [root, selected], inventoryRevision: '0:0:0' },
+    refreshWorkflowKit: async () => assert.fail('warm copy refreshed WorkflowKit'),
+    refreshInventory: async () => assert.fail('warm copy rescanned repository inventory'),
+    reviewerCliRoots: async () => assert.fail('copy prepared CLI runtime roots')
+  });
+  clipboard.length = 0;
+  const request = { featureId: 'merge-repo', revision: context.revision, inputs: {
+    'merge-repo.repo': selected, 'merge-repo.base': 'main', 'merge-repo.head': 'feature'
+  } };
+  await host.copySkillGuidePrompt(request);
+  assert.equal(clipboard.length, 1);
+  assert.ok(clipboard[0].includes(selected));
+  const renamedMarker = path.join(selected, 'saved-git');
+  await rename(path.join(selected, '.git'), renamedMarker);
+  await assert.rejects(host.copySkillGuidePrompt(request), { code: 'ENOENT' });
+  assert.equal(clipboard.length, 1);
+});
+
+test('inventory refresh supersedes reads started before Git registered a Repo', async t => {
+  const root = await repository(t), added = await repository(t);
+  vscode.workspace.workspaceFolders = [{ uri: { scheme: 'file', fsPath: root } }];
+  const original = [{ name: 'original', path: root }], current = [...original, { name: 'added', path: added }];
+  let beginOld!: () => void, finishOld!: (value: typeof original) => void;
+  const entered = new Promise<void>(resolve => { beginOld = resolve; });
+  const delayed = new Promise<typeof original>(resolve => { finishOld = resolve; });
+  let reads = 0;
+  const gitRepositories = { inventoryRevision: 1, getInventory: async () => {
+    if (++reads === 1) { beginOld(); return delayed; }
+    return current;
+  } };
+  const host = Object.assign(Object.create(WorkspacePanel!.prototype), { gitRepositories, session: {}, sendSnapshot: () => undefined });
+  const stale = host.refreshInventory();
+  await entered;
+  gitRepositories.inventoryRevision++;
+  const refreshed = host.refreshInventory();
+  assert.notEqual(refreshed, stale);
+  assert.equal(host.refreshInventory(), refreshed, 'concurrent reads of the same revision share one promise');
+  await refreshed;
+  finishOld(original);
+  await stale;
+  assert.equal(reads, 2);
+  assert.deepEqual(new Set(host.localWorkspaceRepositories.map((repo: { path: string }) => repo.path)), new Set([root, added]));
+  assert.equal(host.reviewerWorkspaceFolders.inventoryRevision, host.inventoryRevision());
+});
+
+test('a forced inventory refresh bypasses a pending read in the same Git revision', async t => {
+  const root = await repository(t), added = await repository(t);
+  vscode.workspace.workspaceFolders = [{ uri: { scheme: 'file', fsPath: root } }];
+  const previous = [{ name: 'original', path: root }], current = [...previous, { name: 'new', path: added }];
+  let complete!: (rows: typeof previous) => void;
+  const delayed = new Promise<typeof previous>(resolve => { complete = resolve; });
+  let calls = 0;
+  const host = Object.assign(Object.create(WorkspacePanel!.prototype), {
+    gitRepositories: { inventoryRevision: 1, getInventory: async () => ++calls === 1 ? delayed : current },
+    session: {}, sendSnapshot: () => undefined
+  });
+  const before = host.refreshInventory();
+  const forced = host.refreshInventory(true);
+  assert.notEqual(forced, before);
+  await forced;
+  complete(previous);
+  await before;
+  assert.equal(calls, 2);
+  assert.equal(host.localWorkspaceRepositories.some((repo: { path: string }) => repo.path === added), true);
 });
 
 test('Reviewer runtime stays stable when inventory canonicalizes the workspace drive letter', async t => {

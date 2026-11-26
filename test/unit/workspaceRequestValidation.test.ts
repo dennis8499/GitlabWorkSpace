@@ -14,6 +14,8 @@ const requests = {
   openMergeRequestDiff: { type: 'openMergeRequestDiff', ...mr, diffVersionId: 3, oldPath: 'before.ts', newPath: 'after.ts' },
   runCodexCli: { type: 'runCodexCli', source: { kind: 'skill', featureId: 'query', inputs: { 'query.question': 'Explain' }, revision: 'root:1' } },
   codexCliSettings: { type: 'codexCliSettings', action: 'check' },
+  resetCodexCliRun: { type: 'resetCodexCliRun', runId: 'fixture-run' },
+  showCodexCliTerminal: { type: 'showCodexCliTerminal', runId: 'fixture-run' },
   ready: { type: 'ready', developerView: 'list', projectSource: 'local' }, reconcileOperations: { type: 'reconcileOperations', pendingIds: ['operation-1'] },
   confirmOperationResult: { type: 'confirmOperationResult', targetOperationId: 'operation-1' }, refresh: { type: 'refresh', mode: 'developer' },
   retryInstanceCheck: { type: 'retryInstanceCheck' }, setMode: { type: 'setMode', mode: 'clone' },

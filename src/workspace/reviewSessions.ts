@@ -9,6 +9,7 @@ import { isReviewerTool, reviewSessionActions, type ReviewerToolId, type ReviewO
   type ReviewProgressSummary,
   type WorkflowKitRunnerBinding } from './reviewSessionProtocol';
 import { workflowKitPythonCommand } from './workflowKitRunner';
+import type { VerifiedWorkflowKitManifest } from './workflowKitIntegration';
 
 const exec = promisify(execFile);
 const REQUEST_ID = /^[a-f0-9]{32}$/;
@@ -41,7 +42,9 @@ interface ReviewJob {
   report_sha256?: string;
   report_static_sha256?: string;
   error?: string;
+  git_coordination?: { phase?: string; code?: string; lock_path?: string; native_code?: number };
   network_activity?: { fetch_attempt_count?: number };
+  network_log?: { private_ref_cleanup_pending?: boolean };
   pack_cache_hits?: number;
   fixed_identity?: { base_sha?: string; head_sha?: string; capture_completed_at?: string };
   sync_activity?: Array<{ mode?: string; synced_at?: number }>;
@@ -299,10 +302,16 @@ export async function readReviewSessions(root: string, workspace: string, reposi
     try { job = await readReviewJob(root, name.slice(0, -5), workspace, repositories, tool); }
     catch { continue; } // Another declared workspace may share an explicit runtime.
     const fixed = await readReviewFixedIdentity(job, root, tool);
+    const detail = job.git_coordination;
     results.push({ tool, requestId: job.request_id, repository: path.basename(job.inputs.project), repositoryPath: job.inputs.project,
       base: job.inputs.base, head: job.inputs.head, state: job.state, phase: job.phase, updatedAt: job.updated_at,
       reportPath: job.report_path, error: job.error, fetchCount: job.network_activity?.fetch_attempt_count ?? 0,
+      ...(typeof detail?.code === 'string' && typeof detail.lock_path === 'string' ? { gitCoordination: {
+        code: detail.code, lockPath: detail.lock_path, phase: typeof detail.phase === 'string' ? detail.phase : undefined,
+        nativeCode: Number.isInteger(detail.native_code) ? detail.native_code : undefined
+      } } : {}),
       packCacheHits: job.pack_cache_hits ?? 0, cleanupPending: job.cleanup_pending === true,
+      ...(job.network_log?.private_ref_cleanup_pending === true ? { privateRefCleanupPending: true } : {}),
       reviewOutcome: reviewOutcome(job, tool),
       budget: budgetSummary(job, tool),
       ...inspectionSummary(job),
@@ -314,13 +323,14 @@ export async function readReviewSessions(root: string, workspace: string, reposi
 }
 export async function cancelReviewSession(root: string, id: string, workspace: string, repositories: readonly string[],
   python: PythonRuntime, skillsDirectory: string, tool: ReviewerToolId = 'merge-reviewer',
-  runner?: WorkflowKitRunnerBinding): Promise<void> {
+  runner?: WorkflowKitRunnerBinding, options: { installation?: VerifiedWorkflowKitManifest; privateRefCleanupRetry?: boolean } = {}): Promise<void> {
   const job = await readReviewJob(root, id, workspace, repositories, tool);
-  if (!reviewSessionActions({ state: job.state, retainedContext: job.context_retained,
-    recovery: { terminal: job.terminal === true, recoverable: job.recoverable === true } }).cancel) throw new Error('這份審查已結束，沒有可取消的工作。');
+  if (!reviewSessionActions({ tool, state: job.state, retainedContext: job.context_retained,
+    privateRefCleanupPending: job.network_log?.private_ref_cleanup_pending,
+    recovery: { terminal: job.terminal === true, recoverable: job.recoverable === true } }, options.privateRefCleanupRetry).cancel) throw new Error('這份審查已結束，沒有可取消的工作。');
   const script = reviewSessionScript(skillsDirectory, tool);
   await plain(script);
-  const command = await workflowKitPythonCommand(python, runner, ['-B', script, 'cancel', '--runtime-root', root, '--request-id', id]);
+  const command = await workflowKitPythonCommand(python, runner, ['-B', script, 'cancel', '--runtime-root', root, '--request-id', id], { installation: options.installation });
   await exec(command.executable, command.args,
     { env: python.env, encoding: 'utf8', windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 });
 }

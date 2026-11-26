@@ -38,6 +38,7 @@ export interface WorkflowKitRelease extends WorkflowKitReleaseSummary {
 interface Cached { source: RemoteToolSource; descriptor: ReleaseDescriptor; descriptorSha256: string; managed?: boolean; }
 interface KitRoot { root: string; source?: RemoteToolSource; version?: string; unverified?: boolean; }
 export interface WorkflowKitHelper { path: string; version: string; recovery?: WindowsLeaseToken; release?(): Promise<void>; }
+interface VerifiedStatusHelper extends WorkflowKitHelper { size: number; sha256: string; }
 interface ApiAsset { name: string; size: number; browser_download_url: string; digest?: string; }
 interface ApiRelease { tag_name: string; draft: boolean; prerelease: boolean; assets: ApiAsset[]; }
 export class PackageIntegrityError extends Error {
@@ -265,16 +266,18 @@ export class WorkflowKitReleaseManager {
       throw error;
     }
   }
-  async leaseStatusHelper(identity: { source: RemoteToolSource; version: string }, root: string): Promise<WorkflowKitHelper | undefined> {
+  async leaseStatusHelper(identity: { source: RemoteToolSource; version: string }, root: string): Promise<VerifiedStatusHelper | undefined> {
     await this.syncRoot(root);
-    const record = (await this.readCache()).find(item => item.source === identity.source && item.descriptor.version === identity.version);
+    const record = await this.cachedStatusRelease(identity);
     if (!record) return undefined;
-    const lease = await this.assetLease(record.descriptor.assets.installer, 'status');
+    const asset = record.descriptor.assets.installer;
+    const lease = await this.assetLease(asset, 'status');
     try {
-      const helper = await this.statusHelper(identity);
+      const helper = await this.verifyStatusHelper(record);
       if (helper) {
         await this.markManaged(identity.source, identity.version);
-        return { ...helper, recovery: lease.recovery, release: () => this.releaseLeases([lease], 'status') };
+        return { ...helper, size: asset.size, sha256: asset.sha256, recovery: lease.recovery,
+          release: () => this.releaseLeases([lease], 'status') };
       }
     } catch (error) { await this.releaseLeases([lease], 'status'); throw error; }
     await this.releaseLeases([lease], 'status');
@@ -373,16 +376,20 @@ export class WorkflowKitReleaseManager {
   }
 
   async statusHelper(identity: { source: RemoteToolSource; version: string }): Promise<{ path: string; version: string } | undefined> {
-    for (const item of await this.readCache()) {
-      // Never run a newer verifier, an unverified executable, or a historical
-      // installer whose status command may repair transactions as a side effect.
-      if (item.source !== identity.source || item.descriptor.version !== identity.version ||
-          !workflowKitStatusApiCompatible(item.descriptor)) continue;
-      const filename = this.assetPath(item.descriptor.assets.installer);
-      try { await verifiedFile(filename, item.descriptor.assets.installer); return { path: filename, version: item.descriptor.version }; }
-      catch (error) { if (!isMissing(error)) throw releaseError(item.source, `v${item.descriptor.version}`, error); }
-    }
-    return undefined;
+    const record = await this.cachedStatusRelease(identity);
+    return record && this.verifyStatusHelper(record);
+  }
+
+  private async cachedStatusRelease(identity: { source: RemoteToolSource; version: string }): Promise<Cached | undefined> {
+    // Older status commands could repair transactions. Require the read-only contract.
+    return (await this.readCache()).find(item => item.source === identity.source && item.descriptor.version === identity.version &&
+      workflowKitStatusApiCompatible(item.descriptor));
+  }
+
+  private async verifyStatusHelper(item: Cached): Promise<{ path: string; version: string } | undefined> {
+    const filename = this.assetPath(item.descriptor.assets.installer);
+    try { await verifiedFile(filename, item.descriptor.assets.installer); return { path: filename, version: item.descriptor.version }; }
+    catch (error) { if (!isMissing(error)) throw releaseError(item.source, `v${item.descriptor.version}`, error); }
   }
 
   private selected(id: string, statusOnly = false): WorkflowKitRelease {

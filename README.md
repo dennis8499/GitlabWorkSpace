@@ -2,6 +2,12 @@
 
 在 VS Code 單一工作台瀏覽 GitLab 專案、閱讀及討論 Issue、維護知識、審查變更與追蹤工時。
 
+0.58.8 讓 MR 預檢在切換頁面時繼續驗證 WorkflowKit，並確保舊版 runner 在取得 Git 憑證前完成必要的完整檢查。詳見 [0.58.8 版本說明](docs/releases/v0.58.8.md)。
+
+0.58.4 重新核對已安裝的 Reviewer、讓同一份審查只使用一個終端，並修正 Repo 清單刷新及 PowerShell 自動搜尋。詳見 [0.58.4 版本說明](docs/releases/v0.58.4.md)。
+
+0.58.3 支援同一 Repo 的 MergeReviewer 與 ReleaseReviewer 同時執行、失敗重設，並縮短模型選擇及複製提示詞的等待。詳見 [0.58.3 版本說明](docs/releases/v0.58.3.md)。
+
 0.58.2 修正整合終端最大化後工作台卡在載入的問題，並讓 Codex 工作流程預設在工作終端等候 Enter。支援偵測 Microsoft Store 版 PowerShell。[0.58.2 版本說明](docs/releases/v0.58.2.md)
 
 0.58.1 改善 Windows 本機鎖復原。宿主意外退出後，下一次作業可在核對擁有者與子程序的終止證據後接手。詳見 [0.58.1 版本說明](docs/releases/v0.58.1.md)。

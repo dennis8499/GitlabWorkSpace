@@ -22,6 +22,7 @@ import { UiSelectionIntents } from './uiSelectionIntent';
 import type { UiIntentField, UiIntentValues } from '../workspace/uiIntentProtocol';
 import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { CodexSettings } from './CodexSettings';
+import { CodexCliRuns } from './CodexCliRuns';
 import { connectionLabel } from '../connection/connectionState';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
@@ -1342,6 +1343,8 @@ function App() {
     ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}`
     : projectRoot ? '專案根目錄：' + projectRoot + (snapshot.skillsContext?.mode === 'unavailable' && snapshot.skillsContext.reason ? ' · ' + snapshot.skillsContext.reason : '')
       : snapshot.skillsContext?.reason ?? snapshot.projectContext?.error ?? snapshot.workspaceRootError ?? '請在 VS Code 開啟本機專案資料夾';
+  const resetCodexRun = (runId: string) => post({ type: 'resetCodexCliRun', runId });
+  const showCodexTerminal = (runId: string) => post({ type: 'showCodexCliTerminal', runId });
 
   return <main class="app-shell">{localBlocked && <FeatureNotice reason={localBlocked.reason} />}{pageError && pageError.mode === mode && (!pageError.scope || [operationScope, localOperationScope].includes(pageError.scope)) && <FeatureNotice tone="error" reason={pageError.message.split(/\r?\n/, 1)[0].slice(0, 180)} details={pageError.message.length > 180 || /\r|\n/.test(pageError.message) ? pageError.message : undefined}><button type="button" onClick={() => post({ type: 'refresh' })}>重新載入</button><button type="button" onClick={() => setPageError(undefined)}>關閉</button></FeatureNotice>}
     <header class="topbar">
@@ -1387,6 +1390,9 @@ function App() {
             onOpenSettings={() => setToolDrawer(true)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div ref={workspaceVisual} class="workspace-tasks" hidden={!!issueNavigation}>
+        {(mode === 'sa' || mode === 'bmad') && <CodexCliRuns
+          runs={(snapshot.codexCliRuns ?? []).filter(run => mode === 'bmad' ? run.source === 'bmad' : run.source === 'skill' || run.source === 'review')}
+          onReset={resetCodexRun} onShow={showCodexTerminal} />}
         <div class="git-mode-host" hidden={mode !== 'git'}>
           {!localBlocked && (gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} navigationState={{ hostSessionId: snapshot.operationSnapshot?.sessionId, generation: uiIntents.current.hostGeneration }} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
@@ -1605,6 +1611,8 @@ function App() {
                       reviewerTool: 'release-reviewer', expectedScope: snapshot.connectedScope }
                   })}>一鍵 ReleaseReviewer</button>
                 </div>
+                <CodexCliRuns runs={(snapshot.codexCliRuns ?? []).filter(run => run.projectId === mr.project_id && run.iid === mr.iid)}
+                  onReset={resetCodexRun} onShow={showCodexTerminal} />
                 <details class="technical-info"><summary>技術詳情（完整 SHA）</summary><div class="sha-pair"><span>差異來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>差異目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div></details>
                 <FeatureNotices id="mr-actions" items={reviewerTab === 'report' ? mrBlockers : { '分支審查': mrBlockers['分支審查'], '核准': mrBlockers['核准'], '合併 MR': mrBlockers['合併 MR'] }}><button type="button" disabled={mrBusy} onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>{selectedMr.mergeAvailability?.status !== 'allowed' ? '重新檢查合併條件' : '重新檢查 MR'}</button></FeatureNotices><OperationFeedback resourceKey={`mr:${mr.project_id}:${mr.iid}`} scopeRevision={snapshot.operationScope ?? operationScope} />
                 <Tabs prefix="mr-detail" label="Merge Request 詳情分頁" className="issue-tabs review-tabs" items={[[ 'changes', '變更' ], [ 'discussion', '討論' ], [ 'report', '留言與核准' ]]} selected={reviewerTab} onChange={updateReviewerTab} />

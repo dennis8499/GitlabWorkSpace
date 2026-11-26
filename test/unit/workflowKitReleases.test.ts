@@ -413,18 +413,24 @@ test('WorkflowKit background status preserves a missing-owner lock and logs its 
   await manager.prepareInstaller(item.id);
   const project = path.join(root, 'project');
   const manifests = path.join(project, '.gitlab-workspace', 'tool-manifests'); await mkdir(manifests, { recursive: true });
-  await writeFile(path.join(manifests, 'workflow-kit.json'), JSON.stringify({ source: 'github', version: item.version }));
+  const manifest = Buffer.from(JSON.stringify({ source: 'github', version: item.version, files: {} }));
+  await writeFile(path.join(manifests, 'workflow-kit.json'), manifest);
+  const resources = path.join(root, 'resources');
+  await mkdir(resources);
+  await writeFile(path.join(resources, 'workflow-kit-status.json'), JSON.stringify({ schema: 'WorkflowKitStatusSupport/v1', versions: [] }));
   const lock = path.join(root, 'workflow-kit-asset-locks', item.descriptor.assets.installer.sha256 + '.lock');
   await mkdir(lock, { recursive: true });
   let runs = 0;
   const service = new WorkflowKitService({ storagePath: root, extensionDirectory: root, extensionVersion: '0.56.0',
     readSource: () => 'github', writeSource: async () => undefined, pythonPath: () => 'python', reportPhase: () => undefined,
     runWithInstallProgress: (_version, task) => task(), releaseManager: manager,
-    runHelper: async () => {
-      const helper = await service.statusHelper(project);
+    runHelper: async (args, _timeout, installerPath) => {
       runs++;
-      await helper.release?.();
-      return { ok: true, status: 'installed', source: 'github', version: item.version };
+      assert.equal(installerPath, path.join(resources, 'workflow-kit-status.py'));
+      assert.deepEqual(args.slice(-2), ['--cached-installer-sha256', item.descriptor.assets.installer.sha256]);
+      assert.ok((await readdir(lock)).includes('owner.json'));
+      return { ok: true, status: 'installed', integrity: 'verified', source: 'github', version: item.version,
+        statusContract: 1, installedManifestSha256: sha(manifest) };
     } });
   t.after(() => service.dispose());
   service.setContext({ root: project, revision: 'project', manual: false });

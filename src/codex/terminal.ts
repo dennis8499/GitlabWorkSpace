@@ -32,10 +32,16 @@ export interface CodexTerminalLaunch {
 }
 
 interface CodexTerminalLaunchOptions {
-  beforeCreate?: () => void;
+  beforeCreate?: () => void | Promise<void>;
   show?: boolean;
   manual?: ManualCodexTerminal;
   leases?: readonly WindowsLeaseToken[];
+  onInput?: (cleanup: () => Promise<void>) => void;
+}
+
+interface ModelChoice extends VSCode.QuickPickItem {
+  model?: CatalogModel;
+  custom?: true;
 }
 
 export async function confirmCodexTerminalExit(terminal: VSCode.Terminal, processExit: VSCode.TerminalExitReason): Promise<boolean> {
@@ -122,18 +128,12 @@ export class CodexTerminal {
 
   async choose(configured: string, root: string, signal?: AbortSignal): Promise<CodexTerminalSelection | undefined> {
     const executable = await this.services.resolve(configured, root, signal);
-    const { models, bundled } = await this.catalog(executable, root, signal);
     const cancellation = new this.vscode.CancellationTokenSource();
     const abort = () => cancellation.cancel();
     signal?.addEventListener('abort', abort, { once: true });
     try {
       signal?.throwIfAborted();
-      const items: (VSCode.QuickPickItem & { model?: CatalogModel; custom?: true })[] = [
-        { label: defaults },
-        ...models.map(model => ({ label: model.label, description: `${model.id}${bundled ? ' · 內建目錄' : ''}`, model })),
-        { label: '輸入模型 ID', custom: true }
-      ];
-      const selected = await this.vscode.window.showQuickPick(items, { title: 'Codex CLI：選擇模型', ignoreFocusOut: true }, cancellation.token);
+      const selected = await this.pickModel(executable, root, cancellation.token);
       signal?.throwIfAborted();
       if (!selected) return undefined;
       if (!selected.model && !selected.custom) return { executable };
@@ -157,6 +157,40 @@ export class CodexTerminal {
     } finally {
       signal?.removeEventListener('abort', abort);
       cancellation.dispose();
+    }
+  }
+
+  private async pickModel(executable: CodexExecutable, root: string, token: VSCode.CancellationToken): Promise<ModelChoice | undefined> {
+    const picker = this.vscode.window.createQuickPick<ModelChoice>();
+    const probe = new AbortController();
+    const builtin: ModelChoice = { label: defaults };
+    const custom: ModelChoice = { label: '輸入模型 ID', custom: true };
+    picker.title = 'Codex CLI：選擇模型';
+    picker.ignoreFocusOut = true;
+    picker.items = [builtin, custom];
+    picker.busy = true;
+    const subscriptions: VSCode.Disposable[] = [];
+    try {
+      return await new Promise<ModelChoice | undefined>(resolve => {
+        subscriptions.push(picker.onDidAccept(() => resolve(picker.selectedItems[0] ?? picker.activeItems[0])));
+        subscriptions.push(picker.onDidHide(() => resolve(undefined)));
+        subscriptions.push(token.onCancellationRequested(() => resolve(undefined)));
+        if (token.isCancellationRequested) { resolve(undefined); return; }
+        picker.show();
+        void this.catalog(executable, root, probe.signal).then(({ models, bundled }) => {
+          if (probe.signal.aborted) return;
+          const active = picker.activeItems;
+          picker.items = [builtin, ...models.map(model => ({
+            label: model.label, description: `${model.id}${bundled ? ' · 內建目錄' : ''}`, model
+          })), custom];
+          if (active.length) picker.activeItems = active;
+          picker.busy = false;
+        }).catch(() => { if (!probe.signal.aborted) picker.busy = false; });
+      });
+    } finally {
+      probe.abort();
+      for (const subscription of subscriptions) subscription.dispose();
+      picker.dispose();
     }
   }
 
@@ -222,11 +256,15 @@ export class CodexTerminal {
           executable: executable.file, args, cwd, leases: options.leases, timeoutMs: 2_147_483_647
         }), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
       }
-      options.beforeCreate?.();
+      let inputCleanup: Promise<void> | undefined;
+      const cleanup = () => inputCleanup ??= removeOwnedStorage(this.storage, directory)
+        .catch(error => { inputCleanup = undefined; throw error; });
+      await options.beforeCreate?.();
+      options.onInput?.(cleanup);
       if (options.manual) {
         options.manual.start({ file: executable.file, args, cwd, supervisedRequest });
         void options.manual.completion.then(result => {
-          if (result.state !== 'unknown') return removeOwnedStorage(this.storage, directory);
+          if (result.state !== 'unknown') return cleanup();
         }).catch(() => undefined);
         return options.manual.terminal;
       }
@@ -240,7 +278,7 @@ export class CodexTerminal {
         if (ended !== terminal) return;
         closed.dispose();
         if (ended.exitStatus?.reason === this.vscode.TerminalExitReason.Process) {
-          void removeOwnedStorage(this.storage, directory).catch(() => undefined);
+          void cleanup().catch(() => undefined);
         }
       });
       if (options.show !== false) terminal.show();

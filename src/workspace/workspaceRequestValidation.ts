@@ -109,6 +109,7 @@ const codexCliSource: Check = value => record(value) && typeof value.kind === 's
   && object({ ...codexSourceSchemas[value.kind], kind: one(value.kind) })(value);
 export const workspaceRequestSchemas = {
   runCodexCli: { source: codexCliSource },
+  resetCodexCliRun: { runId: identity }, showCodexCliTerminal: { runId: identity },
   codexCliSettings: { action: one('check', 'login', 'executable') },
   ready: { projectSource: optional(one('gitlab', 'local')), developerView: optional(one('list', 'graph')), mergeRequestFilter: optional(one('all', 'reviewer', 'assigned')) },
   reconcileOperations: { pendingIds: optional(array(identity, 200)) }, confirmOperationResult: { targetOperationId: identity, recovery: optional(recovery) },

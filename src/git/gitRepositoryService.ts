@@ -134,6 +134,7 @@ type GitActionTraceHandler = (event: { phase: 'start' | 'complete' | 'error'; re
 
 export class GitRepositoryService implements vscode.Disposable {
   get gitExecutable(): string | undefined { return this.api?.git.path; }
+  get inventoryRevision(): number { return this.repositoryListRevision; }
   private pendingActions = 0;
   get hasActiveOperations(): boolean { return this.activeOperations.size > 0 || this.pendingActions > 0; }
   private credentialOperations = 0;
@@ -823,6 +824,7 @@ export class GitRepositoryService implements vscode.Disposable {
     this.error = undefined;
     this.subscriptions.push(
       api.onDidOpenRepository((repository) => {
+        this.repositoryListRevision++;
         const rootKey = this.repositoryRootKey(repository);
         const lifetime = this.repositoryLifetime(repository) + 1;
         this.repositoryLifetimes.set(rootKey, lifetime);

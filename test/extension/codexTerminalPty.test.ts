@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { access, mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 import { promisify } from 'node:util';
@@ -171,6 +171,44 @@ suite('Codex CLI integrated terminal', () => {
       assert.ok(writable);
       assert.deepEqual(parse(writable).sandbox_workspace_write, { writable_roots: [cwd] });
     } finally { listener.dispose(); manual.close(); }
+  });
+
+  test('the real Store alias opens a waiting terminal when AppX discovery fails', async function () {
+    const alias = process.env.GITLAB_WORKSPACE_TEST_STORE_ALIAS;
+    if (process.platform !== 'win32' || !alias) { this.skip(); return; }
+    this.timeout(30_000);
+    const cwd = process.env.GITLAB_WORKSPACE_TEST_TMP;
+    assert.ok(cwd);
+    await assert.rejects(async () => { await stat(await realpath(alias)); }, { code: 'EACCES' });
+
+    const native = require('node:child_process') as typeof import('node:child_process');
+    const original = native.execFile;
+    const run = promisify(original);
+    let appxCalls = 0;
+    native.execFile = Object.assign(original.bind(native), {
+      [promisify.custom]: (...args: Parameters<typeof run>) => {
+        if (args[1]?.some(argument => argument.includes('Get-AppxPackage'))) {
+          appxCalls++;
+          return Promise.reject(new Error('AppX query unavailable in this fixture'));
+        }
+        return run(...args);
+      }
+    });
+    let manual: Awaited<ReturnType<typeof openManualCodexTerminal>>;
+    try {
+      manual = await openManualCodexTerminal(vscode, {
+        cwd, powerShell: alias, script: path.resolve(__dirname, '../../../resources/codex-manual-launch.ps1')
+      });
+    } finally { native.execFile = original; }
+    try {
+      assert.equal(appxCalls, 1);
+      assert.equal((manual.terminal.creationOptions as vscode.TerminalOptions).shellPath, alias);
+      manual.terminal.show();
+      assert.equal(await Promise.race([manual.requested, setTimeout(500, 'waiting')]), 'waiting');
+      assert.equal(vscode.window.activeTerminal, manual.terminal);
+      await vscode.commands.executeCommand('workbench.action.terminal.sendSequence', { text: '\r' });
+      assert.equal(await Promise.race([manual.requested, setTimeout(8_000, 'Enter timeout', { ref: false })]), true);
+    } finally { manual.close(); }
   });
 
   test('closing the prefilled PowerShell terminal cancels its pending launch', async function () {

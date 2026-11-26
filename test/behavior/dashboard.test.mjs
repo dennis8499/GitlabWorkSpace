@@ -2616,7 +2616,7 @@ test('MR one-click routes both reviewers to local Codex CLI with the current MR 
   data.mergeRequests = [request];
   data.selectedMergeRequest = { request, diffs: [], discussions: [], warnings: [], freshness: { state: 'not_checked' },
     sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } } };
-  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
+  const view = await mount({ mode: 'reviewer' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   assert.equal(view.requests.some(message => message.type === 'runCodexCli'), false);
   const buttons = [...document.querySelectorAll('.mr-cli-review-actions button')];
@@ -2629,6 +2629,14 @@ test('MR one-click routes both reviewers to local Codex CLI with the current MR 
     });
   }
   assert.equal(view.requests.filter(message => message.type === 'runCodexCli').length, 2);
+  const merge = { runId: 'merge-run', title: 'MergeReviewer', source: 'merge-request', projectId: 2, iid: 4, state: 'failed' };
+  const release = { runId: 'release-run', title: 'ReleaseReviewer', source: 'merge-request', projectId: 2, iid: 4, state: 'running' };
+  view.sendSnapshot({ ...data, codexCliRuns: [merge, release] }); await view.tick();
+  document.querySelector('[aria-label="重設 MergeReviewer"]').click(); await view.tick();
+  assert.equal(view.requests.findLast(message => message.type === 'resetCodexCliRun')?.runId, 'merge-run');
+  view.sendSnapshot({ ...data, codexCliRuns: [release] }); await view.tick();
+  assert.match(document.querySelector('.codex-cli-runs').textContent, /ReleaseReviewer.*執行中/);
+  assert.equal(document.querySelector('[aria-label="重設 MergeReviewer"]'), null);
   assert.equal(view.requests.some(message => ['postMergeRequestNote', 'publishCodexReview', 'openBranchReview'].includes(message.type)), false);
   document.querySelector('#mr-detail-tab-report').click(); await view.tick();
   assert.match(document.querySelector('#mr-detail-panel-report').textContent, /MR 留言/);

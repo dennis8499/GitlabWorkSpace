@@ -1,11 +1,13 @@
 import { execFile } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { realpath } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
+import { readlink, realpath, stat } from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type * as VSCode from 'vscode';
 import { insideStorage } from '../storage/ownedStorage';
+import { GitLabReadCache } from '../api/gitLabReadCache';
 
 // Optional API on the extension's VS Code 1.90 baseline.
 interface ShellIntegrationEvents {
@@ -34,15 +36,51 @@ export interface ManualCodexTerminal {
 
 const run = promisify(execFile);
 const storePackageFamily = 'Microsoft.PowerShell_8wekyb3d8bbwe';
+const storePackageName = /^Microsoft\.PowerShell_\d+\.\d+\.\d+\.\d+_[a-z0-9]+_[a-z0-9.-]*_8wekyb3d8bbwe$/i;
+const versions = new GitLabReadCache(60_000, 16);
 
-async function installedPowerShell(candidate: string, root: string): Promise<string | undefined> {
-  if (!path.isAbsolute(candidate) || path.basename(candidate).toLowerCase() !== 'pwsh.exe' || candidate.includes('\0')) return;
+async function isSupportedPowerShell(file: string, signal?: AbortSignal): Promise<boolean> {
+  const { stdout } = await run(file, ['--version'], { signal, windowsHide: true, timeout: 3_000, maxBuffer: 8_192 });
+  const version = /\bPowerShell\s+(\d+)\.(\d+)\.\d+/.exec(stdout);
+  return !!version && (+version[1] > 7 || +version[1] === 7 && +version[2] >= 3);
+}
+
+async function inaccessibleStoreAlias(candidate: string, root: string): Promise<string | undefined> {
+  if (insideStorage(root, candidate)) return;
   try {
-    const file = await realpath(candidate);
+    const parent = path.dirname(candidate);
+    if (path.relative(parent, await realpath(parent))) return;
+    const target = await readlink(candidate);
+    if (!/^[a-z]:[\\/]/i.test(target) || target.includes('\0') || insideStorage(root, target) ||
+        path.basename(target).toLowerCase() !== 'pwsh.exe') return;
+    const packageDirectory = path.dirname(target);
+    if (!storePackageName.test(path.basename(packageDirectory))) return;
+    const storeDirectory = path.dirname(packageDirectory);
+    const roots = [process.env.ProgramW6432, process.env.ProgramFiles, process.env['ProgramFiles(x86)'], path.parse(target).root];
+    if (!roots.some(directory => directory && path.isAbsolute(directory) &&
+        !path.relative(path.join(directory, 'WindowsApps'), storeDirectory))) return;
+    // Windows may deny metadata on the store payload but still allow the user alias to launch.
+    if (await isSupportedPowerShell(candidate)) return candidate;
+  } catch { /* Try another installation. */ }
+}
+
+async function installedPowerShell(candidate: string, root: string, storeAlias = false): Promise<string | undefined> {
+  if (!path.isAbsolute(candidate) || path.basename(candidate).toLowerCase() !== 'pwsh.exe' || candidate.includes('\0')) return;
+  let file: string, info: Stats;
+  try {
+    file = await realpath(candidate);
     if (insideStorage(root, file) || path.basename(file).toLowerCase() !== 'pwsh.exe') return;
-    const { stdout } = await run(file, ['--version'], { windowsHide: true, timeout: 3_000, maxBuffer: 8_192 });
-    const version = /\bPowerShell\s+(\d+)\.(\d+)\.\d+/.exec(stdout);
-    if (version && (+version[1] > 7 || +version[1] === 7 && +version[2] >= 3)) return file;
+    info = await stat(file);
+  } catch (error) {
+    if (storeAlias && process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EACCES') {
+      return inaccessibleStoreAlias(candidate, root);
+    }
+    return;
+  }
+  try {
+    const supported = await versions.get(JSON.stringify([file, info.dev, info.ino, info.size, info.mtimeMs, info.ctimeMs]),
+      signal => isSupportedPowerShell(file, signal));
+    if (supported) return file;
   } catch { /* Try another installation. */ }
 }
 
@@ -55,29 +93,35 @@ async function registeredPowerShell(): Promise<string | undefined> {
     "if ($package.InstallLocation) { [Console]::WriteLine((Join-Path $package.InstallLocation 'pwsh.exe')) }"
   ].join('\n');
   try {
-    const { stdout } = await run(systemPowerShell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command],
+    const { stdout } = await promisify(execFile)(systemPowerShell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command],
       { windowsHide: true, timeout: 5_000, maxBuffer: 8_192 });
     return stdout.trim() || undefined;
   } catch { return undefined; }
 }
 
-async function resolvePowerShell(configured: string, root: string): Promise<string> {
+export async function resolveCodexPowerShell(configured: string, root: string): Promise<string> {
+  const aliases = process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps').toLowerCase();
+  const storeAliases = aliases ? new Set([path.join(aliases, 'pwsh.exe'), path.join(aliases, storePackageFamily.toLowerCase(), 'pwsh.exe')]) : new Set<string>();
+  const isStoreAlias = (file: string): boolean => path.isAbsolute(file) && storeAliases.has(path.normalize(file).toLowerCase());
   const search = (process.env.PATH ?? '').split(path.delimiter).map(value => value.replace(/^"|"$/g, '')).filter(value => path.isAbsolute(value));
   const programFiles = process.env.ProgramW6432 ?? process.env.ProgramFiles;
   if (programFiles && path.isAbsolute(programFiles)) search.push(path.join(programFiles, 'PowerShell', '7'));
   const candidates = configured ? [configured] : search.map(directory => path.join(directory, 'pwsh.exe'));
+  const aliasCandidates: string[] = [];
   for (const candidate of new Set(candidates)) {
+    if (isStoreAlias(candidate)) { aliasCandidates.push(candidate); continue; }
     const file = await installedPowerShell(candidate, root);
     if (file) return file;
   }
-  const aliases = process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps').toLowerCase();
-  const configuredAlias = aliases && path.isAbsolute(configured) &&
-    [path.join(aliases, 'pwsh.exe'), path.join(aliases, storePackageFamily.toLowerCase(), 'pwsh.exe')].includes(path.normalize(configured).toLowerCase());
-  // The Store's App Execution Alias can run even when realpath cannot resolve it.
-  if (!configured || configuredAlias) {
+  // A Store alias can still resolve to an old executable during a registration update.
+  if (!configured || aliasCandidates.length) {
     const registered = await registeredPowerShell();
     if (registered) {
       const file = await installedPowerShell(registered, root);
+      if (file) return file;
+    }
+    for (const alias of aliasCandidates) {
+      const file = await installedPowerShell(alias, root, true);
       if (file) return file;
     }
   }
@@ -114,6 +158,7 @@ export async function openManualCodexTerminal(vscode: typeof VSCode, options: {
   cwd: string;
   powerShell: string;
   script: string;
+  title?: string;
   beforeCreate?: () => void;
 }): Promise<ManualCodexTerminal> {
   const window: typeof VSCode.window & ShellIntegrationEvents = vscode.window;
@@ -126,7 +171,7 @@ export async function openManualCodexTerminal(vscode: typeof VSCode, options: {
     typeof window.onDidStartTerminalShellExecution !== 'function') {
     throw new Error('等待 Enter 啟動 Codex CLI 需要支援 Terminal Shell Integration API 的 VS Code 1.93 以上版本。');
   }
-  const shellPath = await resolvePowerShell(options.powerShell, options.cwd);
+  const shellPath = await resolveCodexPowerShell(options.powerShell, options.cwd);
   const pipe = 'glw-codex-' + randomUUID();
   // Windows pipe addresses can be enumerated. Authenticate with a separate secret.
   const nonce = randomBytes(24).toString('hex');
@@ -204,7 +249,7 @@ export async function openManualCodexTerminal(vscode: typeof VSCode, options: {
     });
     options.beforeCreate?.();
     terminal = window.createTerminal({
-      name: 'Codex CLI 工作終端', cwd: options.cwd, shellPath, isTransient: true,
+      name: options.title || 'Codex CLI 工作終端', cwd: options.cwd, shellPath, isTransient: true,
       env: { GITLAB_WORKSPACE_CODEX_SCRIPT: options.script, GITLAB_WORKSPACE_CODEX_PIPE: pipe, GITLAB_WORKSPACE_CODEX_NONCE: nonce },
       message: '請先在此終端開啟 Auto-Accept，再按 Enter 啟動 Codex。'
     });

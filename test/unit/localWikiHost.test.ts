@@ -23,6 +23,7 @@ async function fixture(t: test.TestContext, profile: 'group' | 'repository' = 'g
     operationPhase: () => undefined,
     context: { globalStorageUri: { fsPath: path.join(directory, 'storage') } },
     refreshWorkflowKit: async () => undefined,
+    workflowKit: { verifyInstallation: async () => ({ marker: { version: context.installed.version } }), assertInstallationCurrent: async () => undefined },
     getSkillsContext: () => context,
     session: { getClient: async () => assert.fail('local Wiki cannot require a GitLab client') },
     workflowCliSpec: async (title: string, root: string, name: string, prompt: string, extraRoots: string[] = []) => ({

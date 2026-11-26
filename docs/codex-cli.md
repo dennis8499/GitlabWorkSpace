@@ -8,6 +8,8 @@
 
 MR 審查會在啟動前核對來源與目標版本，缺少固定提交時從已核對的 GitLab 專案取得。若版本更新，請重新整理 MR 再執行。報告留在 Reviewer 使用的 Repo `review-reports/`。在工作流程頁可使用原生 Reviewer 紀錄開報告，或依其狀態恢復同一份審查。
 
+同一個 VS Code 視窗可在同一個 Repo 或 MR 同時執行 MergeReviewer 和 ReleaseReviewer。每次執行都有自己的終端。工作流程頁及 MR 詳情會顯示執行狀態，失敗後可按「重設」處理該次終端及暫存，並保留原生審查紀錄。已終止的原生審查可用「使用 Codex 重新同步」建立新請求。
+
 BMAD 預設一般 Build。Windows 上可從 Build 頁按「檢查 Build Auto」，CLI 會在暫存 Repo 驗證 sandbox 本機提交。選擇 Build Auto 後，本次 CLI 會話還須驗證同步子代理，並使用乾淨的單一 Repo。條件不足時使用一般 Build。
 
 從 v0.55.1 升級時，先前的工作台任務仍由舊版讀取。原生 WorkflowKit 產物、原生 Reviewer 紀錄及一般 GitLab 操作繼續使用原有位置。發行差異見 [0.56.0 版本說明](releases/v0.56.0.md)。

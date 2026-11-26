@@ -27,3 +27,8 @@
 .review-session-list article { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 12px; overflow-wrap: anywhere; }
 .review-session-list article p { margin: 5px 0; }
 .review-session-list article small { margin-left: 10px; opacity: .7; }
+.codex-cli-runs { display: grid; gap: 8px; margin: 10px 0; }
+.codex-cli-runs article { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 8px; padding: 9px 12px; border: 1px solid var(--vscode-panel-border); border-radius: 6px; overflow-wrap: anywhere; }
+.codex-cli-runs article > div:first-child { min-width: 0; }
+.codex-cli-runs [role="status"] { margin-inline-start: 10px; color: var(--vscode-descriptionForeground); }
+.codex-cli-runs p { margin: 4px 0 0; }

@@ -277,9 +277,13 @@ test('late status reads cannot overwrite a newly configured project root', async
 test('late project resolution cannot restore a removed workspace folder', async t => {
   const [, repo] = await directories(t); const { host } = fixture([repo]);
   const resolve = host.resolveProjectContext.bind(host); const before = await resolve();
-  let finish!: (value: unknown) => void; host.resolveProjectContext = () => new Promise(done => { finish = done; });
-  const old = host.refreshWorkflowKit(); host.resolveProjectContext = resolve; vscode.workspace.workspaceFolders = [];
-  await host.refreshWorkflowKit(); finish(before); await old;
+  let finish!: (value: unknown) => void, start!: () => void;
+  const started = new Promise<void>(done => { start = done; });
+  host.resolveProjectContext = () => new Promise(done => { finish = done; start(); });
+  const old = host.refreshWorkflowKit(); await started;
+  host.resolveProjectContext = resolve; vscode.workspace.workspaceFolders = [];
+  try { await host.refreshWorkflowKit(); }
+  finally { finish(before); await old; }
   assert.equal(host.getSkillsContext().mode, 'unavailable'); assert.equal(host.cloneRoot, undefined);
 });
 
@@ -482,6 +486,8 @@ test('replacing an inspected directory with an alias cannot redirect installatio
 test('copying rechecks compatibility and rejects stale context and retired features', async t => {
   const [, repo] = await directories(t);
   const { host, installed } = fixture([repo]); installed.set(repo, 'repository'); await host.refreshWorkflowKit();
+  t.mock.method(host.workflowKit, 'verifyInstallation', async () => ({ marker: { version: host.getSkillsContext().installed.version } }));
+  t.mock.method(host.workflowKit, 'assertInstallationCurrent', async () => undefined);
   let copied = ''; vscode.env.clipboard.writeText = async text => { copied = text; };
   const request = { type: 'copySkillGuidePrompt', revision: host.getSkillsContext().revision, featureId: 'query', inputs: { 'query.question': 'What does this Repo do?' } };
   await host.copySkillGuidePrompt(request); assert.match(copied, /實際單一 Repo/); assert.equal(copied.includes('實際 Group'), false);

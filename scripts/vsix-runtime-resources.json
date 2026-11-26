@@ -16,5 +16,6 @@
   "resources/windows-lease-process.cs",
   "resources/windows-local-lease.cs",
   "resources/windows-local-lease.ps1",
-  "resources/workflow-kit-status.py"
+  "resources/workflow-kit-status.py",
+  "resources/workflow-kit-status.json"
 ]

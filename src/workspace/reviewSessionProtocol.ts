@@ -9,6 +9,7 @@ export interface WorkflowKitRunnerBinding {
   review_launch_request?: 1;
   review_launch_sha256?: string;
   read_only_inspection?: true;
+  read_only_manifest_sha256?: true;
   review_launch_tools?: readonly ReviewerToolId[];
 }
 
@@ -62,8 +63,10 @@ export interface ReviewSessionSummary {
   reportPath?: string;
   error?: string;
   fetchCount: number;
+  gitCoordination?: { phase?: string; code: string; lockPath: string; nativeCode?: number };
   packCacheHits: number;
   cleanupPending?: boolean;
+  privateRefCleanupPending?: boolean;
   reviewOutcome?: ReviewOutcomeSummary;
   baseSha?: string;
   headSha?: string;
@@ -86,13 +89,28 @@ export interface ReviewProgressSummary {
   validation?: Partial<Record<'repositories' | 'contracts' | 'searches', { completed: number; total: number }>>;
 }
 
+interface ReviewActionState {
+  tool?: ReviewerToolId;
+  state: string;
+  cleanupPending?: boolean;
+  reportPath?: string;
+  retainedContext?: boolean;
+  privateRefCleanupPending?: boolean;
+  recovery?: { terminal: boolean; recoverable: boolean };
+}
+
+export function canRetryPrivateRefs(session: ReviewActionState, supported: boolean): boolean {
+  return supported && session.tool === 'release-reviewer' && session.privateRefCleanupPending === true &&
+    ['failed', 'cancelled', 'published'].includes(session.state);
+}
+
 /** The same policy drives the buttons and the Host; UI state never authorizes a dispatch. */
-export function reviewSessionActions(session: { state: string; cleanupPending?: boolean; reportPath?: string;
-  retainedContext?: boolean; recovery?: { terminal: boolean; recoverable: boolean } }): { resume: boolean; cancel: boolean; report: boolean; refresh: boolean } {
+export function reviewSessionActions(session: ReviewActionState, privateRefCleanupRetry = false): { resume: boolean; cancel: boolean; report: boolean; refresh: boolean } {
   const terminal = ['failed', 'cancelled'].includes(session.state) || session.recovery?.terminal === true;
   const active = ['running', 'ready', 'reviewing', 'validating'].includes(session.state) && !terminal;
   return { resume: active || session.state === 'published' && session.cleanupPending === true,
-    cancel: active || terminal && session.retainedContext === true, report: !!session.reportPath, refresh: true };
+    cancel: active || terminal && session.retainedContext === true || canRetryPrivateRefs(session, privateRefCleanupRetry),
+    report: !!session.reportPath, refresh: true };
 }
 export interface ReviewBudgetSummary {
   profile: 'balanced' | 'unlimited';
@@ -106,7 +124,7 @@ export interface ReviewBudgetSummary {
 export type ReviewerCapabilityFeature =
   | 'request_id' | 'read_only_view' | 'status_summary' | 'read_window' | 'updates_file'
   | 'durable_review_progress' | 'phase_metrics' | 'literal_search_batch' | 'patch_encoding'
-  | 'operation_diagnostics' | 'launch_preflight' | 'read_only_inspection' | 'managed_paging';
+  | 'operation_diagnostics' | 'launch_preflight' | 'read_only_inspection' | 'managed_paging' | 'private_ref_cleanup_retry';
 export interface ReviewerSessionCapabilities {
   schema: 'ReviewCapabilities/v1';
   tool: ReviewerToolId;
@@ -144,3 +162,8 @@ export interface NativeMergeReviewerCapabilities {
 }
 
 export type ReviewerCapabilities = ReviewerSessionCapabilities | NativeMergeReviewerCapabilities;
+
+export function supportsPrivateRefCleanup(capabilities?: ReviewerCapabilities): boolean {
+  return capabilities?.schema === 'ReviewCapabilities/v1' && capabilities.tool === 'release-reviewer' &&
+    capabilities.features?.private_ref_cleanup_retry === true;
+}

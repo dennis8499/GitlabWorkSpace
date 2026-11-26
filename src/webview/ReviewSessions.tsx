@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { reviewSessionActions, type ReviewerToolId, type ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
+import { canRetryPrivateRefs, reviewSessionActions, type ReviewerToolId, type ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 
 const stateLabel: Record<string, string> = {
   running: '準備證據', ready: '等待語意審查', reviewing: '審查中', validating: '驗證報告',
@@ -25,8 +25,8 @@ const validationActivityLabel: Record<string, string> = {
 };
 const duration = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onCopyRefresh, onCopyResume, onOpenReport, onRun }: {
-  tool: ReviewerToolId; sessions: ReviewSessionSummary[]; error?: string;
+export function ReviewSessions({ tool, sessions, error, privateRefCleanupRetry = false, onRefresh, onCancel, onCopyRefresh, onCopyResume, onOpenReport, onRun }: {
+  tool: ReviewerToolId; sessions: ReviewSessionSummary[]; error?: string; privateRefCleanupRetry?: boolean;
   onRun?: (id: string, action: 'resume' | 'refresh') => void;
   onRefresh: () => void; onCancel: (id: string) => void;
   onCopyRefresh: (id: string) => void; onCopyResume: (id: string) => void; onOpenReport: (id: string) => void;
@@ -60,17 +60,27 @@ export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onC
         <details class="review-session-diagnostics"><summary>版本與診斷</summary><p class="subtle">遠端同步 {item.fetchCount} 次 · 物件快取 {item.packCacheHits} 份 · {new Date(item.updatedAt).toLocaleString()}</p>
         {item.baseSha && item.headSha && <p class="subtle">固定版本 {item.headSha.slice(0, 8)} → {item.baseSha.slice(0, 8)}</p>}
         {item.capturedAt && <p class="subtle">證據擷取 {new Date(item.capturedAt).toLocaleString()}</p>}
+        {item.gitCoordination && <p class="subtle">
+          Git 鎖 {item.gitCoordination.phase ? `${item.gitCoordination.phase} · ` : ''}{item.gitCoordination.code}
+          {item.gitCoordination.nativeCode !== undefined && ` · Win32 ${item.gitCoordination.nativeCode}`}
+          {' · '}<code>{item.gitCoordination.lockPath}</code>
+        </p>}
         {item.syncObservations?.map((sync, index) => <p class="subtle" key={index}>遠端觀察 {sync.mode} · {new Date(sync.at).toLocaleString()}</p>)}</details>
         {item.error && <p class="warning">{item.error}</p>}
         {item.recovery?.terminal && <p class="subtle">此 request 已終止，保留診斷供檢視；重新同步會建立新的審查。{item.retainedContext ? '固定證據仍保留，可清理診斷暫存。' : ''}</p>}
         {item.cleanupPending && <p class="warning">報告已保存，暫存清理待重試；恢復指令會沿用既有報告。</p>}
+        {item.privateRefCleanupPending && <p class="warning">Git 暫存 ref 待回收。{canRetryPrivateRefs(item, privateRefCleanupRetry) ? '可重試回收，或在下次同步時重新核對。' : '下次同步時會重新核對程序狀態。'}</p>}
         <div class="review-session-actions">
           {item.reportPath ? <button class="primary" type="button" onClick={() => onOpenReport(item.requestId)}>開啟報告</button>
-            : onRun && reviewSessionActions(item).resume && <button class="primary" type="button" onClick={() => onRun(item.requestId, 'resume')}>{item.cleanupPending ? '使用 Codex 重試清理' : '使用 Codex 恢復審查'}</button>}
-          {reviewSessionActions(item).cancel &&
-            <button class="secondary" type="button" onClick={() => onCancel(item.requestId)}>{item.recovery?.terminal && item.retainedContext ? '清理診斷暫存' : '取消審查'}</button>}
+            : onRun && (reviewSessionActions(item).resume
+              ? <button class="primary" type="button" onClick={() => onRun(item.requestId, 'resume')}>{item.cleanupPending ? '使用 Codex 重試清理' : '使用 Codex 恢復審查'}</button>
+              : (item.state === 'failed' || item.recovery?.terminal) && <button class="primary" type="button" onClick={() => onRun(item.requestId, 'refresh')}>使用 Codex 重新同步</button>)}
+          {reviewSessionActions(item, privateRefCleanupRetry).cancel &&
+            <button class="secondary" type="button" onClick={() => onCancel(item.requestId)}>{canRetryPrivateRefs(item, privateRefCleanupRetry)
+              ? '重試回收 Git 暫存 ref' : item.recovery?.terminal && item.retainedContext ? '清理診斷暫存' : '取消審查'}</button>}
           <details class="workflow-alternatives"><summary>其他操作</summary>
-          {onRun && <>{item.reportPath && reviewSessionActions(item).resume && <button type="button" onClick={() => onRun(item.requestId, 'resume')}>{item.cleanupPending ? '使用 Codex 重試清理' : '使用 Codex 恢復審查'}</button>}<button type="button" onClick={() => onRun(item.requestId, 'refresh')}>使用 Codex 重新同步</button></>}
+          {onRun && <>{item.reportPath && reviewSessionActions(item).resume && <button type="button" onClick={() => onRun(item.requestId, 'resume')}>{item.cleanupPending ? '使用 Codex 重試清理' : '使用 Codex 恢復審查'}</button>}
+            {(item.reportPath || item.state !== 'failed' && !item.recovery?.terminal) && <button type="button" onClick={() => onRun(item.requestId, 'refresh')}>使用 Codex 重新同步</button>}</>}
           {reviewSessionActions(item).resume &&
             <button class="secondary" type="button" onClick={() => onCopyResume(item.requestId)}>複製恢復審查指令</button>}
           <button class="secondary" type="button" onClick={() => onCopyRefresh(item.requestId)}>複製重新同步指令</button>

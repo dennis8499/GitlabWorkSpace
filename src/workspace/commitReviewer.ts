@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { sameLocalPath } from './workspacePaths';
-import { readWorkflowKitRunnerBinding } from './workflowKitRunner';
+import { readWorkflowKitRunnerBinding, type VerifiedWorkflowKitInstallation } from './workflowKitRunner';
 
 export function commitReviewRuntime(workspace: string, previous?: string): string {
   const parent = path.resolve(workspace, '.commit-reviewer-runtime');
@@ -13,9 +13,9 @@ export function commitReviewRuntime(workspace: string, previous?: string): strin
 }
 
 /** Bind the native CLI to verified installed bytes without invoking Git or the helper. */
-export async function readInstalledCommitReviewer(root: string) {
+export async function readInstalledCommitReviewer(root: string, installation?: VerifiedWorkflowKitInstallation) {
   const prefix = '.agents/skills/commit-reviewer/';
-  const manifest = JSON.parse(await readFile(path.join(root, '.gitlab-workspace/tool-manifests/workflow-kit.json'), 'utf8'));
+  const manifest = installation ? installation.marker : JSON.parse(await readFile(path.join(root, '.gitlab-workspace/tool-manifests/workflow-kit.json'), 'utf8'));
   if (!manifest.capabilities?.includes('commit-draft') || !manifest.capabilities?.includes('mr-precheck')) {
     throw new Error('目前工作流程包尚未提供 CommitReviewer，請更新 Skills。');
   }
@@ -36,7 +36,7 @@ export async function readInstalledCommitReviewer(root: string) {
   }
   const version = (await readFile(path.join(root, prefix, 'VERSION'), 'utf8')).trim();
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('CommitReviewer 版本無效。');
-  const workflowKitRunner = await readWorkflowKitRunnerBinding(root);
+  const workflowKitRunner = installation ? installation.runner : await readWorkflowKitRunnerBinding(root);
   if (!workflowKitRunner) throw new Error('WorkflowKit helper runner 尚未安裝，請更新 Skills。');
   return { version, helper: path.join(root, prefix, 'scripts/commit_review.py'),
     payload: rows.sort(([a], [b]) => a.localeCompare(b)), workflowKitRunner };

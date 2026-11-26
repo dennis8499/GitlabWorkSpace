@@ -1,9 +1,12 @@
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { NetworkLeaseError } from '../api/localNetworkLease';
 import { execLeasedFile, withWindowsExecutionLeases } from '../api/windowsLocalLease';
 import type { OperationLog } from '../logging/operationLog';
 import { resolvePythonRuntime } from './pythonRuntime';
-import { installedKitIdentity } from './workflowKitIntegration';
+import { assertWorkflowKitManagedInstructions, assertWorkflowKitManagedSkill, assertWorkflowKitManifestCurrent, installedKitIdentity, readWorkflowKitManifest,
+  workflowKitTransactions, type WorkflowKitStatusProof } from './workflowKitIntegration';
+import { readWorkflowKitRunnerBinding, type VerifiedWorkflowKitInstallation } from './workflowKitRunner';
 import { workflowKitFailure, workflowKitWarnings } from './workflowKitResult';
 import { WorkflowKitReleaseManager, PackageIntegrityError, compareVersions } from './workflowKitReleases';
 import { workflowKitInterfaceCompatible, workflowKitStatusApiCompatible } from './workflowKitCompatibility';
@@ -12,6 +15,7 @@ import type { InstalledWorkflowKitState, RemoteToolSource, ToolSource, WorkflowK
 import type { WorkflowKitRelease, WorkflowKitHelper } from './workflowKitReleases';
 
 type WorkflowKitProfile = 'group' | 'repository';
+interface StatusRead { state: InstalledWorkflowKitState; proof?: WorkflowKitStatusProof; }
 
 export interface WorkflowKitContext {
   revision: string;
@@ -54,10 +58,19 @@ export interface WorkflowKitInstallGuard {
   validateTarget: (context: WorkflowKitContext) => Promise<void>;
 }
 
+export class WorkflowKitVersionMismatchError extends Error {
+  constructor(readonly actualVersion: string) {
+    super('WorkflowKit 安裝版本已變更，請重新整理工作流程。');
+    this.name = 'WorkflowKitVersionMismatchError';
+  }
+}
+
 /** Owns WorkflowKit discovery, release management and installation state independently of the workspace panel. */
 export class WorkflowKitService {
   private readonly packages: WorkflowKitReleaseManager;
-  private readonly statusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
+  private readonly statusReads = new Map<string, Promise<StatusRead>>();
+  private readonly verifiedMarkers = new Map<string, WorkflowKitStatusProof>();
+  private embeddedStatusVersions?: Promise<ReadonlySet<string>>;
   private readonly listeners = new Set<() => void>();
   private releases: WorkflowKitRelease[] = [];
   private target: WorkflowKitInstallTarget = { manual: false, state: { status: 'missing' } };
@@ -118,23 +131,33 @@ export class WorkflowKitService {
     this.emit();
   }
 
-  async refreshStatus(signal?: AbortSignal, force = false): Promise<void> {
+  async refreshStatus(signal?: AbortSignal, force = false): Promise<WorkflowKitStatusProof | undefined> {
+    if (signal?.aborted) return;
     this.assertActive();
     const context = this.context;
     const generation = this.generation;
     if (!context) return;
-    const current = () => !this.disposed && !signal?.aborted && generation === this.generation && this.context === context;
     const contextKey = key(context);
-    if (!force && this.refreshTask?.contextKey === contextKey && !this.refreshTask.signal?.aborted &&
-        (this.refreshTask.signal === undefined || signal === undefined || this.refreshTask.signal === signal)) return this.refreshTask.promise;
-    const pending = { contextKey, signal, promise: Promise.resolve() } as { contextKey: string; signal?: AbortSignal; promise: Promise<void> };
-    const promise = (async () => {
+    const pending = this.refreshTask;
+    if (!force && pending?.contextKey === contextKey && !pending.signal?.aborted && (!pending.signal || pending.signal === signal)) {
+      return pending.promise;
+    }
+    let resolveTask!: (task: Promise<WorkflowKitStatusProof | undefined>) => void;
+    const promise = new Promise<WorkflowKitStatusProof | undefined>(resolve => { resolveTask = resolve; });
+    const entry = { contextKey, signal, promise };
+    this.refreshTask = entry;
+    const current = () => !this.disposed && !signal?.aborted && generation === this.generation && this.context === context &&
+      (!signal || this.refreshTask === entry);
+    void promise.finally(() => { if (this.refreshTask === entry) this.refreshTask = undefined; }).catch(() => undefined);
+    resolveTask((async () => {
       const target: WorkflowKitInstallTarget = this.installation && samePath(this.installation.root, context.root)
         ? { ...this.target, state: { status: 'installing' } }
         : { root: context.root, profile: context.profile, manual: context.manual, error: context.error,
           state: { status: context.root && !context.error ? 'checking' : 'missing' } };
       if (!this.installation) { this.target = target; this.emit(); }
-      const checked = context.root && !target.error ? await this.readStatus(context.root) : { status: 'missing' as const };
+      if (!current()) return;
+      const result: StatusRead = context.root && !target.error ? await this.readStatus(context.root) : { state: { status: 'missing' } };
+      const checked = result.state;
       if (!current()) return;
       const releases = await this.packages.listReleases();
       if (!current()) return;
@@ -149,10 +172,11 @@ export class WorkflowKitService {
       this.releases = releases;
       this.target = { ...target, state };
       this.emit();
-    })();
-    pending.promise = promise;
-    this.refreshTask = pending;
-    void promise.finally(() => { if (this.refreshTask === pending) this.refreshTask = undefined; }).catch(() => undefined);
+      return current() ? result.proof : undefined;
+    })().catch(error => {
+      if (signal && !current()) return undefined;
+      throw error;
+    }));
     return promise;
   }
 
@@ -211,6 +235,7 @@ export class WorkflowKitService {
     }
     guard.checkAccess();
     this.installation = { root: target.root, contextRevision: context.revision };
+    this.verifiedMarkers.delete(pathKey(target.root));
     this.generation++;
     this.target = { ...target, state: { ...target.state, status: 'installing' } };
     this.emit();
@@ -268,7 +293,7 @@ export class WorkflowKitService {
     }
   }
 
-  waitForStatus(root: string): Promise<InstalledWorkflowKitState> | undefined { return this.statusReads.get(pathKey(root)); }
+  waitForStatus(root: string): Promise<InstalledWorkflowKitState> | undefined { return this.statusReads.get(pathKey(root))?.then(result => result.state); }
   async initializeCleanup(): Promise<void> { await this.packages.maintain?.(); this.reportCleanupWarnings(); }
 
   statusHelper(root?: string): Promise<WorkflowKitHelper> { return this.helper(root); }
@@ -285,26 +310,114 @@ export class WorkflowKitService {
     this.generation++;
     this.listeners.clear();
     this.statusReads.clear();
+    this.verifiedMarkers.clear();
   }
 
-  private refreshTask?: { contextKey: string; signal?: AbortSignal; promise: Promise<void> };
+  private refreshTask?: { contextKey: string; signal?: AbortSignal; promise: Promise<WorkflowKitStatusProof | undefined> };
 
   private source(): ToolSource { return this.sourceBeforeWrite ?? (this.options.readSource() === 'gitea' ? 'gitea' : 'github'); }
 
-  private async readStatus(root: string): Promise<InstalledWorkflowKitState> {
-    if (this.installation && samePath(root, this.installation.root)) return { status: 'installing' };
+  private assertInstallationAvailable(root: string): void {
+    this.assertActive();
+    if (samePath(root, this.installation?.root)) throw new Error('此專案的工作流程包正在安裝中。');
+  }
+
+  async assertInstallationCurrent(proof: WorkflowKitStatusProof, skill?: string): Promise<void> {
+    this.assertInstallationAvailable(proof.root);
+    const current = await assertWorkflowKitManifestCurrent(proof);
+    if (skill) {
+      await Promise.all([assertWorkflowKitManagedSkill(current, skill), assertWorkflowKitManagedInstructions(current)]);
+      await assertWorkflowKitManifestCurrent(proof);
+    }
+    this.assertInstallationAvailable(proof.root);
+  }
+
+  async verifyInstallation(root: string, options: { reviewer?: boolean; proof?: WorkflowKitStatusProof;
+    expectedInstalledVersion?: string; requireCachedProof?: boolean } = {}): Promise<VerifiedWorkflowKitInstallation> {
+    this.assertInstallationAvailable(root);
+    const marker = await readWorkflowKitManifest(root);
+    if (options.expectedInstalledVersion !== undefined && marker.version !== options.expectedInstalledVersion) {
+      throw new WorkflowKitVersionMismatchError(marker.version);
+    }
+    const transactions = await workflowKitTransactions(marker.root);
+    const snapshot = { ...marker, transactions };
+    const matches = (proof: WorkflowKitStatusProof | undefined): boolean => !!proof && proof.sha256 === marker.sha256 &&
+      !path.relative(proof.root, marker.root) && proof.transactions === transactions;
+    const cachedProof = options.reviewer && !options.proof ? this.verifiedMarkers.get(pathKey(root)) : undefined;
+    const cachedReviewer = matches(cachedProof);
+    const unverified = 'WorkflowKit 安裝尚未通過驗證。';
+    const changed = 'WorkflowKit 安裝紀錄或交易狀態在檢查期間已變更，請重新執行操作。';
+    if (options.requireCachedProof && !options.proof && !cachedReviewer) throw new Error(cachedProof ? changed : unverified);
+    let runner = cachedReviewer ? await readWorkflowKitRunnerBinding(marker.root, marker) : undefined;
+    if (runner?.read_only_manifest_sha256) {
+      await assertWorkflowKitManagedInstructions(marker);
+    } else {
+      const status = options.proof ? { proof: options.proof } : await this.readStatus(root);
+      if (!status.proof) throw new Error(readableError('state' in status ? status.state.message ?? unverified : unverified));
+      if (!matches(status.proof)) throw new Error(changed);
+      if (!cachedReviewer) runner = await readWorkflowKitRunnerBinding(marker.root, marker);
+    }
+    await this.assertInstallationCurrent(snapshot);
+    return { marker: snapshot, runner };
+  }
+
+  private statusVersions(): Promise<ReadonlySet<string>> {
+    if (this.embeddedStatusVersions) return this.embeddedStatusVersions;
+    const task = readFile(path.join(this.options.extensionDirectory, 'resources', 'workflow-kit-status.json'), 'utf8').then(text => {
+      const value = JSON.parse(text) as { schema?: unknown; versions?: unknown } | null;
+      if (value?.schema !== 'WorkflowKitStatusSupport/v1' || !Array.isArray(value.versions) ||
+          !value.versions.every(version => typeof version === 'string' && /^\d+\.\d+\.\d+$/.test(version))) {
+        throw new Error('WorkflowKit 離線檢查器的支援清單無效。');
+      }
+      return new Set<string>(value.versions);
+    });
+    this.embeddedStatusVersions = task;
+    void task.catch(() => {
+      if (this.embeddedStatusVersions === task) this.embeddedStatusVersions = undefined;
+    });
+    return task;
+  }
+
+  private async readStatus(root: string): Promise<StatusRead> {
+    if (this.installation && samePath(root, this.installation.root)) return { state: { status: 'installing' } };
     const key = pathKey(root);
     const pending = this.statusReads.get(key);
     if (pending) return pending;
-    const task: Promise<InstalledWorkflowKitState> = (async (): Promise<InstalledWorkflowKitState> => {
+    const task = (async (): Promise<StatusRead> => {
       try {
-        const response = await this.runHelper(['status', root], 60_000);
-        await this.packages.maintain?.(root);
+        const transactions = await workflowKitTransactions(root);
         const identity = await installedKitIdentity(root);
-        if (identity && ['installed', 'update-available'].includes(String(response.status)) &&
+        const confirmSnapshot = async (sha256: string): Promise<WorkflowKitStatusProof> => {
+          const marker = await readWorkflowKitManifest(root);
+          if (marker.sha256 !== sha256 || identity && marker.sha256 !== identity.sha256 ||
+              await workflowKitTransactions(marker.root) !== transactions) {
+            throw new Error('WorkflowKit 安裝紀錄或交易狀態在檢查期間已變更。');
+          }
+          this.assertInstallationAvailable(root);
+          return { root: marker.root, sha256, transactions };
+        };
+        const embedded = !identity || (await this.statusVersions()).has(identity.version);
+        const statusPath = path.join(this.options.extensionDirectory, 'resources', 'workflow-kit-status.py');
+        let response = embedded ? await this.runHelper(['status', root, ...(identity ? ['--expected-version', identity.version] : [])],
+          60_000, statusPath) : await this.runCachedStatus(root, identity, statusPath);
+        let usedCache = !embedded;
+        if (embedded && identity && response.ok === true && response.statusContract === 1 && response.status === 'error' &&
+            response.integrity === 'unverified' && response.errorCode === 'unknown-package-identity') {
+          await confirmSnapshot(identity.sha256);
+          response = await this.runCachedStatus(root, identity, statusPath);
+          usedCache = true;
+        }
+        await this.packages.maintain?.(root);
+        const installed = response.status === 'installed' || response.status === 'update-available';
+        if (identity && installed &&
             (response.version !== identity.version || response.source !== identity.source)) throw new Error('安裝紀錄在檢查期間已變更，請重新檢查。');
+        const digest = verifiedManifestDigest(response);
+        if (usedCache && installed && !digest) throw new Error('快取的 WorkflowKit 檢查器未提供已驗證的安裝紀錄摘要。');
+        const proof = digest ? await confirmSnapshot(digest) : undefined;
+        if (proof) this.verifiedMarkers.set(key, proof);
+        else this.verifiedMarkers.delete(key);
         const valid = ['installed', 'missing', 'update-available', 'needs-cleanup', 'error'].includes(String(response.status));
-        return valid ? {
+        const state: InstalledWorkflowKitState = valid ? {
           status: response.status === 'update-available' ? 'installed' as const : response.status as InstalledWorkflowKitState['status'],
           profile: response.profile === 'group' || response.profile === 'repository' ? response.profile as WorkflowKitProfile : undefined,
           upstreamVersions: response.upstreamVersions && typeof response.upstreamVersions === 'object'
@@ -327,12 +440,26 @@ export class WorkflowKitService {
           message: typeof response.message === 'string' ? response.message : undefined,
           legacyPaths: Array.isArray(response.legacyPaths) ? response.legacyPaths.filter((item): item is string => typeof item === 'string') : undefined
         } : { status: 'error', message: 'Workflow kit status response is invalid.' };
-      } catch (error) { return { status: 'error', message: readableError(error) }; }
+        return { state, proof };
+      } catch (error) {
+        this.verifiedMarkers.delete(key);
+        return { state: { status: 'error', message: readableError(error) } };
+      }
       finally { this.reportCleanupWarnings(); }
     })();
     this.statusReads.set(key, task);
     void task.finally(() => { if (this.statusReads.get(key) === task) this.statusReads.delete(key); }).catch(() => undefined);
     return task;
+  }
+
+  private async runCachedStatus(root: string, { source, version }: { source: RemoteToolSource; version: string }, statusPath: string): Promise<Record<string, unknown>> {
+    const helper = await this.packages.leaseStatusHelper({ source, version }, root);
+    if (!helper) throw new Error(`缺少 WorkflowKit ${version} 的已驗證狀態檢查器，請在工具與環境重新檢查發行版本。`);
+    try {
+      return await withWindowsExecutionLeases(helper.recovery ? [helper.recovery] : [], () => this.runHelper(
+        ['status', root, '--expected-version', version, '--cached-installer', helper.path,
+          '--cached-installer-size', String(helper.size), '--cached-installer-sha256', helper.sha256], 60_000, statusPath));
+    } finally { await helper.release?.(); }
   }
 
   private async runHelper(args: readonly string[], timeout = 10 * 60_000, installerPath?: string,
@@ -348,9 +475,10 @@ export class WorkflowKitService {
       const helper: WorkflowKitHelper = installerPath ? { path: installerPath, version: '' } : await this.helper(action === 'status' ? String(args[1]) : undefined);
       try {
       let safeArgs = [...args];
-      if (action === 'status') {
+      if (action === 'status' && helper.version) {
         const index = safeArgs.indexOf('--expected-version');
-        safeArgs = index >= 0 ? [...safeArgs.slice(0, index + 1), helper.version, ...safeArgs.slice(index + 2)] : [...safeArgs, '--expected-version', helper.version];
+        const version = helper.version;
+        safeArgs = index >= 0 ? [...safeArgs.slice(0, index + 1), version, ...safeArgs.slice(index + 2)] : [...safeArgs, '--expected-version', version];
       }
       const result = await execLeasedFile(python.executable, [...python.args, helper.path, ...safeArgs], {
         cwd: this.options.extensionDirectory, env: python.env, timeout, maxBuffer: 1024 * 1024
@@ -380,7 +508,8 @@ export class WorkflowKitService {
   }
 
   private async helper(root?: string): Promise<WorkflowKitHelper> {
-    const identity = root ? await installedKitIdentity(root) : undefined;
+    const installed = root ? await installedKitIdentity(root) : undefined;
+    const identity = installed && { source: installed.source, version: installed.version };
     return (identity ? typeof this.packages.leaseStatusHelper === 'function' && root ? await this.packages.leaseStatusHelper(identity, root) : await this.packages.statusHelper(identity) : undefined) ?? {
       path: path.join(this.options.extensionDirectory, 'resources', 'workflow-kit-status.py'), version: this.options.extensionVersion
     };
@@ -392,6 +521,12 @@ export class WorkflowKitService {
   private assertActive(): void { if (this.disposed) throw new Error('WorkflowKit service is disposed.'); }
 
   private emit(): void { if (this.disposed) return; this.options.onDidChange?.(); for (const listener of this.listeners) listener(); }
+}
+
+function verifiedManifestDigest(response: Record<string, unknown>): string | undefined {
+  const { status, integrity, installedManifestSha256: sha } = response;
+  if (response.ok === true && response.statusContract === 1 && (status === 'installed' || status === 'update-available') && integrity === 'verified' &&
+      typeof sha === 'string' && /^[a-f0-9]{64}$/.test(sha)) return sha;
 }
 
 function parseLastJsonLine(output: string): unknown {

@@ -35,6 +35,8 @@ async function fixture(t: test.TestContext) {
     installed: { status: 'installed', version: '1.8.0', capabilities: [] }, availableFeatures: ['merge-repo'],
     reviewerRepositories: [{ name: 'service', path: project }], repositories: [{ name: 'service', path: project }] };
   const panel = Object.assign(Object.create(WorkspacePanel.prototype), { getSkillsContext: () => context,
+    workflowKit: { verifyInstallation: async () => ({ marker: { version: context.installed.version }, runner: binding.workflow_kit_runner }),
+      assertInstallationCurrent: async () => undefined },
     refreshWorkflowKit: async () => {}, refreshInventory: async () => {}, operationPhase: () => {},
     workflowCliSpec: async (_title: string, _root: string, _tool: string, prompt: string, writableRoots: string[]) => ({ prompt, writableRoots }) });
   const job = { schema: 'MergeReviewSession/v1', request_id: requestId, runtime_root: runtime, state: 'reviewing', phase: 'review', updated_at: '2026-11-10T00:00:00Z',
@@ -46,6 +48,16 @@ async function fixture(t: test.TestContext) {
   };
   return { root, runtime, project, panel, requestId, job, save };
 }
+test('an unverified installation blocks the copy and launch capability probes', async t => {
+  const f = await fixture(t), inputs = { 'merge-repo.repo': f.project, 'merge-repo.base': 'origin/main', 'merge-repo.head': 'feature/change' };
+  const probe = t.mock.method(capabilities, 'readReviewerCapabilities', async () => assert.fail('the helper was executed'));
+  t.mock.method(f.panel.workflowKit, 'verifyInstallation', async () => { throw new Error('installation could not be verified'); });
+  const request = { featureId: 'merge-repo', revision: 'r', inputs };
+  await assert.rejects(f.panel.copySkillGuidePrompt(request), /installation could not be verified/);
+  await assert.rejects(f.panel.prepareSkillGuideTask(request, f.requestId), /installation could not be verified/);
+  assert.equal(probe.mock.callCount(), 0);
+  await assert.rejects(readdir(path.join(reviewRunnerRuntime(f.runtime), 'launch')), { code: 'ENOENT' });
+});
 test('Host prepares a structured launch with the displayed Repo and branches without starting native capture', async t => {
   const f = await fixture(t), inputs = { 'merge-repo.repo': f.project, 'merge-repo.base': 'origin/main', 'merge-repo.head': 'feature/change' };
   const task = await f.panel.prepareSkillGuideTask({ featureId: 'merge-repo', revision: 'r', inputs }, f.requestId);

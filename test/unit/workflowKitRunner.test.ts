@@ -22,8 +22,65 @@ async function fixture(t: test.TestContext) {
   const retired = { schema: 'SyntaxAnalysisBinding/v1',
     script_path: path.join(root, '.agents/gitlab-workspace-kit/scripts/syntax-context/cli.py'),
     engine_sha256: '1'.repeat(64), languages: ['csharp'], default_mode: 'off' };
-  return { root, runner, retired };
+  const marker = { root, version: '1.12.7', sha256: 'a'.repeat(64), files: { '.agents/gitlab-workspace-kit/run.py': runner.script_sha256 } };
+  return { root, runner, retired, marker };
 }
+
+test('runner binding and launch reject nonregular files and oversized runners before opening them', async t => {
+  const { root, runner, marker } = await fixture(t);
+  const fs = require('node:fs/promises') as typeof import('node:fs/promises');
+  const lstat = fs.lstat;
+  let nonregular = true;
+  t.mock.method(fs, 'lstat', async (file: string, options?: object) => {
+    const info = await Reflect.apply(lstat, fs, [file, options]);
+    if (file === runner.script_path) {
+      if (nonregular) info.isFile = () => false;
+      else info.size = BigInt(64 * 1024 * 1024 + 1);
+    }
+    return info;
+  });
+  const open = t.mock.method(fs, 'open');
+  const python = { executable: 'python', args: [], env: {}, version: '3.14.0' };
+  await assert.rejects(readWorkflowKitRunnerBinding(root, marker), /不是一般檔案/);
+  await assert.rejects(workflowKitPythonCommand(python, runner, ['helper.py']), /不是一般檔案/);
+  nonregular = false;
+  await assert.rejects(readWorkflowKitRunnerBinding(root, marker), /64 MiB/);
+  await assert.rejects(workflowKitPythonCommand(python, runner, ['helper.py']), /64 MiB/);
+  assert.equal(open.mock.callCount(), 0);
+});
+
+test('runner binding and launch cap growth and close the open file', async t => {
+  const { root, runner, marker } = await fixture(t);
+  const fs = require('node:fs/promises') as typeof import('node:fs/promises');
+  const entry = await fs.lstat(runner.script_path, { bigint: true });
+  let bytesRead = 0, closes = 0;
+  let opened = { isFile: (): boolean => true, dev: entry.dev, ino: entry.ino + 1n, size: entry.size };
+  t.mock.method(fs, 'open', async (file: string) => {
+    assert.equal(file, runner.script_path);
+    return {
+      stat: async () => opened,
+      read: async (buffer: Buffer, offset: number, length: number) => {
+        assert.ok(length > 0 && length <= 64 * 1024);
+        buffer.fill(0, offset, offset + length);
+        bytesRead += length;
+        return { bytesRead: length };
+      },
+      close: async () => { closes++; }
+    };
+  });
+  await assert.rejects(readWorkflowKitRunnerBinding(root, marker), /不是一般檔案/);
+  assert.equal(bytesRead, 0);
+  opened = { ...opened, ino: entry.ino, size: 64n * 1024n * 1024n + 1n };
+  await assert.rejects(readWorkflowKitRunnerBinding(root, marker), /64 MiB/);
+  assert.equal(bytesRead, 0);
+  opened = entry;
+  await assert.rejects(readWorkflowKitRunnerBinding(root, marker), /64 MiB/);
+  assert.equal(bytesRead, 64 * 1024 * 1024 + 1);
+  bytesRead = 0;
+  await assert.rejects(workflowKitPythonCommand({ executable: 'python', args: [], env: {}, version: '3.14.0' }, runner, ['helper.py']), /64 MiB/);
+  assert.equal(bytesRead, 64 * 1024 * 1024 + 1);
+  assert.equal(closes, 4);
+});
 
 test('runner discovery and launch no longer inspect retired engine assets', async t => {
   const { root, runner, retired } = await fixture(t);

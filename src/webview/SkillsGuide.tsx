@@ -11,7 +11,7 @@ import { ActionContext, useActionSelector } from './useActions';
 import { reportLocalFeedback } from './notificationFeedback';
 import { BranchInput, type BranchReadStatus, type PickSkillBranch } from './BranchInput';
 import { ReviewSessions } from './ReviewSessions';
-import type { ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
+import { supportsPrivateRefCleanup, type ReviewerToolId, type ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 const fallbackActions = new ActionController(() => {});
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, resolveReviewerRepository, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
@@ -187,6 +187,7 @@ export function SkillsGuide({ state, onChange, onEnvironmentChange = onChange, o
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
         {(tool === 'merge-reviewer' || tool === 'release-reviewer') && onLoadReviewSessions && <ReviewSessions tool={tool}
           sessions={reviewSessionsTool === tool ? reviewSessions.filter(item => item.tool === tool) : []}
+          privateRefCleanupRetry={supportsPrivateRefCleanup(context.reviewerCapabilities)}
           error={reviewSessionsTool === tool ? reviewSessionsError : undefined} onRefresh={() => onLoadReviewSessions(tool)}
           onRun={onRunReview ? (id, action) => onRunReview(tool, id, action) : undefined} onCancel={id => onCancelReview?.(tool, id)} onCopyRefresh={id => onCopyReviewRefresh?.(tool, id)}
           onCopyResume={id => onCopyReviewResume?.(tool, id)} onOpenReport={id => onOpenReviewReport?.(tool, id)} />}

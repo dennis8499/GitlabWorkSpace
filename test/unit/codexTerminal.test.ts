@@ -26,11 +26,32 @@ async function fixture(t: TestContext) {
   const inputs: (string | undefined)[] = [], probes: string[][] = [];
   const listeners = new Set<(terminal: VSCode.Terminal) => void>();
   let opened = 0, exitStatus: VSCode.TerminalExitStatus | undefined;
+  let chooseWhileLoading = false;
   const terminal = { show: () => { opened++; }, get exitStatus() { return exitStatus; } } as VSCode.Terminal;
   const vscode = {
-    CancellationTokenSource: class { token = {}; cancel() {} dispose() {} },
+    CancellationTokenSource: class { token = { onCancellationRequested: () => ({ dispose() {} }) }; cancel() {} dispose() {} },
     TerminalExitReason: { Process: 2 },
     window: {
+      createQuickPick: () => {
+        let accept = () => {}, hide = () => {};
+        let busy = false;
+        const picker = {
+          items: [] as VSCode.QuickPickItem[], selectedItems: [] as VSCode.QuickPickItem[], activeItems: [] as VSCode.QuickPickItem[],
+          onDidAccept(callback: () => void) { accept = callback; return { dispose() {} }; },
+          onDidHide(callback: () => void) { hide = callback; return { dispose() {} }; },
+          show() { if (chooseWhileLoading) pick(); },
+          dispose() {},
+          get busy() { return busy; },
+          set busy(value: boolean) { busy = value; if (!value && !chooseWhileLoading) pick(); }
+        };
+        const pick = () => {
+          choices.push([...picker.items]);
+          const index = selections.shift();
+          if (index === undefined) hide();
+          else { picker.selectedItems = [picker.items[index]]; accept(); }
+        };
+        return picker;
+      },
       showQuickPick: async (items: VSCode.QuickPickItem[]) => { choices.push(items); const choice = selections.shift(); return choice === undefined ? undefined : items[choice]; },
       showInputBox: async () => inputs.shift(),
       createTerminal: (options: VSCode.TerminalOptions) => { terminals.push(options); return terminal; },
@@ -45,6 +66,7 @@ async function fixture(t: TestContext) {
     } };
   const runner = new CodexTerminal(vscode, path.join(root, 'storage'), services);
   return { runner, services, root, cwd, terminals, choices, selections, inputs, probes, opened: () => opened,
+    chooseWhileLoading: () => { chooseWhileLoading = true; },
     close: (reason: VSCode.TerminalExitReason) => { exitStatus = { reason, code: 0 }; for (const listener of listeners) listener(terminal); } };
 }
 
@@ -82,6 +104,15 @@ test('passes a catalog model, supported effort, scoped directories and a UTF-8 f
   assert.fail('closed terminal did not release its prompt file');
 });
 
+test('CLI defaults can be selected while the model catalog is still pending', { timeout: 2000 }, async t => {
+  const f = await fixture(t);
+  f.services.probe = async () => new Promise<string>(() => {});
+  f.chooseWhileLoading();
+  f.selections.push(0);
+  assert.deepEqual(await f.runner.choose('', f.cwd), { executable });
+  assert.deepEqual(f.choices[0].map(item => item.label), ['沿用 CLI 設定', '輸入模型 ID']);
+});
+
 test('supports CLI defaults, custom models and cancelling selection when the catalog is unavailable', async t => {
   const { runner, services, cwd, choices, selections, inputs, terminals } = await fixture(t);
   const attempts: string[][] = [];
@@ -110,6 +141,22 @@ test('refuses mismatched writable scopes, invalid effort and replaced CLI binari
   await assert.rejects(runner.launch({ executable }, { ...input, writableRoots: [path.join(root, 'outside')] }), /超出.*可寫範圍/);
   services.version = async () => ({ ...executable, identity: 'replaced' });
   await assert.rejects(runner.launch({ executable }, input), /執行檔已變更/);
+  assert.equal(terminals.length, 0);
+});
+
+test('terminal handoff waits for an asynchronous installation guard before creating the process', async t => {
+  const { runner, cwd, terminals } = await fixture(t);
+  let inspected!: () => void, reject!: (error: Error) => void;
+  const started = new Promise<void>(resolve => { inspected = resolve; });
+  const guard = new Promise<void>((_, fail) => { reject = fail; });
+  const launch = runner.launch({ executable }, { title: '查詢', cwd, prompt: '查詢', writableRoots: [] }, {
+    beforeCreate: () => { inspected(); return guard; }
+  });
+  const failure = assert.rejects(launch, /installer transaction started/);
+  await started;
+  assert.equal(terminals.length, 0);
+  reject(new Error('installer transaction started'));
+  await failure;
   assert.equal(terminals.length, 0);
 });
 

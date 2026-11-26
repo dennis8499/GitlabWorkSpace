@@ -184,6 +184,7 @@ export interface WorkflowKitReleaseSummary {
 
 /** Initial owner-view selection, published only after its managed binding is verified. */
 export interface WorkspaceSnapshot {
+  codexCliRuns?: import('../codex/cliProtocol').CodexCliRunSummary[];
   gitlabConnection?: import('../connection/connectionState').GitLabConnectionState;
   hostNavigationGeneration?: number;
   workspaceCapabilities?: WorkspaceCapabilities;
@@ -281,6 +282,8 @@ export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId
 
 export type WorkspaceRequest = (NotificationRequest
   | { type: 'runCodexCli'; source: import('../codex/cliProtocol').CodexCliSource }
+  | { type: 'resetCodexCliRun'; runId: string }
+  | { type: 'showCodexCliTerminal'; runId: string }
   | { type: 'codexCliSettings'; action: 'check' | 'login' | 'executable' }
   | { type: 'ready'; projectSource?: 'gitlab' | 'local'; developerView?: 'list' | 'graph'; mergeRequestFilter?: MergeRequestFilter }
   | { type: 'reconcileOperations'; pendingIds?: string[] }
